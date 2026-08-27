@@ -14,4 +14,10 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="7.3.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="db\**" />
+    <Content Remove="db\**" />
+    <None Include="db\**" />
+  </ItemGroup>
+
 </Project>

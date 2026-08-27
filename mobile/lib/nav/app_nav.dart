@@ -64,6 +64,7 @@ List<NavGroup> navForRole(String? role) {
         title: 'Overview',
         items: [
           NavItem(id: 'dashboard', label: 'Dashboard', icon: 'dashboard'),
+          NavItem(id: 'mss', label: 'MSS', icon: 'mss'),
           NavItem(id: 'approvals', label: 'Approvals', icon: 'approvals'),
           NavItem(id: 'reports', label: 'Reports', icon: 'reports'),
         ],
@@ -73,6 +74,13 @@ List<NavGroup> navForRole(String? role) {
         items: [
           NavItem(id: 'attendance', label: 'Attendance', icon: 'attendance'),
           NavItem(id: 'leave', label: 'Leave', icon: 'leave'),
+          NavItem(id: 'recruitment', label: 'Recruitment', icon: 'recruitment'),
+          NavItem(id: 'exit', label: 'Exit', icon: 'exit'),
+          NavItem(id: 'compliance', label: 'Compliance', icon: 'compliance'),
+          NavItem(id: 'performance', label: 'Performance', icon: 'performance'),
+          NavItem(id: 'training', label: 'Training', icon: 'training'),
+          NavItem(id: 'assets', label: 'Assets', icon: 'assets'),
+          NavItem(id: 'travel', label: 'Travel', icon: 'travel'),
         ],
       ),
       NavGroup(
@@ -92,6 +100,7 @@ List<NavGroup> navForRole(String? role) {
       title: 'Overview',
       items: [
         NavItem(id: 'dashboard', label: 'Dashboard', icon: 'dashboard'),
+        NavItem(id: 'mss', label: 'MSS', icon: 'mss'),
         NavItem(id: 'approvals', label: 'Approvals', icon: 'approvals'),
         NavItem(id: 'reports', label: 'Reports', icon: 'reports'),
       ],
@@ -100,6 +109,13 @@ List<NavGroup> navForRole(String? role) {
       title: 'Core HR',
       items: [
         NavItem(id: 'employees', label: 'Employees', icon: 'employees'),
+        NavItem(id: 'recruitment', label: 'Recruitment', icon: 'recruitment'),
+        NavItem(id: 'exit', label: 'Exit', icon: 'exit'),
+        NavItem(id: 'compliance', label: 'Compliance', icon: 'compliance'),
+        NavItem(id: 'performance', label: 'Performance', icon: 'performance'),
+        NavItem(id: 'training', label: 'Training', icon: 'training'),
+        NavItem(id: 'assets', label: 'Assets', icon: 'assets'),
+        NavItem(id: 'travel', label: 'Travel', icon: 'travel'),
         NavItem(id: 'attendance', label: 'Attendance', icon: 'attendance'),
         NavItem(id: 'leave', label: 'Leave', icon: 'leave'),
         NavItem(id: 'payroll', label: 'Payroll', icon: 'payroll'),

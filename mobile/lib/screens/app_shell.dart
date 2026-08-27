@@ -5,19 +5,27 @@ import '../nav/app_nav.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/ui_kit.dart';
+import 'assets_screen.dart';
 import 'approvals_screen.dart';
 import 'attendance_screen.dart';
+import 'compliance_screen.dart';
 import 'dashboard_screen.dart';
 import 'directory_screen.dart';
 import 'documents_screen.dart';
 import 'employees_screen.dart';
 import 'ess_screen.dart';
+import 'exit_screen.dart';
 import 'leave_screen.dart';
+import 'mss_screen.dart';
 import 'notifications_screen.dart';
 import 'payroll_screen.dart';
 import 'payslips_screen.dart';
+import 'performance_screen.dart';
 import 'profile_screen.dart';
+import 'recruitment_screen.dart';
 import 'reports_screen.dart';
+import 'training_screen.dart';
+import 'travel_screen.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -50,8 +58,24 @@ class _AppShellState extends State<AppShell> {
     switch (id) {
       case 'dashboard':
         return 'Workforce overview and key HR metrics';
+      case 'mss':
+        return 'Your team roster, leave and approvals';
       case 'employees':
         return 'Profiles, org info, ID / passport / visa';
+      case 'recruitment':
+        return 'Jobs, candidates, interviews & offers';
+      case 'exit':
+        return 'Clearance, settlement & offboarding';
+      case 'compliance':
+        return 'Visa, documents, labour law & audits';
+      case 'performance':
+        return 'Goals, KPIs and performance reviews';
+      case 'training':
+        return 'Courses, enrollments and certifications';
+      case 'assets':
+        return 'Inventory and assignments';
+      case 'travel':
+        return 'Trips and expense claims';
       case 'attendance':
         return r == 'employee' ? 'Your punches and late minutes' : 'Team attendance records';
       case 'leave':
@@ -83,8 +107,24 @@ class _AppShellState extends State<AppShell> {
     switch (id) {
       case 'dashboard':
         return const DashboardScreen();
+      case 'mss':
+        return const MssScreen();
       case 'employees':
         return const EmployeesScreen();
+      case 'recruitment':
+        return const RecruitmentScreen();
+      case 'exit':
+        return const ExitScreen();
+      case 'compliance':
+        return const ComplianceScreen();
+      case 'performance':
+        return const PerformanceScreen();
+      case 'training':
+        return const TrainingScreen();
+      case 'assets':
+        return const AssetsScreen();
+      case 'travel':
+        return const TravelScreen();
       case 'attendance':
         return const AttendanceScreen();
       case 'leave':

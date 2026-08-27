@@ -7,12 +7,28 @@ IconData navIcon(String key) {
   switch (key) {
     case 'dashboard':
       return Icons.dashboard_outlined;
+    case 'mss':
+      return Icons.supervisor_account_outlined;
     case 'approvals':
       return Icons.fact_check_outlined;
     case 'reports':
       return Icons.insights_outlined;
     case 'employees':
       return Icons.badge_outlined;
+    case 'recruitment':
+      return Icons.person_search_outlined;
+    case 'exit':
+      return Icons.logout_outlined;
+    case 'compliance':
+      return Icons.verified_user_outlined;
+    case 'performance':
+      return Icons.emoji_events_outlined;
+    case 'training':
+      return Icons.school_outlined;
+    case 'assets':
+      return Icons.devices_other_outlined;
+    case 'travel':
+      return Icons.flight_takeoff_outlined;
     case 'attendance':
       return Icons.schedule_outlined;
     case 'leave':
@@ -45,13 +61,13 @@ class StatusChip extends StatelessWidget {
     final s = status.toLowerCase();
     Color bg;
     Color fg;
-    if (['approved', 'done', 'present', 'ok', 'active', 'valid', 'paid', 'read'].contains(s)) {
+    if (['approved', 'done', 'present', 'ok', 'active', 'valid', 'paid', 'read', 'compliant', 'closed', 'completed', 'submitted', 'acknowledged', 'available', 'assigned'].contains(s)) {
       bg = AppColors.ok.withValues(alpha: 0.14);
       fg = AppColors.ok;
-    } else if (['pending', 'late', 'onboarding', 'new'].contains(s)) {
+    } else if (['pending', 'late', 'onboarding', 'new', 'due_soon', 'open', 'draft', 'in_progress'].contains(s)) {
       bg = AppColors.warn.withValues(alpha: 0.14);
       fg = AppColors.warn;
-    } else if (['rejected', 'leave', 'exited', 'danger'].contains(s)) {
+    } else if (['rejected', 'leave', 'exited', 'danger', 'overdue', 'cancelled', 'expired', 'revoked', 'archived', 'retired', 'lost'].contains(s)) {
       bg = AppColors.danger.withValues(alpha: 0.14);
       fg = AppColors.danger;
     } else {
