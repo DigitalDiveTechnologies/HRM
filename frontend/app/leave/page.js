@@ -12,6 +12,7 @@ export default function LeavePage() {
   const canApprove = role === 'admin' || role === 'manager';
 
   const [rows, setRows] = useState([]);
+  const [balances, setBalances] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -31,8 +32,9 @@ export default function LeavePage() {
   const load = useCallback(async () => {
     if (!user) return;
     try {
-      const [leave, emps] = await Promise.all([api('/leave'), api('/employees')]);
+      const [leave, bal, emps] = await Promise.all([api('/leave'), api('/leave/balances'), api('/employees')]);
       setRows(leave);
+      setBalances(bal || []);
       setEmployees(emps);
       if (normalizeRole(user) === 'employee' && user?.employeeId) {
         setForm((f) => ({ ...f, employeeId: String(user.employeeId) }));
@@ -82,6 +84,46 @@ export default function LeavePage() {
     <AppShell title="Leave Management" subtitle="Annual / sick / unpaid · approvals · balances">
       {error ? <div className="error">{error}</div> : null}
       <div className="stack">
+        <div className="card">
+          <div className="panel-title">
+            <h3>Leave balances</h3>
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Employee</th>
+                  <th>Type</th>
+                  <th>Entitlement</th>
+                  <th>Used</th>
+                  <th>Remaining</th>
+                </tr>
+              </thead>
+              <tbody>
+                {balances.map((b, i) => (
+                  <tr key={`${v(b, 'employeeId', 'employee_id')}-${v(b, 'leaveType', 'leave_type')}-${i}`}>
+                    <td>
+                      {v(b, 'fullName', 'full_name')}
+                      <div className="muted">{v(b, 'empCode', 'emp_code')}</div>
+                    </td>
+                    <td>{v(b, 'leaveType', 'leave_type')}</td>
+                    <td>{v(b, 'entitlementDays', 'entitlement_days')}</td>
+                    <td>{v(b, 'usedDays', 'used_days')}</td>
+                    <td>
+                      <strong>{v(b, 'remainingDays', 'remaining_days')}</strong>
+                    </td>
+                  </tr>
+                ))}
+                {!balances.length ? (
+                  <tr>
+                    <td colSpan={5}>No balance rows.</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <div className="card">
           <div className="panel-title">
             <h3>Apply leave</h3>

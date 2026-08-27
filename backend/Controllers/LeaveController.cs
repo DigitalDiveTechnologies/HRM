@@ -24,6 +24,14 @@ public sealed class LeaveController : ControllerBase
         return Ok(await _hr.LeaveAsync(only, ct));
     }
 
+    [HttpGet("balances")]
+    public async Task<IActionResult> Balances(CancellationToken ct)
+    {
+        int? only = CurrentUser.IsEmployee(User) ? CurrentUser.EmployeeId(User) : null;
+        if (CurrentUser.IsEmployee(User) && only is null) return Forbid();
+        return Ok(await _hr.LeaveBalancesAsync(only, ct));
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] LeaveCreateRequest body, CancellationToken ct)
     {

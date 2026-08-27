@@ -192,3 +192,14 @@ public sealed class ExpenseClaimCreateRequest
     public string? ExpenseDate { get; set; }
     public string? Notes { get; set; }
 }
+
+public sealed class DocumentCreateRequest
+{
+    public int EmployeeId { get; set; }
+    public string DocType { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string? FileRef { get; set; }
+    public string? IssueDate { get; set; }
+    public string? ExpiryDate { get; set; }
+    public string? Status { get; set; }
+}

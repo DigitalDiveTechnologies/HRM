@@ -152,6 +152,40 @@ public sealed class HrQueryService
             : await QueryConnAsync(sql, ct);
     }
 
+    public async Task<List<Dictionary<string, object?>>> LeaveBalancesAsync(int? onlyEmployeeId, CancellationToken ct)
+    {
+        var sql =
+            """
+            WITH entitlements AS (
+              SELECT * FROM (VALUES
+                ('Annual', 30::numeric),
+                ('Sick', 15::numeric),
+                ('Maternity', 45::numeric),
+                ('Unpaid', 0::numeric)
+              ) AS t(leave_type, entitlement_days)
+            )
+            SELECT e.id AS employee_id, e.full_name, e.emp_code,
+                   ent.leave_type, ent.entitlement_days,
+                   COALESCE(SUM(l.days) FILTER (WHERE l.status = 'approved'), 0)::numeric AS used_days,
+                   GREATEST(ent.entitlement_days - COALESCE(SUM(l.days) FILTER (WHERE l.status = 'approved'), 0), 0)::numeric AS remaining_days
+            FROM employees e
+            CROSS JOIN entitlements ent
+            LEFT JOIN leave_requests l
+              ON l.employee_id = e.id
+             AND lower(l.leave_type) = lower(ent.leave_type)
+            WHERE e.in_hr_ops = TRUE AND e.status != 'exited'
+            """;
+        if (onlyEmployeeId.HasValue) sql += " AND e.id = @eid";
+        sql += """
+             GROUP BY e.id, e.full_name, e.emp_code, ent.leave_type, ent.entitlement_days
+             ORDER BY e.emp_code, ent.leave_type
+            """;
+
+        return onlyEmployeeId.HasValue
+            ? await QueryConnAsync(sql, ct, ("eid", onlyEmployeeId.Value))
+            : await QueryConnAsync(sql, ct);
+    }
+
     public async Task<Dictionary<string, object?>> CreateLeaveAsync(
         int employeeId, string leaveType, string startDate, string endDate, decimal days, string? reason, CancellationToken ct)
     {
@@ -229,6 +263,27 @@ public sealed class HrQueryService
             ORDER BY d.expiry_date NULLS LAST, d.id DESC
             """, ct);
 
+    public async Task<Dictionary<string, object?>> CreateDocumentAsync(
+        int employeeId, string docType, string title, string? fileRef,
+        string? issueDate, string? expiryDate, string? status, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            INSERT INTO documents (employee_id, doc_type, title, file_ref, issue_date, expiry_date, status)
+            VALUES (@eid, @dtype, @title, @file, @issue::date, @expiry::date, @status)
+            RETURNING *
+            """, conn);
+        cmd.Parameters.AddWithValue("eid", employeeId);
+        cmd.Parameters.AddWithValue("dtype", docType);
+        cmd.Parameters.AddWithValue("title", title);
+        cmd.Parameters.AddWithValue("file", (object?)fileRef ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("issue", (object?)issueDate ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("expiry", (object?)expiryDate ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("status", string.IsNullOrWhiteSpace(status) ? "valid" : status);
+        return (await ReadOneAsync(cmd, ct))!;
+    }
+
     public Task<List<Dictionary<string, object?>>> ApprovalsAsync(CancellationToken ct) =>
         QueryConnAsync(
             """
@@ -255,19 +310,68 @@ public sealed class HrQueryService
             return null;
         }
 
-        if (string.Equals(Convert.ToString(item["request_type"]), "leave", StringComparison.OrdinalIgnoreCase)
-            && item["reference_id"] is not null and not DBNull)
+        var requestType = Convert.ToString(DictGet(item, "requestType", "request_type")) ?? "";
+        var refRaw = DictGet(item, "referenceId", "reference_id");
+        if (refRaw is not null and not DBNull)
         {
-            await using var leave = new NpgsqlCommand(
-                "UPDATE leave_requests SET status = @status WHERE id = @ref",
-                conn, (NpgsqlTransaction)tx);
-            leave.Parameters.AddWithValue("status", status);
-            leave.Parameters.AddWithValue("ref", Convert.ToInt32(item["reference_id"]));
-            await leave.ExecuteNonQueryAsync(ct);
+            var referenceId = Convert.ToInt32(refRaw);
+            if (string.Equals(requestType, "leave", StringComparison.OrdinalIgnoreCase))
+            {
+                await using var leave = new NpgsqlCommand(
+                    "UPDATE leave_requests SET status = @status WHERE id = @ref",
+                    conn, (NpgsqlTransaction)tx);
+                leave.Parameters.AddWithValue("status", status);
+                leave.Parameters.AddWithValue("ref", referenceId);
+                await leave.ExecuteNonQueryAsync(ct);
+            }
+            else if (string.Equals(requestType, "travel", StringComparison.OrdinalIgnoreCase))
+            {
+                await using var travel = new NpgsqlCommand(
+                    """
+                    UPDATE travel_requests SET status = @status
+                    WHERE id = @ref AND status = 'pending'
+                    """, conn, (NpgsqlTransaction)tx);
+                travel.Parameters.AddWithValue("status", status);
+                travel.Parameters.AddWithValue("ref", referenceId);
+                await travel.ExecuteNonQueryAsync(ct);
+            }
+            else if (string.Equals(requestType, "expense", StringComparison.OrdinalIgnoreCase))
+            {
+                var expenseStatus = string.Equals(status, "approved", StringComparison.OrdinalIgnoreCase) ? "approved"
+                    : string.Equals(status, "rejected", StringComparison.OrdinalIgnoreCase) ? "rejected"
+                    : status;
+                await using var expense = new NpgsqlCommand(
+                    """
+                    UPDATE expense_claims SET status = @status
+                    WHERE id = @ref AND status = 'pending'
+                    """, conn, (NpgsqlTransaction)tx);
+                expense.Parameters.AddWithValue("status", expenseStatus);
+                expense.Parameters.AddWithValue("ref", referenceId);
+                await expense.ExecuteNonQueryAsync(ct);
+            }
+            else if (string.Equals(requestType, "exit", StringComparison.OrdinalIgnoreCase)
+                     && string.Equals(status, "approved", StringComparison.OrdinalIgnoreCase))
+            {
+                await using var exit = new NpgsqlCommand(
+                    "UPDATE exit_cases SET status = 'in_progress' WHERE id = @ref AND status = 'open'",
+                    conn, (NpgsqlTransaction)tx);
+                exit.Parameters.AddWithValue("ref", referenceId);
+                await exit.ExecuteNonQueryAsync(ct);
+            }
         }
 
         await tx.CommitAsync(ct);
         return item;
+    }
+
+    private static object? DictGet(Dictionary<string, object?> row, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            if (row.TryGetValue(key, out var value) && value is not null and not DBNull)
+                return value;
+        }
+        return null;
     }
 
     public async Task<List<Dictionary<string, object?>>> NotificationsAsync(int? onlyEmployeeId, CancellationToken ct)
@@ -564,6 +668,26 @@ public sealed class HrQueryService
         await using var conn = await OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
 
+        // EOSB estimate (simple: 21 days basic / year of service)
+        string? eosbNote = settlementNotes;
+        await using (var empCmd = new NpgsqlCommand(
+                         "SELECT basic_salary, join_date, full_name FROM employees WHERE id = @eid",
+                         conn, (NpgsqlTransaction)tx))
+        {
+            empCmd.Parameters.AddWithValue("eid", employeeId);
+            await using var reader = await empCmd.ExecuteReaderAsync(ct);
+            if (await reader.ReadAsync(ct))
+            {
+                var basic = reader.IsDBNull(0) ? 0m : reader.GetDecimal(0);
+                DateTime? join = reader.IsDBNull(1) ? null : reader.GetDateTime(1);
+                var end = DateTime.TryParse(lastWorkingDate, out var lwd) ? lwd : DateTime.UtcNow.Date;
+                var years = join is null ? 0d : Math.Max(0, (end - join.Value).TotalDays / 365.25);
+                var eosb = Math.Round((basic / 30m) * 21m * (decimal)years, 2);
+                var auto = $"EOSB estimate: {eosb:0.##} ({years:0.0} yrs × 21 days/yr of basic).";
+                eosbNote = string.IsNullOrWhiteSpace(settlementNotes) ? auto : $"{settlementNotes.Trim()} | {auto}";
+            }
+        }
+
         await using var cmd = new NpgsqlCommand(
             """
             INSERT INTO exit_cases (employee_id, exit_type, reason, notice_date, last_working_date, settlement_notes, status)
@@ -575,7 +699,7 @@ public sealed class HrQueryService
         cmd.Parameters.AddWithValue("reason", (object?)reason ?? DBNull.Value);
         cmd.Parameters.AddWithValue("notice", (object?)noticeDate ?? DBNull.Value);
         cmd.Parameters.AddWithValue("lwd", (object?)lastWorkingDate ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("notes", (object?)settlementNotes ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("notes", (object?)eosbNote ?? DBNull.Value);
         var created = (await ReadOneAsync(cmd, ct))!;
         var caseId = Convert.ToInt32(created["id"]);
 
@@ -1164,13 +1288,15 @@ public sealed class HrQueryService
         decimal estimatedCost, string? currency, CancellationToken ct)
     {
         await using var conn = await OpenAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
+
         await using var cmd = new NpgsqlCommand(
             """
             INSERT INTO travel_requests
               (employee_id, destination, purpose, start_date, end_date, estimated_cost, currency, status)
             VALUES (@eid, @dest, @purpose, @start::date, @end::date, @cost, @currency, 'pending')
             RETURNING *
-            """, conn);
+            """, conn, (NpgsqlTransaction)tx);
         cmd.Parameters.AddWithValue("eid", employeeId);
         cmd.Parameters.AddWithValue("dest", destination);
         cmd.Parameters.AddWithValue("purpose", (object?)purpose ?? DBNull.Value);
@@ -1178,13 +1304,27 @@ public sealed class HrQueryService
         cmd.Parameters.AddWithValue("end", endDate);
         cmd.Parameters.AddWithValue("cost", estimatedCost);
         cmd.Parameters.AddWithValue("currency", string.IsNullOrWhiteSpace(currency) ? "PKR" : currency);
-        return (await ReadOneAsync(cmd, ct))!;
+        var row = (await ReadOneAsync(cmd, ct))!;
+        var travelId = Convert.ToInt32(row["id"]);
+
+        await using var approval = new NpgsqlCommand(
+            """
+            INSERT INTO approvals (request_type, reference_id, employee_id, title, level_no, approver_role, status)
+            VALUES ('travel', @ref, @eid, @title, 1, 'manager', 'pending')
+            """, conn, (NpgsqlTransaction)tx);
+        approval.Parameters.AddWithValue("ref", travelId);
+        approval.Parameters.AddWithValue("eid", employeeId);
+        approval.Parameters.AddWithValue("title", $"Travel to {destination}");
+        await approval.ExecuteNonQueryAsync(ct);
+
+        await tx.CommitAsync(ct);
+        return row;
     }
 
     public async Task<Dictionary<string, object?>?> UpdateTravelStatusAsync(int id, string status, CancellationToken ct)
     {
         await using var conn = await OpenAsync(ct);
-        // Approve / reject only from pending — prevents wrong-row or double actions flipping other statuses
+        await using var tx = await conn.BeginTransactionAsync(ct);
         await using var cmd = new NpgsqlCommand(
             """
             UPDATE travel_requests
@@ -1195,10 +1335,25 @@ public sealed class HrQueryService
                 OR (@status = 'pending')
               )
             RETURNING *
-            """, conn);
+            """, conn, (NpgsqlTransaction)tx);
         cmd.Parameters.AddWithValue("status", status);
         cmd.Parameters.AddWithValue("id", id);
-        return await ReadOneAsync(cmd, ct);
+        var row = await ReadOneAsync(cmd, ct);
+        if (row is null)
+        {
+            await tx.RollbackAsync(ct);
+            return null;
+        }
+
+        await using var appr = new NpgsqlCommand(
+            "UPDATE approvals SET status = @status WHERE request_type = 'travel' AND reference_id = @id",
+            conn, (NpgsqlTransaction)tx);
+        appr.Parameters.AddWithValue("status", status);
+        appr.Parameters.AddWithValue("id", id);
+        await appr.ExecuteNonQueryAsync(ct);
+
+        await tx.CommitAsync(ct);
+        return row;
     }
 
     public Task<List<Dictionary<string, object?>>> ExpenseClaimsAsync(CancellationToken ct) =>
@@ -1215,13 +1370,15 @@ public sealed class HrQueryService
         string? expenseDate, string? notes, CancellationToken ct)
     {
         await using var conn = await OpenAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
+
         await using var cmd = new NpgsqlCommand(
             """
             INSERT INTO expense_claims
               (employee_id, title, category, amount, currency, expense_date, notes, status)
             VALUES (@eid, @title, @cat, @amount, @currency, COALESCE(@edate::date, CURRENT_DATE), @notes, 'pending')
             RETURNING *
-            """, conn);
+            """, conn, (NpgsqlTransaction)tx);
         cmd.Parameters.AddWithValue("eid", employeeId);
         cmd.Parameters.AddWithValue("title", title);
         cmd.Parameters.AddWithValue("cat", string.IsNullOrWhiteSpace(category) ? "general" : category);
@@ -1229,12 +1386,27 @@ public sealed class HrQueryService
         cmd.Parameters.AddWithValue("currency", string.IsNullOrWhiteSpace(currency) ? "PKR" : currency);
         cmd.Parameters.AddWithValue("edate", (object?)expenseDate ?? DBNull.Value);
         cmd.Parameters.AddWithValue("notes", (object?)notes ?? DBNull.Value);
-        return (await ReadOneAsync(cmd, ct))!;
+        var row = (await ReadOneAsync(cmd, ct))!;
+        var expenseId = Convert.ToInt32(row["id"]);
+
+        await using var approval = new NpgsqlCommand(
+            """
+            INSERT INTO approvals (request_type, reference_id, employee_id, title, level_no, approver_role, status)
+            VALUES ('expense', @ref, @eid, @title, 1, 'manager', 'pending')
+            """, conn, (NpgsqlTransaction)tx);
+        approval.Parameters.AddWithValue("ref", expenseId);
+        approval.Parameters.AddWithValue("eid", employeeId);
+        approval.Parameters.AddWithValue("title", $"Expense: {title}");
+        await approval.ExecuteNonQueryAsync(ct);
+
+        await tx.CommitAsync(ct);
+        return row;
     }
 
     public async Task<Dictionary<string, object?>?> UpdateExpenseStatusAsync(int id, string status, CancellationToken ct)
     {
         await using var conn = await OpenAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
         await using var cmd = new NpgsqlCommand(
             """
             UPDATE expense_claims
@@ -1245,10 +1417,26 @@ public sealed class HrQueryService
                 OR (@status = 'paid' AND status IN ('pending', 'approved'))
               )
             RETURNING *
-            """, conn);
+            """, conn, (NpgsqlTransaction)tx);
         cmd.Parameters.AddWithValue("status", status);
         cmd.Parameters.AddWithValue("id", id);
-        return await ReadOneAsync(cmd, ct);
+        var row = await ReadOneAsync(cmd, ct);
+        if (row is null)
+        {
+            await tx.RollbackAsync(ct);
+            return null;
+        }
+
+        var approvalStatus = string.Equals(status, "paid", StringComparison.OrdinalIgnoreCase) ? "approved" : status;
+        await using var appr = new NpgsqlCommand(
+            "UPDATE approvals SET status = @status WHERE request_type = 'expense' AND reference_id = @id",
+            conn, (NpgsqlTransaction)tx);
+        appr.Parameters.AddWithValue("status", approvalStatus);
+        appr.Parameters.AddWithValue("id", id);
+        await appr.ExecuteNonQueryAsync(ct);
+
+        await tx.CommitAsync(ct);
+        return row;
     }
 
     private async Task<NpgsqlConnection> OpenAsync(CancellationToken ct)

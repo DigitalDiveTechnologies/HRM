@@ -29,7 +29,7 @@ export default function ApprovalsPage() {
   }
 
   return (
-    <AppShell title="Approval Workflow" subtitle="Leave, document and onboarding approvals">
+    <AppShell title="Approval Workflow" subtitle="Leave, travel, expense and exit approvals">
       {error ? <div className="error">{error}</div> : null}
       <div className="card">
         <div className="table-wrap">
