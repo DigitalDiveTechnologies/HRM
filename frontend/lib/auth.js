@@ -63,3 +63,25 @@ export async function api(path, options = {}) {
   }
   return data;
 }
+
+/** Multipart upload — do not set Content-Type (browser sets boundary). */
+export async function apiUpload(path, formData) {
+  const token = getToken();
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}/api${path}`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data.error || data.title || `Upload failed (${res.status})`;
+    throw new Error(msg);
+  }
+  return data;
+}
+
+export { API_BASE };

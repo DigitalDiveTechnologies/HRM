@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, getUser, normalizeRole } from '../../lib/auth';
+import { api, apiUpload, getUser, normalizeRole } from '../../lib/auth';
 import { downloadDocumentFile, formatDate, todayISO, v } from '../../lib/format';
 
 export default function DocumentsPage() {
@@ -13,11 +13,12 @@ export default function DocumentsPage() {
   const [employees, setEmployees] = useState([]);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [file, setFile] = useState(null);
   const [form, setForm] = useState({
     employeeId: '',
     docType: 'passport',
     title: '',
-    fileRef: '',
     issueDate: todayISO(),
     expiryDate: '',
   });
@@ -40,28 +41,37 @@ export default function DocumentsPage() {
     e.preventDefault();
     setMsg('');
     setError('');
+    if (!file) {
+      setError('Please choose a file to upload.');
+      return;
+    }
+    setBusy(true);
     try {
-      await api('/documents', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...form,
-          employeeId: Number(form.employeeId),
-          expiryDate: form.expiryDate || null,
-          fileRef: form.fileRef || null,
-        }),
-      });
-      setMsg('Document recorded.');
+      const fd = new FormData();
+      fd.append('employeeId', String(Number(form.employeeId)));
+      fd.append('docType', form.docType);
+      fd.append('title', form.title);
+      if (form.issueDate) fd.append('issueDate', form.issueDate);
+      if (form.expiryDate) fd.append('expiryDate', form.expiryDate);
+      fd.append('file', file);
+
+      await apiUpload('/documents/upload', fd);
+      setMsg('Document uploaded.');
+      setFile(null);
       setForm({
         employeeId: '',
         docType: 'passport',
         title: '',
-        fileRef: '',
         issueDate: todayISO(),
         expiryDate: '',
       });
+      const input = document.getElementById('doc-file-input');
+      if (input) input.value = '';
       load();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -73,7 +83,7 @@ export default function DocumentsPage() {
       {isAdmin ? (
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="panel-title">
-            <h3>Add document</h3>
+            <h3>Upload document</h3>
           </div>
           <form className="stack" onSubmit={onCreate}>
             <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
@@ -103,8 +113,14 @@ export default function DocumentsPage() {
                 <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
               </label>
               <label className="field">
-                File ref
-                <input placeholder="optional path / URL" value={form.fileRef} onChange={(e) => setForm({ ...form, fileRef: e.target.value })} />
+                File upload
+                <input
+                  id="doc-file-input"
+                  type="file"
+                  required
+                  accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx,.txt"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                />
               </label>
               <label className="field">
                 Issue date
@@ -115,8 +131,9 @@ export default function DocumentsPage() {
                 <input type="date" value={form.expiryDate} onChange={(e) => setForm({ ...form, expiryDate: e.target.value })} />
               </label>
             </div>
-            <button className="btn" type="submit">
-              Save document
+            {file ? <div className="muted">Selected: {file.name} ({Math.round(file.size / 1024)} KB)</div> : null}
+            <button className="btn" type="submit" disabled={busy}>
+              {busy ? 'Uploading…' : 'Upload document'}
             </button>
           </form>
         </div>

@@ -10,6 +10,10 @@ using Microsoft.OpenApi.Models;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 20_000_000;
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -21,7 +25,7 @@ builder.Services.AddSwaggerGen(options =>
             """
             Backend for Digital Dive HR Portal (.NET 10 + JWT + Neon PostgreSQL).
 
-            **How to test (for demo):**
+            **How to test:**
             1. Open `POST /api/auth/login`
             2. Try it out with `admin@digitaldive.demo` / `demo123`
             3. Copy `token` from response
@@ -169,6 +173,8 @@ app.UseSwaggerUI(options =>
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
+
+Directory.CreateDirectory(Path.Combine(app.Environment.ContentRootPath, "wwwroot", "uploads", "documents"));
 
 app.UseCors("PortalClients");
 app.UseAuthentication();

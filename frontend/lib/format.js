@@ -135,7 +135,41 @@ export function todayISO() {
   return `${d.getFullYear()}-${m}-${day}`;
 }
 
-export function downloadDocumentFile(doc) {
+export async function downloadDocumentFile(doc) {
+  const id = v(doc, 'id');
+  const fileRef = String(v(doc, 'fileRef', 'file_ref') || '');
+  const { API_BASE, getToken } = await import('./auth.js');
+
+  if (id && fileRef && !/^https?:\/\//i.test(fileRef)) {
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE}/api/documents/${id}/file`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const cd = res.headers.get('content-disposition') || '';
+        const match = /filename\*?=(?:UTF-8'')?["']?([^"';]+)/i.exec(cd);
+        a.download = match ? decodeURIComponent(match[1]) : fileRef.split('/').pop() || 'document';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        return;
+      }
+    } catch {
+      /* fall through to metadata stub */
+    }
+  }
+
+  if (/^https?:\/\//i.test(fileRef)) {
+    window.open(fileRef, '_blank', 'noopener,noreferrer');
+    return;
+  }
+
   const lines = [
     'Digital Dive Technologies — HR Document',
     '=====================================',
@@ -146,7 +180,7 @@ export function downloadDocumentFile(doc) {
     `Issue date: ${formatDate(v(doc, 'issueDate', 'issue_date'))}`,
     `Expiry date: ${formatDate(v(doc, 'expiryDate', 'expiry_date'))}`,
     `Status: ${v(doc, 'status') || '-'}`,
-    `File ref: ${v(doc, 'fileRef', 'file_ref') || '-'}`,
+    `File ref: ${fileRef || '-'}`,
     '',
     'Generated from Digital Dive HR Portal.',
   ];
@@ -154,7 +188,7 @@ export function downloadDocumentFile(doc) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = String(v(doc, 'fileRef', 'file_ref') || 'document').replace(/[^\w.\-]+/g, '_') + '.txt';
+  a.download = String(fileRef || 'document').replace(/[^\w.\-]+/g, '_') + '.txt';
   document.body.appendChild(a);
   a.click();
   a.remove();

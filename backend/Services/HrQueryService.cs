@@ -263,6 +263,18 @@ public sealed class HrQueryService
             ORDER BY d.expiry_date NULLS LAST, d.id DESC
             """, ct);
 
+    public async Task<Dictionary<string, object?>?> DocumentByIdAsync(int id, CancellationToken ct)
+    {
+        var rows = await QueryConnAsync(
+            """
+            SELECT d.*, e.full_name, e.emp_code
+            FROM documents d
+            JOIN employees e ON e.id = d.employee_id
+            WHERE d.id = @id
+            """, ct, ("id", id));
+        return rows.FirstOrDefault();
+    }
+
     public async Task<Dictionary<string, object?>> CreateDocumentAsync(
         int employeeId, string docType, string title, string? fileRef,
         string? issueDate, string? expiryDate, string? status, CancellationToken ct)
