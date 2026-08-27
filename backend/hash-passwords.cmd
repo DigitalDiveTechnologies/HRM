@@ -9,5 +9,5 @@ if errorlevel 1 (
 )
 echo.
 echo Done. Passwords that were plain text are now BCrypt hashes.
-echo Login still uses the same demo password: demo123
+echo Login still uses the seed password: demo123
 pause

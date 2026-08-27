@@ -27,7 +27,7 @@ public static class PasswordHasher
             }
         }
 
-        // Legacy demo plaintext — migrate away via HashAll / login upgrade.
+        // Legacy plaintext — migrate away via HashAll / login upgrade.
         return string.Equals(stored, provided, StringComparison.Ordinal);
     }
 }

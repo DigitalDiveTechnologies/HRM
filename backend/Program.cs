@@ -25,9 +25,9 @@ builder.Services.AddSwaggerGen(options =>
             """
             Backend for Digital Dive HR Portal (.NET 10 + JWT + Neon PostgreSQL).
 
-            **How to test:**
+            **How to authenticate:**
             1. Open `POST /api/auth/login`
-            2. Try it out with `admin@digitaldive.demo` / `demo123`
+            2. Use a seed account (e.g. `admin@digitaldive.demo` / `demo123`) — see repo `Seed-Logins.txt`
             3. Copy `token` from response
             4. Click **Authorize**, paste token, Authorize
             5. Call any protected module API
