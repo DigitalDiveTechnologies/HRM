@@ -1,0 +1,23 @@
+/* Digital Dive HR — Swagger UI theme */
+html body {
+  background: #f4f6f8 !important;
+}
+.swagger-ui .topbar {
+  background: #10233f !important;
+  border-bottom: 3px solid #0b6e6e;
+}
+.swagger-ui .topbar .download-url-wrapper { display: none; }
+.swagger-ui .info .title {
+  color: #142033;
+}
+.swagger-ui .btn.authorize {
+  background: #0b6e6e !important;
+  border-color: #0b6e6e !important;
+  color: #fff !important;
+}
+.swagger-ui .btn.authorize svg { fill: #fff !important; }
+.swagger-ui .opblock.opblock-post { border-color: #0b6e6e; }
+.swagger-ui .opblock.opblock-post .opblock-summary-method { background: #0b6e6e; }
+.swagger-ui .opblock.opblock-get .opblock-summary-method { background: #10233f; }
+.swagger-ui .opblock.opblock-patch .opblock-summary-method { background: #c4a35a; }
+.swagger-ui section.models { display: none; }

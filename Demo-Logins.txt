@@ -1,0 +1,5 @@
+Demo users:
+admin@digitaldive.demo / demo123 (HR Admin — Sara)
+boss@digitaldive.demo / demo123 (Boss Admin — Muhammad Faisal)
+omar@digitaldive.demo / demo123 (Manager)
+fatima@digitaldive.demo / demo123 (Employee)

@@ -1,0 +1,21 @@
+@DigitalDive.Hr.Api_http = http://localhost:5088
+
+### Health
+GET {{DigitalDive.Hr.Api_http}}/api/health
+
+### Login
+POST {{DigitalDive.Hr.Api_http}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@digitaldive.demo",
+  "password": "demo123"
+}
+
+### Me (needs Bearer token)
+GET {{DigitalDive.Hr.Api_http}}/api/auth/me
+Authorization: Bearer {{token}}
+
+### Employees admin only
+GET {{DigitalDive.Hr.Api_http}}/api/employees
+Authorization: Bearer {{token}}
