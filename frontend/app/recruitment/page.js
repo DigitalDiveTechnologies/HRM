@@ -30,6 +30,20 @@ export default function RecruitmentPage() {
     phone: '',
     source: 'Careers page',
     stage: 'applied',
+    resumeRef: '',
+  });
+  const [interviewForm, setInterviewForm] = useState({
+    candidateId: '',
+    scheduledAt: '',
+    interviewer: '',
+    mode: 'Online',
+  });
+  const [offerForm, setOfferForm] = useState({
+    candidateId: '',
+    salary: '',
+    currency: 'AED',
+    joinDate: '',
+    letterRef: '',
   });
 
   const load = useCallback(() => {
@@ -80,7 +94,7 @@ export default function RecruitmentPage() {
         }),
       });
       setMsg('Candidate added.');
-      setCandForm({ jobId: '', fullName: '', email: '', phone: '', source: 'Careers page', stage: 'applied' });
+      setCandForm({ jobId: '', fullName: '', email: '', phone: '', source: 'Careers page', stage: 'applied', resumeRef: '' });
       load();
     } catch (err) {
       setError(err.message);
@@ -105,6 +119,62 @@ export default function RecruitmentPage() {
         method: 'PATCH',
         body: JSON.stringify({ status }),
       });
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function createOffer(e) {
+    e.preventDefault();
+    setMsg('');
+    setError('');
+    try {
+      await api('/recruitment/offers', {
+        method: 'POST',
+        body: JSON.stringify({
+          candidateId: Number(offerForm.candidateId),
+          salary: Number(offerForm.salary) || 0,
+          currency: offerForm.currency,
+          joinDate: offerForm.joinDate,
+          status: 'pending',
+          letterRef: offerForm.letterRef || null,
+        }),
+      });
+      setMsg('Offer created.');
+      setOfferForm({ candidateId: '', salary: '', currency: 'AED', joinDate: '', letterRef: '' });
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function createInterview(e) {
+    e.preventDefault();
+    setMsg('');
+    setError('');
+    try {
+      await api('/recruitment/interviews', {
+        method: 'POST',
+        body: JSON.stringify({
+          candidateId: Number(interviewForm.candidateId),
+          scheduledAt: interviewForm.scheduledAt ? new Date(interviewForm.scheduledAt).toISOString() : '',
+          interviewer: interviewForm.interviewer,
+          mode: interviewForm.mode,
+        }),
+      });
+      setMsg('Interview scheduled.');
+      setInterviewForm({ candidateId: '', scheduledAt: '', interviewer: '', mode: 'Online' });
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function screenCandidate(id) {
+    try {
+      const res = await api(`/recruitment/candidates/${id}/screen`, { method: 'POST', body: '{}' });
+      setMsg(`Screen score ${res.score}: ${res.recommendation} (${(res.hits || []).join(', ') || 'no keyword hits'})`);
       load();
     } catch (err) {
       setError(err.message);
@@ -242,6 +312,14 @@ export default function RecruitmentPage() {
               Source
               <input value={candForm.source} onChange={(e) => setCandForm({ ...candForm, source: e.target.value })} />
             </label>
+            <label className="field">
+              Resume ref / keywords
+              <input
+                placeholder="e.g. resume.pdf · flutter · sql"
+                value={candForm.resumeRef}
+                onChange={(e) => setCandForm({ ...candForm, resumeRef: e.target.value })}
+              />
+            </label>
           </div>
           <button className="btn" type="submit">
             Add candidate
@@ -261,6 +339,7 @@ export default function RecruitmentPage() {
                 <th>Job</th>
                 <th>Source</th>
                 <th>Stage</th>
+                <th>Resume</th>
                 <th>Move to</th>
               </tr>
             </thead>
@@ -275,6 +354,12 @@ export default function RecruitmentPage() {
                   <td>{v(c, 'source') || '-'}</td>
                   <td>
                     <Badge status={v(c, 'stage')} />
+                  </td>
+                  <td>
+                    <div className="muted">{v(c, 'resumeRef', 'resume_ref') || '-'}</div>
+                    <button type="button" className="btn secondary" onClick={() => screenCandidate(v(c, 'id'))}>
+                      Auto-screen
+                    </button>
                   </td>
                   <td>
                     <select
@@ -302,6 +387,83 @@ export default function RecruitmentPage() {
               ) : null}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <div className="grid" style={{ marginBottom: 14 }}>
+        <div className="card">
+          <div className="panel-title">
+            <h3>Schedule interview</h3>
+          </div>
+          <form className="stack" onSubmit={createInterview}>
+            <label className="field">
+              Candidate
+              <select required value={interviewForm.candidateId} onChange={(e) => setInterviewForm({ ...interviewForm, candidateId: e.target.value })}>
+                <option value="">Select…</option>
+                {candidates.map((c) => (
+                  <option key={v(c, 'id')} value={v(c, 'id')}>
+                    {v(c, 'fullName', 'full_name')}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              When (ISO)
+              <input required type="datetime-local" value={interviewForm.scheduledAt} onChange={(e) => setInterviewForm({ ...interviewForm, scheduledAt: e.target.value })} />
+            </label>
+            <label className="field">
+              Interviewer
+              <input value={interviewForm.interviewer} onChange={(e) => setInterviewForm({ ...interviewForm, interviewer: e.target.value })} />
+            </label>
+            <label className="field">
+              Mode
+              <select value={interviewForm.mode} onChange={(e) => setInterviewForm({ ...interviewForm, mode: e.target.value })}>
+                <option value="Online">Online</option>
+                <option value="Onsite">Onsite</option>
+              </select>
+            </label>
+            <button className="btn" type="submit">
+              Schedule
+            </button>
+          </form>
+        </div>
+
+        <div className="card">
+          <div className="panel-title">
+            <h3>Create offer</h3>
+          </div>
+          <form className="stack" onSubmit={createOffer}>
+            <label className="field">
+              Candidate
+              <select required value={offerForm.candidateId} onChange={(e) => setOfferForm({ ...offerForm, candidateId: e.target.value })}>
+                <option value="">Select…</option>
+                {candidates.map((c) => (
+                  <option key={v(c, 'id')} value={v(c, 'id')}>
+                    {v(c, 'fullName', 'full_name')}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              Salary
+              <input required type="number" value={offerForm.salary} onChange={(e) => setOfferForm({ ...offerForm, salary: e.target.value })} />
+            </label>
+            <label className="field">
+              Currency
+              <input value={offerForm.currency} onChange={(e) => setOfferForm({ ...offerForm, currency: e.target.value })} />
+            </label>
+            <label className="field">
+              Join date
+              <input type="date" value={offerForm.joinDate} onChange={(e) => setOfferForm({ ...offerForm, joinDate: e.target.value })} />
+            </label>
+            <label className="field">
+              Letter ref
+              <input value={offerForm.letterRef} onChange={(e) => setOfferForm({ ...offerForm, letterRef: e.target.value })} />
+            </label>
+            <button className="btn" type="submit" disabled={!isAdmin}>
+              Create offer
+            </button>
+          </form>
         </div>
       </div>
 

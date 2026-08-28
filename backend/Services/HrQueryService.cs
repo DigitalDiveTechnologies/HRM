@@ -72,6 +72,158 @@ public sealed class HrQueryService
         return rows.FirstOrDefault();
     }
 
+    public Task<List<Dictionary<string, object?>>> DepartmentsAsync(CancellationToken ct) =>
+        QueryConnAsync("SELECT id, name FROM departments ORDER BY name", ct);
+
+    public async Task<(Dictionary<string, object?>? Employee, string? Error)> CreateEmployeeWithLoginAsync(
+        string fullName,
+        string email,
+        string password,
+        string jobTitle,
+        string? phone,
+        int? departmentId,
+        int? managerId,
+        string? joinDate,
+        string status,
+        CancellationToken ct)
+    {
+        fullName = fullName.Trim();
+        email = email.Trim().ToLowerInvariant();
+        jobTitle = jobTitle.Trim();
+        status = string.IsNullOrWhiteSpace(status) ? "active" : status.Trim().ToLowerInvariant();
+        phone = string.IsNullOrWhiteSpace(phone) ? null : phone.Trim();
+
+        if (string.IsNullOrWhiteSpace(fullName) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(jobTitle))
+        {
+            return (null, "Full name, email, and job title are required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(password) || password.Length < 6)
+        {
+            return (null, "App login password must be at least 6 characters.");
+        }
+
+        if (status is not ("active" or "onboarding"))
+        {
+            return (null, "Status must be active or onboarding.");
+        }
+
+        await using var conn = await OpenAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
+
+        await using (var dup = new NpgsqlCommand(
+                         """
+                         SELECT
+                           EXISTS(SELECT 1 FROM employees WHERE LOWER(email) = @email) AS emp_exists,
+                           EXISTS(SELECT 1 FROM users WHERE LOWER(email) = @email) AS user_exists
+                         """, conn, tx))
+        {
+            dup.Parameters.AddWithValue("email", email);
+            await using var reader = await dup.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct))
+            {
+                return (null, "Could not validate email.");
+            }
+
+            if (reader.GetBoolean(0) || reader.GetBoolean(1))
+            {
+                return (null, "An employee or login with this email already exists.");
+            }
+        }
+
+        if (managerId.HasValue)
+        {
+            var mgrOk = await ScalarIntTxAsync(conn, tx,
+                "SELECT COUNT(*)::int FROM employees WHERE id = @id AND in_hr_ops = TRUE", ct,
+                ("id", managerId.Value));
+            if (mgrOk == 0)
+            {
+                return (null, "Selected manager was not found.");
+            }
+        }
+
+        if (departmentId.HasValue)
+        {
+            var deptOk = await ScalarIntTxAsync(conn, tx,
+                "SELECT COUNT(*)::int FROM departments WHERE id = @id", ct,
+                ("id", departmentId.Value));
+            if (deptOk == 0)
+            {
+                return (null, "Selected department was not found.");
+            }
+        }
+
+        var nextNum = await ScalarIntTxAsync(conn, tx,
+            """
+            SELECT COALESCE(MAX(
+              CASE WHEN emp_code ~ '^DD-[0-9]+$'
+              THEN CAST(SUBSTRING(emp_code FROM 4) AS INTEGER)
+              END), 1000) + 1
+            FROM employees
+            """, ct);
+        var empCode = $"DD-{nextNum}";
+
+        DateTime join;
+        if (string.IsNullOrWhiteSpace(joinDate))
+        {
+            join = DateTime.UtcNow.Date;
+        }
+        else if (!DateOnly.TryParse(joinDate, out var parsedJoin))
+        {
+            return (null, "Join date is invalid.");
+        }
+        else
+        {
+            join = parsedJoin.ToDateTime(TimeOnly.MinValue);
+        }
+
+        var hash = PasswordHasher.Hash(password);
+
+        int employeeId;
+        await using (var insertEmp = new NpgsqlCommand(
+                         """
+                         INSERT INTO employees (
+                           emp_code, full_name, email, phone, department_id, job_title,
+                           join_date, status, manager_id, in_hr_ops, basic_salary, allowances
+                         )
+                         VALUES (
+                           @code, @name, @email, @phone, @dept, @title,
+                           @join, @status, @mgr, TRUE, 0, 0
+                         )
+                         RETURNING id
+                         """, conn, tx))
+        {
+            insertEmp.Parameters.AddWithValue("code", empCode);
+            insertEmp.Parameters.AddWithValue("name", fullName);
+            insertEmp.Parameters.AddWithValue("email", email);
+            insertEmp.Parameters.AddWithValue("phone", (object?)phone ?? DBNull.Value);
+            insertEmp.Parameters.AddWithValue("dept", (object?)departmentId ?? DBNull.Value);
+            insertEmp.Parameters.AddWithValue("title", jobTitle);
+            insertEmp.Parameters.AddWithValue("join", join);
+            insertEmp.Parameters.AddWithValue("status", status);
+            insertEmp.Parameters.AddWithValue("mgr", (object?)managerId ?? DBNull.Value);
+            var idObj = await insertEmp.ExecuteScalarAsync(ct);
+            employeeId = Convert.ToInt32(idObj);
+        }
+
+        await using (var insertUser = new NpgsqlCommand(
+                         """
+                         INSERT INTO users (email, password, role, employee_id)
+                         VALUES (@email, @hash, 'employee', @eid)
+                         """, conn, tx))
+        {
+            insertUser.Parameters.AddWithValue("email", email);
+            insertUser.Parameters.AddWithValue("hash", hash);
+            insertUser.Parameters.AddWithValue("eid", employeeId);
+            await insertUser.ExecuteNonQueryAsync(ct);
+        }
+
+        await tx.CommitAsync(ct);
+
+        var created = await EmployeeByIdAsync(employeeId, ct);
+        return (created, null);
+    }
+
     public Task<List<Dictionary<string, object?>>> OnboardingAsync(CancellationToken ct) =>
         QueryConnAsync(
             """
@@ -115,14 +267,15 @@ public sealed class HrQueryService
     }
 
     public async Task<Dictionary<string, object?>> CreateAttendanceAsync(
-        int employeeId, string workDate, string? checkIn, string? checkOut, string? status, decimal overtime, CancellationToken ct)
+        int employeeId, string workDate, string? checkIn, string? checkOut, string? status,
+        decimal overtime, string? shiftName, CancellationToken ct)
     {
         var resolved = AttendanceLate.Resolve(checkIn, status);
         await using var conn = await OpenAsync(ct);
         await using var cmd = new NpgsqlCommand(
             """
-            INSERT INTO attendance (employee_id, work_date, check_in, check_out, status, late_minutes, overtime_hours)
-            VALUES (@eid, @wd::date, @cin::time, @cout::time, @status, @late, @ot)
+            INSERT INTO attendance (employee_id, work_date, check_in, check_out, status, late_minutes, overtime_hours, shift_name)
+            VALUES (@eid, @wd::date, @cin::time, @cout::time, @status, @late, @ot, @shift)
             RETURNING *
             """, conn);
         cmd.Parameters.AddWithValue("eid", employeeId);
@@ -132,6 +285,7 @@ public sealed class HrQueryService
         cmd.Parameters.AddWithValue("status", resolved.Status);
         cmd.Parameters.AddWithValue("late", resolved.LateMinutes);
         cmd.Parameters.AddWithValue("ot", overtime);
+        cmd.Parameters.AddWithValue("shift", string.IsNullOrWhiteSpace(shiftName) ? "General" : shiftName.Trim());
         return (await ReadOneAsync(cmd, ct))!;
     }
 
@@ -173,9 +327,17 @@ public sealed class HrQueryService
             LEFT JOIN leave_requests l
               ON l.employee_id = e.id
              AND lower(l.leave_type) = lower(ent.leave_type)
-            WHERE e.in_hr_ops = TRUE AND e.status != 'exited'
+            WHERE e.in_hr_ops = TRUE
             """;
-        if (onlyEmployeeId.HasValue) sql += " AND e.id = @eid";
+        if (onlyEmployeeId.HasValue)
+        {
+            // Self-service: show balances even if HR marked exited mid-offboarding.
+            sql += " AND e.id = @eid";
+        }
+        else
+        {
+            sql += " AND e.status != 'exited'";
+        }
         sql += """
              GROUP BY e.id, e.full_name, e.emp_code, ent.leave_type, ent.entitlement_days
              ORDER BY e.emp_code, ent.leave_type
@@ -263,6 +425,16 @@ public sealed class HrQueryService
             ORDER BY d.expiry_date NULLS LAST, d.id DESC
             """, ct);
 
+    public Task<List<Dictionary<string, object?>>> DocumentsForEmployeeAsync(int employeeId, CancellationToken ct) =>
+        QueryConnAsync(
+            """
+            SELECT d.*, e.full_name, e.emp_code
+            FROM documents d
+            JOIN employees e ON e.id = d.employee_id
+            WHERE d.employee_id = @eid
+            ORDER BY d.expiry_date NULLS LAST, d.id DESC
+            """, ct, ("eid", employeeId));
+
     public async Task<Dictionary<string, object?>?> DocumentByIdAsync(int id, CancellationToken ct)
     {
         var rows = await QueryConnAsync(
@@ -324,6 +496,48 @@ public sealed class HrQueryService
 
         var requestType = Convert.ToString(DictGet(item, "requestType", "request_type")) ?? "";
         var refRaw = DictGet(item, "referenceId", "reference_id");
+        var levelRaw = DictGet(item, "levelNo", "level_no");
+        var levelNo = levelRaw is null or DBNull ? 1 : Convert.ToInt32(levelRaw);
+        var employeeIdRaw = DictGet(item, "employeeId", "employee_id");
+        var employeeId = employeeIdRaw is null or DBNull ? 0 : Convert.ToInt32(employeeIdRaw);
+        var title = Convert.ToString(DictGet(item, "title")) ?? $"{requestType} approval";
+
+        // Multi-level: on approve, open next chain level instead of finalizing yet
+        if (string.Equals(status, "approved", StringComparison.OrdinalIgnoreCase) && refRaw is not null and not DBNull)
+        {
+            await using var nextCmd = new NpgsqlCommand(
+                """
+                SELECT level_no, approver_role FROM approval_chains
+                WHERE request_type = @rtype AND level_no = @next
+                """, conn, (NpgsqlTransaction)tx);
+            nextCmd.Parameters.AddWithValue("rtype", requestType);
+            nextCmd.Parameters.AddWithValue("next", levelNo + 1);
+            await using var nextReader = await nextCmd.ExecuteReaderAsync(ct);
+            if (await nextReader.ReadAsync(ct))
+            {
+                var nextLevel = nextReader.GetInt32(0);
+                var nextRole = nextReader.GetString(1);
+                await nextReader.DisposeAsync();
+
+                await using var insertNext = new NpgsqlCommand(
+                    """
+                    INSERT INTO approvals (request_type, reference_id, employee_id, title, level_no, approver_role, status)
+                    VALUES (@rtype, @ref, @eid, @title, @lvl, @role, 'pending')
+                    """, conn, (NpgsqlTransaction)tx);
+                insertNext.Parameters.AddWithValue("rtype", requestType);
+                insertNext.Parameters.AddWithValue("ref", Convert.ToInt32(refRaw));
+                insertNext.Parameters.AddWithValue("eid", employeeId > 0 ? employeeId : DBNull.Value);
+                insertNext.Parameters.AddWithValue("title", $"{title} (L{nextLevel})");
+                insertNext.Parameters.AddWithValue("lvl", nextLevel);
+                insertNext.Parameters.AddWithValue("role", nextRole);
+                await insertNext.ExecuteNonQueryAsync(ct);
+
+                await tx.CommitAsync(ct);
+                return item; // do not sync underlying request until final level
+            }
+            await nextReader.DisposeAsync();
+        }
+
         if (refRaw is not null and not DBNull)
         {
             var referenceId = Convert.ToInt32(refRaw);
@@ -365,7 +579,7 @@ public sealed class HrQueryService
                      && string.Equals(status, "approved", StringComparison.OrdinalIgnoreCase))
             {
                 await using var exit = new NpgsqlCommand(
-                    "UPDATE exit_cases SET status = 'in_progress' WHERE id = @ref AND status = 'open'",
+                    "UPDATE exit_cases SET status = 'in_progress' WHERE id = @ref AND status IN ('open', 'in_progress')",
                     conn, (NpgsqlTransaction)tx);
                 exit.Parameters.AddWithValue("ref", referenceId);
                 await exit.ExecuteNonQueryAsync(ct);
@@ -680,8 +894,10 @@ public sealed class HrQueryService
         await using var conn = await OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
 
-        // EOSB estimate (simple: 21 days basic / year of service)
+        // EOSB estimate — UAE-style simplified: 21 days/yr first 5 years, 30 days/yr after
         string? eosbNote = settlementNotes;
+        decimal eosbAmount = 0m;
+        decimal serviceYears = 0m;
         await using (var empCmd = new NpgsqlCommand(
                          "SELECT basic_salary, join_date, full_name FROM employees WHERE id = @eid",
                          conn, (NpgsqlTransaction)tx))
@@ -694,16 +910,19 @@ public sealed class HrQueryService
                 DateTime? join = reader.IsDBNull(1) ? null : reader.GetDateTime(1);
                 var end = DateTime.TryParse(lastWorkingDate, out var lwd) ? lwd : DateTime.UtcNow.Date;
                 var years = join is null ? 0d : Math.Max(0, (end - join.Value).TotalDays / 365.25);
-                var eosb = Math.Round((basic / 30m) * 21m * (decimal)years, 2);
-                var auto = $"EOSB estimate: {eosb:0.##} ({years:0.0} yrs × 21 days/yr of basic).";
+                serviceYears = Math.Round((decimal)years, 2);
+                var first = Math.Min(years, 5d);
+                var after = Math.Max(0d, years - 5d);
+                eosbAmount = Math.Round((basic / 30m) * 21m * (decimal)first + (basic / 30m) * 30m * (decimal)after, 2);
+                var auto = $"EOSB estimate: {eosbAmount:0.##} ({serviceYears:0.00} yrs; 21d×min(5) + 30d×after).";
                 eosbNote = string.IsNullOrWhiteSpace(settlementNotes) ? auto : $"{settlementNotes.Trim()} | {auto}";
             }
         }
 
         await using var cmd = new NpgsqlCommand(
             """
-            INSERT INTO exit_cases (employee_id, exit_type, reason, notice_date, last_working_date, settlement_notes, status)
-            VALUES (@eid, @etype, @reason, @notice::date, @lwd::date, @notes, 'open')
+            INSERT INTO exit_cases (employee_id, exit_type, reason, notice_date, last_working_date, settlement_notes, status, eosb_amount, service_years)
+            VALUES (@eid, @etype, @reason, @notice::date, @lwd::date, @notes, 'open', @eosb, @years)
             RETURNING *
             """, conn, (NpgsqlTransaction)tx);
         cmd.Parameters.AddWithValue("eid", employeeId);
@@ -712,6 +931,8 @@ public sealed class HrQueryService
         cmd.Parameters.AddWithValue("notice", (object?)noticeDate ?? DBNull.Value);
         cmd.Parameters.AddWithValue("lwd", (object?)lastWorkingDate ?? DBNull.Value);
         cmd.Parameters.AddWithValue("notes", (object?)eosbNote ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("eosb", eosbAmount);
+        cmd.Parameters.AddWithValue("years", serviceYears);
         var created = (await ReadOneAsync(cmd, ct))!;
         var caseId = Convert.ToInt32(created["id"]);
 
@@ -1451,6 +1672,367 @@ public sealed class HrQueryService
         return row;
     }
 
+    // —— Deep features ——
+    public Task<List<Dictionary<string, object?>>> OrgChartAsync(CancellationToken ct) =>
+        QueryConnAsync(
+            """
+            SELECT e.id, e.emp_code, e.full_name, e.job_title, e.manager_id, e.status,
+                   d.name AS department_name, m.full_name AS manager_name
+            FROM employees e
+            LEFT JOIN departments d ON d.id = e.department_id
+            LEFT JOIN employees m ON m.id = e.manager_id
+            WHERE e.in_hr_ops = TRUE AND e.status != 'exited'
+            ORDER BY COALESCE(e.manager_id, 0), e.emp_code
+            """, ct);
+
+    public Task<List<Dictionary<string, object?>>> EmploymentHistoryAsync(int employeeId, CancellationToken ct) =>
+        QueryConnAsync(
+            """
+            SELECT * FROM employment_history
+            WHERE employee_id = @eid
+            ORDER BY start_date DESC, id DESC
+            """, ct, ("eid", employeeId));
+
+    public async Task<Dictionary<string, object?>> CreateEmploymentHistoryAsync(
+        int employeeId, string jobTitle, string? departmentName, string? managerName,
+        string startDate, string? endDate, string? notes, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            INSERT INTO employment_history (employee_id, job_title, department_name, manager_name, start_date, end_date, notes)
+            VALUES (@eid, @title, @dept, @mgr, @start::date, @end::date, @notes)
+            RETURNING *
+            """, conn);
+        cmd.Parameters.AddWithValue("eid", employeeId);
+        cmd.Parameters.AddWithValue("title", jobTitle);
+        cmd.Parameters.AddWithValue("dept", (object?)departmentName ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("mgr", (object?)managerName ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("start", startDate);
+        cmd.Parameters.AddWithValue("end", (object?)endDate ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("notes", (object?)notes ?? DBNull.Value);
+        return (await ReadOneAsync(cmd, ct))!;
+    }
+
+    public Task<List<Dictionary<string, object?>>> SkillsAsync(CancellationToken ct) =>
+        QueryConnAsync("SELECT * FROM skills ORDER BY category, name", ct);
+
+    public Task<List<Dictionary<string, object?>>> EmployeeSkillsAsync(CancellationToken ct) =>
+        QueryConnAsync(
+            """
+            SELECT es.*, s.name AS skill_name, s.category, e.full_name, e.emp_code
+            FROM employee_skills es
+            JOIN skills s ON s.id = es.skill_id
+            JOIN employees e ON e.id = es.employee_id
+            ORDER BY e.emp_code, s.name
+            """, ct);
+
+    public async Task AssignEmployeeSkillAsync(int employeeId, int skillId, string? level, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            INSERT INTO employee_skills (employee_id, skill_id, level)
+            VALUES (@eid, @sid, @lvl)
+            ON CONFLICT (employee_id, skill_id) DO UPDATE SET level = EXCLUDED.level
+            """, conn);
+        cmd.Parameters.AddWithValue("eid", employeeId);
+        cmd.Parameters.AddWithValue("sid", skillId);
+        cmd.Parameters.AddWithValue("lvl", string.IsNullOrWhiteSpace(level) ? "intermediate" : level.Trim());
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    public Task<List<Dictionary<string, object?>>> TrainingCalendarAsync(CancellationToken ct) =>
+        QueryConnAsync(
+            """
+            SELECT id, title, category, scheduled_start, scheduled_end, status, duration_hours
+            FROM courses
+            WHERE scheduled_start IS NOT NULL
+            ORDER BY scheduled_start
+            """, ct);
+
+    public async Task<object> RunPayrollAsync(string periodLabel, decimal otRatePerHour, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
+
+        var created = new List<Dictionary<string, object?>>();
+        await using (var emps = new NpgsqlCommand(
+                         """
+                         SELECT id, basic_salary, allowances FROM employees
+                         WHERE in_hr_ops = TRUE AND status = 'active'
+                         """, conn, (NpgsqlTransaction)tx))
+        await using (var reader = await emps.ExecuteReaderAsync(ct))
+        {
+            var list = new List<(int Id, decimal Basic, decimal Allow)>();
+            while (await reader.ReadAsync(ct))
+            {
+                list.Add((
+                    reader.GetInt32(0),
+                    reader.IsDBNull(1) ? 0m : reader.GetDecimal(1),
+                    reader.IsDBNull(2) ? 0m : reader.GetDecimal(2)));
+            }
+            await reader.DisposeAsync();
+
+            var batch = $"WPS-{periodLabel.Replace(' ', '-')}-{DateTime.UtcNow:yyyyMMddHHmm}";
+            foreach (var emp in list)
+            {
+                await using var exists = new NpgsqlCommand(
+                    "SELECT COUNT(*)::int FROM payslips WHERE employee_id = @eid AND period_label = @p",
+                    conn, (NpgsqlTransaction)tx);
+                exists.Parameters.AddWithValue("eid", emp.Id);
+                exists.Parameters.AddWithValue("p", periodLabel);
+                var count = Convert.ToInt32(await exists.ExecuteScalarAsync(ct));
+                if (count > 0) continue;
+
+                await using var otCmd = new NpgsqlCommand(
+                    """
+                    SELECT COALESCE(SUM(overtime_hours),0)::numeric FROM attendance
+                    WHERE employee_id = @eid
+                      AND to_char(work_date, 'YYYY-MM') = left(@p, 7)
+                    """, conn, (NpgsqlTransaction)tx);
+                otCmd.Parameters.AddWithValue("eid", emp.Id);
+                otCmd.Parameters.AddWithValue("p", periodLabel);
+                var otHours = Convert.ToDecimal(await otCmd.ExecuteScalarAsync(ct) ?? 0m);
+                var otPay = Math.Round(otHours * otRatePerHour, 2);
+                var deductions = 0m;
+                var net = emp.Basic + emp.Allow + otPay - deductions;
+
+                await using var insert = new NpgsqlCommand(
+                    """
+                    INSERT INTO payslips (employee_id, period_label, basic_salary, overtime_pay, allowances, deductions, net_pay, wps_ref)
+                    VALUES (@eid, @p, @basic, @ot, @allow, @ded, @net, @wps)
+                    RETURNING *
+                    """, conn, (NpgsqlTransaction)tx);
+                insert.Parameters.AddWithValue("eid", emp.Id);
+                insert.Parameters.AddWithValue("p", periodLabel);
+                insert.Parameters.AddWithValue("basic", emp.Basic);
+                insert.Parameters.AddWithValue("ot", otPay);
+                insert.Parameters.AddWithValue("allow", emp.Allow);
+                insert.Parameters.AddWithValue("ded", deductions);
+                insert.Parameters.AddWithValue("net", net);
+                insert.Parameters.AddWithValue("wps", $"{batch}-{emp.Id}");
+                created.Add((await ReadOneAsync(insert, ct))!);
+            }
+
+            await tx.CommitAsync(ct);
+            return new { periodLabel, created = created.Count, batch, slips = created };
+        }
+    }
+
+    public async Task<(string FileName, string Csv)> BuildWpsCsvAsync(string? periodLabel, CancellationToken ct)
+    {
+        var sql =
+            """
+            SELECT e.emp_code, e.full_name, p.period_label, p.basic_salary, p.overtime_pay,
+                   p.allowances, p.deductions, p.net_pay, p.wps_ref
+            FROM payslips p
+            JOIN employees e ON e.id = p.employee_id
+            WHERE 1=1
+            """;
+        List<Dictionary<string, object?>> rows;
+        if (!string.IsNullOrWhiteSpace(periodLabel))
+        {
+            sql += " AND p.period_label = @p ORDER BY e.emp_code";
+            rows = await QueryConnAsync(sql, ct, ("p", periodLabel!));
+        }
+        else
+        {
+            sql += " ORDER BY p.id DESC LIMIT 200";
+            rows = await QueryConnAsync(sql, ct);
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("EmpCode,Employee,Period,Basic,Overtime,Allowances,Deductions,Net,WpsRef");
+        foreach (var r in rows)
+        {
+            string C(params string[] keys) => Convert.ToString(DictGet(r, keys))?.Replace(',', ' ') ?? "";
+            sb.AppendLine(string.Join(',',
+                C("empCode", "emp_code"),
+                C("fullName", "full_name"),
+                C("periodLabel", "period_label"),
+                C("basicSalary", "basic_salary"),
+                C("overtimePay", "overtime_pay"),
+                C("allowances"),
+                C("deductions"),
+                C("netPay", "net_pay"),
+                C("wpsRef", "wps_ref")));
+        }
+
+        var name = $"WPS_{(string.IsNullOrWhiteSpace(periodLabel) ? "export" : periodLabel)}.csv";
+        return (name, sb.ToString());
+    }
+
+    public async Task<object> GenerateNotificationsAsync(CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        var inserted = 0;
+        var pending = new List<(int? Eid, string Cat, string Title, string Msg, DateTime? Due)>();
+
+        await using (var empCmd = new NpgsqlCommand(
+                         """
+                         SELECT id, full_name, dob, probation_end, contract_end, visa_expiry
+                         FROM employees WHERE in_hr_ops = TRUE AND status != 'exited'
+                         """, conn))
+        await using (var reader = await empCmd.ExecuteReaderAsync(ct))
+        {
+            while (await reader.ReadAsync(ct))
+            {
+                var id = reader.GetInt32(0);
+                var name = reader.GetString(1);
+                DateTime? dob = reader.IsDBNull(2) ? null : reader.GetDateTime(2);
+                DateTime? probation = reader.IsDBNull(3) ? null : reader.GetDateTime(3);
+                DateTime? contract = reader.IsDBNull(4) ? null : reader.GetDateTime(4);
+                DateTime? visa = reader.IsDBNull(5) ? null : reader.GetDateTime(5);
+
+                if (dob is not null)
+                {
+                    var day = Math.Min(dob.Value.Day, DateTime.DaysInMonth(DateTime.UtcNow.Year, dob.Value.Month));
+                    var next = new DateTime(DateTime.UtcNow.Year, dob.Value.Month, day);
+                    if (next < DateTime.UtcNow.Date) next = next.AddYears(1);
+                    if ((next - DateTime.UtcNow.Date).TotalDays <= 30)
+                        pending.Add((id, "birthday", $"Birthday · {name}", $"Upcoming birthday on {next:yyyy-MM-dd}", next));
+                }
+                if (probation is not null && (probation.Value.Date - DateTime.UtcNow.Date).TotalDays is >= 0 and <= 45)
+                    pending.Add((id, "probation", $"Probation ending · {name}", "Probation completion approaching.", probation));
+                if (contract is not null && (contract.Value.Date - DateTime.UtcNow.Date).TotalDays is >= 0 and <= 60)
+                    pending.Add((id, "contract", $"Contract expiry · {name}", "Employment contract renews soon.", contract));
+                if (visa is not null && (visa.Value.Date - DateTime.UtcNow.Date).TotalDays is >= 0 and <= 60)
+                    pending.Add((id, "visa", $"Visa renewal · {name}", "Residence visa renewal window.", visa));
+            }
+        }
+
+        await using (var train = new NpgsqlCommand(
+                         """
+                         SELECT en.employee_id, e.full_name, c.title, en.due_date
+                         FROM course_enrollments en
+                         JOIN employees e ON e.id = en.employee_id
+                         JOIN courses c ON c.id = en.course_id
+                         WHERE en.due_date IS NOT NULL AND en.status IN ('assigned','in_progress')
+                           AND en.due_date <= CURRENT_DATE + 21
+                         """, conn))
+        await using (var reader = await train.ExecuteReaderAsync(ct))
+        {
+            while (await reader.ReadAsync(ct))
+            {
+                pending.Add((reader.GetInt32(0), "training", $"Training due · {reader.GetString(2)}",
+                    $"{reader.GetString(1)} has training due.", reader.GetDateTime(3)));
+            }
+        }
+
+        foreach (var p in pending)
+        {
+            await using var check = new NpgsqlCommand(
+                """
+                SELECT COUNT(*)::int FROM notifications
+                WHERE COALESCE(employee_id,0) = COALESCE(@eid,0)
+                  AND category = @cat AND title = @title
+                  AND COALESCE(due_date, DATE '1900-01-01') = COALESCE(@due::date, DATE '1900-01-01')
+                """, conn);
+            check.Parameters.AddWithValue("eid", p.Eid is > 0 ? p.Eid.Value : DBNull.Value);
+            check.Parameters.AddWithValue("cat", p.Cat);
+            check.Parameters.AddWithValue("title", p.Title);
+            check.Parameters.AddWithValue("due", p.Due.HasValue ? p.Due.Value.ToString("yyyy-MM-dd") : DBNull.Value);
+            if (Convert.ToInt32(await check.ExecuteScalarAsync(ct)) > 0) continue;
+
+            await using var cmd = new NpgsqlCommand(
+                """
+                INSERT INTO notifications (employee_id, category, title, message, due_date, is_read)
+                VALUES (@eid, @cat, @title, @msg, @due::date, FALSE)
+                """, conn);
+            cmd.Parameters.AddWithValue("eid", p.Eid is > 0 ? p.Eid.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("cat", p.Cat);
+            cmd.Parameters.AddWithValue("title", p.Title);
+            cmd.Parameters.AddWithValue("msg", p.Msg);
+            cmd.Parameters.AddWithValue("due", p.Due.HasValue ? p.Due.Value.ToString("yyyy-MM-dd") : DBNull.Value);
+            inserted += await cmd.ExecuteNonQueryAsync(ct);
+        }
+
+        return new { inserted };
+    }
+
+    public Task<List<Dictionary<string, object?>>> AuditLogsAsync(CancellationToken ct) =>
+        QueryConnAsync(
+            """
+            SELECT * FROM audit_logs
+            ORDER BY id DESC
+            LIMIT 200
+            """, ct);
+
+    public async Task WriteAuditAsync(string? actorEmail, string? actorRole, string action,
+        string? entityType, int? entityId, string? detail, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            INSERT INTO audit_logs (actor_email, actor_role, action, entity_type, entity_id, detail)
+            VALUES (@email, @role, @action, @etype, @eid, @detail)
+            """, conn);
+        cmd.Parameters.AddWithValue("email", (object?)actorEmail ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("role", (object?)actorRole ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("action", action);
+        cmd.Parameters.AddWithValue("etype", (object?)entityType ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("eid", entityId is > 0 ? entityId.Value : DBNull.Value);
+        cmd.Parameters.AddWithValue("detail", (object?)detail ?? DBNull.Value);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task<object> ScreenResumeAsync(int candidateId, CancellationToken ct)
+    {
+        var rows = await QueryConnAsync(
+            """
+            SELECT c.*, j.title AS job_title, j.description AS job_description
+            FROM candidates c
+            LEFT JOIN job_postings j ON j.id = c.job_id
+            WHERE c.id = @id
+            """, ct, ("id", candidateId));
+        var c = rows.FirstOrDefault() ?? throw new InvalidOperationException("candidate not found");
+        var resume = Convert.ToString(DictGet(c, "resumeRef", "resume_ref")) ?? "";
+        var notes = Convert.ToString(DictGet(c, "notes")) ?? "";
+        var job = Convert.ToString(DictGet(c, "jobTitle", "job_title")) ?? "";
+        var blob = $"{resume} {notes} {job}".ToLowerInvariant();
+        var keywords = new[] { "c#", ".net", "flutter", "hr", "payroll", "uae", "visa", "react", "sql", "manager" };
+        var hits = keywords.Where(k => blob.Contains(k)).ToList();
+        var score = Math.Min(100, hits.Count * 12 + (string.IsNullOrWhiteSpace(resume) ? 0 : 20));
+        var recommendation = score >= 60 ? "advance_to_interview" : score >= 30 ? "manual_review" : "reject_or_hold";
+
+        if (score >= 60)
+        {
+            await using var conn = await OpenAsync(ct);
+            await using var cmd = new NpgsqlCommand(
+                "UPDATE candidates SET stage = 'screening', notes = COALESCE(notes,'') || @n WHERE id = @id AND stage = 'applied'",
+                conn);
+            cmd.Parameters.AddWithValue("id", candidateId);
+            cmd.Parameters.AddWithValue("n", $" | Auto-screen score {score}: {string.Join(',', hits)}");
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+
+        return new { candidateId, score, hits, recommendation, resumeRef = resume };
+    }
+
+    public async Task<object> ReportsDashboardAsync(CancellationToken ct)
+    {
+        var baseReports = await ReportsAsync(ct);
+        await using var conn = await OpenAsync(ct);
+        var pendingApprovals = await ScalarIntAsync(conn, "SELECT COUNT(*)::int FROM approvals WHERE status = 'pending'", ct);
+        var openJobs = await ScalarIntAsync(conn, "SELECT COUNT(*)::int FROM job_postings WHERE status = 'open'", ct);
+        var openExits = await ScalarIntAsync(conn, "SELECT COUNT(*)::int FROM exit_cases WHERE status IN ('open','in_progress')", ct);
+        var expiringVisa = await ScalarIntAsync(conn,
+            "SELECT COUNT(*)::int FROM employees WHERE in_hr_ops AND status != 'exited' AND visa_expiry IS NOT NULL AND visa_expiry <= CURRENT_DATE + 60", ct);
+
+        return new
+        {
+            core = baseReports,
+            widgets = new
+            {
+                pendingApprovals,
+                openJobs,
+                openExits,
+                expiringVisa
+            }
+        };
+    }
+
     private async Task<NpgsqlConnection> OpenAsync(CancellationToken ct)
     {
         var conn = _db.CreateConnection();
@@ -1486,6 +2068,28 @@ public sealed class HrQueryService
             cmd.Parameters.AddWithValue(name, value);
         }
 
+        var result = await cmd.ExecuteScalarAsync(ct);
+        return Convert.ToInt32(result);
+    }
+
+    private static async Task<int> ScalarIntTxAsync(
+        NpgsqlConnection conn, NpgsqlTransaction tx, string sql, CancellationToken ct,
+        params (string Name, object Value)[] parameters)
+    {
+        await using var cmd = new NpgsqlCommand(sql, conn, tx);
+        foreach (var (name, value) in parameters)
+        {
+            cmd.Parameters.AddWithValue(name, value);
+        }
+
+        var result = await cmd.ExecuteScalarAsync(ct);
+        return Convert.ToInt32(result);
+    }
+
+    private static async Task<int> ScalarIntTxAsync(
+        NpgsqlConnection conn, NpgsqlTransaction tx, string sql, CancellationToken ct)
+    {
+        await using var cmd = new NpgsqlCommand(sql, conn, tx);
         var result = await cmd.ExecuteScalarAsync(ct);
         return Convert.ToInt32(result);
     }

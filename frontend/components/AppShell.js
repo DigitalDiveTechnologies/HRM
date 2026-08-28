@@ -5,7 +5,9 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   clearSession,
+  getToken,
   getUser,
+  hasSession,
   homeForRole,
   normalizeRole,
 } from '../lib/auth';
@@ -20,8 +22,16 @@ export default function AppShell({ title, subtitle, children }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
+    // User chip alone is not enough — JWT must exist or API calls return 401.
+    if (!hasSession()) {
+      clearSession();
+      router.replace('/');
+      return;
+    }
     const u = getUser();
-    if (!u) {
+    const token = getToken();
+    if (!u || !token) {
+      clearSession();
       router.replace('/');
       return;
     }

@@ -34,6 +34,10 @@ public sealed class TrainingController : ControllerBase
     public async Task<IActionResult> Courses(CancellationToken ct) =>
         Ok(await _hr.CoursesAsync(ct));
 
+    [HttpGet("calendar")]
+    public async Task<IActionResult> Calendar(CancellationToken ct) =>
+        Ok(await _hr.TrainingCalendarAsync(ct));
+
     [HttpPost("courses")]
     [Authorize(Roles = "admin")]
     public async Task<IActionResult> CreateCourse([FromBody] CourseCreateRequest body, CancellationToken ct)

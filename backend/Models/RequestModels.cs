@@ -12,6 +12,7 @@ public sealed class AttendanceCreateRequest
     public string? CheckIn { get; set; }
     public string? CheckOut { get; set; }
     public string? Status { get; set; }
+    public string? ShiftName { get; set; }
     public decimal OvertimeHours { get; set; }
 }
 
@@ -202,4 +203,36 @@ public sealed class DocumentCreateRequest
     public string? IssueDate { get; set; }
     public string? ExpiryDate { get; set; }
     public string? Status { get; set; }
+}
+
+public sealed class PayrollRunRequest
+{
+    public string PeriodLabel { get; set; } = string.Empty;
+    public decimal OtRatePerHour { get; set; } = 50m;
+}
+
+public sealed class EmploymentHistoryCreateRequest
+{
+    public int EmployeeId { get; set; }
+    public string JobTitle { get; set; } = string.Empty;
+    public string? DepartmentName { get; set; }
+    public string? ManagerName { get; set; }
+    public string StartDate { get; set; } = string.Empty;
+    public string? EndDate { get; set; }
+    public string? Notes { get; set; }
+}
+
+public sealed class EmployeeSkillAssignRequest
+{
+    public int EmployeeId { get; set; }
+    public int SkillId { get; set; }
+    public string? Level { get; set; }
+}
+
+public sealed class AuditLogCreateRequest
+{
+    public string Action { get; set; } = string.Empty;
+    public string? EntityType { get; set; }
+    public int? EntityId { get; set; }
+    public string? Detail { get; set; }
 }

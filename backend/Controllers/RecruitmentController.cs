@@ -107,4 +107,17 @@ public sealed class RecruitmentController : ControllerBase
         var row = await _hr.UpdateOfferStatusAsync(id, body.Status, ct);
         return row is null ? NotFound() : Ok(row);
     }
+
+    [HttpPost("candidates/{id:int}/screen")]
+    public async Task<IActionResult> Screen(int id, CancellationToken ct)
+    {
+        try
+        {
+            return Ok(await _hr.ScreenResumeAsync(id, ct));
+        }
+        catch (InvalidOperationException)
+        {
+            return NotFound(new { error = "candidate not found" });
+        }
+    }
 }

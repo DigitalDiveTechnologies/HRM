@@ -1,3 +1,5 @@
+using DigitalDive.Hr.Api.Helpers;
+using DigitalDive.Hr.Api.Models;
 using DigitalDive.Hr.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,16 +21,55 @@ public sealed class EmployeesController : ControllerBase
     [Authorize(Roles = "admin,manager,employee")]
     public async Task<IActionResult> List(CancellationToken ct)
     {
-        var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value?.ToLowerInvariant();
+        var role = CurrentUser.Role(User).ToLowerInvariant();
         var rows = await _hr.EmployeesAsync(ct);
         if (role == "employee")
         {
-            var eid = User.FindFirst("employee_id")?.Value;
-            if (!int.TryParse(eid, out var id)) return Ok(Array.Empty<object>());
-            return Ok(rows.Where(r => Convert.ToInt32(r["id"]) == id).ToList());
+            var id = CurrentUser.EmployeeId(User);
+            if (!id.HasValue) return Ok(Array.Empty<object>());
+            return Ok(rows.Where(r => Convert.ToInt32(r["id"]) == id.Value).ToList());
         }
 
         return Ok(rows);
+    }
+
+    [HttpGet("departments")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> Departments(CancellationToken ct) =>
+        Ok(await _hr.DepartmentsAsync(ct));
+
+    /// <summary>Create employee record + mobile app login (employee role).</summary>
+    [HttpPost]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> Create([FromBody] CreateEmployeeRequest body, CancellationToken ct)
+    {
+        var (employee, error) = await _hr.CreateEmployeeWithLoginAsync(
+            body.FullName,
+            body.Email,
+            body.Password,
+            body.JobTitle,
+            body.Phone,
+            body.DepartmentId,
+            body.ManagerId,
+            body.JoinDate,
+            body.Status ?? "active",
+            ct);
+
+        if (error is not null)
+        {
+            return BadRequest(new { error });
+        }
+
+        return Ok(new
+        {
+            employee,
+            login = new
+            {
+                email = body.Email.Trim().ToLowerInvariant(),
+                role = "employee",
+            },
+            message = "Employee created. They can sign in on the mobile app with this email and password.",
+        });
     }
 
     /// <summary>Safe directory for mobile/ESS — no salary fields.</summary>

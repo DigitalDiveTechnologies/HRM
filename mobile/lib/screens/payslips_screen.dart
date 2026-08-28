@@ -56,7 +56,7 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
-        padding: const EdgeInsets.only(bottom: 110),
+        padding: screenListPadding(context),
         children: [
           PageHero(
             title: 'Payslips',
@@ -110,7 +110,7 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(error!, style: const TextStyle(color: AppColors.danger)),
             ),
-          if (loading) const Padding(padding: EdgeInsets.all(32), child: Center(child: CircularProgressIndicator())),
+          if (loading) const ScreenLoader(),
           if (!loading && slips.isEmpty) const EmptyHint('No payslips yet.', icon: Icons.receipt_long_outlined),
           ...slips.map((raw) {
             final p = Map<String, dynamic>.from(raw as Map);

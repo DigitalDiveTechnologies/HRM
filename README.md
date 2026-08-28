@@ -26,9 +26,9 @@ Menus are role-based (portal + app):
 
 | Role | Access |
 |------|--------|
-| **Employee** | ESS only (dashboard, attendance, leave, payslips, documents, notifications, directory) |
-| **Manager** | Team MSS + approvals + own ESS |
-| **HR Admin / Boss Admin** | Full HR modules |
+| **Employee** | Mobile app only — attendance, leave, payslips, ESS, documents |
+
+**Portal** = admin/HR only (`admin@digitaldive.demo`). **App** = employees only (`fatima@digitaldive.demo`). Leave approvals on portal.
 
 Team scope for MSS uses `employees.manager_id`.
 
@@ -39,10 +39,12 @@ See [`Seed-Logins.txt`](Seed-Logins.txt).
 
 | Email | Role |
 |-------|------|
-| `admin@digitaldive.demo` | HR Admin |
-| `boss@digitaldive.demo` | Boss Admin |
-| `omar@digitaldive.demo` | Manager |
-| `fatima@digitaldive.demo` | Employee |
+| `admin@digitaldive.demo` | Admin |
+| `fatima@digitaldive.demo` | Employee (ESS) |
+
+More employees exist in HR data without logins. To add a login later, insert into `users` (see `backend/db/add-user-template.sql`).
+
+Active HR directory (no login): Ahmed Khan, Layla Rahman, Yusuf Ali — 5 employees total in portal lists.
 
 ## Run locally
 

@@ -37,20 +37,42 @@ function Bars({ items, labelKey, valueKey }) {
 
 export default function ReportsPage() {
   const [data, setData] = useState(null);
+  const [dash, setDash] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api('/reports')
-      .then(setData)
+    Promise.all([api('/reports'), api('/reports/dashboard')])
+      .then(([r, d]) => {
+        setData(r);
+        setDash(d);
+      })
       .catch((e) => setError(e.message));
   }, []);
 
   const attrition = data?.attrition || {};
+  const widgets = dash?.widgets || {};
 
   return (
-    <AppShell title="Reports & Analytics" subtitle="Attendance, payroll, headcount, leave, attrition">
+    <AppShell title="Reports & Analytics" subtitle="Attendance, payroll, headcount, leave, attrition + live widgets">
       {error ? <div className="error">{error}</div> : null}
       {!data && !error ? <div className="muted">Loading…</div> : null}
+
+      {dash ? (
+        <div className="grid" style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 14 }}>
+          {[
+            ['Pending approvals', widgets.pendingApprovals],
+            ['Open jobs', widgets.openJobs],
+            ['Open exits', widgets.openExits],
+            ['Visas ≤60d', widgets.expiringVisa],
+          ].map(([label, val]) => (
+            <div className="card" key={label} style={{ padding: 14 }}>
+              <div className="muted">{label}</div>
+              <div style={{ fontSize: 28, fontWeight: 800 }}>{val ?? 0}</div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       {data ? (
         <div className="grid-2" style={{ display: 'grid', gap: 14, gridTemplateColumns: '1fr 1fr' }}>
           <div className="card">
@@ -98,21 +120,11 @@ export default function ReportsPage() {
           </div>
           <div className="card" style={{ gridColumn: '1 / -1' }}>
             <div className="panel-title">
-              <h3>Attrition snapshot</h3>
+              <h3>Attrition</h3>
             </div>
-            <div className="grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
-              <div className="stat">
-                <h3>Active</h3>
-                <div className="value">{v(attrition, 'active') ?? 0}</div>
-              </div>
-              <div className="stat">
-                <h3>Onboarding</h3>
-                <div className="value">{v(attrition, 'onboarding') ?? 0}</div>
-              </div>
-              <div className="stat">
-                <h3>Exited</h3>
-                <div className="value">{v(attrition, 'exited') ?? 0}</div>
-              </div>
+            <div className="muted">
+              Active {v(attrition, 'active') || 0} · Exited {v(attrition, 'exited') || 0} · Rate{' '}
+              {v(attrition, 'ratePct', 'rate_pct') || 0}%
             </div>
           </div>
         </div>

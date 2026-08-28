@@ -18,6 +18,7 @@ import 'exit_screen.dart';
 import 'leave_screen.dart';
 import 'mss_screen.dart';
 import 'notifications_screen.dart';
+import 'onboarding_screen.dart';
 import 'payroll_screen.dart';
 import 'payslips_screen.dart';
 import 'performance_screen.dart';
@@ -36,12 +37,16 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   late String route;
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+  final Set<String> _visited = {};
+  final Map<String, Widget> _pageCache = {};
 
   @override
   void initState() {
     super.initState();
     final role = context.read<AppState>().user?.role;
     route = homeRouteForRole(role);
+    _visited.add(route);
   }
 
   String _titleFor(String id) {
@@ -53,56 +58,6 @@ class _AppShellState extends State<AppShell> {
     return 'Digital Dive HR';
   }
 
-  String _subtitleFor(String id, String role) {
-    final r = normalizeRole(role);
-    switch (id) {
-      case 'dashboard':
-        return 'Workforce overview and key HR metrics';
-      case 'mss':
-        return 'Your team roster, leave and approvals';
-      case 'employees':
-        return 'Profiles, org info, ID / passport / visa';
-      case 'recruitment':
-        return 'Jobs, candidates, interviews & offers';
-      case 'exit':
-        return 'Clearance, settlement & offboarding';
-      case 'compliance':
-        return 'Visa, documents, labour law & audits';
-      case 'performance':
-        return 'Goals, KPIs and performance reviews';
-      case 'training':
-        return 'Courses, enrollments and certifications';
-      case 'assets':
-        return 'Inventory and assignments';
-      case 'travel':
-        return 'Trips and expense claims';
-      case 'attendance':
-        return r == 'employee' ? 'Your punches and late minutes' : 'Team attendance records';
-      case 'leave':
-        return r == 'employee' ? 'Your leave requests' : 'Leave requests and balances';
-      case 'payroll':
-        return 'Salary, OT, allowances, WPS refs';
-      case 'approvals':
-        return 'Leave, document and onboarding approvals';
-      case 'reports':
-        return 'Headcount, attrition and payroll insights';
-      case 'ess':
-        return 'Employee self-service';
-      case 'payslips':
-        return 'Your salary history · ${DateTime.now().year}';
-      case 'documents':
-        return 'Contracts, passport, Emirates ID, visa';
-      case 'directory':
-        return 'Find teammates across Digital Dive';
-      case 'notifications':
-        return 'Visa, contract, birthday & more';
-      case 'profile':
-        return 'Your account details';
-      default:
-        return 'Digital Dive HR';
-    }
-  }
-
   Widget _pageFor(String id) {
     switch (id) {
       case 'dashboard':
@@ -111,6 +66,8 @@ class _AppShellState extends State<AppShell> {
         return const MssScreen();
       case 'employees':
         return const EmployeesScreen();
+      case 'onboarding':
+        return const OnboardingScreen();
       case 'recruitment':
         return const RecruitmentScreen();
       case 'exit':
@@ -152,73 +109,50 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  Widget _cachedPage(String id) {
+    return _pageCache.putIfAbsent(
+      id,
+      () => KeyedSubtree(key: ValueKey('page-$id'), child: _pageFor(id)),
+    );
+  }
+
+  void _openRoute(String id) {
+    setState(() {
+      route = id;
+      _visited.add(id);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     final user = app.user!;
-    final role = normalizeRole(user.role);
     final groups = navForRole(user.role);
+    final userLabel = userDisplayLabel(
+      fullName: user.fullName,
+      email: user.email,
+      jobTitle: user.jobTitle,
+      role: user.role,
+    );
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: T.bg(context),
-      appBar: AppBar(
-        leading: Builder(
-          builder: (ctx) => IconButton(
-            tooltip: 'Open menu',
-            onPressed: () => Scaffold.of(ctx).openDrawer(),
-            icon: const Icon(Icons.menu_rounded),
-          ),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_titleFor(route), style: Theme.of(context).appBarTheme.titleTextStyle),
-            Text(
-              _subtitleFor(route, user.role),
-              style: TextStyle(fontSize: 11.5, color: T.muted(context), fontWeight: FontWeight.w500),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Toggle theme',
-            onPressed: () => app.toggleTheme(),
-            icon: Icon(
-              app.themeMode == ThemeMode.dark ? Icons.dark_mode_rounded : Icons.wb_sunny_rounded,
-              color: T.ink(context),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.accent.withValues(alpha: T.isDark(context) ? 0.18 : 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.accent.withValues(alpha: 0.25)),
-                ),
-                child: Text(
-                  '${user.fullName?.split(' ').first ?? 'User'} · $role',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                    color: T.ink(context),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+      appBar: AppTopBar(
+        title: _titleFor(route),
+        userLabel: userLabel,
+        isDark: app.themeMode == ThemeMode.dark,
+        topInset: MediaQuery.viewPaddingOf(context).top,
+        onOpenMenu: () => _scaffoldKey.currentState?.openDrawer(),
+        onToggleTheme: () => app.toggleTheme(),
       ),
       drawer: _PortalDrawer(
         groups: groups,
         activeId: route,
         userName: user.fullName ?? user.email,
-        role: role,
+        role: user.jobTitle ?? 'Employee',
         onSelect: (id) {
-          setState(() => route = id);
+          _openRoute(id);
           Navigator.of(context).pop();
         },
         onLogout: () {
@@ -226,12 +160,29 @@ class _AppShellState extends State<AppShell> {
           app.logout();
         },
       ),
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 200),
-        child: KeyedSubtree(
-          key: ValueKey(route),
-          child: _pageFor(route),
-        ),
+      // Keep visited screens alive — menu switch pe dubara API load/spinner nahi.
+      body: Column(
+        children: [
+          Expanded(
+            child: SafeArea(
+              bottom: false,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  for (final id in _visited)
+                    Offstage(
+                      offstage: id != route,
+                      child: TickerMode(
+                        enabled: id == route,
+                        child: _cachedPage(id),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const AppBottomChrome(),
+        ],
       ),
     );
   }

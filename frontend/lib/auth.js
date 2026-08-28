@@ -19,8 +19,8 @@ export function getUser() {
 }
 
 export function setSession(loginResponse) {
-  const user = loginResponse.user || loginResponse;
-  const token = loginResponse.token || '';
+  const user = loginResponse.user || loginResponse.User || loginResponse;
+  const token = loginResponse.token || loginResponse.Token || '';
   localStorage.setItem('hr_user', JSON.stringify(user));
   localStorage.setItem('hr_token', token);
 }
@@ -30,36 +30,74 @@ export function clearSession() {
   localStorage.removeItem('hr_token');
 }
 
+/** True when both user profile and JWT are present. */
+export function hasSession() {
+  const token = getToken();
+  const user = getUser();
+  return Boolean(token && user);
+}
+
 export function normalizeRole(user) {
   const role = String(user?.role || 'employee').toLowerCase();
   if (role === 'admin' || role === 'manager' || role === 'employee') return role;
   return 'employee';
 }
 
+/** HR web portal — administrators only. */
+export function canUsePortal(user) {
+  return normalizeRole(user) === 'admin';
+}
+
 export function homeForRole(user) {
-  const role = normalizeRole(user);
-  if (role === 'employee') return '/ess';
-  if (role === 'manager') return '/approvals';
   return '/dashboard';
 }
 
+function redirectToLogin() {
+  if (typeof window === 'undefined') return;
+  const path = window.location.pathname || '';
+  if (path === '/' || path === '') return;
+  window.location.replace('/');
+}
+
+/** Clear stale UI session when API rejects the JWT. */
+export function handleUnauthorized() {
+  clearSession();
+  redirectToLogin();
+}
+
+function statusMessage(status, data) {
+  if (data?.error || data?.title) return data.error || data.title;
+  if (status === 401) return 'Session expired — please sign in again.';
+  if (status === 403) return 'You do not have permission for this action.';
+  return `Request failed (${status})`;
+}
+
 export async function api(path, options = {}) {
-  const token = getToken();
+  const skipAuth = options.skipAuth === true || path.startsWith('/auth/login');
+  const { skipAuth: _omit, ...fetchOptions } = options;
+  const token = skipAuth ? null : getToken();
   const headers = {
     'Content-Type': 'application/json',
-    ...(options.headers || {}),
+    ...(fetchOptions.headers || {}),
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}/api${path}`, {
-    ...options,
-    headers,
-  });
+  let res;
+  try {
+    res = await fetch(`${API_BASE}/api${path}`, {
+      ...fetchOptions,
+      headers,
+    });
+  } catch {
+    throw new Error('Cannot reach API. Is the backend running on port 5088?');
+  }
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const msg = data.error || data.title || `Request failed (${res.status})`;
-    throw new Error(msg);
+    if (res.status === 401 && !skipAuth) {
+      handleUnauthorized();
+    }
+    throw new Error(statusMessage(res.status, data));
   }
   return data;
 }
@@ -70,18 +108,48 @@ export async function apiUpload(path, formData) {
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}/api${path}`, {
-    method: 'POST',
-    headers,
-    body: formData,
-  });
+  let res;
+  try {
+    res = await fetch(`${API_BASE}/api${path}`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+  } catch {
+    throw new Error('Cannot reach API. Is the backend running on port 5088?');
+  }
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const msg = data.error || data.title || `Upload failed (${res.status})`;
-    throw new Error(msg);
+    if (res.status === 401) handleUnauthorized();
+    throw new Error(statusMessage(res.status, data));
   }
   return data;
+}
+
+/** Authenticated binary/blob download (WPS, documents, etc.). */
+export async function apiBlob(path) {
+  const token = getToken();
+  if (!token) {
+    handleUnauthorized();
+    throw new Error('Session expired — please sign in again.');
+  }
+
+  let res;
+  try {
+    res = await fetch(`${API_BASE}/api${path}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    throw new Error('Cannot reach API. Is the backend running on port 5088?');
+  }
+
+  if (!res.ok) {
+    if (res.status === 401) handleUnauthorized();
+    const data = await res.json().catch(() => ({}));
+    throw new Error(statusMessage(res.status, data));
+  }
+  return res.blob();
 }
 
 export { API_BASE };

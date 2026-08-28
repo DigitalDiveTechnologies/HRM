@@ -22,13 +22,11 @@ public sealed class JwtTokenService
         var key = new SymmetricSecurityKey(
             Encoding.UTF8.GetBytes(jwt["Key"] ?? "DigitalDive-HR-Dev-Key-Change-In-Production-Min-32-Chars"));
 
+        // Short claim types only — matches MapInboundClaims=false + RoleClaimType="role"
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email),
-            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new(ClaimTypes.Email, user.Email),
-            new(ClaimTypes.Role, user.Role),
             new("role", user.Role),
         };
 
@@ -39,7 +37,7 @@ public sealed class JwtTokenService
 
         if (!string.IsNullOrWhiteSpace(user.FullName))
         {
-            claims.Add(new Claim(ClaimTypes.Name, user.FullName));
+            claims.Add(new Claim("name", user.FullName));
         }
 
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

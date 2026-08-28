@@ -182,7 +182,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
-        padding: const EdgeInsets.only(bottom: 110),
+        padding: screenListPadding(context),
         children: [
           const PageHero(
             title: 'Attendance',
@@ -205,25 +205,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: SectionCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              child: FormSpacedColumn(
                 children: [
                   Text('Biometric punch', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 4),
                   Text(
                     'Scan fingerprint to Check-In or Check-Out. Works for Employee, Manager & HR.',
                     style: TextStyle(color: T.muted(context), fontSize: 12.5),
                   ),
-                  const SizedBox(height: 12),
                   if (error != null) Text(error!, style: const TextStyle(color: AppColors.danger)),
                   if (msg != null) Text(msg!, style: const TextStyle(color: AppColors.ok, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 8),
                   TextFormField(
                     initialValue: workDate,
                     decoration: const InputDecoration(labelText: 'Date', prefixIcon: Icon(Icons.calendar_today_outlined)),
                     onChanged: (v) => workDate = v,
                   ),
-                  const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
                     initialValue: status,
                     decoration: const InputDecoration(labelText: 'Status'),
@@ -234,8 +229,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     ],
                     onChanged: (v) => setState(() => status = v ?? 'present'),
                   ),
-                  if (!checkingHardware && !hardwareAvailable) ...[
-                    const SizedBox(height: 12),
+                  if (!checkingHardware && !hardwareAvailable)
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: const Text('Mock fingerprint (no sensor)'),
@@ -247,16 +241,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       activeThumbColor: AppColors.accent,
                       onChanged: punching ? null : (v) => setState(() => mockFingerprint = v),
                     ),
-                  ],
                   if (hardwareAvailable)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        'Fingerprint sensor ready',
-                        style: TextStyle(color: AppColors.ok, fontSize: 12.5, fontWeight: FontWeight.w600),
-                      ),
+                    Text(
+                      'Fingerprint sensor ready',
+                      style: TextStyle(color: AppColors.ok, fontSize: 12.5, fontWeight: FontWeight.w600),
                     ),
-                  const SizedBox(height: 16),
                   Row(
                     children: [
                       Expanded(
@@ -289,7 +278,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             padding: const EdgeInsets.fromLTRB(20, 6, 20, 8),
             child: Text('Recent days', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
           ),
-          if (loading) const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator())),
+          if (loading) const ScreenLoader(),
           if (!loading && rows.isEmpty) const EmptyHint('No attendance yet — punch in above.', icon: Icons.fingerprint_rounded),
           ...rows.map((raw) {
             final r = Map<String, dynamic>.from(raw as Map);

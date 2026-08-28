@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 
 var files = args.Length > 0
     ? args
-    : new[] { "schema-extensions.sql", "seed-extensions.sql" };
+    : new[] { "schema-extensions.sql", "seed-extensions.sql", "schema-deep-features.sql", "seed-deep-features.sql" };
 
 string? FindApiDir()
 {

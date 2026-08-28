@@ -87,6 +87,8 @@ builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        // Keep JWT claim types as issued ("role", "sub") so [Authorize(Roles=...)] matches reliably.
+        options.MapInboundClaims = false;
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -96,8 +98,9 @@ builder.Services
             ValidIssuer = jwtSection["Issuer"] ?? "DigitalDive.Hr",
             ValidAudience = jwtSection["Audience"] ?? "DigitalDive.Hr.Clients",
             IssuerSigningKey = signingKey,
-            ClockSkew = TimeSpan.FromMinutes(1),
-            RoleClaimType = System.Security.Claims.ClaimTypes.Role
+            ClockSkew = TimeSpan.FromMinutes(5),
+            NameClaimType = "name",
+            RoleClaimType = "role"
         };
     });
 
@@ -162,13 +165,14 @@ app.Use(async (ctx, next) =>
 app.UseSwagger();
 app.UseSwaggerUI(options =>
 {
-    options.SwaggerEndpoint("/swagger/v1/swagger.json", "Digital Dive HR API v1");
+    // Relative path — works when API is hosted under /HRMDevelopment (IIS sub-app).
+    options.SwaggerEndpoint("v1/swagger.json", "Digital Dive HR API v1");
     options.RoutePrefix = "swagger";
     options.DocumentTitle = "Digital Dive HR API — Swagger";
     options.DisplayRequestDuration();
     options.EnablePersistAuthorization();
     options.DefaultModelsExpandDepth(0);
-    options.InjectStylesheet("/swagger-ui/custom.css");
+    options.InjectStylesheet("custom.css");
 });
 
 app.UseDefaultFiles();

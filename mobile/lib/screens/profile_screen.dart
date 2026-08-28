@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../nav/app_nav.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/ui_kit.dart';
@@ -13,10 +12,9 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     final user = app.user!;
-    final role = normalizeRole(user.role);
 
     return ListView(
-      padding: const EdgeInsets.only(bottom: 24),
+      padding: screenListPadding(context),
       children: [
         const PageHero(
           title: 'Profile',
@@ -37,8 +35,7 @@ class ProfileScreen extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(user.email, style: TextStyle(color: T.muted(context))),
                 const SizedBox(height: 16),
-                _row(context, 'Role', role),
-                _row(context, 'Job title', user.jobTitle ?? '-'),
+                _row(context, 'Category', user.jobTitle ?? 'Employee'),
                 _row(context, 'Employee ID', user.employeeId?.toString() ?? '-'),
                 const SizedBox(height: 16),
                 FilledButton.icon(

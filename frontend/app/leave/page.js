@@ -4,12 +4,13 @@ import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api, getUser, normalizeRole } from '../../lib/auth';
 import { formatDate, todayISO, v } from '../../lib/format';
+import { UAE_HOLIDAYS_2026 } from '../../lib/holidays';
 
 export default function LeavePage() {
   const [user, setUser] = useState(null);
   const role = normalizeRole(user);
   const isEmployee = role === 'employee';
-  const canApprove = role === 'admin' || role === 'manager';
+  const canApprove = role === 'admin';
 
   const [rows, setRows] = useState([]);
   const [balances, setBalances] = useState([]);
@@ -119,6 +120,30 @@ export default function LeavePage() {
                     <td colSpan={5}>No balance rows.</td>
                   </tr>
                 ) : null}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="panel-title">
+            <h3>Holiday calendar (UAE 2026)</h3>
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Holiday</th>
+                </tr>
+              </thead>
+              <tbody>
+                {UAE_HOLIDAYS_2026.map((h) => (
+                  <tr key={h.date}>
+                    <td>{formatDate(h.date)}</td>
+                    <td>{h.name}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

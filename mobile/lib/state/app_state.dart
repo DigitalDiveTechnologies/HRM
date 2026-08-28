@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../nav/app_nav.dart';
 import '../services/api_client.dart';
 
 class AuthUser {
@@ -29,7 +30,7 @@ class AuthUser {
       role: json['role']?.toString() ?? 'employee',
       employeeId: json['employeeId'] == null ? null : (json['employeeId'] as num).toInt(),
       fullName: json['fullName']?.toString(),
-      jobTitle: json['jobTitle']?.toString(),
+      jobTitle: json['jobTitle']?.toString() ?? json['job_title']?.toString(),
     );
   }
 
@@ -61,7 +62,13 @@ class AppState extends ChangeNotifier {
     final raw = prefs.getString('hr_user');
     if (raw != null && api.token != null && api.token!.isNotEmpty) {
       try {
-        user = AuthUser.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+        final parsed = AuthUser.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+        if (canUseMobileApp(parsed.role)) {
+          user = parsed;
+        } else {
+          await api.setToken(null);
+          await prefs.remove('hr_user');
+        }
       } catch (_) {
         user = null;
       }
@@ -73,9 +80,10 @@ class AppState extends ChangeNotifier {
 
   Future<void> toggleTheme() async {
     themeMode = themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    // Paint new theme immediately — don't wait on disk I/O (avoids grey/double blink).
+    notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('hr_theme', themeMode == ThemeMode.dark ? 'dark' : 'light');
-    notifyListeners();
   }
 
   Future<void> login(String email, String password) async {
@@ -87,6 +95,11 @@ class AppState extends ChangeNotifier {
 
     final token = data['token']?.toString() ?? '';
     final u = AuthUser.fromJson(Map<String, dynamic>.from(data['user'] as Map));
+    if (!canUseMobileApp(u.role)) {
+      throw ApiException(
+        'Administrator accounts use the HR web portal. Employees sign in here.',
+      );
+    }
     await api.setToken(token);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('hr_user', jsonEncode(u.toJson()));

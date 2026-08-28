@@ -13,3 +13,16 @@ public sealed class EmployeeDto
     public DateTime? PassportExpiry { get; set; }
     public DateTime? VisaExpiry { get; set; }
 }
+
+public sealed class CreateEmployeeRequest
+{
+    public string FullName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+    public string JobTitle { get; set; } = string.Empty;
+    public string? Phone { get; set; }
+    public int? DepartmentId { get; set; }
+    public int? ManagerId { get; set; }
+    public string? JoinDate { get; set; }
+    public string? Status { get; set; }
+}

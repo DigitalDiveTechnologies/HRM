@@ -178,6 +178,9 @@ export default function ExitPage() {
                   <td>{v(r, 'exitType', 'exit_type')}</td>
                   <td>{formatDate(v(r, 'lastWorkingDate', 'last_working_date'))}</td>
                   <td style={{ maxWidth: 220 }}>
+                    <div className="muted" style={{ fontSize: 12 }}>
+                      EOSB {v(r, 'eosbAmount', 'eosb_amount') || '—'} · {v(r, 'serviceYears', 'service_years') || '—'} yrs
+                    </div>
                     <div className="muted" style={{ fontSize: 12 }}>{v(r, 'settlementNotes', 'settlement_notes') || '—'}</div>
                   </td>
                   <td>

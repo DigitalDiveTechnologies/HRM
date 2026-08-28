@@ -48,7 +48,7 @@ class _PayrollScreenState extends State<PayrollScreen> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
-        padding: const EdgeInsets.only(bottom: 24),
+        padding: screenListPadding(context),
         children: [
           PageHero(
             title: 'Payroll',
@@ -60,7 +60,7 @@ class _PayrollScreenState extends State<PayrollScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(error!, style: const TextStyle(color: AppColors.danger)),
             ),
-          if (loading) const Padding(padding: EdgeInsets.all(32), child: Center(child: CircularProgressIndicator())),
+          if (loading) const ScreenLoader(),
           if (!loading && rows.isEmpty) const EmptyHint('No payroll records.'),
           ...rows.map((raw) {
             final p = Map<String, dynamic>.from(raw as Map);

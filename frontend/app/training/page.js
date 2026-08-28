@@ -12,6 +12,9 @@ export default function TrainingPage() {
   const [courses, setCourses] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
   const [certs, setCerts] = useState([]);
+  const [calendar, setCalendar] = useState([]);
+  const [skills, setSkills] = useState([]);
+  const [employeeSkills, setEmployeeSkills] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -34,6 +37,7 @@ export default function TrainingPage() {
     issuedOn: todayISO(),
     expiresOn: '',
   });
+  const [skillForm, setSkillForm] = useState({ employeeId: '', skillId: '', level: 'intermediate' });
 
   const load = useCallback(() => {
     setError('');
@@ -41,12 +45,18 @@ export default function TrainingPage() {
       api('/training/courses'),
       api('/training/enrollments'),
       api('/training/certifications'),
+      api('/training/calendar'),
+      api('/org/skills'),
+      api('/org/employee-skills'),
       api('/employees'),
     ])
-      .then(([c, e, cert, emps]) => {
+      .then(([c, e, cert, cal, sk, esk, emps]) => {
         setCourses(c || []);
         setEnrollments(e || []);
         setCerts(cert || []);
+        setCalendar(cal || []);
+        setSkills(sk || []);
+        setEmployeeSkills(esk || []);
         setEmployees(emps || []);
       })
       .catch((err) => setError(err.message));
@@ -131,6 +141,136 @@ export default function TrainingPage() {
     <AppShell title="Training & Learning" subtitle="Courses, enrollments and certifications">
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
+
+      <div className="card" style={{ marginBottom: 14 }}>
+        <div className="panel-title">
+          <h3>Training calendar</h3>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Course</th>
+                <th>Category</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {calendar.map((c) => (
+                <tr key={v(c, 'id')}>
+                  <td>{v(c, 'title')}</td>
+                  <td>{v(c, 'category') || '-'}</td>
+                  <td>{formatDate(v(c, 'scheduledStart', 'scheduled_start'))}</td>
+                  <td>{formatDate(v(c, 'scheduledEnd', 'scheduled_end'))}</td>
+                  <td>
+                    <Badge status={v(c, 'status')} />
+                  </td>
+                </tr>
+              ))}
+              {!calendar.length ? (
+                <tr>
+                  <td colSpan={5}>No scheduled courses yet.</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 14 }}>
+        <div className="panel-title">
+          <h3>Skills matrix</h3>
+        </div>
+        {isAdmin ? (
+          <form
+            className="stack"
+            style={{ marginBottom: 12 }}
+            onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                await api('/org/employee-skills', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    employeeId: Number(skillForm.employeeId),
+                    skillId: Number(skillForm.skillId),
+                    level: skillForm.level,
+                  }),
+                });
+                setMsg('Skill assigned.');
+                load();
+              } catch (err) {
+                setError(err.message);
+              }
+            }}
+          >
+            <div className="grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+              <label className="field">
+                Employee
+                <select required value={skillForm.employeeId} onChange={(e) => setSkillForm({ ...skillForm, employeeId: e.target.value })}>
+                  <option value="">Select…</option>
+                  {employees.map((emp) => (
+                    <option key={v(emp, 'id')} value={v(emp, 'id')}>
+                      {v(emp, 'fullName', 'full_name')}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                Skill
+                <select required value={skillForm.skillId} onChange={(e) => setSkillForm({ ...skillForm, skillId: e.target.value })}>
+                  <option value="">Select…</option>
+                  {skills.map((s) => (
+                    <option key={v(s, 'id')} value={v(s, 'id')}>
+                      {v(s, 'name')}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                Level
+                <select value={skillForm.level} onChange={(e) => setSkillForm({ ...skillForm, level: e.target.value })}>
+                  <option value="beginner">beginner</option>
+                  <option value="intermediate">intermediate</option>
+                  <option value="advanced">advanced</option>
+                  <option value="expert">expert</option>
+                </select>
+              </label>
+            </div>
+            <button className="btn" type="submit">
+              Assign skill
+            </button>
+          </form>
+        ) : null}
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Employee</th>
+                <th>Skill</th>
+                <th>Category</th>
+                <th>Level</th>
+              </tr>
+            </thead>
+            <tbody>
+              {employeeSkills.map((s, i) => (
+                <tr key={`${v(s, 'employeeId', 'employee_id')}-${v(s, 'skillId', 'skill_id')}-${i}`}>
+                  <td>{v(s, 'fullName', 'full_name')}</td>
+                  <td>{v(s, 'skillName', 'skill_name')}</td>
+                  <td>{v(s, 'category')}</td>
+                  <td>{v(s, 'level')}</td>
+                </tr>
+              ))}
+              {!employeeSkills.length ? (
+                <tr>
+                  <td colSpan={4}>No skills assigned.</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {isAdmin ? (
         <div className="card" style={{ marginBottom: 14 }}>

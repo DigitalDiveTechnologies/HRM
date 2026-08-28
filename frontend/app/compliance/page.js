@@ -10,9 +10,11 @@ export default function CompliancePage() {
   const isAdmin = role === 'admin';
 
   const [rows, setRows] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
+  const [tab, setTab] = useState('all');
   const [form, setForm] = useState({
     employeeId: '',
     title: '',
@@ -23,10 +25,11 @@ export default function CompliancePage() {
 
   const load = useCallback(() => {
     setError('');
-    Promise.all([api('/compliance'), api('/employees')])
-      .then(([items, emps]) => {
+    Promise.all([api('/compliance'), api('/employees'), api('/audit')])
+      .then(([items, emps, logs]) => {
         setRows(items || []);
         setEmployees(emps || []);
+        setAuditLogs(logs || []);
       })
       .catch((e) => setError(e.message));
   }, []);
@@ -129,6 +132,54 @@ export default function CompliancePage() {
         </div>
       ) : null}
 
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        {['all', 'audit', 'visa', 'document', 'labor_law'].map((t) => (
+          <button key={t} type="button" className={tab === t ? 'btn' : 'btn secondary'} onClick={() => setTab(t)}>
+            {t}
+          </button>
+        ))}
+      </div>
+
+      <div className="card" style={{ marginBottom: 14 }}>
+        <div className="panel-title">
+          <h3>System audit trail</h3>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>Actor</th>
+                <th>Action</th>
+                <th>Entity</th>
+                <th>Detail</th>
+              </tr>
+            </thead>
+            <tbody>
+              {auditLogs.slice(0, 30).map((a) => (
+                <tr key={v(a, 'id')}>
+                  <td>{formatDate(v(a, 'createdAt', 'created_at'))}</td>
+                  <td>
+                    {v(a, 'actorEmail', 'actor_email') || '-'}
+                    <div className="muted">{v(a, 'actorRole', 'actor_role')}</div>
+                  </td>
+                  <td>{v(a, 'action')}</td>
+                  <td>
+                    {v(a, 'entityType', 'entity_type') || '-'} #{v(a, 'entityId', 'entity_id') || '-'}
+                  </td>
+                  <td>{v(a, 'detail') || '-'}</td>
+                </tr>
+              ))}
+              {!auditLogs.length ? (
+                <tr>
+                  <td colSpan={5}>No audit log rows yet.</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div className="card">
         <div className="panel-title">
           <h3>Compliance tracker</h3>
@@ -146,7 +197,9 @@ export default function CompliancePage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => {
+              {rows
+                .filter((r) => tab === 'all' || String(v(r, 'category')) === tab)
+                .map((r) => {
                 const id = v(r, 'id');
                 const status = String(v(r, 'status') || '');
                 return (
@@ -181,7 +234,7 @@ export default function CompliancePage() {
                   </tr>
                 );
               })}
-              {!rows.length ? (
+              {!rows.filter((r) => tab === 'all' || String(v(r, 'category')) === tab).length ? (
                 <tr>
                   <td colSpan={6}>No compliance items yet.</td>
                 </tr>

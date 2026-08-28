@@ -1,8 +1,8 @@
 class AppConfig {
-  /// Override: flutter run --dart-define=API_BASE=http://10.0.2.2:5088
-  /// Android emulator → 10.0.2.2 | Windows/Web → localhost
+  /// Local dev: flutter run --dart-define=API_BASE=http://192.168.1.18:5088
+  /// Production: https://digitaldivetech-001-site4.gtempurl.com/HRMDevelopment
   static const apiBase = String.fromEnvironment(
     'API_BASE',
-    defaultValue: 'http://localhost:5088',
+    defaultValue: 'https://digitaldivetech-001-site4.gtempurl.com/HRMDevelopment',
   );
 }

@@ -87,23 +87,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 alignment: Alignment.topRight,
                 child: Padding(
                   padding: const EdgeInsets.all(10),
-                  child: Material(
-                    color: Colors.transparent,
-                    shape: CircleBorder(
-                      side: BorderSide(
-                        color: dark ? Colors.white.withValues(alpha: 0.45) : AppColors.lightMuted,
-                        width: 1.2,
-                      ),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: IconButton(
-                      tooltip: 'Toggle theme',
-                      onPressed: () => app.toggleTheme(),
-                      icon: Icon(
-                        app.themeMode == ThemeMode.dark ? Icons.dark_mode_rounded : Icons.wb_sunny_rounded,
-                        color: dark ? Colors.white : AppColors.lightText,
-                      ),
-                    ),
+                  child: NavThemeButton(
+                    isDark: dark,
+                    onPressed: () => app.toggleTheme(),
                   ),
                 ),
               ),
@@ -119,8 +105,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         padding: const EdgeInsets.all(22),
                         child: SectionCard(
                           padding: const EdgeInsets.all(24),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                          child: FormSpacedColumn(
                             children: [
                               Row(
                                 children: [
@@ -143,7 +128,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 26),
                               Text(
                                 'Welcome back',
                                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
@@ -151,13 +135,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                       letterSpacing: -0.5,
                                     ),
                               ),
-                              const SizedBox(height: 6),
                               Text(
-                                'Admin, manager & employee — role-based menus.',
+                                'Employees — attendance, leave & self-service.',
                                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: T.muted(context)),
                               ),
-                              const SizedBox(height: 20),
-                              if (_error != null) ...[
+                              if (_error != null)
                                 Container(
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
@@ -169,8 +151,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                     style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600),
                                   ),
                                 ),
-                                const SizedBox(height: 12),
-                              ],
                               TextField(
                                 controller: _email,
                                 keyboardType: TextInputType.emailAddress,
@@ -179,7 +159,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                   prefixIcon: Icon(Icons.mail_outline_rounded),
                                 ),
                               ),
-                              const SizedBox(height: 12),
                               TextField(
                                 controller: _password,
                                 obscureText: _obscure,
@@ -193,7 +172,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 20),
                               FilledButton(
                                 onPressed: _loading ? null : _submit,
                                 child: Text(_loading ? 'Signing in…' : 'Sign in'),

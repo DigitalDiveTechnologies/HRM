@@ -39,7 +39,8 @@ public sealed class AttendanceController : ControllerBase
             return BadRequest(new { error = "workDate required" });
 
         var row = await _hr.CreateAttendanceAsync(
-            employeeId, body.WorkDate, body.CheckIn, body.CheckOut, body.Status, body.OvertimeHours, ct);
+            employeeId, body.WorkDate, body.CheckIn, body.CheckOut, body.Status,
+            body.OvertimeHours, body.ShiftName, ct);
         return CreatedAtAction(nameof(List), row);
     }
 }

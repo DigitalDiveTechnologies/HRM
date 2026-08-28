@@ -23,30 +23,41 @@ class DigitalDiveHrApp extends StatelessWidget {
         state.init();
         return state;
       },
-      child: Consumer<AppState>(
-        builder: (context, app, _) {
-          final Widget home;
-          if (!app.ready) {
-            home = const Scaffold(body: Center(child: CircularProgressIndicator()));
-          } else if (app.user == null) {
-            home = const LoginScreen();
-          } else {
-            // All roles (admin / boss / manager / employee) use the app
-            home = const AppShell();
-          }
-
+      // Only themeMode rebuilds MaterialApp chrome — screens stay mounted (no reload/spinner).
+      child: Builder(
+        builder: (context) {
+          final themeMode = context.select<AppState, ThemeMode>((s) => s.themeMode);
           return MaterialApp(
             title: 'Digital Dive HR',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.light(),
             darkTheme: AppTheme.dark(),
-            themeMode: app.themeMode,
-            // Instant switch — no grey lerp between light/dark
+            themeMode: themeMode,
             themeAnimationDuration: Duration.zero,
-            home: home,
+            themeAnimationStyle: AnimationStyle.noAnimation,
+            home: const _RootGate(),
           );
         },
       ),
     );
+  }
+}
+
+/// Auth/routing gate — does not rebuild on theme toggle.
+class _RootGate extends StatelessWidget {
+  const _RootGate();
+
+  @override
+  Widget build(BuildContext context) {
+    final ready = context.select<AppState, bool>((s) => s.ready);
+    final signedIn = context.select<AppState, bool>((s) => s.user != null);
+
+    if (!ready) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (!signedIn) {
+      return const LoginScreen();
+    }
+    return const AppShell();
   }
 }

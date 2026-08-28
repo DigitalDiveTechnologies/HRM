@@ -1,4 +1,4 @@
-/// Role-based navigation — mirrors Digital Dive HR portal menus.
+/// Role-based navigation — employee self-service on mobile app only.
 library;
 
 class NavItem {
@@ -19,7 +19,6 @@ class NavGroup {
   final List<NavItem> items;
 }
 
-/// Normalize JWT / DB role. Boss uses admin-level access.
 String normalizeRole(String? role) {
   final r = (role ?? 'employee').toLowerCase().trim();
   if (r == 'boss' || r == 'hr_admin' || r == 'hr-admin') return 'admin';
@@ -27,107 +26,35 @@ String normalizeRole(String? role) {
   return 'employee';
 }
 
-String homeRouteForRole(String? role) {
-  switch (normalizeRole(role)) {
-    case 'manager':
-      return 'approvals';
-    case 'employee':
-      return 'ess';
-    default:
-      return 'dashboard';
-  }
-}
+/// Mobile app — employees only (admin uses web portal).
+bool canUseMobileApp(String? role) => normalizeRole(role) != 'admin';
 
+String homeRouteForRole(String? role) => 'ess';
+
+/// Employee ESS menu for all app users (manager is a job category, not a separate app role).
 List<NavGroup> navForRole(String? role) {
-  final r = normalizeRole(role);
-
-  if (r == 'employee') {
-    return const [
-      NavGroup(
-        title: 'Self Service',
-        items: [
-          NavItem(id: 'ess', label: 'ESS / Home', icon: 'home'),
-          NavItem(id: 'leave', label: 'My Leaves', icon: 'leave'),
-          NavItem(id: 'attendance', label: 'My Attendance', icon: 'attendance'),
-          NavItem(id: 'payslips', label: 'My Payslips', icon: 'payslips'),
-          NavItem(id: 'notifications', label: 'Notifications', icon: 'alerts'),
-          NavItem(id: 'directory', label: 'Directory', icon: 'directory'),
-          NavItem(id: 'profile', label: 'Profile', icon: 'profile'),
-        ],
-      ),
-    ];
-  }
-
-  if (r == 'manager') {
-    return const [
-      NavGroup(
-        title: 'Overview',
-        items: [
-          NavItem(id: 'dashboard', label: 'Dashboard', icon: 'dashboard'),
-          NavItem(id: 'mss', label: 'MSS', icon: 'mss'),
-          NavItem(id: 'approvals', label: 'Approvals', icon: 'approvals'),
-          NavItem(id: 'reports', label: 'Reports', icon: 'reports'),
-        ],
-      ),
-      NavGroup(
-        title: 'Core HR',
-        items: [
-          NavItem(id: 'attendance', label: 'Attendance', icon: 'attendance'),
-          NavItem(id: 'leave', label: 'Leave', icon: 'leave'),
-          NavItem(id: 'recruitment', label: 'Recruitment', icon: 'recruitment'),
-          NavItem(id: 'exit', label: 'Exit', icon: 'exit'),
-          NavItem(id: 'compliance', label: 'Compliance', icon: 'compliance'),
-          NavItem(id: 'performance', label: 'Performance', icon: 'performance'),
-          NavItem(id: 'training', label: 'Training', icon: 'training'),
-          NavItem(id: 'assets', label: 'Assets', icon: 'assets'),
-          NavItem(id: 'travel', label: 'Travel', icon: 'travel'),
-        ],
-      ),
-      NavGroup(
-        title: 'Self Service',
-        items: [
-          NavItem(id: 'ess', label: 'ESS', icon: 'ess'),
-          NavItem(id: 'documents', label: 'Documents', icon: 'documents'),
-          NavItem(id: 'directory', label: 'Directory', icon: 'directory'),
-        ],
-      ),
-    ];
-  }
-
-  // Admin / Boss — full menu
   return const [
-    NavGroup(
-      title: 'Overview',
-      items: [
-        NavItem(id: 'dashboard', label: 'Dashboard', icon: 'dashboard'),
-        NavItem(id: 'mss', label: 'MSS', icon: 'mss'),
-        NavItem(id: 'approvals', label: 'Approvals', icon: 'approvals'),
-        NavItem(id: 'reports', label: 'Reports', icon: 'reports'),
-      ],
-    ),
-    NavGroup(
-      title: 'Core HR',
-      items: [
-        NavItem(id: 'employees', label: 'Employees', icon: 'employees'),
-        NavItem(id: 'recruitment', label: 'Recruitment', icon: 'recruitment'),
-        NavItem(id: 'exit', label: 'Exit', icon: 'exit'),
-        NavItem(id: 'compliance', label: 'Compliance', icon: 'compliance'),
-        NavItem(id: 'performance', label: 'Performance', icon: 'performance'),
-        NavItem(id: 'training', label: 'Training', icon: 'training'),
-        NavItem(id: 'assets', label: 'Assets', icon: 'assets'),
-        NavItem(id: 'travel', label: 'Travel', icon: 'travel'),
-        NavItem(id: 'attendance', label: 'Attendance', icon: 'attendance'),
-        NavItem(id: 'leave', label: 'Leave', icon: 'leave'),
-        NavItem(id: 'payroll', label: 'Payroll', icon: 'payroll'),
-      ],
-    ),
     NavGroup(
       title: 'Self Service',
       items: [
-        NavItem(id: 'ess', label: 'ESS', icon: 'ess'),
-        NavItem(id: 'documents', label: 'Documents', icon: 'documents'),
+        NavItem(id: 'ess', label: 'ESS / Home', icon: 'home'),
+        NavItem(id: 'leave', label: 'My Leaves', icon: 'leave'),
+        NavItem(id: 'attendance', label: 'My Attendance', icon: 'attendance'),
+        NavItem(id: 'payslips', label: 'My Payslips', icon: 'payslips'),
+        NavItem(id: 'notifications', label: 'Notifications', icon: 'alerts'),
+        NavItem(id: 'documents', label: 'My Documents', icon: 'documents'),
         NavItem(id: 'directory', label: 'Directory', icon: 'directory'),
+        NavItem(id: 'profile', label: 'Profile', icon: 'profile'),
       ],
     ),
   ];
+}
+
+/// Label shown in app chrome — prefer job title over login role.
+String userDisplayLabel({String? fullName, String? email, String? jobTitle, String? role}) {
+  final name = (fullName != null && fullName.trim().isNotEmpty) ? fullName.trim() : (email ?? '');
+  final category = (jobTitle != null && jobTitle.trim().isNotEmpty)
+      ? jobTitle.trim()
+      : 'Employee';
+  return '$name · $category';
 }

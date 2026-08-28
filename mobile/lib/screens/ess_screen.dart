@@ -21,7 +21,7 @@ class EssScreen extends StatelessWidget {
     }
 
     return ListView(
-      padding: const EdgeInsets.only(bottom: 24),
+      padding: screenListPadding(context),
       children: [
         const PageHero(
           title: 'ESS Portal',

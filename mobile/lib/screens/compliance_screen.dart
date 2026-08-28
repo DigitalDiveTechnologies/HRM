@@ -48,7 +48,7 @@ class _ComplianceScreenState extends State<ComplianceScreen> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
-        padding: const EdgeInsets.only(bottom: 24),
+        padding: screenListPadding(context),
         children: [
           const PageHero(
             title: 'Compliance',
@@ -60,7 +60,7 @@ class _ComplianceScreenState extends State<ComplianceScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(error!, style: const TextStyle(color: AppColors.danger)),
             ),
-          if (loading) const Padding(padding: EdgeInsets.all(32), child: Center(child: CircularProgressIndicator())),
+          if (loading) const ScreenLoader(),
           if (!loading && rows.isEmpty) const EmptyHint('No compliance items yet.'),
           ...rows.map((raw) {
             final r = Map<String, dynamic>.from(raw as Map);

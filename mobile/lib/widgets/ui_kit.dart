@@ -3,6 +3,84 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
 
+/// Standard vertical gap between form inputs, dropdowns, date fields, and actions.
+const double kFormFieldSpacing = 12;
+
+/// Shorthand — place between consecutive form controls.
+const Widget formFieldGap = SizedBox(height: kFormFieldSpacing);
+
+/// Column that inserts [kFormFieldSpacing] between every child (forms, dropdowns, buttons).
+class FormSpacedColumn extends StatelessWidget {
+  const FormSpacedColumn({
+    super.key,
+    required this.children,
+    this.spacing = kFormFieldSpacing,
+    this.crossAxisAlignment = CrossAxisAlignment.stretch,
+  });
+
+  final List<Widget> children;
+  final double spacing;
+  final CrossAxisAlignment crossAxisAlignment;
+
+  @override
+  Widget build(BuildContext context) {
+    if (children.isEmpty) return const SizedBox.shrink();
+    final spaced = <Widget>[];
+    for (var i = 0; i < children.length; i++) {
+      if (i > 0) spaced.add(SizedBox(height: spacing));
+      spaced.add(children[i]);
+    }
+    return Column(
+      crossAxisAlignment: crossAxisAlignment,
+      children: spaced,
+    );
+  }
+}
+
+/// Bottom inset for scrollable screens — clears the solid footer chrome.
+EdgeInsets screenListPadding(BuildContext context, {double extra = 16}) {
+  return EdgeInsets.only(bottom: extra);
+}
+
+/// Centered list loader — stays in content area, not over the footer chrome.
+class ScreenLoader extends StatelessWidget {
+  const ScreenLoader({super.key, this.padding = 40});
+
+  final double padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: padding, horizontal: 24),
+      child: const Center(
+        child: CircularProgressIndicator(color: AppColors.accent),
+      ),
+    );
+  }
+}
+
+/// Solid footer strip matching the top header — blocks loader bleed at system nav.
+class AppBottomChrome extends StatelessWidget {
+  const AppBottomChrome({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.viewPaddingOf(context).bottom;
+    final bg = T.bg(context);
+    return ColoredBox(
+      color: bg,
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: bg,
+          border: Border(top: BorderSide(color: T.line(context))),
+        ),
+        padding: EdgeInsets.only(bottom: bottom),
+      ),
+    );
+  }
+}
+
 IconData navIcon(String key) {
   switch (key) {
     case 'dashboard':
@@ -15,6 +93,8 @@ IconData navIcon(String key) {
       return Icons.insights_outlined;
     case 'employees':
       return Icons.badge_outlined;
+    case 'onboarding':
+      return Icons.rocket_launch_outlined;
     case 'recruitment':
       return Icons.person_search_outlined;
     case 'exit':
@@ -237,9 +317,9 @@ class MetricTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: T.isDark(context) ? 0.18 : 0.1),
+          color: T.surface(context),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
+          border: Border.all(color: T.cardBorder(context)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -251,6 +331,176 @@ class MetricTile extends StatelessWidget {
             Text(label, style: TextStyle(fontSize: 12, color: T.muted(context))),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Matches portal chrome: 6px corners + cyan outline (not a pill).
+const double kNavChromeRadius = 6;
+
+Color _navChromeBorder(BuildContext context) =>
+    AppColors.accent.withValues(alpha: T.isDark(context) ? 0.45 : 0.55);
+
+/// Hamburger — cyan fill, larger white icon (less inner padding).
+class NavMenuButton extends StatelessWidget {
+  const NavMenuButton({super.key, required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.accent,
+      borderRadius: BorderRadius.circular(kNavChromeRadius),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(kNavChromeRadius),
+          child: const SizedBox(
+          width: 40,
+          height: 40,
+          child: Icon(Icons.menu, color: Colors.white, size: 28),
+        ),
+      ),
+    );
+  }
+}
+
+/// Theme toggle — outlined square box (portal `.theme-toggle` / image 2).
+class NavThemeButton extends StatelessWidget {
+  const NavThemeButton({super.key, required this.isDark, required this.onPressed});
+
+  final bool isDark;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: T.surface(context),
+      borderRadius: BorderRadius.circular(kNavChromeRadius),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(kNavChromeRadius),
+        child: Container(
+          width: 40,
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(kNavChromeRadius),
+            border: Border.all(color: _navChromeBorder(context)),
+          ),
+          child: Icon(
+            isDark ? Icons.dark_mode_outlined : Icons.wb_sunny_outlined,
+            size: 20,
+            color: T.ink(context),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// User chip — cyan border, 6px radius (not pill). Portal `.user-chip`.
+class NavUserChip extends StatelessWidget {
+  const NavUserChip({super.key, required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: T.surface(context),
+        borderRadius: BorderRadius.circular(kNavChromeRadius),
+        border: Border.all(color: _navChromeBorder(context)),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w600,
+          color: T.ink(context),
+        ),
+      ),
+    );
+  }
+}
+
+/// Mobile top bar — sits below the system status bar (SafeArea / viewPadding).
+class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
+  const AppTopBar({
+    super.key,
+    required this.title,
+    required this.userLabel,
+    required this.isDark,
+    required this.onOpenMenu,
+    required this.onToggleTheme,
+    this.topInset = 0,
+  });
+
+  final String title;
+  final String userLabel;
+  final bool isDark;
+  final VoidCallback onOpenMenu;
+  final VoidCallback onToggleTheme;
+
+  /// Status-bar / notch inset from [MediaQuery.viewPadding.top].
+  final double topInset;
+
+  static const double contentHeight = 104;
+
+  @override
+  Size get preferredSize => Size.fromHeight(contentHeight + topInset);
+
+  @override
+  Widget build(BuildContext context) {
+    final titleStyle = Theme.of(context).appBarTheme.titleTextStyle ??
+        TextStyle(
+          fontWeight: FontWeight.w800,
+          fontSize: 18,
+          color: T.ink(context),
+        );
+
+    return Material(
+      color: T.bg(context),
+      elevation: 0,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(height: topInset),
+          SizedBox(
+            height: contentHeight,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      NavMenuButton(onPressed: onOpenMenu),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: titleStyle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      NavThemeButton(isDark: isDark, onPressed: onToggleTheme),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  NavUserChip(label: userLabel),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

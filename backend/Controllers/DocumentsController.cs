@@ -1,3 +1,4 @@
+using DigitalDive.Hr.Api.Helpers;
 using DigitalDive.Hr.Api.Models;
 using DigitalDive.Hr.Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -9,7 +10,7 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "Documents")]
 [Route("api/documents")]
-[Authorize(Roles = "admin,manager")]
+[Authorize]
 public sealed class DocumentsController : ControllerBase
 {
     private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -27,7 +28,20 @@ public sealed class DocumentsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> List(CancellationToken ct) => Ok(await _hr.DocumentsAsync(ct));
+    [Authorize(Roles = "admin,manager,employee")]
+    public async Task<IActionResult> List(CancellationToken ct)
+    {
+        var role = CurrentUser.Role(User).ToLowerInvariant();
+        if (role == "employee")
+        {
+            var id = CurrentUser.EmployeeId(User);
+            if (!id.HasValue) return Ok(Array.Empty<object>());
+            return Ok(await _hr.DocumentsForEmployeeAsync(id.Value, ct));
+        }
+
+        if (role is not ("admin" or "manager")) return Forbid();
+        return Ok(await _hr.DocumentsAsync(ct));
+    }
 
     [HttpPost]
     [Authorize(Roles = "admin")]
@@ -109,10 +123,24 @@ public sealed class DocumentsController : ControllerBase
     }
 
     [HttpGet("{id:int}/file")]
+    [Authorize(Roles = "admin,manager,employee")]
     public async Task<IActionResult> DownloadFile(int id, CancellationToken ct)
     {
         var doc = await _hr.DocumentByIdAsync(id, ct);
         if (doc is null) return NotFound(new { error = "document not found" });
+
+        var role = CurrentUser.Role(User).ToLowerInvariant();
+        if (role == "employee")
+        {
+            var myId = CurrentUser.EmployeeId(User);
+            var docEid = Convert.ToString(doc.GetValueOrDefault("employeeId") ?? doc.GetValueOrDefault("employee_id"));
+            if (!myId.HasValue || docEid != myId.Value.ToString())
+                return Forbid();
+        }
+        else if (role is not ("admin" or "manager"))
+        {
+            return Forbid();
+        }
 
         var fileRef = Convert.ToString(doc.GetValueOrDefault("fileRef") ?? doc.GetValueOrDefault("file_ref"));
         if (string.IsNullOrWhiteSpace(fileRef))

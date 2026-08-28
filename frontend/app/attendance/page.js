@@ -20,6 +20,8 @@ export default function AttendancePage() {
     checkIn: '09:00',
     checkOut: '18:00',
     status: 'present',
+    shiftName: 'General',
+    overtimeHours: 0,
   });
 
   useEffect(() => {
@@ -57,7 +59,8 @@ export default function AttendancePage() {
           checkIn: form.checkIn || null,
           checkOut: form.checkOut || null,
           status: form.status,
-          overtimeHours: 0,
+          shiftName: form.shiftName,
+          overtimeHours: Number(form.overtimeHours) || 0,
         }),
       });
       setMsg('Attendance saved.');
@@ -65,6 +68,15 @@ export default function AttendancePage() {
     } catch (err) {
       setError(err.message);
     }
+  }
+
+  function calcOtHint() {
+    // Simple: hours past 9h shift
+    const [ih, im] = String(form.checkIn || '09:00').split(':').map(Number);
+    const [oh, om] = String(form.checkOut || '18:00').split(':').map(Number);
+    const mins = oh * 60 + om - (ih * 60 + im);
+    const ot = Math.max(0, mins / 60 - 9);
+    setForm((f) => ({ ...f, overtimeHours: Math.round(ot * 100) / 100 }));
   }
 
   return (
@@ -122,6 +134,30 @@ export default function AttendancePage() {
               />
             </div>
             <div className="field">
+              <label>Shift</label>
+              <select value={form.shiftName} onChange={(e) => setForm({ ...form, shiftName: e.target.value })}>
+                <option value="General">General (09–18)</option>
+                <option value="Morning">Morning (07–16)</option>
+                <option value="Evening">Evening (12–21)</option>
+                <option value="Night">Night (21–06)</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>Overtime hours</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.25"
+                  value={form.overtimeHours}
+                  onChange={(e) => setForm({ ...form, overtimeHours: e.target.value })}
+                />
+                <button type="button" className="btn secondary" onClick={calcOtHint}>
+                  Auto OT
+                </button>
+              </div>
+            </div>
+            <div className="field">
               <label>Status</label>
               <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
                 <option value="present">present</option>
@@ -144,8 +180,10 @@ export default function AttendancePage() {
                 <tr>
                   <th>Date</th>
                   <th>Employee</th>
+                  <th>Shift</th>
                   <th>In</th>
                   <th>Out</th>
+                  <th>OT</th>
                   <th>Late</th>
                   <th>Status</th>
                 </tr>
@@ -155,8 +193,10 @@ export default function AttendancePage() {
                   <tr key={v(r, 'id')}>
                     <td>{formatDate(v(r, 'workDate', 'work_date'))}</td>
                     <td>{v(r, 'fullName', 'full_name')}</td>
+                    <td>{v(r, 'shiftName', 'shift_name') || 'General'}</td>
                     <td>{String(v(r, 'checkIn', 'check_in') || '-').slice(0, 5)}</td>
                     <td>{String(v(r, 'checkOut', 'check_out') || '-').slice(0, 5)}</td>
+                    <td>{v(r, 'overtimeHours', 'overtime_hours') || 0}</td>
                     <td>{formatLate(v(r, 'lateMinutes', 'late_minutes'))}</td>
                     <td>
                       <Badge status={v(r, 'status')} />

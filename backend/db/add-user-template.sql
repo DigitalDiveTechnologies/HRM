@@ -1,0 +1,11 @@
+-- Prefer the admin portal: Employees → "Add employee + app login"
+-- Or run manually in Neon / db-apply when needed.
+-- 2) role: admin | manager | employee  (portal menus follow JWT role)
+-- 3) password: plain text OK — first login auto-upgrades to BCrypt via API
+
+-- Example: give Ahmed Khan (employee id from employees) a manager login
+-- INSERT INTO users (email, password, role, employee_id)
+-- SELECT 'ahmed@digitaldive.demo', 'demo123', 'manager', e.id
+-- FROM employees e
+-- WHERE e.emp_code = 'DD-1004'
+--   AND NOT EXISTS (SELECT 1 FROM users u WHERE LOWER(u.email) = 'ahmed@digitaldive.demo');

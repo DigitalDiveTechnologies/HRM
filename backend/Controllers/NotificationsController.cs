@@ -28,4 +28,9 @@ public sealed class NotificationsController : ControllerBase
         var row = await _hr.MarkNotificationReadAsync(id, ct);
         return row is null ? NotFound() : Ok(row);
     }
+
+    [HttpPost("generate")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> Generate(CancellationToken ct) =>
+        Ok(await _hr.GenerateNotificationsAsync(ct));
 }

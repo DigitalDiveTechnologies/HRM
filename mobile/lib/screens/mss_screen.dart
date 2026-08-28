@@ -77,7 +77,7 @@ class _MssScreenState extends State<MssScreen> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
-        padding: const EdgeInsets.only(bottom: 24),
+        padding: screenListPadding(context),
         children: [
           const PageHero(
             title: 'Manager Self-Service',
@@ -89,7 +89,7 @@ class _MssScreenState extends State<MssScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(error!, style: const TextStyle(color: AppColors.danger)),
             ),
-          if (loading) const Padding(padding: EdgeInsets.all(32), child: Center(child: CircularProgressIndicator())),
+          if (loading) const ScreenLoader(),
           if (!loading) ...[
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),

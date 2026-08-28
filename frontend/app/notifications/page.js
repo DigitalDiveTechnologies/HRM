@@ -8,6 +8,7 @@ import { formatDate, v } from '../../lib/format';
 export default function NotificationsPage() {
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
+  const [msg, setMsg] = useState('');
 
   const load = useCallback(() => {
     api('/notifications')
@@ -28,9 +29,27 @@ export default function NotificationsPage() {
     }
   }
 
+  async function generate() {
+    setMsg('');
+    setError('');
+    try {
+      const res = await api('/notifications/generate', { method: 'POST', body: '{}' });
+      setMsg(`Generated ${res.inserted || 0} new alerts.`);
+      load();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
   return (
     <AppShell title="Notifications & Alerts" subtitle="Birthday, probation, contract, visa, training">
       {error ? <div className="error">{error}</div> : null}
+      {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
+      <div style={{ marginBottom: 12 }}>
+        <button type="button" className="btn" onClick={generate}>
+          Run alert generator
+        </button>
+      </div>
       <div className="card">
         <div className="table-wrap">
           <table>

@@ -1,4 +1,4 @@
-using System.Security.Claims;
+using DigitalDive.Hr.Api.Helpers;
 using DigitalDive.Hr.Api.Models;
 using DigitalDive.Hr.Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -64,11 +64,11 @@ public sealed class AuthController : ControllerBase
     {
         return Ok(new
         {
-            id = User.FindFirstValue(ClaimTypes.NameIdentifier),
-            email = User.FindFirstValue(ClaimTypes.Email),
-            role = User.FindFirstValue(ClaimTypes.Role),
-            employeeId = User.FindFirstValue("employee_id"),
-            fullName = User.FindFirstValue(ClaimTypes.Name),
+            id = CurrentUser.UserId(User),
+            email = CurrentUser.Email(User),
+            role = CurrentUser.Role(User),
+            employeeId = CurrentUser.EmployeeId(User),
+            fullName = CurrentUser.Name(User),
         });
     }
 
@@ -77,7 +77,7 @@ public sealed class AuthController : ControllerBase
     [HttpPost("change-password")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest body, CancellationToken ct)
     {
-        var idRaw = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var idRaw = CurrentUser.UserId(User);
         if (!int.TryParse(idRaw, out var userId))
         {
             return Unauthorized();

@@ -3,6 +3,10 @@ import './globals.css';
 export const metadata = {
   title: 'Digital Dive HR Portal',
   description: 'Digital Dive HR Portal — Next.js + .NET API',
+  icons: {
+    icon: [{ url: '/media/logo.webp', type: 'image/webp' }],
+    apple: [{ url: '/media/logo.webp', type: 'image/webp' }],
+  },
 };
 
 const themeBoot = `

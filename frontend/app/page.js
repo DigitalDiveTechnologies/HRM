@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, getUser, homeForRole, setSession } from '../lib/auth';
+import { api, canUsePortal, clearSession, getUser, hasSession, homeForRole, setSession } from '../lib/auth';
 import ThemeToggle from '../components/ThemeToggle';
 
 export default function LoginPage() {
@@ -14,8 +14,11 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const u = getUser();
-    if (u) router.replace(homeForRole(u));
+    if (hasSession()) {
+      const u = getUser();
+      if (u && canUsePortal(u)) router.replace(homeForRole(u));
+      else clearSession();
+    }
   }, [router]);
 
   async function onSubmit(e) {
@@ -25,10 +28,20 @@ export default function LoginPage() {
     try {
       const data = await api('/auth/login', {
         method: 'POST',
+        skipAuth: true,
         body: JSON.stringify({ email: email.trim(), password }),
       });
+      const user = data.user || data.User;
+      if (!data.token && !data.Token) {
+        throw new Error('Login succeeded but no token was returned.');
+      }
+      if (!canUsePortal(user)) {
+        throw new Error(
+          'This portal is for administrators only. Employees should use the Digital Dive HR mobile app.',
+        );
+      }
       setSession(data);
-      router.replace(homeForRole(data.user));
+      router.replace(homeForRole(user));
     } catch (err) {
       setError(err.message || 'Unable to sign in');
     } finally {
@@ -52,7 +65,7 @@ export default function LoginPage() {
           </div>
         </div>
         <h1>HR Portal</h1>
-        <p>Sign in to continue</p>
+        <p>Administrator sign in</p>
         {error ? (
           <div className="error" style={{ display: 'block' }}>
             {error}

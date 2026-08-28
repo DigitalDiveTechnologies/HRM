@@ -26,7 +26,7 @@ FROM job_postings j WHERE j.title = 'Software Engineer'
 AND NOT EXISTS (SELECT 1 FROM candidates WHERE email = 'chen.wei@example.com');
 
 INSERT INTO interviews (candidate_id, scheduled_at, interviewer, mode, status)
-SELECT c.id, NOW() + INTERVAL '3 days', 'Omar Hassan', 'Online', 'scheduled'
+SELECT c.id, NOW() + INTERVAL '3 days', 'Sara', 'Online', 'scheduled'
 FROM candidates c WHERE c.email = 'bilal.ahmed@example.com'
 AND NOT EXISTS (SELECT 1 FROM interviews i WHERE i.candidate_id = c.id);
 
@@ -60,7 +60,7 @@ AND NOT EXISTS (SELECT 1 FROM compliance_items WHERE title = 'Emirates ID renewa
 INSERT INTO compliance_items (employee_id, title, category, due_date, status, notes)
 SELECT e.id, 'Residence visa follow-up', 'visa', e.visa_expiry, 'open',
        'Coordinate with PRO for renewal window.'
-FROM employees e WHERE e.emp_code = 'DD-1002'
+FROM employees e WHERE e.emp_code = 'DD-1004'
 AND NOT EXISTS (SELECT 1 FROM compliance_items WHERE title = 'Residence visa follow-up' AND employee_id = e.id);
 
 INSERT INTO compliance_items (employee_id, title, category, due_date, status, notes)
@@ -92,19 +92,19 @@ AND NOT EXISTS (SELECT 1 FROM performance_goals WHERE title = 'Reduce leave appr
 
 INSERT INTO performance_goals (employee_id, title, kpi, target_value, progress_pct, period_label, status)
 SELECT e.id, 'Mentor 2 junior engineers', 'Mentorship', '2 mentees', 100, 'H1 2026', 'completed'
-FROM employees e WHERE e.emp_code = 'DD-1002'
+FROM employees e WHERE e.emp_code = 'DD-1004'
 AND NOT EXISTS (SELECT 1 FROM performance_goals WHERE title = 'Mentor 2 junior engineers' AND employee_id = e.id);
 
 INSERT INTO performance_reviews (employee_id, reviewer_name, review_type, rating, summary, status, review_date)
-SELECT e.id, 'Sara Al Maktoum', 'mid_year', 4.2, 'Strong delivery; continue focus on documentation.', 'submitted', CURRENT_DATE - INTERVAL '10 days'
+SELECT e.id, 'Sara', 'mid_year', 4.2, 'Strong delivery; continue focus on documentation.', 'submitted', CURRENT_DATE - INTERVAL '10 days'
 FROM employees e WHERE e.emp_code = 'DD-1003'
 AND NOT EXISTS (
-  SELECT 1 FROM performance_reviews r WHERE r.employee_id = e.id AND r.review_type = 'mid_year' AND r.reviewer_name = 'Sara Al Maktoum'
+  SELECT 1 FROM performance_reviews r WHERE r.employee_id = e.id AND r.review_type = 'mid_year' AND r.reviewer_name = 'Sara'
 );
 
 INSERT INTO performance_reviews (employee_id, reviewer_name, review_type, rating, summary, status, review_date)
-SELECT e.id, 'Muhammad Faisal', 'annual', 4.5, 'Consistent leadership of Engineering squad.', 'draft', CURRENT_DATE
-FROM employees e WHERE e.emp_code = 'DD-1002'
+SELECT e.id, 'Sara', 'annual', 4.5, 'Strong operations leadership.', 'draft', CURRENT_DATE
+FROM employees e WHERE e.emp_code = 'DD-1004'
 AND NOT EXISTS (
   SELECT 1 FROM performance_reviews r WHERE r.employee_id = e.id AND r.review_type = 'annual' AND r.status = 'draft'
 );
@@ -127,7 +127,7 @@ INSERT INTO course_enrollments (course_id, employee_id, due_date, status, comple
 SELECT c.id, e.id, CURRENT_DATE - INTERVAL '5 days', 'completed', CURRENT_DATE - INTERVAL '7 days'
 FROM courses c
 CROSS JOIN employees e
-WHERE c.title = 'UAE Labour Law Essentials' AND e.emp_code = 'DD-1002'
+WHERE c.title = 'UAE Labour Law Essentials' AND e.emp_code = 'DD-1004'
 AND NOT EXISTS (SELECT 1 FROM course_enrollments WHERE course_id = c.id AND employee_id = e.id);
 
 INSERT INTO certifications (employee_id, name, issuer, issued_on, expires_on, status)
@@ -156,7 +156,7 @@ WHERE asset_tag = 'DD-LT-001'
 
 INSERT INTO travel_requests (employee_id, destination, purpose, start_date, end_date, estimated_cost, currency, status)
 SELECT e.id, 'Abu Dhabi', 'Client workshop', CURRENT_DATE + INTERVAL '14 days', CURRENT_DATE + INTERVAL '16 days', 1200, 'AED', 'pending'
-FROM employees e WHERE e.emp_code = 'DD-1002'
+FROM employees e WHERE e.emp_code = 'DD-1004'
 AND NOT EXISTS (SELECT 1 FROM travel_requests WHERE employee_id = e.id AND destination = 'Abu Dhabi');
 
 INSERT INTO travel_requests (employee_id, destination, purpose, start_date, end_date, estimated_cost, currency, status)
@@ -171,5 +171,5 @@ AND NOT EXISTS (SELECT 1 FROM expense_claims WHERE employee_id = e.id AND title 
 
 INSERT INTO expense_claims (employee_id, title, category, amount, currency, expense_date, status, notes)
 SELECT e.id, 'Team lunch client visit', 'meals', 420, 'AED', CURRENT_DATE - INTERVAL '10 days', 'approved', NULL
-FROM employees e WHERE e.emp_code = 'DD-1002'
+FROM employees e WHERE e.emp_code = 'DD-1004'
 AND NOT EXISTS (SELECT 1 FROM expense_claims WHERE employee_id = e.id AND title = 'Team lunch client visit');

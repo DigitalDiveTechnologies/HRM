@@ -5,9 +5,23 @@ namespace DigitalDive.Hr.Api.Helpers;
 public static class CurrentUser
 {
     public static string Role(ClaimsPrincipal user) =>
-        user.FindFirstValue(ClaimTypes.Role)
-        ?? user.FindFirstValue("role")
+        user.FindFirstValue("role")
+        ?? user.FindFirstValue(ClaimTypes.Role)
         ?? "employee";
+
+    public static string? Email(ClaimsPrincipal user) =>
+        user.FindFirstValue("email")
+        ?? user.FindFirstValue(ClaimTypes.Email);
+
+    public static string? Name(ClaimsPrincipal user) =>
+        user.FindFirstValue("name")
+        ?? user.FindFirstValue(ClaimTypes.Name)
+        ?? user.FindFirstValue("unique_name");
+
+    public static string? UserId(ClaimsPrincipal user) =>
+        user.FindFirstValue("sub")
+        ?? user.FindFirstValue(ClaimTypes.NameIdentifier)
+        ?? user.FindFirstValue("nameid");
 
     public static int? EmployeeId(ClaimsPrincipal user)
     {

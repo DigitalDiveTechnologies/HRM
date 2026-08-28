@@ -16,4 +16,8 @@ public sealed class ReportsController : ControllerBase
 
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken ct) => Ok(await _hr.ReportsAsync(ct));
+
+    [HttpGet("dashboard")]
+    public async Task<IActionResult> Dashboard(CancellationToken ct) =>
+        Ok(await _hr.ReportsDashboardAsync(ct));
 }

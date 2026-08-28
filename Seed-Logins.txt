@@ -1,6 +1,6 @@
-Seed login accounts (local / staging):
+Demo portal logins (production / staging):
 
-admin@digitaldive.demo / demo123 (HR Admin — Sara)
-boss@digitaldive.demo / demo123 (Boss Admin — Muhammad Faisal)
-omar@digitaldive.demo / demo123 (Manager)
-fatima@digitaldive.demo / demo123 (Employee)
+admin@digitaldive.demo / demo123 (Admin — Sara)
+fatima@digitaldive.demo / demo123 (Employee ESS)
+
+Other employees (Ahmed, Layla, Yusuf) exist in HR data but have no login until you add a row in users — see backend/db/add-user-template.sql

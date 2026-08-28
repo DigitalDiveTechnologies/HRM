@@ -138,29 +138,25 @@ export function todayISO() {
 export async function downloadDocumentFile(doc) {
   const id = v(doc, 'id');
   const fileRef = String(v(doc, 'fileRef', 'file_ref') || '');
-  const { API_BASE, getToken } = await import('./auth.js');
+  const { apiBlob, handleUnauthorized } = await import('./auth.js');
 
   if (id && fileRef && !/^https?:\/\//i.test(fileRef)) {
     try {
-      const token = getToken();
-      const res = await fetch(`${API_BASE}/api/documents/${id}/file`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (res.ok) {
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const cd = res.headers.get('content-disposition') || '';
-        const match = /filename\*?=(?:UTF-8'')?["']?([^"';]+)/i.exec(cd);
-        a.download = match ? decodeURIComponent(match[1]) : fileRef.split('/').pop() || 'document';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
+      const blob = await apiBlob(`/documents/${id}/file`);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileRef.split('/').pop() || 'document';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      return;
+    } catch (e) {
+      if (String(e.message || '').includes('Session expired')) {
+        handleUnauthorized();
         return;
       }
-    } catch {
       /* fall through to metadata stub */
     }
   }

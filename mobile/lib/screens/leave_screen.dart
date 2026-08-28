@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../data/holidays.dart';
 import '../services/api_client.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
@@ -16,6 +17,7 @@ class LeaveScreen extends StatefulWidget {
 
 class _LeaveScreenState extends State<LeaveScreen> {
   List<dynamic> rows = [];
+  List<dynamic> balances = [];
   bool loading = true;
   String? error;
   String? msg;
@@ -42,6 +44,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
     final myId = user?.employeeId;
     try {
       final data = await api.request('/leave') as List<dynamic>;
+      final bal = await api.request('/leave/balances') as List<dynamic>;
       final mine = (role == 'employee' && myId != null)
           ? data.where((raw) {
               final r = Map<String, dynamic>.from(raw as Map);
@@ -49,8 +52,18 @@ class _LeaveScreenState extends State<LeaveScreen> {
               return id == null || id.toString() == myId.toString();
             }).toList()
           : data;
+      final myBal = (role == 'employee' && myId != null)
+          ? bal.where((raw) {
+              final r = Map<String, dynamic>.from(raw as Map);
+              final id = r['employeeId'] ?? r['employee_id'];
+              return id == null || id.toString() == myId.toString();
+            }).toList()
+          : bal;
       if (!mounted) return;
-      setState(() => rows = mine);
+      setState(() {
+        rows = mine;
+        balances = myBal;
+      });
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => error = e.message);
@@ -101,7 +114,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
-        padding: const EdgeInsets.only(bottom: 110),
+        padding: screenListPadding(context),
         children: [
           const PageHero(
             title: 'Leave',
@@ -121,14 +134,56 @@ class _LeaveScreenState extends State<LeaveScreen> {
             ),
           ),
           const SizedBox(height: 14),
+          if (balances.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SectionCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Leave balances', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 8),
+                    ...balances.map((raw) {
+                      final b = Map<String, dynamic>.from(raw as Map);
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          '${pick(b, ['fullName', 'full_name'])} · ${pick(b, ['leaveType', 'leave_type'])}: '
+                          '${pick(b, ['remainingDays', 'remaining_days'], '?')} remaining '
+                          '(used ${pick(b, ['usedDays', 'used_days'], '0')} / ${pick(b, ['entitlementDays', 'entitlement_days'], '?')})',
+                          style: TextStyle(color: T.muted(context), fontSize: 13),
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: SectionCard(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Holiday calendar (UAE 2026)', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 8),
+                  ...uaeHolidays2026.map((h) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text(
+                          '${formatDate(h['date'])} · ${h['name']}',
+                          style: TextStyle(color: T.muted(context), fontSize: 12.5),
+                        ),
+                      )),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SectionCard(
+              child: FormSpacedColumn(
                 children: [
                   Text('New request', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 12),
                   if (error != null) Text(error!, style: const TextStyle(color: AppColors.danger)),
                   if (msg != null) Text(msg!, style: const TextStyle(color: AppColors.ok, fontWeight: FontWeight.w600)),
                   DropdownButtonFormField<String>(
@@ -142,7 +197,6 @@ class _LeaveScreenState extends State<LeaveScreen> {
                     ],
                     onChanged: (v) => setState(() => leaveType = v ?? 'Annual'),
                   ),
-                  const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
@@ -162,19 +216,16 @@ class _LeaveScreenState extends State<LeaveScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
                   TextFormField(
                     initialValue: days,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(labelText: 'Days'),
                     onChanged: (v) => days = v,
                   ),
-                  const SizedBox(height: 10),
                   TextFormField(
                     decoration: const InputDecoration(labelText: 'Reason'),
                     onChanged: (v) => reason = v,
                   ),
-                  const SizedBox(height: 16),
                   FilledButton.icon(onPressed: _submit, icon: const Icon(Icons.send_rounded), label: const Text('Submit request')),
                 ],
               ),
@@ -184,7 +235,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
             padding: const EdgeInsets.fromLTRB(20, 6, 20, 8),
             child: Text('My requests', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
           ),
-          if (loading) const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator())),
+          if (loading) const ScreenLoader(),
           if (!loading && rows.isEmpty) const EmptyHint('No leave requests yet.', icon: Icons.beach_access_outlined),
           ...rows.map((raw) {
             final r = Map<String, dynamic>.from(raw as Map);

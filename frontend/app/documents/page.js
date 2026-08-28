@@ -25,7 +25,10 @@ export default function DocumentsPage() {
 
   const load = useCallback(() => {
     setError('');
-    Promise.all([api('/documents'), api('/employees')])
+    const role = normalizeRole(getUser());
+    const tasks = [api('/documents')];
+    if (role === 'admin') tasks.push(api('/employees'));
+    Promise.all(tasks)
       .then(([docs, emps]) => {
         setRows(docs || []);
         setEmployees(emps || []);
