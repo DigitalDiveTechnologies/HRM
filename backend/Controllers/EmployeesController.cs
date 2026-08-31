@@ -13,8 +13,13 @@ namespace DigitalDive.Hr.Api.Controllers;
 public sealed class EmployeesController : ControllerBase
 {
     private readonly HrQueryService _hr;
+    private readonly EmployeeBulkService _bulk;
 
-    public EmployeesController(HrQueryService hr) => _hr = hr;
+    public EmployeesController(HrQueryService hr, EmployeeBulkService bulk)
+    {
+        _hr = hr;
+        _bulk = bulk;
+    }
 
     /// <summary>Admin/manager: full ops list. Employee: self only (for forms).</summary>
     [HttpGet]
@@ -38,18 +43,54 @@ public sealed class EmployeesController : ControllerBase
     public async Task<IActionResult> Departments(CancellationToken ct) =>
         Ok(await _hr.DepartmentsAsync(ct));
 
+    [HttpGet("bulk/template")]
+    [Authorize(Roles = "admin")]
+    public IActionResult BulkTemplate()
+    {
+        var bytes = _bulk.BuildTemplate();
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "employee-bulk-template.xlsx");
+    }
+
+    [HttpPost("bulk")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> BulkUpload(IFormFile file, CancellationToken ct)
+    {
+        if (file is null || file.Length == 0)
+        {
+            return BadRequest(new { error = "Upload an Excel file (.xlsx)." });
+        }
+
+        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { error = "Only .xlsx files are supported." });
+        }
+
+        await using var stream = file.OpenReadStream();
+        var result = await _bulk.ImportAsync(stream, ct);
+        return Ok(result);
+    }
+
     /// <summary>Create employee record + mobile app login (employee role).</summary>
     [HttpPost]
     [Authorize(Roles = "admin")]
     public async Task<IActionResult> Create([FromBody] CreateEmployeeRequest body, CancellationToken ct)
     {
+        var jobTitle = body.JobTitle?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(jobTitle) && !body.DesignationId.HasValue)
+        {
+            return BadRequest(new { error = "Designation or job title is required." });
+        }
+
         var (employee, error) = await _hr.CreateEmployeeWithLoginAsync(
             body.FullName,
             body.Email,
             body.Password,
-            body.JobTitle,
+            string.IsNullOrWhiteSpace(jobTitle) ? "Employee" : jobTitle,
             body.Phone,
             body.DepartmentId,
+            body.DivisionId,
+            body.DesignationId,
+            body.EmploymentTypeId,
             body.ManagerId,
             body.JoinDate,
             body.Status ?? "active",
@@ -70,6 +111,41 @@ public sealed class EmployeesController : ControllerBase
             },
             message = "Employee created. They can sign in on the mobile app with this email and password.",
         });
+    }
+
+    [HttpPatch("{id:int}")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> Update(int id, [FromBody] UpdateEmployeeRequest body, CancellationToken ct)
+    {
+        var (employee, error) = await _hr.UpdateEmployeeAsync(
+            id,
+            body.Phone,
+            body.DepartmentId,
+            body.DivisionId,
+            body.DesignationId,
+            body.EmploymentTypeId,
+            body.ManagerId,
+            body.JoinDate,
+            body.Status,
+            ct);
+
+        if (error is not null)
+        {
+            return error.Contains("not found", StringComparison.OrdinalIgnoreCase)
+                ? NotFound(new { error })
+                : BadRequest(new { error });
+        }
+
+        return Ok(new { employee, message = "Employee updated. Employee code and full name cannot be changed." });
+    }
+
+    [HttpPost("{id:int}/reset-password")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> ResetPassword(int id, [FromBody] ResetEmployeePasswordRequest body, CancellationToken ct)
+    {
+        var (ok, error) = await _hr.ResetEmployeePasswordAsync(id, body.Password, ct);
+        if (!ok) return BadRequest(new { error });
+        return Ok(new { message = "App login password updated." });
     }
 
     /// <summary>Safe directory for mobile/ESS — no salary fields.</summary>

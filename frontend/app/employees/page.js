@@ -2,19 +2,32 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, getUser, normalizeRole } from '../../lib/auth';
+import { api, apiBlob, apiUpload, getUser, normalizeRole } from '../../lib/auth';
 import { formatDate, todayISO, v } from '../../lib/format';
 
 const emptyCreateForm = () => ({
   fullName: '',
   email: '',
   password: '',
-  jobTitle: '',
+  designationId: '',
+  employmentTypeId: '',
   phone: '',
   departmentId: '',
+  divisionId: '',
   managerId: '',
   joinDate: todayISO(),
   status: 'active',
+});
+
+const editFormFromEmployee = (e) => ({
+  phone: v(e, 'phone') || '',
+  departmentId: String(v(e, 'departmentId', 'department_id') || ''),
+  divisionId: String(v(e, 'divisionId', 'division_id') || ''),
+  designationId: String(v(e, 'designationId', 'designation_id') || ''),
+  employmentTypeId: String(v(e, 'employmentTypeId', 'employment_type_id') || ''),
+  managerId: String(v(e, 'managerId', 'manager_id') || ''),
+  joinDate: v(e, 'joinDate', 'join_date') ? String(v(e, 'joinDate', 'join_date')).slice(0, 10) : todayISO(),
+  status: v(e, 'status') || 'active',
 });
 
 export default function EmployeesPage() {
@@ -23,12 +36,21 @@ export default function EmployeesPage() {
   const [rows, setRows] = useState([]);
   const [chart, setChart] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [divisions, setDivisions] = useState([]);
+  const [designations, setDesignations] = useState([]);
+  const [employmentTypes, setEmploymentTypes] = useState([]);
+  const [bulkFile, setBulkFile] = useState(null);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [editForm, setEditForm] = useState(null);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [history, setHistory] = useState([]);
   const [selected, setSelected] = useState(null);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [createForm, setCreateForm] = useState(emptyCreateForm);
   const [creating, setCreating] = useState(false);
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetting, setResetting] = useState(false);
   const [histForm, setHistForm] = useState({
     jobTitle: '',
     departmentName: '',
@@ -40,12 +62,20 @@ export default function EmployeesPage() {
 
   const load = useCallback(() => {
     const tasks = [api('/employees'), api('/org/chart')];
-    if (isAdmin) tasks.push(api('/employees/departments'));
+    if (isAdmin) {
+      tasks.push(api('/employees/departments'));
+      tasks.push(api('/divisions?activeOnly=true'));
+      tasks.push(api('/designations?activeOnly=true'));
+      tasks.push(api('/employment-types?activeOnly=true'));
+    }
     Promise.all(tasks)
-      .then(([emps, org, depts]) => {
+      .then(([emps, org, depts, divs, desigs, empTypes]) => {
         setRows(emps || []);
         setChart(org || []);
         if (depts) setDepartments(depts || []);
+        if (divs) setDivisions(divs || []);
+        if (desigs) setDesignations(desigs || []);
+        if (empTypes) setEmploymentTypes(empTypes || []);
       })
       .catch((e) => setError(e.message));
   }, [isAdmin]);
@@ -56,6 +86,7 @@ export default function EmployeesPage() {
 
   async function openDetail(e) {
     setSelected(e);
+    setEditForm(editFormFromEmployee(e));
     try {
       const h = await api(`/org/history/${v(e, 'id')}`);
       setHistory(h || []);
@@ -94,10 +125,13 @@ export default function EmployeesPage() {
         body: JSON.stringify({
           fullName: createForm.fullName.trim(),
           email: createForm.email.trim(),
-          password: createForm.password,
-          jobTitle: createForm.jobTitle.trim(),
+          password: createForm.password.trim(),
+          designationId: createForm.designationId ? Number(createForm.designationId) : null,
+          employmentTypeId: createForm.employmentTypeId ? Number(createForm.employmentTypeId) : null,
+          jobTitle: '',
           phone: createForm.phone.trim() || null,
           departmentId: createForm.departmentId ? Number(createForm.departmentId) : null,
+          divisionId: createForm.divisionId ? Number(createForm.divisionId) : null,
           managerId: createForm.managerId ? Number(createForm.managerId) : null,
           joinDate: createForm.joinDate || null,
           status: createForm.status,
@@ -113,6 +147,96 @@ export default function EmployeesPage() {
       setError(err.message);
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function saveEmployeeEdit(ev) {
+    ev.preventDefault();
+    if (!selected || !editForm) return;
+    setError('');
+    setMsg('');
+    setSavingEdit(true);
+    try {
+      const res = await api(`/employees/${v(selected, 'id')}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          phone: editForm.phone.trim() || null,
+          departmentId: editForm.departmentId ? Number(editForm.departmentId) : null,
+          divisionId: editForm.divisionId ? Number(editForm.divisionId) : null,
+          designationId: editForm.designationId ? Number(editForm.designationId) : null,
+          employmentTypeId: editForm.employmentTypeId ? Number(editForm.employmentTypeId) : null,
+          managerId: editForm.managerId ? Number(editForm.managerId) : null,
+          joinDate: editForm.joinDate || null,
+          status: editForm.status,
+        }),
+      });
+      setMsg(res.message || 'Employee updated.');
+      const updated = await api(`/employees/${v(selected, 'id')}`);
+      setSelected(updated);
+      setEditForm(editFormFromEmployee(updated));
+      load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function downloadBulkTemplate() {
+    setError('');
+    try {
+      const blob = await apiBlob('/employees/bulk/template');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'employee-bulk-template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function uploadBulk(ev) {
+    ev.preventDefault();
+    if (!bulkFile) return;
+    setError('');
+    setMsg('');
+    setBulkUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', bulkFile);
+      const res = await apiUpload('/employees/bulk', fd);
+      setMsg(`Bulk import: ${res.created || 0} created, ${res.failed || 0} failed.`);
+      if (res.errors?.length) setError(res.errors.slice(0, 5).join(' · '));
+      setBulkFile(null);
+      load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBulkUploading(false);
+    }
+  }
+
+  async function resetAppPassword(ev) {
+    ev.preventDefault();
+    if (!selected || !resetPassword.trim()) return;
+    setError('');
+    setMsg('');
+    setResetting(true);
+    try {
+      const res = await api(`/employees/${v(selected, 'id')}/reset-password`, {
+        method: 'POST',
+        body: JSON.stringify({ password: resetPassword.trim() }),
+      });
+      setMsg(res.message || 'App password updated.');
+      setResetPassword('');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setResetting(false);
     }
   }
 
@@ -179,17 +303,51 @@ export default function EmployeesPage() {
                 />
               </label>
               <label className="field">
-                Category / job title
-                <input
+                Designation
+                <select
                   required
-                  placeholder="e.g. Software Engineer, Team Lead, Office Boy"
-                  value={createForm.jobTitle}
-                  onChange={(e) => setCreateForm({ ...createForm, jobTitle: e.target.value })}
-                />
+                  value={createForm.designationId}
+                  onChange={(e) => setCreateForm({ ...createForm, designationId: e.target.value })}
+                >
+                  <option value="">— Select —</option>
+                  {designations.map((d) => (
+                    <option key={v(d, 'id')} value={v(d, 'id')}>
+                      {v(d, 'name')}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                Employment type
+                <select
+                  value={createForm.employmentTypeId}
+                  onChange={(e) => setCreateForm({ ...createForm, employmentTypeId: e.target.value })}
+                >
+                  <option value="">— Select —</option>
+                  {employmentTypes.map((d) => (
+                    <option key={v(d, 'id')} value={v(d, 'id')}>
+                      {v(d, 'name')}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="field">
                 Phone
                 <input value={createForm.phone} onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })} />
+              </label>
+              <label className="field">
+                Division / company
+                <select
+                  value={createForm.divisionId}
+                  onChange={(e) => setCreateForm({ ...createForm, divisionId: e.target.value })}
+                >
+                  <option value="">— Select —</option>
+                  {divisions.map((d) => (
+                    <option key={v(d, 'id')} value={v(d, 'id')}>
+                      {v(d, 'name')} ({v(d, 'code')})
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="field">
                 Department
@@ -245,6 +403,36 @@ export default function EmployeesPage() {
         </div>
       ) : null}
 
+      {isAdmin ? (
+        <div className="card" style={{ marginBottom: 14 }}>
+          <div className="panel-title">
+            <h3>Bulk employee upload</h3>
+          </div>
+          <p className="muted" style={{ marginBottom: 12 }}>
+            Download the Excel template, fill rows, then upload. Default app password is <strong>demo123</strong> if column is blank.
+          </p>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+            <button type="button" className="btn secondary" onClick={downloadBulkTemplate}>
+              Download sample Excel
+            </button>
+          </div>
+          <form className="stack" onSubmit={uploadBulk}>
+            <label className="field">
+              Excel file (.xlsx)
+              <input
+                required
+                type="file"
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                onChange={(e) => setBulkFile(e.target.files?.[0] || null)}
+              />
+            </label>
+            <button className="btn" type="submit" disabled={bulkUploading || !bulkFile}>
+              {bulkUploading ? 'Uploading…' : 'Upload & import'}
+            </button>
+          </form>
+        </div>
+      ) : null}
+
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="panel-title">
           <h3>Org chart</h3>
@@ -266,6 +454,7 @@ export default function EmployeesPage() {
               <tr>
                 <th>Code</th>
                 <th>Name</th>
+                <th>Division</th>
                 <th>Department</th>
                 <th>Title</th>
                 <th>Manager</th>
@@ -283,6 +472,7 @@ export default function EmployeesPage() {
                     {v(e, 'fullName', 'full_name')}
                     <div className="muted">{v(e, 'email')}</div>
                   </td>
+                  <td>{v(e, 'divisionName', 'division_name') || '-'}</td>
                   <td>{v(e, 'departmentName', 'department_name') || '-'}</td>
                   <td>{v(e, 'jobTitle', 'job_title') || '-'}</td>
                   <td>{v(e, 'managerName', 'manager_name') || '-'}</td>
@@ -309,6 +499,18 @@ export default function EmployeesPage() {
           </div>
           <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 12 }}>
             <div>
+              <div className="muted">Employee code (locked)</div>
+              <div>{v(selected, 'empCode', 'emp_code') || '-'}</div>
+            </div>
+            <div>
+              <div className="muted">Full name (locked)</div>
+              <div>{v(selected, 'fullName', 'full_name') || '-'}</div>
+            </div>
+            <div>
+              <div className="muted">App login email</div>
+              <div>{v(selected, 'email') || '-'}</div>
+            </div>
+            <div>
               <div className="muted">Phone</div>
               <div>{v(selected, 'phone') || '-'}</div>
             </div>
@@ -325,6 +527,115 @@ export default function EmployeesPage() {
               <div>{formatDate(v(selected, 'visaExpiry', 'visa_expiry'))}</div>
             </div>
           </div>
+
+          {isAdmin && editForm ? (
+            <form className="stack" onSubmit={saveEmployeeEdit} style={{ marginBottom: 16 }}>
+              <div className="panel-title">
+                <h3>Edit employee</h3>
+              </div>
+              <p className="muted">Employee code and full name cannot be changed after creation.</p>
+              <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                <label className="field">
+                  Phone
+                  <input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+                </label>
+                <label className="field">
+                  Designation
+                  <select value={editForm.designationId} onChange={(e) => setEditForm({ ...editForm, designationId: e.target.value })}>
+                    <option value="">— Select —</option>
+                    {designations.map((d) => (
+                      <option key={v(d, 'id')} value={v(d, 'id')}>
+                        {v(d, 'name')}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  Employment type
+                  <select value={editForm.employmentTypeId} onChange={(e) => setEditForm({ ...editForm, employmentTypeId: e.target.value })}>
+                    <option value="">— Select —</option>
+                    {employmentTypes.map((d) => (
+                      <option key={v(d, 'id')} value={v(d, 'id')}>
+                        {v(d, 'name')}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  Division
+                  <select value={editForm.divisionId} onChange={(e) => setEditForm({ ...editForm, divisionId: e.target.value })}>
+                    <option value="">— Select —</option>
+                    {divisions.map((d) => (
+                      <option key={v(d, 'id')} value={v(d, 'id')}>
+                        {v(d, 'name')}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  Department
+                  <select value={editForm.departmentId} onChange={(e) => setEditForm({ ...editForm, departmentId: e.target.value })}>
+                    <option value="">— Select —</option>
+                    {departments.map((d) => (
+                      <option key={v(d, 'id')} value={v(d, 'id')}>
+                        {v(d, 'name')}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  Manager
+                  <select value={editForm.managerId} onChange={(e) => setEditForm({ ...editForm, managerId: e.target.value })}>
+                    <option value="">— None —</option>
+                    {rows.filter((r) => String(v(r, 'id')) !== String(v(selected, 'id'))).map((e) => (
+                      <option key={v(e, 'id')} value={v(e, 'id')}>
+                        {v(e, 'fullName', 'full_name')}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  Join date
+                  <input type="date" value={editForm.joinDate} onChange={(e) => setEditForm({ ...editForm, joinDate: e.target.value })} />
+                </label>
+                <label className="field">
+                  Status
+                  <select value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}>
+                    <option value="active">active</option>
+                    <option value="onboarding">onboarding</option>
+                    <option value="exited">exited (soft delete)</option>
+                  </select>
+                </label>
+              </div>
+              <button className="btn" type="submit" disabled={savingEdit}>
+                {savingEdit ? 'Saving…' : 'Save changes'}
+              </button>
+            </form>
+          ) : null}
+
+          {isAdmin ? (
+            <form className="stack" onSubmit={resetAppPassword} style={{ marginBottom: 16 }}>
+              <div className="panel-title">
+                <h3>Reset app password</h3>
+              </div>
+              <p className="muted">Use if the employee gets &quot;Invalid email or password&quot; on the mobile app.</p>
+              <div className="grid" style={{ gridTemplateColumns: '1fr auto', alignItems: 'end' }}>
+                <label className="field">
+                  New app password
+                  <input
+                    required
+                    type="password"
+                    minLength={6}
+                    value={resetPassword}
+                    onChange={(e) => setResetPassword(e.target.value)}
+                  />
+                </label>
+                <button className="btn" type="submit" disabled={resetting}>
+                  {resetting ? 'Saving…' : 'Update password'}
+                </button>
+              </div>
+            </form>
+          ) : null}
 
           <h4 style={{ marginBottom: 8 }}>Employment history</h4>
           <div className="table-wrap" style={{ marginBottom: 12 }}>

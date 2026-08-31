@@ -35,7 +35,12 @@ public sealed class AuthController : ControllerBase
         var user = await _auth.ValidateLoginAsync(request.Email, request.Password, ct);
         if (user is null)
         {
-            return Unauthorized(new { error = "Invalid credentials." });
+            return Unauthorized(new { error = "Invalid email or password." });
+        }
+
+        if (string.Equals(user.Role, "employee", StringComparison.OrdinalIgnoreCase) && user.EmployeeId is null)
+        {
+            return Unauthorized(new { error = "This login is not linked to an employee profile. Ask HR admin to recreate the account." });
         }
 
         var (token, expiresMinutes) = _jwt.CreateToken(user);

@@ -2,5 +2,8 @@ Demo portal logins (production / staging):
 
 admin@digitaldive.demo / demo123 (Admin — Sara)
 fatima@digitaldive.demo / demo123 (Employee ESS)
+ahmed@digitaldive.demo / demo123 (Team Lead — approves leave in app)
 
-Other employees (Ahmed, Layla, Yusuf) exist in HR data but have no login until you add a row in users — see backend/db/add-user-template.sql
+Other employees (Layla, Yusuf) exist in HR data but have no login until you add a row in users — see backend/db/add-user-template.sql
+
+Leave flow: Employee apply → Team lead approve (app) → HR final approve (portal)

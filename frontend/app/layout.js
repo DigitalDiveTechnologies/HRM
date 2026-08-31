@@ -1,11 +1,12 @@
 import './globals.css';
+import { BRAND } from '../lib/brand';
 
 export const metadata = {
-  title: 'Digital Dive HR Portal',
-  description: 'Digital Dive HR Portal — Next.js + .NET API',
+  title: BRAND.portalTitle,
+  description: `${BRAND.clientName} — ${BRAND.loginTagline}`,
   icons: {
-    icon: [{ url: '/media/logo.webp', type: 'image/webp' }],
-    apple: [{ url: '/media/logo.webp', type: 'image/webp' }],
+    icon: [{ url: BRAND.logoSrc, type: 'image/webp' }],
+    apple: [{ url: BRAND.logoSrc, type: 'image/webp' }],
   },
 };
 

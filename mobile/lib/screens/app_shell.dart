@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../brand.dart';
 import '../nav/app_nav.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
@@ -8,6 +9,7 @@ import '../widgets/ui_kit.dart';
 import 'assets_screen.dart';
 import 'approvals_screen.dart';
 import 'attendance_screen.dart';
+import 'certificate_screen.dart';
 import 'compliance_screen.dart';
 import 'dashboard_screen.dart';
 import 'directory_screen.dart';
@@ -25,6 +27,7 @@ import 'performance_screen.dart';
 import 'profile_screen.dart';
 import 'recruitment_screen.dart';
 import 'reports_screen.dart';
+import 'team_approvals_screen.dart';
 import 'training_screen.dart';
 import 'travel_screen.dart';
 
@@ -50,12 +53,13 @@ class _AppShellState extends State<AppShell> {
   }
 
   String _titleFor(String id) {
-    for (final g in navForRole(context.read<AppState>().user?.role)) {
+    final app = context.read<AppState>();
+    for (final g in navForRole(app.user?.role, isTeamLead: app.isTeamLead)) {
       for (final i in g.items) {
         if (i.id == id) return i.label;
       }
     }
-    return 'Digital Dive HR';
+    return Brand.shellTitle;
   }
 
   Widget _pageFor(String id) {
@@ -86,6 +90,10 @@ class _AppShellState extends State<AppShell> {
         return const AttendanceScreen();
       case 'leave':
         return const LeaveScreen();
+      case 'certificates':
+        return const CertificateScreen();
+      case 'team_approvals':
+        return const TeamApprovalsScreen();
       case 'payroll':
         return const PayrollScreen();
       case 'approvals':
@@ -93,7 +101,7 @@ class _AppShellState extends State<AppShell> {
       case 'reports':
         return const ReportsScreen();
       case 'ess':
-        return const EssScreen();
+        return EssScreen(onNavigate: _openRoute);
       case 'payslips':
         return const PayslipsScreen();
       case 'documents':
@@ -127,7 +135,7 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     final user = app.user!;
-    final groups = navForRole(user.role);
+    final groups = navForRole(user.role, isTeamLead: app.isTeamLead);
     final userLabel = userDisplayLabel(
       fullName: user.fullName,
       email: user.email,

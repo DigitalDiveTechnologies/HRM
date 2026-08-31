@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>GOCs HR — User Manuals & Handover</title>
+  <style>
+    :root { --brand: #0d4f8b; --text: #1a1a1a; --muted: #555; --border: #dde3ea; }
+    * { box-sizing: border-box; }
+    body { font-family: "Segoe UI", system-ui, sans-serif; color: var(--text); line-height: 1.55; margin: 0; background: #f4f6f9; }
+    .wrap { max-width: 920px; margin: 0 auto; background: #fff; min-height: 100vh; }
+    header { background: linear-gradient(135deg, #0d4f8b, #1565a8); color: #fff; padding: 2.5rem 2rem; }
+    header h1 { margin: 0 0 .35rem; font-size: 1.85rem; }
+    header p { margin: 0; opacity: .92; }
+    nav.toc { padding: 1.25rem 2rem; border-bottom: 1px solid var(--border); background: #fafbfc; }
+    nav.toc a { color: var(--brand); text-decoration: none; }
+    nav.toc a:hover { text-decoration: underline; }
+    nav.toc ul { columns: 2; gap: 2rem; margin: .5rem 0 0; padding-left: 1.2rem; }
+    main { padding: 2rem; }
+    h2 { color: var(--brand); border-bottom: 2px solid var(--brand); padding-bottom: .35rem; margin-top: 2.5rem; }
+    h2:first-child { margin-top: 0; }
+    h3 { margin-top: 1.5rem; color: #333; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .95rem; }
+    th, td { border: 1px solid var(--border); padding: .55rem .75rem; text-align: left; }
+    th { background: #eef3f8; }
+    .badge { display: inline-block; background: #e8f4e8; color: #1a6b1a; padding: .15rem .5rem; border-radius: 4px; font-size: .85rem; }
+    .note { background: #fff8e6; border-left: 4px solid #c9a227; padding: .75rem 1rem; margin: 1rem 0; font-size: .95rem; }
+    .part-label { font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .25rem; }
+    footer { padding: 1.5rem 2rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .85rem; }
+    @media print {
+      body { background: #fff; }
+      .wrap { max-width: none; }
+      nav.toc { break-after: page; }
+      h2 { break-before: page; }
+      h2:first-of-type { break-before: avoid; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>GOCs HR — User Manuals & Handover</h1>
+    <p>GOCs Global · Workforce Management · UAE · Version 1.0</p>
+    <p style="margin-top:.75rem;font-size:.9rem;">Built by Digital Dive Technologies</p>
+  </header>
+
+  <nav class="toc">
+    <strong>Contents</strong>
+    <ul>
+      <li><a href="#portal">Part A — HR Portal (Admin)</a></li>
+      <li><a href="#employees">A.1 Employees & Bulk Import</a></li>
+      <li><a href="#divisions">A.2 Multi-Divisions</a></li>
+      <li><a href="#leave">A.3 Leave Approval (2-tier)</a></li>
+      <li><a href="#certificates">A.4 Certificates</a></li>
+      <li><a href="#payroll">A.5 Payroll & Exports</a></li>
+      <li><a href="#app">Part B — Mobile App</a></li>
+      <li><a href="#handover">Part C — Handover Checklist</a></li>
+    </ul>
+    <p style="margin:.75rem 0 0;font-size:.9rem;color:#555;">
+      Portal: <strong>https://digitaldivetech-001-site4.gtempurl.com</strong><br/>
+      Demo admin: <code>admin@digitaldive.demo</code> / <code>demo123</code>
+    </p>
+  </nav>
+
+  <main>
+    <p class="part-label">Part A</p>
+    <h2 id="portal">HR Administrator Portal Manual</h2>
+    <p>The web portal is for <strong>HR administrators only</strong>. Employees use the mobile app.</p>
+
+    <h3 id="employees">A.1 Adding employees & bulk Excel import</h3>
+    <p><strong>Single employee:</strong> Core HR → Employees → fill form → Create. Assign division, designation, and app password for mobile login.</p>
+    <p><strong>Bulk import:</strong> Download template → complete rows → Upload. Key columns:</p>
+    <table>
+      <tr><th>Column</th><th>Example</th></tr>
+      <tr><td>Division Code</td><td>ALKIDMA, OVERSEAS, ROYAL_OCEANS</td></tr>
+      <tr><td>Designation / Employment Type</td><td>Must exist in HR Masters</td></tr>
+      <tr><td>App Password</td><td>Creates mobile login</td></tr>
+    </table>
+
+    <h3 id="divisions">A.2 Managing multi-divisions</h3>
+    <p>Core HR → <strong>Divisions</strong>. Each division has a payroll type:</p>
+    <table>
+      <tr><th>Division</th><th>Payroll</th></tr>
+      <tr><td>Alkidma, Alqat, Royal Oceans</td><td>WPS (UAE)</td></tr>
+      <tr><td>Overseas</td><td>Bank transfer</td></tr>
+    </table>
+    <p>Add, deactivate (soft delete), and assign employees via employee form or bulk import.</p>
+
+    <h3 id="leave">A.3 Two-tier leave approval</h3>
+    <ol>
+      <li><strong>Employee</strong> applies on mobile app → Pending manager</li>
+      <li><strong>Team lead</strong> approves on app (Team approvals) → Pending HR</li>
+      <li><strong>HR</strong> final approve/reject on portal (Leave / Approvals)</li>
+    </ol>
+    <p>Demo team lead: <code>ahmed@digitaldive.demo</code> · Demo employee: <code>fatima@digitaldive.demo</code></p>
+
+    <h3 id="certificates">A.4 Certificate requests & issuance</h3>
+    <p>Employee requests on app (Salary, Bank + bank name, NOC + destination). HR processes at Core HR → <strong>Certificates</strong>: Approve &amp; issue or Reject. Download issued file. Client Word templates replace demo HTML at go-live.</p>
+
+    <h3 id="payroll">A.5 Monthly payroll &amp; CSV exports</h3>
+    <p>Core HR → <strong>Payroll</strong>:</p>
+    <ol>
+      <li>Set period (YYYY-MM) → <strong>Generate payslips</strong></li>
+      <li>Review division summary (WPS vs bank counts)</li>
+      <li><strong>Download WPS CSV</strong> — UAE divisions only</li>
+      <li><strong>Download Bank CSV</strong> — Overseas division only</li>
+    </ol>
+    <div class="note">Demo CSV is simplified. Final UAE SIF column layout can be aligned when client bank specs are provided.</div>
+
+    <p class="part-label" style="margin-top:3rem;">Part B</p>
+    <h2 id="app">Employee Mobile App Manual</h2>
+    <p>Install APK from HR. <strong>Do not use admin login on the app.</strong></p>
+    <table>
+      <tr><th>Feature</th><th>Menu</th></tr>
+      <tr><td>Home / punch / balances</td><td>ESS / Home</td></tr>
+      <tr><td>Apply leave</td><td>My Leaves</td></tr>
+      <tr><td>Approve team leave</td><td>Team approvals (leads only)</td></tr>
+      <tr><td>Payslips</td><td>My Payslips</td></tr>
+      <tr><td>Certificates</td><td>Certificates</td></tr>
+      <tr><td>HR messages</td><td>Notifications</td></tr>
+    </table>
+    <p>Employees <em>cannot</em> run payroll, manage divisions, bulk import, or issue certificates — portal only.</p>
+
+    <p class="part-label" style="margin-top:3rem;">Part C</p>
+    <h2 id="handover">Handover checklist</h2>
+    <p><span class="badge">Demo complete</span> Divisions, masters, bulk upload, leave workflow, certificates, division payroll, manuals.</p>
+    <p><strong>Client still to provide:</strong> logo/colours, SMTP credentials, certificate letterhead templates, real employee Excel, training recording (10.6).</p>
+    <p><strong>Out of scope:</strong> Loan module (client declined).</p>
+  </main>
+
+  <footer>
+    GOCs HR · Phase 10 Documentation · Digital Dive Technologies · Print this page (Ctrl+P) to save as PDF.<br/>
+    Full Markdown sources: <code>docs/manuals/01-HR-Admin-Portal-Manual.md</code> · <code>02-Employee-Mobile-App-Manual.md</code>
+  </footer>
+</div>
+</body>
+</html>

@@ -113,6 +113,8 @@ IconData navIcon(String key) {
       return Icons.schedule_outlined;
     case 'leave':
       return Icons.beach_access_outlined;
+    case 'certificates':
+      return Icons.description_outlined;
     case 'payroll':
     case 'payslips':
       return Icons.account_balance_wallet_outlined;
@@ -139,12 +141,17 @@ class StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = status.toLowerCase();
+    final label = switch (s) {
+      'pending_manager' => 'Pending manager',
+      'pending_hr' => 'Pending HR',
+      _ => status,
+    };
     Color bg;
     Color fg;
-    if (['approved', 'done', 'present', 'ok', 'active', 'valid', 'paid', 'read', 'compliant', 'closed', 'completed', 'submitted', 'acknowledged', 'available', 'assigned'].contains(s)) {
+    if (['approved', 'done', 'present', 'ok', 'active', 'valid', 'paid', 'read', 'compliant', 'closed', 'completed', 'submitted', 'acknowledged', 'available', 'assigned', 'issued'].contains(s)) {
       bg = AppColors.ok.withValues(alpha: 0.14);
       fg = AppColors.ok;
-    } else if (['pending', 'late', 'onboarding', 'new', 'due_soon', 'open', 'draft', 'in_progress'].contains(s)) {
+    } else if (['pending', 'late', 'onboarding', 'new', 'due_soon', 'open', 'draft', 'in_progress', 'pending_manager', 'pending_hr'].contains(s)) {
       bg = AppColors.warn.withValues(alpha: 0.14);
       fg = AppColors.warn;
     } else if (['rejected', 'leave', 'exited', 'danger', 'overdue', 'cancelled', 'expired', 'revoked', 'archived', 'retired', 'lost'].contains(s)) {
@@ -157,7 +164,7 @@ class StatusChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
-      child: Text(status, style: TextStyle(color: fg, fontSize: 12, fontWeight: FontWeight.w700)),
+      child: Text(label, style: TextStyle(color: fg, fontSize: 12, fontWeight: FontWeight.w700)),
     );
   }
 }

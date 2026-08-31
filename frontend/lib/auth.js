@@ -52,17 +52,9 @@ export function homeForRole(user) {
   return '/dashboard';
 }
 
-function redirectToLogin() {
-  if (typeof window === 'undefined') return;
-  const path = window.location.pathname || '';
-  if (path === '/' || path === '') return;
-  window.location.replace('/');
-}
-
-/** Clear stale UI session when API rejects the JWT. */
+/** Portal keeps the session on 401 — admin signs out manually when needed. */
 export function handleUnauthorized() {
-  clearSession();
-  redirectToLogin();
+  /* no-op: avoid forced redirect / auto logout on expired JWT */
 }
 
 function statusMessage(status, data) {
@@ -94,9 +86,6 @@ export async function api(path, options = {}) {
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    if (res.status === 401 && !skipAuth) {
-      handleUnauthorized();
-    }
     throw new Error(statusMessage(res.status, data));
   }
   return data;
@@ -121,7 +110,6 @@ export async function apiUpload(path, formData) {
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    if (res.status === 401) handleUnauthorized();
     throw new Error(statusMessage(res.status, data));
   }
   return data;
@@ -131,7 +119,6 @@ export async function apiUpload(path, formData) {
 export async function apiBlob(path) {
   const token = getToken();
   if (!token) {
-    handleUnauthorized();
     throw new Error('Session expired — please sign in again.');
   }
 
@@ -145,7 +132,6 @@ export async function apiBlob(path) {
   }
 
   if (!res.ok) {
-    if (res.status === 401) handleUnauthorized();
     const data = await res.json().catch(() => ({}));
     throw new Error(statusMessage(res.status, data));
   }

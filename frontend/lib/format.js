@@ -138,7 +138,7 @@ export function todayISO() {
 export async function downloadDocumentFile(doc) {
   const id = v(doc, 'id');
   const fileRef = String(v(doc, 'fileRef', 'file_ref') || '');
-  const { apiBlob, handleUnauthorized } = await import('./auth.js');
+  const { apiBlob } = await import('./auth.js');
 
   if (id && fileRef && !/^https?:\/\//i.test(fileRef)) {
     try {
@@ -152,11 +152,7 @@ export async function downloadDocumentFile(doc) {
       a.remove();
       URL.revokeObjectURL(url);
       return;
-    } catch (e) {
-      if (String(e.message || '').includes('Session expired')) {
-        handleUnauthorized();
-        return;
-      }
+    } catch {
       /* fall through to metadata stub */
     }
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'brand.dart';
 import 'screens/app_shell.dart';
 import 'screens/login_screen.dart';
 import 'services/api_client.dart';
@@ -28,7 +29,7 @@ class DigitalDiveHrApp extends StatelessWidget {
         builder: (context) {
           final themeMode = context.select<AppState, ThemeMode>((s) => s.themeMode);
           return MaterialApp(
-            title: 'Digital Dive HR',
+            title: Brand.appTitle,
             debugShowCheckedModeBanner: false,
             theme: AppTheme.light(),
             darkTheme: AppTheme.dark(),

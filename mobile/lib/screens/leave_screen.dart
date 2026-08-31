@@ -19,6 +19,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
   List<dynamic> rows = [];
   List<dynamic> balances = [];
   bool loading = true;
+  bool submitting = false;
   String? error;
   String? msg;
   String leaveType = 'Annual';
@@ -73,12 +74,14 @@ class _LeaveScreenState extends State<LeaveScreen> {
   }
 
   Future<void> _submit() async {
+    if (submitting) return;
     final user = context.read<AppState>().user!;
     if (user.employeeId == null) {
       setState(() => error = 'No employee profile linked.');
       return;
     }
     setState(() {
+      submitting = true;
       msg = null;
       error = null;
     });
@@ -95,10 +98,20 @@ class _LeaveScreenState extends State<LeaveScreen> {
               'reason': reason,
             },
           );
-      setState(() => msg = 'Leave request submitted.');
+      if (!mounted) return;
+      setState(() {
+        msg = 'Leave request submitted.';
+        reason = '';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Leave submitted — check Alerts for confirmation.')),
+      );
       await _load();
     } on ApiException catch (e) {
+      if (!mounted) return;
       setState(() => error = e.message);
+    } finally {
+      if (mounted) setState(() => submitting = false);
     }
   }
 
@@ -226,7 +239,13 @@ class _LeaveScreenState extends State<LeaveScreen> {
                     decoration: const InputDecoration(labelText: 'Reason'),
                     onChanged: (v) => reason = v,
                   ),
-                  FilledButton.icon(onPressed: _submit, icon: const Icon(Icons.send_rounded), label: const Text('Submit request')),
+                  FilledButton.icon(
+                    onPressed: submitting ? null : _submit,
+                    icon: submitting
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.send_rounded),
+                    label: Text(submitting ? 'Submitting…' : 'Submit request'),
+                  ),
                 ],
               ),
             ),
@@ -267,7 +286,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
                         ],
                       ),
                     ),
-                    StatusChip(pick(r, ['status'])),
+                    StatusChip(pick(r, ['workflowStage', 'workflow_stage'], pick(r, ['status']))),
                   ],
                 ),
               ),

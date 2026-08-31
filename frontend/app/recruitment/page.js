@@ -390,7 +390,7 @@ export default function RecruitmentPage() {
         </div>
       </div>
 
-      <div className="grid" style={{ marginBottom: 14 }}>
+      <div className="grid-2" style={{ marginBottom: 14 }}>
         <div className="card">
           <div className="panel-title">
             <h3>Schedule interview</h3>
@@ -467,7 +467,7 @@ export default function RecruitmentPage() {
         </div>
       </div>
 
-      <div className="grid" style={{ marginBottom: 14 }}>
+      <div className="grid-2" style={{ marginBottom: 14 }}>
         <div className="card">
           <div className="panel-title">
             <h3>Interviews</h3>

@@ -32,21 +32,21 @@ bool canUseMobileApp(String? role) => normalizeRole(role) != 'admin';
 String homeRouteForRole(String? role) => 'ess';
 
 /// Employee ESS menu for all app users (manager is a job category, not a separate app role).
-List<NavGroup> navForRole(String? role) {
-  return const [
-    NavGroup(
-      title: 'Self Service',
-      items: [
-        NavItem(id: 'ess', label: 'ESS / Home', icon: 'home'),
-        NavItem(id: 'leave', label: 'My Leaves', icon: 'leave'),
-        NavItem(id: 'attendance', label: 'My Attendance', icon: 'attendance'),
-        NavItem(id: 'payslips', label: 'My Payslips', icon: 'payslips'),
-        NavItem(id: 'notifications', label: 'Notifications', icon: 'alerts'),
-        NavItem(id: 'documents', label: 'My Documents', icon: 'documents'),
-        NavItem(id: 'directory', label: 'Directory', icon: 'directory'),
-        NavItem(id: 'profile', label: 'Profile', icon: 'profile'),
-      ],
-    ),
+List<NavGroup> navForRole(String? role, {bool isTeamLead = false}) {
+  final items = <NavItem>[
+    const NavItem(id: 'ess', label: 'ESS / Home', icon: 'home'),
+    if (isTeamLead) const NavItem(id: 'team_approvals', label: 'Team approvals', icon: 'approvals'),
+    const NavItem(id: 'leave', label: 'My Leaves', icon: 'leave'),
+    const NavItem(id: 'certificates', label: 'Certificates', icon: 'certificates'),
+    const NavItem(id: 'attendance', label: 'My Attendance', icon: 'attendance'),
+    const NavItem(id: 'payslips', label: 'My Payslips', icon: 'payslips'),
+    const NavItem(id: 'notifications', label: 'Notifications', icon: 'alerts'),
+    const NavItem(id: 'documents', label: 'My Documents', icon: 'documents'),
+    const NavItem(id: 'directory', label: 'Directory', icon: 'directory'),
+    const NavItem(id: 'profile', label: 'Profile', icon: 'profile'),
+  ];
+  return [
+    NavGroup(title: 'Self Service', items: items),
   ];
 }
 

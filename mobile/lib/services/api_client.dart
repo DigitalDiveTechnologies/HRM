@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../brand.dart';
 import '../config.dart';
 
 class ApiException implements Exception {
@@ -21,11 +22,12 @@ class ApiClient {
   ApiClient();
 
   static const _offlineMsg =
-      'You are offline. Digital Dive HR needs an internet connection — offline mode is not available.';
+      '${Brand.appTitle} needs an internet connection — offline mode is not available.';
 
   static const _timeout = Duration(seconds: 25);
 
   String? _token;
+  void Function()? onUnauthorized;
 
   Future<void> loadToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -104,10 +106,14 @@ class ApiClient {
 
       final decoded = res.body.isEmpty ? <String, dynamic>{} : jsonDecode(res.body);
       if (res.statusCode < 200 || res.statusCode >= 300) {
+        if (res.statusCode == 401 && !path.startsWith('/auth/login')) {
+          onUnauthorized?.call();
+        }
         final msg = decoded is Map && decoded['error'] != null
             ? decoded['error'].toString()
-            : 'Request failed (${res.statusCode})';
-        // Offline ≠ session kill. Only real auth expiry is 401 with a reachable API.
+            : res.statusCode == 401
+                ? 'Session expired — please sign in again.'
+                : 'Request failed (${res.statusCode})';
         throw ApiException(msg, statusCode: res.statusCode);
       }
       return decoded;

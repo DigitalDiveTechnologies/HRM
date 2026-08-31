@@ -27,10 +27,25 @@ public sealed class PayrollController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("summary")]
+    public async Task<IActionResult> Summary([FromQuery] string period, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(period))
+            return BadRequest(new { error = "period required (YYYY-MM)" });
+        return Ok(await _hr.PayrollSummaryAsync(period.Trim(), ct));
+    }
+
     [HttpGet("wps")]
     public async Task<IActionResult> Wps([FromQuery] string? period, CancellationToken ct)
     {
         var (fileName, csv) = await _hr.BuildWpsCsvAsync(period, ct);
+        return File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", fileName);
+    }
+
+    [HttpGet("bank-transfer")]
+    public async Task<IActionResult> BankTransfer([FromQuery] string? period, CancellationToken ct)
+    {
+        var (fileName, csv) = await _hr.BuildBankTransferCsvAsync(period, ct);
         return File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", fileName);
     }
 }

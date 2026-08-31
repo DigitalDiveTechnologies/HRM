@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using DigitalDive.Hr.Api.Data;
+using DigitalDive.Hr.Api.Models;
 using DigitalDive.Hr.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -78,6 +79,9 @@ builder.Services.AddSingleton(new Db(connectionString));
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<HrQueryService>();
+builder.Services.AddScoped<EmployeeBulkService>();
+builder.Services.AddScoped<EmailService>();
+builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
 
 var jwtSection = builder.Configuration.GetSection("Jwt");
 var jwtKey = jwtSection["Key"] ?? "DigitalDive-HR-Dev-Key-Change-In-Production-Min-32-Chars";
@@ -108,16 +112,34 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddCors(options =>
 {
-    // Dev: Next.js (3000/3001) + Flutter web (random localhost port)
+    var extraOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+
     options.AddPolicy("PortalClients", policy =>
         policy
             .SetIsOriginAllowed(origin =>
             {
                 if (string.IsNullOrWhiteSpace(origin)) return false;
-                return origin.StartsWith("http://localhost:", StringComparison.OrdinalIgnoreCase)
-                       || origin.StartsWith("https://localhost:", StringComparison.OrdinalIgnoreCase)
-                       || origin.StartsWith("http://127.0.0.1:", StringComparison.OrdinalIgnoreCase)
-                       || origin.StartsWith("https://127.0.0.1:", StringComparison.OrdinalIgnoreCase);
+                if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri)) return false;
+
+                var host = uri.Host;
+
+                if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+                    || host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+                if (host.Equals("digitaldivetech-001-site4.gtempurl.com", StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+                if (host.EndsWith(".vercel.app", StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+                foreach (var allowed in extraOrigins)
+                {
+                    if (string.Equals(origin.TrimEnd('/'), allowed.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+
+                return false;
             })
             .AllowAnyHeader()
             .AllowAnyMethod());
@@ -179,6 +201,7 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 Directory.CreateDirectory(Path.Combine(app.Environment.ContentRootPath, "wwwroot", "uploads", "documents"));
+Directory.CreateDirectory(Path.Combine(app.Environment.ContentRootPath, "wwwroot", "uploads", "certificates"));
 
 app.UseCors("PortalClients");
 app.UseAuthentication();

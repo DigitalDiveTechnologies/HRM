@@ -24,26 +24,70 @@ function New-FtpDirectory([string]$Path) {
   }
 }
 
-function Send-FtpFile([string]$LocalFile, [string]$RemotePath) {
+function Delete-FtpFile([string]$RemotePath) {
   $uri = "ftp://$FtpHost$RemotePath"
   $req = [System.Net.FtpWebRequest]::Create($uri)
-  $req.Method = [System.Net.WebRequestMethods+Ftp]::UploadFile
+  $req.Method = [System.Net.WebRequestMethods+Ftp]::DeleteFile
   $req.Credentials = New-Object System.Net.NetworkCredential($FtpUser, $FtpPass)
-  $req.UseBinary = $true
   $req.UsePassive = $true
+  try {
+    $res = $req.GetResponse()
+    $res.Close()
+  } catch {
+    # ignore if missing
+  }
+}
+
+function Send-FtpText([string]$RemotePath, [string]$Text) {
+  $tmp = [System.IO.Path]::GetTempFileName()
+  [System.IO.File]::WriteAllText($tmp, $Text)
+  try {
+    Send-FtpFile $tmp $RemotePath
+  } finally {
+    Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+  }
+}
+
+function Send-FtpFile([string]$LocalFile, [string]$RemotePath) {
+  $uri = "ftp://$FtpHost$RemotePath"
   $bytes = [System.IO.File]::ReadAllBytes($LocalFile)
-  $req.ContentLength = $bytes.Length
-  $stream = $req.GetRequestStream()
-  $stream.Write($bytes, 0, $bytes.Length)
-  $stream.Close()
-  $res = $req.GetResponse()
-  $res.Close()
+  $maxAttempts = 5
+  for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+    try {
+      $req = [System.Net.FtpWebRequest]::Create($uri)
+      $req.Method = [System.Net.WebRequestMethods+Ftp]::UploadFile
+      $req.Credentials = New-Object System.Net.NetworkCredential($FtpUser, $FtpPass)
+      $req.UseBinary = $true
+      $req.UsePassive = $true
+      $req.KeepAlive = $false
+      $req.ContentLength = $bytes.Length
+      $stream = $req.GetRequestStream()
+      $stream.Write($bytes, 0, $bytes.Length)
+      $stream.Close()
+      $res = $req.GetResponse()
+      $res.Close()
+      return
+    } catch {
+      if ($attempt -eq $maxAttempts) { throw }
+      Write-Host "Retry $attempt for $RemotePath (file may be locked)..."
+      Start-Sleep -Seconds 3
+    }
+  }
 }
 
 # Ensure remote root exists
 New-FtpDirectory $RemoteRoot | Out-Null
 
-$files = Get-ChildItem $LocalDir -Recurse -File
+# Take IIS app offline so DLLs are not locked during upload
+Write-Host "Taking app offline (app_offline.htm)..."
+Send-FtpText "$RemoteRoot/app_offline.htm" "<!DOCTYPE html><html><body><p>Updating API...</p></body></html>"
+Start-Sleep -Seconds 12
+
+$files = Get-ChildItem $LocalDir -Recurse -File | Sort-Object {
+  if ($_.Name -eq 'web.config') { 0 }
+  elseif ($_.Extension -eq '.dll') { 2 }
+  else { 1 }
+}
 $createdDirs = @{}
 foreach ($f in $files) {
   $rel = $f.FullName.Substring($LocalDir.Length).TrimStart("\","/")
@@ -61,5 +105,8 @@ foreach ($f in $files) {
   Write-Host "UP $rel"
   Send-FtpFile $f.FullName $remote
 }
+
+Write-Host "Bringing app back online..."
+Delete-FtpFile "$RemoteRoot/app_offline.htm"
 
 Write-Host "Done. Uploaded $($files.Count) files to ftp://$FtpHost$RemoteRoot"

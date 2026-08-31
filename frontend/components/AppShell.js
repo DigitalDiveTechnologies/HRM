@@ -11,7 +11,8 @@ import {
   homeForRole,
   normalizeRole,
 } from '../lib/auth';
-import { canAccessPath, navForRole } from '../lib/nav';
+import { canAccessPath, isNavActive, navForRole } from '../lib/nav';
+import { BRAND } from '../lib/brand';
 import ThemeToggle from './ThemeToggle';
 
 export default function AppShell({ title, subtitle, children }) {
@@ -68,9 +69,9 @@ export default function AppShell({ title, subtitle, children }) {
           <div className="sidebar-top">
             <div>
               <div className="logo">
-                Digital <span>Dive</span> HR
+                {BRAND.sidebarTitle} <span>{BRAND.sidebarAccent}</span>
               </div>
-              <div className="tag">HR Portal · UAE</div>
+              <div className="tag">{BRAND.sidebarTag}</div>
             </div>
             <button
               type="button"
@@ -94,7 +95,8 @@ export default function AppShell({ title, subtitle, children }) {
                   <Link
                     key={l.href}
                     href={l.href}
-                    className={pathname === l.href ? 'active' : ''}
+                    className={isNavActive(pathname, l.href) ? 'active' : ''}
+                    aria-current={isNavActive(pathname, l.href) ? 'page' : undefined}
                     onClick={() => setMenuOpen(false)}
                   >
                     {l.label}
@@ -144,7 +146,7 @@ export function Badge({ status }) {
   let cls = '';
   if (['approved', 'done', 'present', 'valid', 'active', 'ok', 'true'].includes(s)) cls = 'ok';
   else if (['pending', 'onboarding', 'late', 'false'].includes(s)) cls = 'pending';
-  else if (['expiring', 'warn'].includes(s)) cls = 'warn';
+  else if (['expiring', 'warn', 'inactive'].includes(s)) cls = 'warn';
   else if (['rejected', 'danger', 'leave', 'exited'].includes(s)) cls = 'danger';
   return <span className={`badge ${cls}`}>{status || '-'}</span>;
 }

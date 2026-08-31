@@ -112,3 +112,12 @@ tools/       db-apply and helpers
 - Approvals cover leave, exit, travel, and expenses.
 - Leave balances: `GET /api/leave/balances`.
 - Exit create appends a simple EOSB estimate into settlement notes.
+
+## GOCs client phases (9–10)
+
+| Phase | Status | Docs |
+|-------|--------|------|
+| **9** Portal HR Admin checklist | Complete | [`docs/PHASE9-PORTAL-CHECKLIST.md`](docs/PHASE9-PORTAL-CHECKLIST.md) |
+| **10** User manuals & handover | Complete | [`docs/manuals/`](docs/manuals/) · Portal **Help & Manuals** |
+
+Print PDF: portal → Help & Manuals → Open printable manual → Ctrl+P.

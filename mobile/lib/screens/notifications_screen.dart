@@ -102,6 +102,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ...rows.map((raw) {
             final n = Map<String, dynamic>.from(raw as Map);
             final read = n['isRead'] == true || n['is_read'] == true;
+            final body = pick(n, ['message'], '');
+            final due = pick(n, ['dueDate', 'due_date'], '');
+            final subtitle = body.isNotEmpty && body != '-'
+                ? body
+                : due.isNotEmpty && due != '-'
+                    ? '${pick(n, ['category'])} · due ${formatDate(due)}'
+                    : pick(n, ['category']);
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: SectionCard(
@@ -109,7 +116,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   contentPadding: EdgeInsets.zero,
                   title: Text(pick(n, ['title']), style: TextStyle(fontWeight: read ? FontWeight.w500 : FontWeight.w800)),
                   subtitle: Text(
-                    '${pick(n, ['category'])} · due ${formatDate(n['dueDate'] ?? n['due_date'])}',
+                    subtitle,
                     style: TextStyle(color: T.muted(context), fontSize: 12.5),
                   ),
                   trailing: read

@@ -22,7 +22,15 @@ public sealed class CreateEmployeeRequest
     public string JobTitle { get; set; } = string.Empty;
     public string? Phone { get; set; }
     public int? DepartmentId { get; set; }
+    public int? DivisionId { get; set; }
+    public int? DesignationId { get; set; }
+    public int? EmploymentTypeId { get; set; }
     public int? ManagerId { get; set; }
     public string? JoinDate { get; set; }
     public string? Status { get; set; }
+}
+
+public sealed class ResetEmployeePasswordRequest
+{
+    public string Password { get; set; } = string.Empty;
 }

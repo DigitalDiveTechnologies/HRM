@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, canUsePortal, clearSession, getUser, hasSession, homeForRole, setSession } from '../lib/auth';
+import { BRAND } from '../lib/brand';
 import ThemeToggle from '../components/ThemeToggle';
 
 export default function LoginPage() {
@@ -37,7 +38,7 @@ export default function LoginPage() {
       }
       if (!canUsePortal(user)) {
         throw new Error(
-          'This portal is for administrators only. Employees should use the Digital Dive HR mobile app.',
+          `This portal is for administrators only. ${BRAND.employeeAppHint}`,
         );
       }
       setSession(data);
@@ -58,14 +59,17 @@ export default function LoginPage() {
       </div>
       <div className="login-card">
         <div className="login-brand">
-          <img src="/media/logo.webp" alt="Digital Dive" className="login-logo" />
+          <img src={BRAND.logoSrc} alt={BRAND.logoAlt} className="login-logo" />
           <div>
-            <div className="brand-mark">Digital Dive Technologies</div>
-            <div className="login-brand-sub">Workforce systems</div>
+            <div className="brand-mark">{BRAND.clientName}</div>
+            <div className="login-brand-sub">{BRAND.loginTagline}</div>
           </div>
         </div>
-        <h1>HR Portal</h1>
-        <p>Administrator sign in</p>
+        <h1>{BRAND.portalHeading}</h1>
+        <p>{BRAND.portalSubtitle}</p>
+        <p className="muted" style={{ fontSize: '0.82rem', marginBottom: 12 }}>
+          {BRAND.demoNotice}
+        </p>
         {error ? (
           <div className="error" style={{ display: 'block' }}>
             {error}

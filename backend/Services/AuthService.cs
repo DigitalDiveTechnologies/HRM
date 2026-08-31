@@ -30,6 +30,8 @@ public sealed class AuthService
 
         cmd.Parameters.AddWithValue("email", email.Trim());
 
+        password = password.Trim();
+
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct))
         {

@@ -5,6 +5,12 @@ public sealed class StatusUpdateRequest
     public string Status { get; set; } = string.Empty;
 }
 
+public sealed class ApprovalDecisionRequest
+{
+    public string Status { get; set; } = string.Empty;
+    public string? Note { get; set; }
+}
+
 public sealed class AttendanceCreateRequest
 {
     public int EmployeeId { get; set; }
@@ -235,4 +241,19 @@ public sealed class AuditLogCreateRequest
     public string? EntityType { get; set; }
     public int? EntityId { get; set; }
     public string? Detail { get; set; }
+}
+
+public sealed class CertificateCreateRequest
+{
+    public int EmployeeId { get; set; }
+    public string CertificateType { get; set; } = string.Empty;
+    public string? Purpose { get; set; }
+    public string? BankName { get; set; }
+    public string? TravelDestination { get; set; }
+}
+
+public sealed class CertificateDecisionRequest
+{
+    public string Status { get; set; } = string.Empty;
+    public string? HrNote { get; set; }
 }

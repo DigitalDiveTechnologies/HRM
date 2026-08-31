@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../brand.dart';
 import '../services/api_client.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
@@ -119,10 +120,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          'Digital Dive',
+                                          Brand.loginTitle,
                                           style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, letterSpacing: -0.3),
                                         ),
-                                        Text('HR Mobile Portal', style: TextStyle(fontSize: 12.5)),
+                                        Text(Brand.loginSubtitle, style: TextStyle(fontSize: 12.5)),
                                       ],
                                     ),
                                   ),
