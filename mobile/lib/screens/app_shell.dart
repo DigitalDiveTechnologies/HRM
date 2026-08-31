@@ -50,6 +50,10 @@ class _AppShellState extends State<AppShell> {
     final role = context.read<AppState>().user?.role;
     route = homeRouteForRole(role);
     _visited.add(route);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<AppState>().refreshAlertBadges();
+    });
   }
 
   String _titleFor(String id) {
@@ -125,6 +129,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _openRoute(String id) {
+    context.read<AppState>().acknowledgeRoute(id);
     setState(() {
       route = id;
       _visited.add(id);
@@ -151,12 +156,14 @@ class _AppShellState extends State<AppShell> {
         userLabel: userLabel,
         isDark: app.themeMode == ThemeMode.dark,
         topInset: MediaQuery.viewPaddingOf(context).top,
+        menuBadgeCount: app.menuAlertCategories,
         onOpenMenu: () => _scaffoldKey.currentState?.openDrawer(),
         onToggleTheme: () => app.toggleTheme(),
       ),
       drawer: _PortalDrawer(
         groups: groups,
         activeId: route,
+        badgeForRoute: app.badgeForRoute,
         userName: user.fullName ?? user.email,
         role: user.jobTitle ?? 'Employee',
         onSelect: (id) {
@@ -200,6 +207,7 @@ class _PortalDrawer extends StatelessWidget {
   const _PortalDrawer({
     required this.groups,
     required this.activeId,
+    required this.badgeForRoute,
     required this.userName,
     required this.role,
     required this.onSelect,
@@ -208,6 +216,7 @@ class _PortalDrawer extends StatelessWidget {
 
   final List<NavGroup> groups;
   final String activeId;
+  final int Function(String routeId) badgeForRoute;
   final String userName;
   final String role;
   final ValueChanged<String> onSelect;
@@ -322,6 +331,7 @@ class _PortalDrawer extends StatelessWidget {
                         label: item.label,
                         icon: navIcon(item.icon),
                         active: item.id == activeId,
+                        badgeCount: badgeForRoute(item.id),
                         onTap: () => onSelect(item.id),
                       ),
                     const SizedBox(height: 6),
@@ -349,12 +359,14 @@ class _DrawerTile extends StatelessWidget {
     required this.icon,
     required this.active,
     required this.onTap,
+    this.badgeCount = 0,
   });
 
   final String label;
   final IconData icon;
   final bool active;
   final VoidCallback onTap;
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -386,6 +398,8 @@ class _DrawerTile extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (badgeCount > 0)
+                  AlertCountBadge(count: badgeCount, onActiveBackground: active),
               ],
             ),
           ),

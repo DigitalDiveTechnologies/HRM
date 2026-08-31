@@ -38,7 +38,7 @@ class _TeamApprovalsScreenState extends State<TeamApprovalsScreen> {
       final data = await context.read<AppState>().api.request('/leave/team/approvals');
       if (!mounted) return;
       setState(() => rows = data as List<dynamic>);
-      await context.read<AppState>().refreshTeamLead();
+      await context.read<AppState>().refreshAlertBadges();
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => error = e.message);

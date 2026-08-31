@@ -349,26 +349,100 @@ const double kNavChromeRadius = 6;
 Color _navChromeBorder(BuildContext context) =>
     AppColors.accent.withValues(alpha: T.isDark(context) ? 0.45 : 0.55);
 
-/// Hamburger — cyan fill, larger white icon (less inner padding).
-class NavMenuButton extends StatelessWidget {
-  const NavMenuButton({super.key, required this.onPressed});
+/// Cyan count badge — matches app accent / menu chrome.
+class AlertCountBadge extends StatelessWidget {
+  const AlertCountBadge({
+    super.key,
+    required this.count,
+    this.compact = false,
+    this.onActiveBackground = false,
+  });
 
-  final VoidCallback onPressed;
+  final int count;
+  final bool compact;
+  final bool onActiveBackground;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.accent,
-      borderRadius: BorderRadius.circular(kNavChromeRadius),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(kNavChromeRadius),
-          child: const SizedBox(
-          width: 40,
-          height: 40,
-          child: Icon(Icons.menu, color: Colors.white, size: 28),
+    if (count <= 0) return const SizedBox.shrink();
+
+    final label = count > 99 ? '99+' : '$count';
+    final height = compact ? 18.0 : 20.0;
+    final minWidth = compact ? 18.0 : 20.0;
+    final fontSize = compact ? 10.0 : 11.0;
+    final hPad = compact ? 4.0 : 5.0;
+
+    final bg = onActiveBackground ? Colors.white : AppColors.accentDeep;
+    final fg = onActiveBackground ? AppColors.accentDeep : Colors.white;
+    final borderColor = onActiveBackground ? Colors.white : AppColors.accentGlow;
+
+    return Container(
+      constraints: BoxConstraints(minWidth: minWidth, minHeight: height),
+      padding: EdgeInsets.symmetric(horizontal: hPad),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(height / 2),
+        border: Border.all(color: borderColor, width: 1.2),
+        boxShadow: onActiveBackground
+            ? null
+            : [
+                BoxShadow(
+                  color: AppColors.accent.withValues(alpha: 0.35),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: fg,
+          fontSize: fontSize,
+          fontWeight: FontWeight.w800,
+          height: 1,
         ),
       ),
+    );
+  }
+}
+
+/// Hamburger — cyan fill, larger white icon (less inner padding).
+class NavMenuButton extends StatelessWidget {
+  const NavMenuButton({
+    super.key,
+    required this.onPressed,
+    this.badgeCount = 0,
+  });
+
+  final VoidCallback onPressed;
+  final int badgeCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Material(
+          color: AppColors.accent,
+          borderRadius: BorderRadius.circular(kNavChromeRadius),
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(kNavChromeRadius),
+            child: const SizedBox(
+              width: 40,
+              height: 40,
+              child: Icon(Icons.menu, color: Colors.white, size: 28),
+            ),
+          ),
+        ),
+        if (badgeCount > 0)
+          Positioned(
+            right: -6,
+            top: -6,
+            child: AlertCountBadge(count: badgeCount, compact: true),
+          ),
+      ],
     );
   }
 }
@@ -446,6 +520,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
     required this.onOpenMenu,
     required this.onToggleTheme,
     this.topInset = 0,
+    this.menuBadgeCount = 0,
   });
 
   final String title;
@@ -456,6 +531,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
 
   /// Status-bar / notch inset from [MediaQuery.viewPadding.top].
   final double topInset;
+  final int menuBadgeCount;
 
   static const double contentHeight = 104;
 
@@ -487,7 +563,10 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
                 children: [
                   Row(
                     children: [
-                      NavMenuButton(onPressed: onOpenMenu),
+                      NavMenuButton(
+                        onPressed: onOpenMenu,
+                        badgeCount: menuBadgeCount,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(

@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../nav/alert_badges.dart';
 import '../nav/app_nav.dart';
 import '../services/api_client.dart';
 
@@ -63,6 +65,23 @@ class AppState extends ChangeNotifier {
   bool isTeamLead = false;
   int pendingTeamApprovals = 0;
 
+  /// Unread / pending counts per sidebar route (leave, certificates, notifications, …).
+  Map<String, int> badgeCountsByRoute = {};
+
+  /// Last acknowledged count per route — opening a tab clears its badge until new alerts.
+  Map<String, int> _seenBaselineByRoute = {};
+
+  Map<String, int> get _visibleBadges =>
+      visibleBadgeCounts(badgeCountsByRoute, _seenBaselineByRoute);
+
+  /// Menu icon badge — number of sidebar sections with unseen alerts.
+  int get menuAlertCategories => countAlertCategories(_visibleBadges);
+
+  int badgeForRoute(String routeId) => _visibleBadges[routeId] ?? 0;
+
+  Timer? _badgePollTimer;
+  static const _badgePollInterval = Duration(seconds: 45);
+
   void _handleUnauthorized() {
     if (user == null) return;
     user = null;
@@ -88,7 +107,9 @@ class AppState extends ChangeNotifier {
           user = parsed;
           try {
             await api.request('/auth/me');
-            await refreshTeamLead();
+            await _loadSeenBaselines();
+            await refreshAlertBadges();
+            _startBadgePolling();
           } on ApiException catch (e) {
             if (e.statusCode == 401) {
               user = null;
@@ -147,7 +168,50 @@ class AppState extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('hr_user', jsonEncode(u.toJson()));
     user = u;
-    await refreshTeamLead();
+    await _loadSeenBaselines();
+    await refreshAlertBadges();
+    _startBadgePolling();
+    notifyListeners();
+  }
+
+  Future<void> _loadSeenBaselines() async {
+    final uid = user?.id;
+    if (uid == null) {
+      _seenBaselineByRoute = {};
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('hr_seen_badges_$uid');
+    if (raw == null) {
+      _seenBaselineByRoute = {};
+      return;
+    }
+    try {
+      final parsed = jsonDecode(raw) as Map<String, dynamic>;
+      _seenBaselineByRoute = parsed.map(
+        (k, v) => MapEntry(k, (v as num).toInt()),
+      );
+    } catch (_) {
+      _seenBaselineByRoute = {};
+    }
+  }
+
+  Future<void> _persistSeenBaselines() async {
+    final uid = user?.id;
+    if (uid == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      'hr_seen_badges_$uid',
+      jsonEncode(_seenBaselineByRoute),
+    );
+  }
+
+  /// User opened a sidebar tab — treat current alerts on that tab as seen.
+  void acknowledgeRoute(String routeId) {
+    final current = badgeCountsByRoute[routeId] ?? 0;
+    if ((_seenBaselineByRoute[routeId] ?? 0) >= current) return;
+    _seenBaselineByRoute[routeId] = current;
+    _persistSeenBaselines();
     notifyListeners();
   }
 
@@ -165,13 +229,52 @@ class AppState extends ChangeNotifier {
       isTeamLead = false;
       pendingTeamApprovals = 0;
     }
+  }
+
+  /// Poll notifications + team approvals and update sidebar / menu badges.
+  Future<void> refreshAlertBadges() async {
+    if (user?.employeeId == null) {
+      badgeCountsByRoute = {};
+      return;
+    }
+
+    await refreshTeamLead();
+
+    final counts = <String, int>{};
+    try {
+      final data = await api.request('/notifications');
+      if (data is List<dynamic>) {
+        counts.addAll(computeNotificationBadges(data));
+      }
+    } catch (_) {}
+
+    if (isTeamLead && pendingTeamApprovals > 0) {
+      counts['team_approvals'] = pendingTeamApprovals;
+    }
+
+    badgeCountsByRoute = counts;
     notifyListeners();
   }
 
+  void _startBadgePolling() {
+    _badgePollTimer?.cancel();
+    _badgePollTimer = Timer.periodic(_badgePollInterval, (_) {
+      refreshAlertBadges();
+    });
+  }
+
+  void _stopBadgePolling() {
+    _badgePollTimer?.cancel();
+    _badgePollTimer = null;
+  }
+
   Future<void> logout() async {
+    _stopBadgePolling();
     user = null;
     isTeamLead = false;
     pendingTeamApprovals = 0;
+    badgeCountsByRoute = {};
+    _seenBaselineByRoute = {};
     await api.setToken(null);
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('hr_user');
