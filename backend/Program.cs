@@ -133,6 +133,9 @@ builder.Services.AddCors(options =>
                 if (host.EndsWith(".vercel.app", StringComparison.OrdinalIgnoreCase))
                     return true;
 
+                if (host.EndsWith(".digitaldive-stage.digital", StringComparison.OrdinalIgnoreCase))
+                    return true;
+
                 foreach (var allowed in extraOrigins)
                 {
                     if (string.Equals(origin.TrimEnd('/'), allowed.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { API_BASE, api, getToken } from '../../lib/auth';
+import { api, getApiBase, getToken } from '../../lib/auth';
 import { formatDate, v } from '../../lib/format';
 
 const TYPE_LABELS = {
@@ -76,7 +76,7 @@ export default function CertificatesPage() {
     setError('');
     try {
       const token = getToken();
-      const res = await fetch(`${API_BASE}/api/certificates/${id}/file`, {
+      const res = await fetch(`${getApiBase()}/api/certificates/${id}/file`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) {

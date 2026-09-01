@@ -1,4 +1,21 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5088';
+/** Live backend on sir's FTP host — used when portal runs on Vercel/stage (not localhost). */
+const PRODUCTION_API = 'https://digitaldivetech-001-site4.gtempurl.com/HRMDevelopment';
+
+/** Resolve API base at runtime so static builds work without NEXT_PUBLIC_API_URL baked in. */
+export function getApiBase() {
+  const fromEnv = (process.env.NEXT_PUBLIC_API_URL || '').trim();
+  if (fromEnv) return fromEnv.replace(/\/$/, '');
+
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname.toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return 'http://localhost:5088';
+    }
+    return PRODUCTION_API;
+  }
+
+  return 'http://localhost:5088';
+}
 
 export function getToken() {
   if (typeof window === 'undefined') return null;
@@ -76,12 +93,12 @@ export async function api(path, options = {}) {
 
   let res;
   try {
-    res = await fetch(`${API_BASE}/api${path}`, {
+    res = await fetch(`${getApiBase()}/api${path}`, {
       ...fetchOptions,
       headers,
     });
   } catch {
-    throw new Error('Cannot reach API. Is the backend running on port 5088?');
+    throw new Error('Cannot reach the HR API. Check that the backend is running and CORS allows this portal URL.');
   }
 
   const data = await res.json().catch(() => ({}));
@@ -99,13 +116,13 @@ export async function apiUpload(path, formData) {
 
   let res;
   try {
-    res = await fetch(`${API_BASE}/api${path}`, {
+    res = await fetch(`${getApiBase()}/api${path}`, {
       method: 'POST',
       headers,
       body: formData,
     });
   } catch {
-    throw new Error('Cannot reach API. Is the backend running on port 5088?');
+    throw new Error('Cannot reach the HR API. Check that the backend is running and CORS allows this portal URL.');
   }
 
   const data = await res.json().catch(() => ({}));
@@ -124,11 +141,11 @@ export async function apiBlob(path) {
 
   let res;
   try {
-    res = await fetch(`${API_BASE}/api${path}`, {
+    res = await fetch(`${getApiBase()}/api${path}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
   } catch {
-    throw new Error('Cannot reach API. Is the backend running on port 5088?');
+    throw new Error('Cannot reach the HR API. Check that the backend is running and CORS allows this portal URL.');
   }
 
   if (!res.ok) {
@@ -138,4 +155,5 @@ export async function apiBlob(path) {
   return res.blob();
 }
 
-export { API_BASE };
+/** @deprecated Prefer getApiBase() — kept for older imports. */
+export const API_BASE = PRODUCTION_API;
