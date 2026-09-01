@@ -14,6 +14,7 @@ import {
 import { canAccessPath, isNavActive, navForRole } from '../lib/nav';
 import { BRAND } from '../lib/brand';
 import ThemeToggle from './ThemeToggle';
+import { usePortalAlerts } from './usePortalAlerts';
 
 export default function AppShell({ title, subtitle, children }) {
   const pathname = usePathname();
@@ -44,6 +45,8 @@ export default function AppShell({ title, subtitle, children }) {
     setUser(u);
     setReady(true);
   }, [pathname, router]);
+
+  const { badgeFor, menuCategories, toast, dismissToast } = usePortalAlerts(pathname, ready && Boolean(user));
 
   if (!ready || !user) {
     return (
@@ -91,7 +94,9 @@ export default function AppShell({ title, subtitle, children }) {
             <div className="nav-group" key={group.title}>
               <h4>{group.title}</h4>
               <div className="nav">
-                {group.links.map((l) => (
+                {group.links.map((l) => {
+                  const badge = badgeFor(l.href);
+                  return (
                   <Link
                     key={l.href}
                     href={l.href}
@@ -99,9 +104,15 @@ export default function AppShell({ title, subtitle, children }) {
                     aria-current={isNavActive(pathname, l.href) ? 'page' : undefined}
                     onClick={() => setMenuOpen(false)}
                   >
-                    {l.label}
+                    <span className="nav-link-label">{l.label}</span>
+                    {badge > 0 ? (
+                      <span className="nav-alert-badge" aria-label={`${badge} alerts`}>
+                        {badge > 99 ? '99+' : badge}
+                      </span>
+                    ) : null}
                   </Link>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -112,16 +123,23 @@ export default function AppShell({ title, subtitle, children }) {
         <main className="main">
           <div className="topbar">
             <div className="topbar-left">
-              <button
-                className="menu-btn"
-                type="button"
-                aria-label="Open menu"
-                onClick={() => setMenuOpen(true)}
-              >
-                <svg className="menu-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
-                  <path fill="currentColor" d="M2 5h20v2.5H2V5zm0 5.75h20v2.5H2v-2.5zm0 5.75h20V19H2v-2.5z" />
-                </svg>
-              </button>
+              <span className="menu-btn-wrap">
+                <button
+                  className="menu-btn"
+                  type="button"
+                  aria-label="Open menu"
+                  onClick={() => setMenuOpen(true)}
+                >
+                  <svg className="menu-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="currentColor" d="M2 5h20v2.5H2V5zm0 5.75h20v2.5H2v-2.5zm0 5.75h20V19H2v-2.5z" />
+                  </svg>
+                </button>
+                {menuCategories > 0 ? (
+                  <span className="nav-alert-badge menu-alert-badge" aria-label={`${menuCategories} sections with alerts`}>
+                    {menuCategories > 99 ? '99+' : menuCategories}
+                  </span>
+                ) : null}
+              </span>
               <div>
                 <h2>{title}</h2>
                 <p>{subtitle || ''}</p>
@@ -137,6 +155,14 @@ export default function AppShell({ title, subtitle, children }) {
           <div id="content">{children}</div>
         </main>
       </div>
+      {toast ? (
+        <div className="portal-alert-toast" role="status" aria-live="polite">
+          <span>{toast.message}</span>
+          <button type="button" className="portal-alert-toast-close" aria-label="Dismiss" onClick={dismissToast}>
+            ×
+          </button>
+        </div>
+      ) : null}
     </>
   );
 }
