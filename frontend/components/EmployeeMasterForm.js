@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { getApiBase } from '../lib/auth';
 import { v } from '../lib/format';
 import { MASTER_TABS } from '../lib/employeeMaster';
 
@@ -67,9 +68,50 @@ export default function EmployeeMasterForm({
 }) {
   const [tab, setTab] = useState('Address');
   const isEdit = mode === 'edit';
+  const photoInputRef = useRef(null);
 
   const set = (key, val) => setForm({ ...form, [key]: val });
   const setNested = (key, val) => setForm({ ...form, [key]: val });
+
+  function photoSrc() {
+    if (form.photoPreview) return form.photoPreview;
+    if (form.photoPath) {
+      const path = String(form.photoPath).replace(/^\//, '');
+      return `${getApiBase()}/${path}`;
+    }
+    return '';
+  }
+
+  function onPhotoPick(e) {
+    const file = e.target.files?.[0] || null;
+    if (!file) return;
+    if (!/^image\/(png|jpe?g|webp)$/i.test(file.type)) {
+      return;
+    }
+    if (form.photoPreview) {
+      try {
+        URL.revokeObjectURL(form.photoPreview);
+      } catch {
+        /* ignore */
+      }
+    }
+    const preview = URL.createObjectURL(file);
+    setForm({ ...form, photoFile: file, photoPreview: preview });
+  }
+
+  function clearPhoto(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (form.photoPreview) {
+      try {
+        URL.revokeObjectURL(form.photoPreview);
+      } catch {
+        /* ignore */
+      }
+    }
+    setForm({ ...form, photoFile: null, photoPreview: '', photoPath: isEdit ? form.photoPath : '' });
+    if (photoInputRef.current) photoInputRef.current.value = '';
+  }
 
   return (
     <form className="emp-master" onSubmit={onSubmit}>
@@ -246,9 +288,38 @@ export default function EmployeeMasterForm({
             )}
           </div>
           <div className="emp-master-photo">
-            <div className="emp-master-photo-box">
-              <span className="muted">Photo</span>
-              <small className="muted">Documents module</small>
+            <button
+              type="button"
+              className="emp-master-photo-box"
+              onClick={() => photoInputRef.current?.click()}
+              title="Upload profile photo"
+            >
+              {photoSrc() ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={photoSrc()} alt="Employee profile" className="emp-master-photo-img" />
+              ) : (
+                <>
+                  <span>Photo</span>
+                  <small className="muted">Click to upload</small>
+                </>
+              )}
+            </button>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              style={{ display: 'none' }}
+              onChange={onPhotoPick}
+            />
+            <div className="emp-master-photo-actions">
+              <button type="button" className="btn secondary" onClick={() => photoInputRef.current?.click()}>
+                {photoSrc() ? 'Change' : 'Upload'}
+              </button>
+              {form.photoPreview ? (
+                <button type="button" className="btn secondary" onClick={clearPhoto}>
+                  Clear
+                </button>
+              ) : null}
             </div>
           </div>
         </div>

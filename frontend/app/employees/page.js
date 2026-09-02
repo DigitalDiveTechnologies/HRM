@@ -109,10 +109,23 @@ export default function EmployeesPage() {
         method: 'POST',
         body: JSON.stringify(payload),
       });
+      const empId = v(res.employee, 'id');
+      if (createForm.photoFile && empId) {
+        const fd = new FormData();
+        fd.append('file', createForm.photoFile);
+        await apiUpload(`/employees/${empId}/photo`, fd);
+      }
       setMsg(
         res.message ||
           `Created ${v(res.employee, 'fullName', 'full_name')} — app login: ${res.login?.email || createForm.email}`,
       );
+      if (createForm.photoPreview) {
+        try {
+          URL.revokeObjectURL(createForm.photoPreview);
+        } catch {
+          /* ignore */
+        }
+      }
       setCreateForm(emptyMasterForm());
       load();
     } catch (err) {
@@ -134,6 +147,11 @@ export default function EmployeesPage() {
         method: 'PATCH',
         body: JSON.stringify(payload),
       });
+      if (masterForm.photoFile) {
+        const fd = new FormData();
+        fd.append('file', masterForm.photoFile);
+        await apiUpload(`/employees/${v(selected, 'id')}/photo`, fd);
+      }
       setMsg(res.message || 'Employee updated.');
       const updated = await api(`/employees/${v(selected, 'id')}`);
       setSelected(updated);

@@ -434,6 +434,29 @@ public sealed class HrQueryService
         return (created, null);
     }
 
+    public async Task<(Dictionary<string, object?>? Employee, string? Error)> SetEmployeePhotoPathAsync(
+        int id, string photoPath, CancellationToken ct)
+    {
+        var existing = await EmployeeByIdAsync(id, ct);
+        if (existing is null) return (null, "Employee not found.");
+
+        photoPath = photoPath.Trim();
+        if (string.IsNullOrWhiteSpace(photoPath))
+        {
+            return (null, "Photo path is required.");
+        }
+
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            "UPDATE employees SET photo_path = @path WHERE id = @id", conn);
+        cmd.Parameters.AddWithValue("path", photoPath);
+        cmd.Parameters.AddWithValue("id", id);
+        await cmd.ExecuteNonQueryAsync(ct);
+
+        var updated = await EmployeeByIdAsync(id, ct);
+        return (updated, null);
+    }
+
     public async Task<(bool Ok, string? Error)> ResetEmployeePasswordAsync(
         int employeeId, string password, CancellationToken ct)
     {

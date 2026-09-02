@@ -1117,8 +1117,15 @@ th {
   gap: 16px;
   align-items: start;
 }
+.emp-master-photo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+}
 .emp-master-photo-box {
   height: 140px;
+  width: 100%;
   border: 1px dashed var(--line);
   border-radius: 8px;
   display: flex;
@@ -1129,6 +1136,27 @@ th {
   background: var(--card-soft, rgba(0, 0, 0, 0.02));
   text-align: center;
   padding: 8px;
+  cursor: pointer;
+  color: var(--ink);
+  font: inherit;
+}
+.emp-master-photo-box:hover {
+  border-color: var(--brand);
+}
+.emp-master-photo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.emp-master-photo-actions {
+  display: flex;
+  gap: 6px;
+}
+.emp-master-photo-actions .btn {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 0.78rem;
 }
 .emp-master-tabs {
   display: flex;

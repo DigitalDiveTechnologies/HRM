@@ -3,6 +3,7 @@ using DigitalDive.Hr.Api.Models;
 using DigitalDive.Hr.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.StaticFiles;
 
 namespace DigitalDive.Hr.Api.Controllers;
 
@@ -12,13 +13,20 @@ namespace DigitalDive.Hr.Api.Controllers;
 [Authorize]
 public sealed class EmployeesController : ControllerBase
 {
+    private static readonly HashSet<string> PhotoExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".png", ".jpg", ".jpeg", ".webp"
+    };
+
     private readonly HrQueryService _hr;
     private readonly EmployeeBulkService _bulk;
+    private readonly IWebHostEnvironment _env;
 
-    public EmployeesController(HrQueryService hr, EmployeeBulkService bulk)
+    public EmployeesController(HrQueryService hr, EmployeeBulkService bulk, IWebHostEnvironment env)
     {
         _hr = hr;
         _bulk = bulk;
+        _env = env;
     }
 
     /// <summary>Admin/manager: full ops list. Employee: self only (for forms).</summary>
@@ -143,6 +151,85 @@ public sealed class EmployeesController : ControllerBase
         var (ok, error) = await _hr.ResetEmployeePasswordAsync(id, body.Password, ct);
         if (!ok) return BadRequest(new { error });
         return Ok(new { message = "App login password updated." });
+    }
+
+    /// <summary>Upload employee profile photo (not passport/CNIC — those stay in Documents).</summary>
+    [HttpPost("{id:int}/photo")]
+    [Authorize(Roles = "admin")]
+    [RequestSizeLimit(5_000_000)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 5_000_000)]
+    public async Task<IActionResult> UploadPhoto(int id, IFormFile? file, CancellationToken ct)
+    {
+        if (file is null || file.Length <= 0)
+            return BadRequest(new { error = "Photo file is required." });
+        if (file.Length > 5_000_000)
+            return BadRequest(new { error = "Photo too large (max 5MB)." });
+
+        var ext = Path.GetExtension(file.FileName);
+        if (string.IsNullOrWhiteSpace(ext) || !PhotoExtensions.Contains(ext))
+            return BadRequest(new { error = "Use PNG, JPG, or WEBP only." });
+
+        var existing = await _hr.EmployeeByIdAsync(id, ct);
+        if (existing is null) return NotFound(new { error = "Employee not found." });
+
+        var webRoot = string.IsNullOrWhiteSpace(_env.WebRootPath)
+            ? Path.Combine(_env.ContentRootPath, "wwwroot")
+            : _env.WebRootPath;
+        var uploadDir = Path.Combine(webRoot, "uploads", "photos");
+        System.IO.Directory.CreateDirectory(uploadDir);
+
+        var storedName = $"emp_{id}_{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}{ext.ToLowerInvariant()}";
+        var absolutePath = Path.Combine(uploadDir, storedName);
+        await using (var stream = System.IO.File.Create(absolutePath))
+        {
+            await file.CopyToAsync(stream, ct);
+        }
+
+        var relativeRef = $"uploads/photos/{storedName}";
+        var (employee, error) = await _hr.SetEmployeePhotoPathAsync(id, relativeRef, ct);
+        if (error is not null) return BadRequest(new { error });
+
+        return Ok(new { employee, photoPath = relativeRef, message = "Profile photo saved." });
+    }
+
+    [HttpGet("{id:int}/photo")]
+    [Authorize(Roles = "admin,manager,employee")]
+    public async Task<IActionResult> GetPhoto(int id, CancellationToken ct)
+    {
+        var row = await _hr.EmployeeByIdAsync(id, ct);
+        if (row is null) return NotFound(new { error = "Employee not found." });
+
+        var role = CurrentUser.Role(User).ToLowerInvariant();
+        if (role == "employee")
+        {
+            var myId = CurrentUser.EmployeeId(User);
+            if (!myId.HasValue || myId.Value != id) return Forbid();
+        }
+
+        var photoPath = Convert.ToString(row.GetValueOrDefault("photoPath") ?? row.GetValueOrDefault("photo_path"));
+        if (string.IsNullOrWhiteSpace(photoPath))
+            return NotFound(new { error = "No photo uploaded." });
+
+        if (photoPath.Contains("..", StringComparison.Ordinal)
+            || photoPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            || photoPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { error = "Invalid photo path." });
+
+        var webRoot = string.IsNullOrWhiteSpace(_env.WebRootPath)
+            ? Path.Combine(_env.ContentRootPath, "wwwroot")
+            : _env.WebRootPath;
+        var absolutePath = Path.GetFullPath(Path.Combine(webRoot, photoPath.Replace('/', Path.DirectorySeparatorChar)));
+        var uploadsRoot = Path.GetFullPath(Path.Combine(webRoot, "uploads", "photos"));
+        if (!absolutePath.StartsWith(uploadsRoot, StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { error = "Invalid photo path." });
+        if (!System.IO.File.Exists(absolutePath))
+            return NotFound(new { error = "Photo file missing on server." });
+
+        var provider = new FileExtensionContentTypeProvider();
+        if (!provider.TryGetContentType(absolutePath, out var contentType))
+            contentType = "application/octet-stream";
+
+        return PhysicalFile(absolutePath, contentType);
     }
 
     /// <summary>Safe directory for mobile/ESS — no salary fields.</summary>

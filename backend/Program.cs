@@ -205,6 +205,7 @@ app.UseStaticFiles();
 
 Directory.CreateDirectory(Path.Combine(app.Environment.ContentRootPath, "wwwroot", "uploads", "documents"));
 Directory.CreateDirectory(Path.Combine(app.Environment.ContentRootPath, "wwwroot", "uploads", "certificates"));
+Directory.CreateDirectory(Path.Combine(app.Environment.ContentRootPath, "wwwroot", "uploads", "photos"));
 
 app.UseCors("PortalClients");
 app.UseAuthentication();

@@ -87,6 +87,9 @@ export function emptyMasterForm() {
     attachmentsNote: '',
     naturalPerson: true,
     dataProtectionStatus: 'none',
+    photoPath: '',
+    photoPreview: '',
+    photoFile: null,
   };
 }
 
@@ -157,6 +160,9 @@ export function masterFormFromEmployee(employee) {
     naturalPerson: md.naturalPerson !== false,
     dataProtectionStatus: md.dataProtectionStatus || 'none',
     password: '',
+    photoPath: v(employee, 'photoPath', 'photo_path') || '',
+    photoPreview: '',
+    photoFile: null,
   };
 }
 
