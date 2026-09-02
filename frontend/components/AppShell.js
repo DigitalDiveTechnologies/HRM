@@ -156,12 +156,32 @@ export default function AppShell({ title, subtitle, children }) {
         </main>
       </div>
       {toast ? (
-        <div className="portal-alert-toast" role="status" aria-live="polite">
+        <button
+          type="button"
+          className="portal-alert-toast"
+          role="status"
+          aria-live="polite"
+          onClick={() => {
+            const path = toast.path;
+            dismissToast();
+            if (path) {
+              setMenuOpen(false);
+              router.push(path);
+            }
+          }}
+        >
           <span>{toast.message}</span>
-          <button type="button" className="portal-alert-toast-close" aria-label="Dismiss" onClick={dismissToast}>
+          <span
+            className="portal-alert-toast-close"
+            aria-label="Dismiss"
+            onClick={(e) => {
+              e.stopPropagation();
+              dismissToast();
+            }}
+          >
             ×
-          </button>
-        </div>
+          </span>
+        </button>
       ) : null}
     </>
   );

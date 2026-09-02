@@ -178,6 +178,57 @@ class _AppShellState extends State<AppShell> {
       // Keep visited screens alive — menu switch pe dubara API load/spinner nahi.
       body: Column(
         children: [
+          if (app.alertToastMessage != null)
+            Material(
+              color: Colors.transparent,
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () {
+                      final target = app.alertToastRoute;
+                      app.dismissAlertToast();
+                      if (target != null && target.isNotEmpty) {
+                        _openRoute(target);
+                      }
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: T.surface(context),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.accent),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              app.alertToastMessage!,
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+                            ),
+                          ),
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () => app.dismissAlertToast(),
+                            icon: const Icon(Icons.close_rounded, size: 18),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           Expanded(
             child: SafeArea(
               bottom: false,

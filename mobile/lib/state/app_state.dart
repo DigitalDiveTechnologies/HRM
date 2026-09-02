@@ -71,6 +71,11 @@ class AppState extends ChangeNotifier {
   /// Last acknowledged count per route — opening a tab clears its badge until new alerts.
   Map<String, int> _seenBaselineByRoute = {};
 
+  /// Top toast (portal-style) when a new leave/certificate/attendance alert arrives.
+  String? alertToastMessage;
+  String? alertToastRoute;
+  Timer? _toastClearTimer;
+
   Map<String, int> get _visibleBadges =>
       visibleBadgeCounts(badgeCountsByRoute, _seenBaselineByRoute);
 
@@ -80,7 +85,8 @@ class AppState extends ChangeNotifier {
   int badgeForRoute(String routeId) => _visibleBadges[routeId] ?? 0;
 
   Timer? _badgePollTimer;
-  static const _badgePollInterval = Duration(seconds: 45);
+  static const _badgePollInterval = Duration(seconds: 5);
+  Map<String, int>? _prevBadgeRaw;
 
   void _handleUnauthorized() {
     if (user == null) return;
@@ -231,6 +237,26 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  void dismissAlertToast() {
+    _toastClearTimer?.cancel();
+    _toastClearTimer = null;
+    if (alertToastMessage == null && alertToastRoute == null) return;
+    alertToastMessage = null;
+    alertToastRoute = null;
+    notifyListeners();
+  }
+
+  void _showAlertToast(String routeId) {
+    alertToastMessage = toastMessageForRoute(routeId);
+    alertToastRoute = routeId;
+    _toastClearTimer?.cancel();
+    _toastClearTimer = Timer(const Duration(seconds: 7), () {
+      alertToastMessage = null;
+      alertToastRoute = null;
+      notifyListeners();
+    });
+  }
+
   /// Poll notifications + team approvals and update sidebar / menu badges.
   Future<void> refreshAlertBadges() async {
     if (user?.employeeId == null) {
@@ -252,8 +278,35 @@ class AppState extends ChangeNotifier {
       counts['team_approvals'] = pendingTeamApprovals;
     }
 
+    final prev = _prevBadgeRaw;
+    if (prev != null) {
+      const priority = [
+        'leave',
+        'certificates',
+        'attendance',
+        'team_approvals',
+        'notifications',
+      ];
+      final paths = [
+        ...priority.where(counts.containsKey),
+        ...counts.keys.where((k) => !priority.contains(k)),
+      ];
+      for (final routeId in paths) {
+        if ((counts[routeId] ?? 0) > (prev[routeId] ?? 0)) {
+          _showAlertToast(routeId);
+          break;
+        }
+      }
+    }
+
+    final changed = prev == null ||
+        prev.length != counts.length ||
+        counts.entries.any((e) => (prev[e.key] ?? 0) != e.value);
+    _prevBadgeRaw = Map<String, int>.from(counts);
     badgeCountsByRoute = counts;
-    notifyListeners();
+    if (changed || alertToastMessage != null) {
+      notifyListeners();
+    }
   }
 
   void _startBadgePolling() {
@@ -270,6 +323,10 @@ class AppState extends ChangeNotifier {
 
   Future<void> logout() async {
     _stopBadgePolling();
+    _toastClearTimer?.cancel();
+    alertToastMessage = null;
+    alertToastRoute = null;
+    _prevBadgeRaw = null;
     user = null;
     isTeamLead = false;
     pendingTeamApprovals = 0;

@@ -46,6 +46,22 @@ export default function AttendancePage() {
     load();
   }, [load]);
 
+  // Auto-refresh attendance list (portal) — near-instant with alerts.
+  useEffect(() => {
+    if (!user) return undefined;
+    const id = setInterval(() => {
+      load();
+    }, 5_000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') load();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [user, load]);
+
   async function onSave(e) {
     e.preventDefault();
     setMsg('');

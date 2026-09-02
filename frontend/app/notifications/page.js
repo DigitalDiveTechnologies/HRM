@@ -5,6 +5,17 @@ import AppShell, { Badge } from '../../components/AppShell';
 import { api } from '../../lib/auth';
 import { formatDate, v } from '../../lib/format';
 
+/** Admin portal: show employee name instead of employee-facing "Your …". */
+function adminNotificationMessage(row) {
+  const raw = String(v(row, 'message') || '');
+  const name = String(v(row, 'fullName', 'full_name') || '').trim();
+  if (!name || !raw) return raw || '-';
+  let msg = raw.replace(/^Your\b/i, `${name}'s`);
+  msg = msg.replace(/\byour manager\b/gi, 'their manager');
+  msg = msg.replace(/\byour HR\b/gi, 'HR');
+  return msg;
+}
+
 export default function NotificationsPage() {
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
@@ -90,7 +101,7 @@ export default function NotificationsPage() {
                     <td>{v(n, 'category')}</td>
                     <td>
                       {v(n, 'title')}
-                      <div className="muted">{v(n, 'message')}</div>
+                      <div className="muted">{adminNotificationMessage(n)}</div>
                     </td>
                     <td>{v(n, 'fullName', 'full_name') || '-'}</td>
                     <td>{formatDate(v(n, 'dueDate', 'due_date'))}</td>

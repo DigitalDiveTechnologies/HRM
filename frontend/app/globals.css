@@ -603,6 +603,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
   font-size: 0.92rem;
   font-weight: 600;
   animation: portalToastIn 0.25s ease;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
 }
 .portal-alert-toast-close {
   border: none;

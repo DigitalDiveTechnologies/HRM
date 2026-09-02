@@ -38,6 +38,8 @@ public sealed class HrQueryService
             """, ct);
         var unread = await ScalarIntAsync(conn,
             "SELECT COUNT(*)::int FROM notifications WHERE is_read = FALSE", ct);
+        var pendingCertificates = await ScalarIntAsync(conn,
+            "SELECT COUNT(*)::int FROM certificate_requests WHERE status = 'pending'", ct);
         var recent = await QueryAsync(conn,
             """
             SELECT a.work_date, a.status, a.late_minutes, e.full_name
@@ -52,6 +54,7 @@ public sealed class HrQueryService
             pendingLeave,
             expiringDocs,
             unreadNotifications = unread,
+            pendingCertificates,
             recentAttendance = recent
         };
     }

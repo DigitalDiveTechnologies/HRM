@@ -17,6 +17,15 @@ export default function ApprovalsPage() {
 
   useEffect(() => {
     load();
+    const id = setInterval(load, 5_000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') load();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [load]);
 
   async function setStatus(id, status) {

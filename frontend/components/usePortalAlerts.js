@@ -6,23 +6,21 @@ import {
   countAlertCategories,
   fetchPortalBadgeCounts,
   labelForPath,
-  loadSeenBaselines,
   normalizePath,
-  saveSeenBaselines,
   toastMessageForPath,
   visibleBadgeCounts,
 } from '../lib/alertBadges';
 
-const POLL_MS = 45_000;
+/** Near-instant alerts (was 45s). */
+const POLL_MS = 5_000;
 
 export function usePortalAlerts(pathname, enabled) {
   const [rawCounts, setRawCounts] = useState({});
-  const [seenBaseline, setSeenBaseline] = useState({});
   const [toast, setToast] = useState(null);
   const prevRawRef = useRef(null);
   const toastTimerRef = useRef(null);
 
-  const visible = visibleBadgeCounts(rawCounts, seenBaseline);
+  const visible = visibleBadgeCounts(rawCounts, {});
   const menuCategories = countAlertCategories(visible);
 
   const badgeFor = useCallback(
@@ -39,7 +37,7 @@ export function usePortalAlerts(pathname, enabled) {
     (path) => {
       dismissToast();
       setToast({ id: Date.now(), message: toastMessageForPath(path), path: normalizePath(path) });
-      toastTimerRef.current = setTimeout(() => setToast(null), 6000);
+      toastTimerRef.current = setTimeout(() => setToast(null), 7000);
     },
     [dismissToast],
   );
@@ -50,8 +48,13 @@ export function usePortalAlerts(pathname, enabled) {
       const counts = await fetchPortalBadgeCounts(api);
       const prevRaw = prevRawRef.current;
       if (prevRaw) {
-        for (const [href, count] of Object.entries(counts)) {
-          if ((count || 0) > (prevRaw[href] || 0)) {
+        const priority = ['/leave', '/certificates', '/attendance', '/approvals', '/documents', '/notifications'];
+        const paths = [
+          ...priority.filter((p) => Object.prototype.hasOwnProperty.call(counts, p)),
+          ...Object.keys(counts).filter((p) => !priority.includes(p)),
+        ];
+        for (const href of paths) {
+          if ((counts[href] || 0) > (prevRaw[href] || 0)) {
             showToast(href);
             break;
           }
@@ -66,23 +69,25 @@ export function usePortalAlerts(pathname, enabled) {
 
   useEffect(() => {
     if (!enabled) return undefined;
-    setSeenBaseline(loadSeenBaselines());
     refresh();
     const id = setInterval(refresh, POLL_MS);
-    return () => clearInterval(id);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', refresh);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', refresh);
+    };
   }, [enabled, refresh]);
 
+  // Refresh immediately when switching sidebar pages.
   useEffect(() => {
     if (!enabled) return;
-    const path = normalizePath(pathname);
-    setSeenBaseline((prev) => {
-      const current = rawCounts[path] || 0;
-      if ((prev[path] || 0) >= current) return prev;
-      const next = { ...prev, [path]: current };
-      saveSeenBaselines(next);
-      return next;
-    });
-  }, [pathname, enabled, rawCounts]);
+    refresh();
+  }, [pathname, enabled, refresh]);
 
   useEffect(() => () => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
