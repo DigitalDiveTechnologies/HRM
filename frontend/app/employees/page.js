@@ -30,6 +30,7 @@ export default function EmployeesPage() {
   const [msg, setMsg] = useState('');
   const [createForm, setCreateForm] = useState(emptyMasterForm());
   const [creating, setCreating] = useState(false);
+  const [createLoginPopup, setCreateLoginPopup] = useState(null);
   const [resetPassword, setResetPassword] = useState('');
   const [resetting, setResetting] = useState(false);
   const [histForm, setHistForm] = useState({
@@ -110,15 +111,26 @@ export default function EmployeesPage() {
         body: JSON.stringify(payload),
       });
       const empId = v(res.employee, 'id');
+      const appEmail = String(res.login?.email || createForm.email || '')
+        .trim()
+        .toLowerCase();
+      const appPassword = String(createForm.password || '').trim();
+      const employeeName =
+        v(res.employee, 'fullName', 'full_name') ||
+        createForm.fullName ||
+        [createForm.firstName, createForm.lastName].filter(Boolean).join(' ') ||
+        'Employee';
       if (createForm.photoFile && empId) {
         const fd = new FormData();
         fd.append('file', createForm.photoFile);
         await apiUpload(`/employees/${empId}/photo`, fd);
       }
-      setMsg(
-        res.message ||
-          `Created ${v(res.employee, 'fullName', 'full_name')} — app login: ${res.login?.email || createForm.email}`,
-      );
+      setCreateLoginPopup({
+        name: employeeName,
+        email: appEmail,
+        password: appPassword,
+      });
+      setMsg(`Employee created: ${employeeName}`);
       if (createForm.photoPreview) {
         try {
           URL.revokeObjectURL(createForm.photoPreview);
@@ -246,6 +258,57 @@ export default function EmployeesPage() {
     <AppShell title="Employee Information" subtitle="Profiles, org chart, employment history, ID / passport / visa">
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="success">{msg}</div> : null}
+
+      {createLoginPopup ? (
+        <>
+          <div
+            className="backdrop show"
+            onClick={() => setCreateLoginPopup(null)}
+            aria-hidden="true"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-login-title"
+            style={{
+              position: 'fixed',
+              left: '50%',
+              top: '12%',
+              transform: 'translateX(-50%)',
+              zIndex: 50,
+              width: 'min(440px, calc(100vw - 32px))',
+              background: 'var(--card, #fff)',
+              border: '1px solid var(--border, #d7e3ef)',
+              borderRadius: 12,
+              boxShadow: '0 16px 40px rgba(2, 11, 31, 0.2)',
+              padding: 20,
+            }}
+          >
+            <h3 id="create-login-title" style={{ margin: '0 0 8px' }}>
+              Employee created
+            </h3>
+            <p className="muted" style={{ margin: '0 0 14px' }}>
+              {createLoginPopup.name} — app login credentials
+            </p>
+            <div className="stack" style={{ gap: 10, marginBottom: 14 }}>
+              <label className="field">
+                App email
+                <input readOnly value={createLoginPopup.email} />
+              </label>
+              <label className="field">
+                App password
+                <input readOnly value={createLoginPopup.password} />
+              </label>
+            </div>
+            <p style={{ margin: '0 0 16px', lineHeight: 1.45 }}>
+              Employee created. Ab mobile app mein in credentials se login karo.
+            </p>
+            <button type="button" className="btn block" onClick={() => setCreateLoginPopup(null)}>
+              OK
+            </button>
+          </div>
+        </>
+      ) : null}
 
       {isAdmin ? (
         <div className="card emp-master-card" style={{ marginBottom: 14 }}>
