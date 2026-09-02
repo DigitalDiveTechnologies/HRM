@@ -1,7 +1,9 @@
 using System.Data;
 using System.Data.Common;
+using System.Text.Json;
 using DigitalDive.Hr.Api.Data;
 using DigitalDive.Hr.Api.Helpers;
+using DigitalDive.Hr.Api.Models;
 using Npgsql;
 
 namespace DigitalDive.Hr.Api.Services;
@@ -242,9 +244,12 @@ public sealed class HrQueryService
         int? managerId,
         string? joinDate,
         string status,
+        Dictionary<string, object?>? masterData,
         CancellationToken ct)
     {
-        fullName = fullName.Trim();
+        fullName = BuildFullName(
+            string.IsNullOrWhiteSpace(fullName) ? ComposeNameFromMaster(masterData) : fullName.Trim(),
+            masterData);
         email = email.Trim().ToLowerInvariant();
         jobTitle = jobTitle.Trim();
         status = string.IsNullOrWhiteSpace(status) ? "active" : status.Trim().ToLowerInvariant();
@@ -376,6 +381,7 @@ public sealed class HrQueryService
         }
 
         var hash = PasswordHasher.Hash(password);
+        var masterJson = SerializeMasterData(masterData);
 
         int employeeId;
         await using (var insertEmp = new NpgsqlCommand(
@@ -383,11 +389,12 @@ public sealed class HrQueryService
                          INSERT INTO employees (
                            emp_code, full_name, email, phone, department_id, division_id,
                            designation_id, employment_type_id, job_title,
-                           join_date, status, manager_id, in_hr_ops, basic_salary, allowances
+                           join_date, status, manager_id, in_hr_ops, basic_salary, allowances,
+                           master_data
                          )
                          VALUES (
                            @code, @name, @email, @phone, @dept, @div, @desig, @emptype, @title,
-                           @join, @status, @mgr, TRUE, 0, 0
+                           @join, @status, @mgr, TRUE, 0, 0, @master::jsonb
                          )
                          RETURNING id
                          """, conn, tx))
@@ -404,6 +411,7 @@ public sealed class HrQueryService
             insertEmp.Parameters.AddWithValue("join", join);
             insertEmp.Parameters.AddWithValue("status", status);
             insertEmp.Parameters.AddWithValue("mgr", (object?)managerId ?? DBNull.Value);
+            insertEmp.Parameters.AddWithValue("master", masterJson);
             var idObj = await insertEmp.ExecuteScalarAsync(ct);
             employeeId = Convert.ToInt32(idObj);
         }
@@ -538,31 +546,43 @@ public sealed class HrQueryService
 
     public async Task<(Dictionary<string, object?>? Employee, string? Error)> UpdateEmployeeAsync(
         int id,
-        string? phone,
-        int? departmentId,
-        int? divisionId,
-        int? designationId,
-        int? employmentTypeId,
-        int? managerId,
-        string? joinDate,
-        string? status,
+        UpdateEmployeeRequest body,
         CancellationToken ct)
     {
         var existing = await EmployeeByIdAsync(id, ct);
         if (existing is null) return (null, "Employee not found.");
 
-        phone = string.IsNullOrWhiteSpace(phone) ? null : phone.Trim();
-        status = string.IsNullOrWhiteSpace(status)
+        var phone = string.IsNullOrWhiteSpace(body.Phone) ? null : body.Phone.Trim();
+        var status = string.IsNullOrWhiteSpace(body.Status)
             ? existing.GetValueOrDefault("status")?.ToString() ?? "active"
-            : status.Trim().ToLowerInvariant();
+            : body.Status.Trim().ToLowerInvariant();
 
         if (status is not ("active" or "onboarding" or "exited"))
         {
             return (null, "Status must be active, onboarding, or exited.");
         }
 
-        string? jobTitle = existing.GetValueOrDefault("jobTitle")?.ToString()
-            ?? existing.GetValueOrDefault("job_title")?.ToString();
+        var fullName = BuildFullName(
+            ComposeNameFromRequest(body.FirstName, body.MiddleName, body.LastName),
+            body.MasterData);
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            fullName = existing.GetValueOrDefault("fullName")?.ToString()
+                ?? existing.GetValueOrDefault("full_name")?.ToString()
+                ?? string.Empty;
+        }
+
+        string? jobTitle = string.IsNullOrWhiteSpace(body.JobTitle)
+            ? existing.GetValueOrDefault("jobTitle")?.ToString()
+              ?? existing.GetValueOrDefault("job_title")?.ToString()
+            : body.JobTitle.Trim();
+
+        var departmentId = body.DepartmentId;
+        var divisionId = body.DivisionId;
+        var designationId = body.DesignationId;
+        var employmentTypeId = body.EmploymentTypeId;
+        var managerId = body.ManagerId;
+        var joinDate = body.JoinDate;
 
         if (managerId.HasValue)
         {
@@ -634,10 +654,12 @@ public sealed class HrQueryService
         }
 
         await using var conn2 = await OpenAsync(ct);
+        var masterJson = SerializeMasterData(body.MasterData);
         await using var update = new NpgsqlCommand(
             """
             UPDATE employees
-            SET phone = @phone,
+            SET full_name = @name,
+                phone = @phone,
                 department_id = @dept,
                 division_id = @div,
                 designation_id = @desig,
@@ -645,10 +667,12 @@ public sealed class HrQueryService
                 job_title = @title,
                 manager_id = @mgr,
                 join_date = @join,
-                status = @status
+                status = @status,
+                master_data = @master::jsonb
             WHERE id = @id
             """,
             conn2);
+        update.Parameters.AddWithValue("name", fullName);
         update.Parameters.AddWithValue("phone", (object?)phone ?? DBNull.Value);
         update.Parameters.AddWithValue("dept", (object?)departmentId ?? DBNull.Value);
         update.Parameters.AddWithValue("div", (object?)divisionId ?? DBNull.Value);
@@ -658,6 +682,7 @@ public sealed class HrQueryService
         update.Parameters.AddWithValue("mgr", (object?)managerId ?? DBNull.Value);
         update.Parameters.AddWithValue("join", (object?)join ?? DBNull.Value);
         update.Parameters.AddWithValue("status", status);
+        update.Parameters.AddWithValue("master", masterJson);
         update.Parameters.AddWithValue("id", id);
         await update.ExecuteNonQueryAsync(ct);
 
@@ -1437,6 +1462,24 @@ public sealed class HrQueryService
             "UPDATE notifications SET is_read = TRUE WHERE id = @id RETURNING *", conn);
         cmd.Parameters.AddWithValue("id", id);
         return await ReadOneAsync(cmd, ct);
+    }
+
+    public async Task<int> MarkAllNotificationsReadAsync(int? onlyEmployeeId, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        var sql = "UPDATE notifications SET is_read = TRUE WHERE is_read = FALSE";
+        if (onlyEmployeeId.HasValue)
+        {
+            sql += " AND (employee_id = @eid OR employee_id IS NULL)";
+        }
+
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        if (onlyEmployeeId.HasValue)
+        {
+            cmd.Parameters.AddWithValue("eid", onlyEmployeeId.Value);
+        }
+
+        return await cmd.ExecuteNonQueryAsync(ct);
     }
 
     public async Task<object> ReportsAsync(CancellationToken ct)
@@ -3251,6 +3294,7 @@ public sealed class HrQueryService
                 TimeOnly t => t.ToString("HH:mm:ss"),
                 TimeSpan ts => ts.ToString(@"hh\:mm\:ss"),
                 decimal dec => dec,
+                JsonDocument doc => JsonSerializer.Deserialize<object>(doc.RootElement.GetRawText()),
                 _ => value
             };
         }
@@ -3269,5 +3313,34 @@ public sealed class HrQueryService
         var parts = name.Split('_', StringSplitOptions.RemoveEmptyEntries);
         return parts[0].ToLowerInvariant()
                + string.Concat(parts.Skip(1).Select(p => char.ToUpperInvariant(p[0]) + p[1..].ToLowerInvariant()));
+    }
+
+    private static string BuildFullName(string fallbackFullName, Dictionary<string, object?>? masterData)
+    {
+        var fromMaster = ComposeNameFromMaster(masterData);
+        if (!string.IsNullOrWhiteSpace(fromMaster)) return fromMaster.Trim();
+        return fallbackFullName.Trim();
+    }
+
+    private static string ComposeNameFromRequest(string? first, string? middle, string? last)
+    {
+        var parts = new[] { first, middle, last }
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => p!.Trim());
+        return string.Join(' ', parts);
+    }
+
+    private static string ComposeNameFromMaster(Dictionary<string, object?>? masterData)
+    {
+        if (masterData is null) return string.Empty;
+        string? Get(string key) =>
+            masterData.TryGetValue(key, out var val) && val is not null ? val.ToString() : null;
+        return ComposeNameFromRequest(Get("firstName"), Get("middleName"), Get("lastName"));
+    }
+
+    private static string SerializeMasterData(Dictionary<string, object?>? masterData)
+    {
+        if (masterData is null || masterData.Count == 0) return "{}";
+        return JsonSerializer.Serialize(masterData);
     }
 }

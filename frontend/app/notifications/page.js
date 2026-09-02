@@ -9,6 +9,7 @@ export default function NotificationsPage() {
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
+  const [markingAll, setMarkingAll] = useState(false);
 
   const load = useCallback(() => {
     api('/notifications')
@@ -41,13 +42,31 @@ export default function NotificationsPage() {
     }
   }
 
+  async function markAllRead() {
+    setMsg('');
+    setError('');
+    setMarkingAll(true);
+    try {
+      const res = await api('/notifications/read-all', { method: 'PATCH', body: '{}' });
+      setMsg(res.message || `Marked ${res.updated || 0} notification(s) as read.`);
+      load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setMarkingAll(false);
+    }
+  }
+
   return (
     <AppShell title="Notifications & Alerts" subtitle="Birthday, probation, contract, visa, training">
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
-      <div style={{ marginBottom: 12 }}>
+      <div style={{ marginBottom: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button type="button" className="btn" onClick={generate}>
           Run alert generator
+        </button>
+        <button type="button" className="btn secondary" onClick={markAllRead} disabled={markingAll}>
+          {markingAll ? 'Marking…' : 'Mark all read'}
         </button>
       </div>
       <div className="card">

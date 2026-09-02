@@ -81,8 +81,14 @@ public sealed class EmployeesController : ControllerBase
             return BadRequest(new { error = "Designation or job title is required." });
         }
 
+        var fullName = !string.IsNullOrWhiteSpace(body.FullName)
+            ? body.FullName.Trim()
+            : string.Join(' ', new[] { body.FirstName, body.MiddleName, body.LastName }
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Select(p => p!.Trim()));
+
         var (employee, error) = await _hr.CreateEmployeeWithLoginAsync(
-            body.FullName,
+            fullName,
             body.Email,
             body.Password,
             string.IsNullOrWhiteSpace(jobTitle) ? "Employee" : jobTitle,
@@ -94,6 +100,7 @@ public sealed class EmployeesController : ControllerBase
             body.ManagerId,
             body.JoinDate,
             body.Status ?? "active",
+            body.MasterData,
             ct);
 
         if (error is not null)
@@ -117,17 +124,7 @@ public sealed class EmployeesController : ControllerBase
     [Authorize(Roles = "admin")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateEmployeeRequest body, CancellationToken ct)
     {
-        var (employee, error) = await _hr.UpdateEmployeeAsync(
-            id,
-            body.Phone,
-            body.DepartmentId,
-            body.DivisionId,
-            body.DesignationId,
-            body.EmploymentTypeId,
-            body.ManagerId,
-            body.JoinDate,
-            body.Status,
-            ct);
+        var (employee, error) = await _hr.UpdateEmployeeAsync(id, body, ct);
 
         if (error is not null)
         {
@@ -136,7 +133,7 @@ public sealed class EmployeesController : ControllerBase
                 : BadRequest(new { error });
         }
 
-        return Ok(new { employee, message = "Employee updated. Employee code and full name cannot be changed." });
+        return Ok(new { employee, message = "Employee updated." });
     }
 
     [HttpPost("{id:int}/reset-password")]

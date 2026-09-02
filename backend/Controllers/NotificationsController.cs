@@ -29,6 +29,14 @@ public sealed class NotificationsController : ControllerBase
         return row is null ? NotFound() : Ok(row);
     }
 
+    [HttpPatch("read-all")]
+    public async Task<IActionResult> MarkAllRead(CancellationToken ct)
+    {
+        int? only = CurrentUser.IsEmployee(User) ? CurrentUser.EmployeeId(User) : null;
+        var updated = await _hr.MarkAllNotificationsReadAsync(only, ct);
+        return Ok(new { updated, message = $"Marked {updated} notification(s) as read." });
+    }
+
     [HttpPost("generate")]
     [Authorize(Roles = "admin")]
     public async Task<IActionResult> Generate(CancellationToken ct) =>

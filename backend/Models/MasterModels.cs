@@ -13,6 +13,10 @@ public sealed class UpdateMasterRequest
 
 public sealed class UpdateEmployeeRequest
 {
+    public string? FirstName { get; set; }
+    public string? MiddleName { get; set; }
+    public string? LastName { get; set; }
+    public string? JobTitle { get; set; }
     public string? Phone { get; set; }
     public int? DepartmentId { get; set; }
     public int? DivisionId { get; set; }
@@ -21,6 +25,7 @@ public sealed class UpdateEmployeeRequest
     public int? ManagerId { get; set; }
     public string? JoinDate { get; set; }
     public string? Status { get; set; }
+    public Dictionary<string, object?>? MasterData { get; set; }
 }
 
 public sealed class BulkImportResult

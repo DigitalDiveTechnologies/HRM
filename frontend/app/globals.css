@@ -1025,3 +1025,206 @@ th {
 @media (min-width: 1400px) {
   .main { max-width: 1320px; }
 }
+
+/* Employee Master Data (SAP-style layout, portal theme) */
+.emp-master-card {
+  padding: 0;
+  overflow: hidden;
+}
+.emp-master-card .emp-master {
+  padding: 16px 18px 18px;
+}
+.emp-master-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.emp-master-title {
+  margin: 0;
+  font-size: 1.12rem;
+  color: var(--ink);
+}
+.emp-master-sub {
+  margin: 4px 0 0;
+  font-size: 0.88rem;
+}
+.emp-master-code-pill {
+  text-align: right;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--brand-soft);
+  border: 1px solid var(--line);
+}
+.emp-master-section {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.emp-master-section-title {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+}
+.emp-master-grid {
+  display: grid;
+  gap: 10px 16px;
+}
+.emp-master-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.emp-master-fields-with-photo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 132px;
+  gap: 16px;
+  align-items: start;
+}
+.emp-master-main-fields {
+  min-width: 0;
+}
+.emp-master-address-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+.emp-master-active-check {
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+}
+.emp-master-field .emp-master-label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.emp-master-field input,
+.emp-master-field select,
+.emp-master-field textarea {
+  width: 100%;
+}
+.emp-master-span-full { grid-column: 1 / -1; }
+.emp-master-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.emp-master-contact-grid {
+  display: grid;
+  grid-template-columns: 1fr 140px;
+  gap: 16px;
+  align-items: start;
+}
+.emp-master-photo-box {
+  height: 140px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--card-soft, rgba(0, 0, 0, 0.02));
+  text-align: center;
+  padding: 8px;
+}
+.emp-master-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 12px;
+  border-bottom: 2px solid var(--line);
+}
+.emp-master-tab {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  padding: 10px 14px;
+  font-size: 0.86rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+}
+.emp-master-tab.active {
+  color: var(--brand);
+  border-bottom-color: var(--brand);
+  font-weight: 600;
+}
+.emp-master-tab-panel {
+  padding: 14px 0;
+  min-height: 120px;
+}
+.emp-master-address-block h4 {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+}
+.emp-master-footer {
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--card-soft, rgba(0, 184, 219, 0.06));
+  border: 1px solid var(--line);
+}
+.emp-master-footer-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.emp-master-footer-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: end;
+}
+.emp-master-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.emp-master-readonly {
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--card-soft, rgba(0, 0, 0, 0.02));
+  border: 1px solid var(--line);
+}
+
+/* Employee master: exactly 2 fields per row; photo sits beside fields, not inside the grid */
+@media (max-width: 768px) {
+  .emp-master-fields-with-photo {
+    grid-template-columns: 1fr;
+  }
+  .emp-master-photo {
+    order: -1;
+    justify-self: end;
+    width: 120px;
+  }
+  .emp-master-photo-box {
+    height: 100px;
+  }
+  .emp-master-address-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .emp-master-card .emp-master { padding: 12px 10px; }
+  .emp-master-grid { gap: 8px 10px; }
+  .emp-master-field .emp-master-label { font-size: 0.72rem; }
+  .emp-master-field input,
+  .emp-master-field select,
+  .emp-master-field textarea {
+    font-size: 0.84rem;
+    padding: 8px 8px;
+  }
+  .emp-master-tab { padding: 8px 10px; font-size: 0.78rem; }
+  .emp-master-photo-box { height: 88px; padding: 4px; }
+  .emp-master-photo-box small { font-size: 0.62rem; }
+}

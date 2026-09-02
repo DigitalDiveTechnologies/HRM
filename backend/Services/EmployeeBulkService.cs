@@ -137,6 +137,7 @@ public sealed class EmployeeBulkService
                 managerId,
                 joinDate,
                 string.IsNullOrWhiteSpace(status) ? "active" : status,
+                null,
                 ct);
 
             if (error is not null)

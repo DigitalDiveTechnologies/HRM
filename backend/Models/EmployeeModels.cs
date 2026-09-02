@@ -17,6 +17,9 @@ public sealed class EmployeeDto
 public sealed class CreateEmployeeRequest
 {
     public string FullName { get; set; } = string.Empty;
+    public string? FirstName { get; set; }
+    public string? MiddleName { get; set; }
+    public string? LastName { get; set; }
     public string Email { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
     public string JobTitle { get; set; } = string.Empty;
@@ -28,6 +31,7 @@ public sealed class CreateEmployeeRequest
     public int? ManagerId { get; set; }
     public string? JoinDate { get; set; }
     public string? Status { get; set; }
+    public Dictionary<string, object?>? MasterData { get; set; }
 }
 
 public sealed class ResetEmployeePasswordRequest
