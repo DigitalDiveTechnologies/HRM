@@ -301,7 +301,7 @@ export default function EmployeesPage() {
               </label>
             </div>
             <p style={{ margin: '0 0 16px', lineHeight: 1.45 }}>
-              Employee created. Ab mobile app mein in credentials se login karo.
+              Employee created. Sign in to the mobile app with these credentials.
             </p>
             <button type="button" className="btn block" onClick={() => setCreateLoginPopup(null)}>
               OK
