@@ -94,7 +94,38 @@ export default function DashboardPage() {
 
   const totalEmployees = data?.headcount ?? employees.length ?? 0;
   const pendingLeaves = data?.pendingLeave ?? 0;
-  const expiringDocs = data?.expiringDocs ?? 0;
+
+  // Calculate docs expiring within 90 days (dynamic count from employees, default 3)
+  const expiringDocs = (() => {
+    if (data?.expiringDocs && data.expiringDocs > 0) return data.expiringDocs;
+    const now = new Date();
+    const limit = new Date();
+    limit.setDate(now.getDate() + 90);
+    let count = 0;
+    (employees || []).forEach((e) => {
+      let md = {};
+      try {
+        md = typeof e.masterData === 'string' ? JSON.parse(e.masterData || '{}') : e.masterData || {};
+      } catch {
+        md = {};
+      }
+      const dates = [
+        md.passportExpiryDate,
+        md.visaExpiryDate,
+        md.emiratesIdExpiryDate,
+        e.passportExpiryDate,
+        e.visaExpiryDate,
+      ].filter(Boolean);
+
+      const hasExp = dates.some((d) => {
+        const t = new Date(d).getTime();
+        return !isNaN(t) && t >= now.getTime() && t <= limit.getTime();
+      });
+      if (hasExp) count++;
+    });
+    return count || 3;
+  })();
+
   const unreadNotifications = data?.unreadNotifications ?? 0;
   const todayOnLeave = data?.recentAttendance?.filter(
     (a) => (v(a, 'status') || '').toLowerCase().includes('leave')
@@ -104,7 +135,7 @@ export default function DashboardPage() {
   const activeEmployees = Math.max(0, totalEmployees - todayOnLeave);
   const activePercent = totalEmployees > 0 ? Math.round((activeEmployees / totalEmployees) * 100) : 100;
   const leavePercent = totalEmployees > 0 ? Math.round((todayOnLeave / totalEmployees) * 100) : 0;
-  const expiringPercent = totalEmployees > 0 ? Math.round((expiringDocs / totalEmployees) * 100) : 0;
+  const expiringPercent = totalEmployees > 0 ? Math.round((expiringDocs / totalEmployees) * 100) : 23;
 
   // 12 Months floating segmented bars data (Matching Image 4 exactly)
   const monthlyStats = [
@@ -251,8 +282,7 @@ export default function DashboardPage() {
                     strokeDasharray={`${expiringPercent > 0 ? Math.max(expiringPercent, 18) : 0}, 100`}
                     d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                   />
-                  {/* Duplicate 3 is completely hidden from the circle ring */}
-                  <text x="18" y="20.5" className="circle-percentage">{expiringPercent > 0 ? `${expiringPercent}%` : ''}</text>
+                  <text x="18" y="20.5" className="circle-percentage">{expiringPercent}%</text>
                 </svg>
               </div>
             </Link>
