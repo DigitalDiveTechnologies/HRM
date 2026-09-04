@@ -21,8 +21,6 @@ function EmployeesContent() {
   const [divisions, setDivisions] = useState([]);
   const [designations, setDesignations] = useState([]);
   const [employmentTypes, setEmploymentTypes] = useState([]);
-  const [bulkFile, setBulkFile] = useState(null);
-  const [bulkUploading, setBulkUploading] = useState(false);
   const [masterForm, setMasterForm] = useState(emptyMasterForm());
   const [savingEdit, setSavingEdit] = useState(false);
   const [history, setHistory] = useState([]);
@@ -223,43 +221,6 @@ function EmployeesContent() {
     }
   }
 
-  async function downloadBulkTemplate() {
-    setError('');
-    try {
-      const blob = await apiBlob('/employees/bulk/template');
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'employee-bulk-template.xlsx';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
-  async function uploadBulk(ev) {
-    ev.preventDefault();
-    if (!bulkFile) return;
-    setError('');
-    setMsg('');
-    setBulkUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append('file', bulkFile);
-      const res = await apiUpload('/employees/bulk', fd);
-      setMsg(`Bulk import: ${res.created || 0} created, ${res.failed || 0} failed.`);
-      if (res.errors?.length) setError(res.errors.slice(0, 5).join(' · '));
-      setBulkFile(null);
-      load();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBulkUploading(false);
-    }
-  }
 
   async function resetAppPassword(ev) {
     ev.preventDefault();
@@ -559,41 +520,6 @@ function EmployeesContent() {
         </div>
       ) : null}
 
-      {/* =========================================================================
-          2. BULK EMPLOYEE UPLOAD
-         ========================================================================= */}
-      {isAdmin ? (
-        <div className="card" style={{ marginBottom: 18, padding: '18px 20px' }}>
-          <div className="panel-title" style={{ marginBottom: 8 }}>
-            <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0 }}>Bulk Employee Upload</h3>
-          </div>
-          <p className="muted" style={{ marginBottom: 12, fontSize: '12.5px' }}>
-            Download the Excel template, fill rows, then upload. Default app password is <strong>demo123</strong> if column is blank.
-          </p>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-            <button type="button" className="btn secondary" onClick={downloadBulkTemplate} style={{ fontSize: '12.5px' }}>
-              Download Sample Excel
-            </button>
-            <form onSubmit={uploadBulk} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <input
-                required
-                type="file"
-                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                onChange={(e) => setBulkFile(e.target.files?.[0] || null)}
-                style={{ fontSize: '12px' }}
-              />
-              <button
-                className="btn"
-                type="submit"
-                disabled={bulkUploading || !bulkFile}
-                style={{ background: '#00b8db', color: '#fff', fontSize: '12.5px', fontWeight: 600 }}
-              >
-                {bulkUploading ? 'Uploading…' : 'Upload & Import'}
-              </button>
-            </form>
-          </div>
-        </div>
-      ) : null}
 
       {/* =========================================================================
           3. ORG CHART (Circular Navy Avatars with Cyan Connector Arrows)

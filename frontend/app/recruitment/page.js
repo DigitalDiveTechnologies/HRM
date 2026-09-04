@@ -16,22 +16,6 @@ export default function RecruitmentPage() {
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
 
-  const [jobForm, setJobForm] = useState({
-    title: '',
-    department: 'Engineering',
-    location: 'Dubai, UAE',
-    employmentType: 'Full-time',
-    description: '',
-  });
-  const [candForm, setCandForm] = useState({
-    jobId: '',
-    fullName: '',
-    email: '',
-    phone: '',
-    source: 'Careers page',
-    stage: 'applied',
-    resumeRef: '',
-  });
   const [interviewForm, setInterviewForm] = useState({
     candidateId: '',
     scheduledAt: '',
@@ -66,40 +50,6 @@ export default function RecruitmentPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  async function createJob(e) {
-    e.preventDefault();
-    setMsg('');
-    setError('');
-    try {
-      await api('/recruitment/jobs', { method: 'POST', body: JSON.stringify(jobForm) });
-      setMsg('Job posting created.');
-      setJobForm({ title: '', department: 'Engineering', location: 'Dubai, UAE', employmentType: 'Full-time', description: '' });
-      load();
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
-  async function createCandidate(e) {
-    e.preventDefault();
-    setMsg('');
-    setError('');
-    try {
-      await api('/recruitment/candidates', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...candForm,
-          jobId: candForm.jobId ? Number(candForm.jobId) : null,
-        }),
-      });
-      setMsg('Candidate added.');
-      setCandForm({ jobId: '', fullName: '', email: '', phone: '', source: 'Careers page', stage: 'applied', resumeRef: '' });
-      load();
-    } catch (err) {
-      setError(err.message);
-    }
-  }
 
   async function setStage(id, stage) {
     setMsg('');
@@ -189,41 +139,6 @@ export default function RecruitmentPage() {
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
 
-      {isAdmin ? (
-        <div className="card" style={{ marginBottom: 14 }}>
-          <div className="panel-title">
-            <h3>Post a job</h3>
-          </div>
-          <form className="stack" onSubmit={createJob}>
-            <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-              <label className="field">
-                Title
-                <input required value={jobForm.title} onChange={(e) => setJobForm({ ...jobForm, title: e.target.value })} />
-              </label>
-              <label className="field">
-                Department
-                <input value={jobForm.department} onChange={(e) => setJobForm({ ...jobForm, department: e.target.value })} />
-              </label>
-              <label className="field">
-                Location
-                <input value={jobForm.location} onChange={(e) => setJobForm({ ...jobForm, location: e.target.value })} />
-              </label>
-              <label className="field">
-                Type
-                <input value={jobForm.employmentType} onChange={(e) => setJobForm({ ...jobForm, employmentType: e.target.value })} />
-              </label>
-            </div>
-            <label className="field">
-              Description
-              <textarea rows={2} value={jobForm.description} onChange={(e) => setJobForm({ ...jobForm, description: e.target.value })} />
-            </label>
-            <button className="btn" type="submit">
-              Create posting
-            </button>
-          </form>
-        </div>
-      ) : null}
-
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="panel-title">
           <h3>Open roles</h3>
@@ -269,65 +184,6 @@ export default function RecruitmentPage() {
             </tbody>
           </table>
         </div>
-      </div>
-
-      <div className="card" style={{ marginBottom: 14 }}>
-        <div className="panel-title">
-          <h3>Add candidate</h3>
-        </div>
-        <form className="stack" onSubmit={createCandidate}>
-          <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-            <label className="field">
-              Job
-              <select value={candForm.jobId} onChange={(e) => setCandForm({ ...candForm, jobId: e.target.value })}>
-                <option value="">Select job</option>
-                {jobs.map((j) => (
-                  <option key={v(j, 'id')} value={v(j, 'id')}>
-                    {v(j, 'title')}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              Stage
-              <select value={candForm.stage} onChange={(e) => setCandForm({ ...candForm, stage: e.target.value })}>
-                <option value="applied">Applied</option>
-                <option value="screening">Screening</option>
-                <option value="interview">Interview</option>
-                <option value="offer">Offer</option>
-                <option value="hired">Hired</option>
-                <option value="rejected">Rejected</option>
-              </select>
-            </label>
-            <label className="field">
-              Full name
-              <input required value={candForm.fullName} onChange={(e) => setCandForm({ ...candForm, fullName: e.target.value })} />
-            </label>
-            <label className="field">
-              Email
-              <input required type="email" value={candForm.email} onChange={(e) => setCandForm({ ...candForm, email: e.target.value })} />
-            </label>
-            <label className="field">
-              Phone
-              <input value={candForm.phone} onChange={(e) => setCandForm({ ...candForm, phone: e.target.value })} />
-            </label>
-            <label className="field">
-              Source
-              <input value={candForm.source} onChange={(e) => setCandForm({ ...candForm, source: e.target.value })} />
-            </label>
-            <label className="field">
-              Resume ref / keywords
-              <input
-                placeholder="e.g. resume.pdf · flutter · sql"
-                value={candForm.resumeRef}
-                onChange={(e) => setCandForm({ ...candForm, resumeRef: e.target.value })}
-              />
-            </label>
-          </div>
-          <button className="btn" type="submit">
-            Add candidate
-          </button>
-        </form>
       </div>
 
       <div className="card" style={{ marginBottom: 14 }}>
