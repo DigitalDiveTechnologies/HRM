@@ -8,8 +8,8 @@ const PHASE9 = [
   { id: '9.2', task: 'Leave approve/reject (HR final)', path: '/leave', status: 'done' },
   { id: '9.3', task: 'Attendance manage', path: '/attendance', status: 'done' },
   { id: '9.4', task: 'Payroll + WPS + Bank export', path: '/payroll', status: 'done' },
-  { id: '9.5', task: 'Division master CRUD', path: '/divisions', status: 'done' },
-  { id: '9.6', task: 'Certificate requests manage', path: '/certificates', status: 'done' },
+  { id: '9.5', task: 'Company master CRUD', path: '/divisions', status: 'done' },
+  { id: '9.6', task: 'HR Masters — Designation & Employment type soft delete', path: '/masters', status: 'done' },
   { id: '9.7', task: 'Bulk employee import', path: '/employees', status: 'done' },
   { id: '9.8', task: 'Reports (attendance, payroll, headcount)', path: '/reports', status: 'done' },
   { id: '9.9', task: 'Loan module', path: null, status: 'na' },
@@ -17,8 +17,8 @@ const PHASE9 = [
 
 const MANUALS = [
   {
-    title: 'HR Administrator Portal',
-    desc: 'Employees, bulk import, divisions, leave, certificates, payroll exports.',
+    title: 'Core HR & Workforce',
+    desc: 'Employees, bulk import, companies, leave, certificates, payroll exports.',
     section: '10.1 – 10.5 (portal side)',
   },
   {

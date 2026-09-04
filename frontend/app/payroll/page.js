@@ -80,16 +80,16 @@ export default function PayrollPage() {
   const periodRows = rows.filter((p) => String(v(p, 'periodLabel', 'period_label')) === period);
 
   return (
-    <AppShell title="Payroll Management" subtitle="Division-wise salary run — WPS vs bank transfer">
+    <AppShell title="Payroll Management" subtitle="Company-wise salary run — WPS vs bank transfer">
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
 
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="panel-title">
-          <h3>Run payroll by division</h3>
+          <h3>Run payroll by company</h3>
         </div>
         <p className="muted" style={{ marginTop: 0 }}>
-          Each employee&apos;s payment method follows their division setting (Alkidma/Alqat/Royal Oceans → WPS, Overseas → bank transfer).
+          Each employee&apos;s payment method follows their company setting (Alkidma/Alqat/Royal Oceans → WPS, Overseas → bank transfer).
         </p>
         <div className="toolbar-row">
           <label className="field field-inline">
@@ -112,12 +112,12 @@ export default function PayrollPage() {
 
       {summary.length > 0 ? (
         <div className="card" style={{ marginBottom: 14 }}>
-          <h3 style={{ marginTop: 0 }}>Division summary — {period}</h3>
+          <h3 style={{ marginTop: 0 }}>Company summary — {period}</h3>
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Division</th>
+                  <th>Company</th>
                   <th>Payment</th>
                   <th>Slips</th>
                   <th>Total net</th>
@@ -149,7 +149,7 @@ export default function PayrollPage() {
             <thead>
               <tr>
                 <th>Employee</th>
-                <th>Division</th>
+                <th>Company</th>
                 <th>Method</th>
                 <th>Basic</th>
                 <th>OT</th>

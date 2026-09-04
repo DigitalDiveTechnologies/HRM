@@ -1,54 +1,62 @@
-'use client';
-
 import { useRef, useState } from 'react';
 import { getApiBase } from '../lib/auth';
 import { v } from '../lib/format';
-import { MASTER_TABS } from '../lib/employeeMaster';
 
-function Field({ label, children, className = '' }) {
+const COUNTRIES = [
+  'United Arab Emirates',
+  'Pakistan',
+  'India',
+  'Egypt',
+  'Philippines',
+  'United Kingdom',
+  'United States',
+  'Canada',
+  'Saudi Arabia',
+  'Oman',
+  'Kuwait',
+  'Qatar',
+  'Bahrain',
+  'Jordan',
+  'Lebanon',
+  'Syria',
+  'Bangladesh',
+  'Sri Lanka',
+  'Nepal',
+  'South Africa',
+  'Other',
+];
+
+const PREVIOUS_VISA_TYPES = [
+  'N/A',
+  'Employment Visa',
+  'Visit Visa / Tourist Visa',
+  'Cancelled Visa',
+  'Spouse / Family Visa',
+  'Golden Visa',
+  'Student Visa',
+  'Investor / Partner Visa',
+];
+
+const DUBAI_EDUCATION_LEVELS = [
+  'High School Diploma / Grade 12',
+  "Bachelor's Degree / Undergraduate (Level 7 QFEmirates)",
+  "Master's Degree (Level 9 QFEmirates)",
+  'Doctorate / PhD (Level 10 QFEmirates)',
+  'Postgraduate Diploma (Level 8 QFEmirates)',
+  'Diploma / Associate Degree (Level 5 QFEmirates)',
+  'Vocational / Professional Certification (KHDA / TVET)',
+  'Other',
+];
+
+function Field({ label, required = false, children, className = '', helper = '' }) {
   return (
-    <label className={`field emp-master-field ${className}`}>
-      <span className="emp-master-label">{label}</span>
+    <label className={`field emp-clean-field ${className}`} style={{ margin: 0 }}>
+      <span className="emp-clean-label" style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)', display: 'block', marginBottom: '4px' }}>
+        {label} {required ? <span style={{ color: '#ef4444' }}>*</span> : null}
+      </span>
       {children}
+      {helper ? <span style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px', display: 'block' }}>{helper}</span> : null}
     </label>
-  );
-}
-
-function AddressBlock({ title, value, onChange }) {
-  const set = (key, val) => onChange({ ...value, [key]: val });
-  return (
-    <div className="emp-master-address-block">
-      <h4>{title}</h4>
-      <div className="emp-master-grid emp-master-grid-2">
-        <Field label="Street">
-          <input value={value.street} onChange={(e) => set('street', e.target.value)} />
-        </Field>
-        <Field label="Street No.">
-          <input value={value.streetNo} onChange={(e) => set('streetNo', e.target.value)} />
-        </Field>
-        <Field label="Block">
-          <input value={value.block} onChange={(e) => set('block', e.target.value)} />
-        </Field>
-        <Field label="Building / Floor / Room">
-          <input value={value.buildingFloorRoom} onChange={(e) => set('buildingFloorRoom', e.target.value)} />
-        </Field>
-        <Field label="Zip Code">
-          <input value={value.zip} onChange={(e) => set('zip', e.target.value)} />
-        </Field>
-        <Field label="City">
-          <input value={value.city} onChange={(e) => set('city', e.target.value)} />
-        </Field>
-        <Field label="County">
-          <input value={value.county} onChange={(e) => set('county', e.target.value)} />
-        </Field>
-        <Field label="State">
-          <input value={value.state} onChange={(e) => set('state', e.target.value)} />
-        </Field>
-        <Field label="Country / Region">
-          <input value={value.country} onChange={(e) => set('country', e.target.value)} />
-        </Field>
-      </div>
-    </div>
   );
 }
 
@@ -66,498 +74,665 @@ export default function EmployeeMasterForm({
   onCancel,
   extraFooter = null,
 }) {
-  const [tab, setTab] = useState('Address');
   const isEdit = mode === 'edit';
-  const photoInputRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const expLetterRef = useRef(null);
+  const eduCertRef = useRef(null);
 
-  const set = (key, val) => setForm({ ...form, [key]: val });
-  const setNested = (key, val) => setForm({ ...form, [key]: val });
+  // Step 1: Gatekeeper Company Selection during create mode
+  const [selectedCompanies, setSelectedCompanies] = useState(() => {
+    if (form.companyIds?.length) return form.companyIds;
+    if (form.divisionId) return [String(form.divisionId)];
+    return [];
+  });
+  const [companyConfirmed, setCompanyConfirmed] = useState(isEdit);
 
-  function photoSrc() {
-    if (form.photoPreview) return form.photoPreview;
-    if (form.photoPath) {
-      const path = String(form.photoPath).replace(/^\//, '');
-      return `${getApiBase()}/${path}`;
-    }
-    return '';
-  }
+  const set = (key, val) => setForm((prev) => ({ ...prev, [key]: val }));
 
-  function onPhotoPick(e) {
-    const file = e.target.files?.[0] || null;
-    if (!file) return;
-    if (!/^image\/(png|jpe?g|webp)$/i.test(file.type)) {
-      return;
-    }
-    if (form.photoPreview) {
-      try {
-        URL.revokeObjectURL(form.photoPreview);
-      } catch {
-        /* ignore */
-      }
-    }
-    const preview = URL.createObjectURL(file);
-    setForm({ ...form, photoFile: file, photoPreview: preview });
-  }
+  const setWorkExp = (key, val) =>
+    setForm((prev) => ({
+      ...prev,
+      workExperience: { ...(prev.workExperience || {}), [key]: val },
+    }));
 
-  function clearPhoto(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (form.photoPreview) {
-      try {
-        URL.revokeObjectURL(form.photoPreview);
-      } catch {
-        /* ignore */
-      }
+  const setEdu = (key, val) =>
+    setForm((prev) => ({
+      ...prev,
+      education: { ...(prev.education || {}), [key]: val },
+    }));
+
+  // Toggle company selection (supports 1 or multiple companies)
+  const toggleCompany = (compId) => {
+    const sId = String(compId);
+    let next;
+    if (selectedCompanies.includes(sId)) {
+      next = selectedCompanies.filter((id) => id !== sId);
+    } else {
+      next = [...selectedCompanies, sId];
     }
-    setForm({ ...form, photoFile: null, photoPreview: '', photoPath: isEdit ? form.photoPath : '' });
-    if (photoInputRef.current) photoInputRef.current.value = '';
-  }
+    setSelectedCompanies(next);
+    set('companyIds', next);
+    set('divisionId', next[0] || '');
+  };
+
+  const handleConfirmCompany = () => {
+    if (!selectedCompanies.length) return;
+    set('companyIds', selectedCompanies);
+    set('divisionId', selectedCompanies[0] || '');
+    setCompanyConfirmed(true);
+  };
+
+  // Profile image handler
+  const handlePhotoSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const preview = URL.createObjectURL(file);
+      setForm((prev) => ({ ...prev, photoFile: file, photoPreview: preview }));
+    }
+  };
+
+  // Helper to resolve photo preview
+  const photoUrl =
+    form.photoPreview ||
+    (form.photoPath
+      ? `${getApiBase().replace(/\/api\/?$/, '')}/${form.photoPath.replace(/^\//, '')}`
+      : null);
 
   return (
-    <form className="emp-master" onSubmit={onSubmit}>
-      <div className="emp-master-header">
-        <div>
-          <h3 className="emp-master-title">Employee Master Data</h3>
-          <p className="muted emp-master-sub">
-            {isEdit ? 'Update employee profile and extended master fields.' : 'Create HR record + mobile app login.'}
-          </p>
-        </div>
-        {isEdit && form.empCode ? (
-          <div className="emp-master-code-pill">
-            <span className="muted">Employee Code</span>
-            <strong>{form.empCode}</strong>
-          </div>
-        ) : null}
-      </div>
+    <div className="emp-clean-form-container">
+      {/* =========================================================================
+          STEP 1: Company Selection Gatekeeper (Only during create mode)
+         ========================================================================= */}
+      {!companyConfirmed && !isEdit ? (
+        <div className="card company-select-gate" style={{ padding: '28px', textAlign: 'center' }}>
+          <div style={{ maxWidth: '520px', margin: '0 auto' }}>
+            <div style={{ display: 'inline-flex', padding: '12px', borderRadius: '50%', background: 'rgba(0, 184, 219, 0.12)', marginBottom: '14px' }}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#00b8db" strokeWidth="2">
+                <path d="M3 21h18M3 7v14M21 7v14M6 11h4M6 15h4M14 11h4M14 15h4M9 3h6v4H9z" />
+              </svg>
+            </div>
+            <h3 style={{ fontSize: '18px', fontWeight: 600, margin: '0 0 6px', color: 'var(--ink)' }}>
+              Step 1: Select Company
+            </h3>
+            <p className="muted" style={{ fontSize: '13px', margin: '0 0 22px' }}>
+              Please select the company this employee will work for. An employee can also be assigned to multiple companies.
+            </p>
 
-      <section className="emp-master-section emp-master-top">
-        <div className="emp-master-fields-with-photo">
-          <div className="emp-master-grid emp-master-grid-2 emp-master-main-fields">
-            <Field label="First Name">
-              <input required value={form.firstName} onChange={(e) => set('firstName', e.target.value)} />
-            </Field>
-            <Field label="Middle Name">
-              <input value={form.middleName} onChange={(e) => set('middleName', e.target.value)} />
-            </Field>
-            <Field label="Last Name">
-              <input required value={form.lastName} onChange={(e) => set('lastName', e.target.value)} />
-            </Field>
-            <Field label="Job Title">
-              <input value={form.jobTitle} onChange={(e) => set('jobTitle', e.target.value)} />
-            </Field>
-            <Field label="Position">
-              <input value={form.position} onChange={(e) => set('position', e.target.value)} />
-            </Field>
-            <Field label="Department">
-              <select value={form.departmentId} onChange={(e) => set('departmentId', e.target.value)}>
-                <option value="">— Select —</option>
-                {departments.map((d) => (
-                  <option key={v(d, 'id')} value={v(d, 'id')}>
-                    {v(d, 'name')}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Branch">
-              <input value={form.branch} onChange={(e) => set('branch', e.target.value)} />
-            </Field>
-            <Field label="Manager">
-              <select value={form.managerId} onChange={(e) => set('managerId', e.target.value)}>
-                <option value="">— None —</option>
-                {managers.map((e) => (
-                  <option key={v(e, 'id')} value={v(e, 'id')}>
-                    {v(e, 'fullName', 'full_name')} ({v(e, 'empCode', 'emp_code')})
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="User Code">
-              <input value={form.userCode} onChange={(e) => set('userCode', e.target.value)} />
-            </Field>
-            <Field label="Sales Employee">
-              <input value={form.salesEmployee} onChange={(e) => set('salesEmployee', e.target.value)} />
-            </Field>
-            <Field label="Cost Center">
-              <input value={form.costCenter} onChange={(e) => set('costCenter', e.target.value)} />
-            </Field>
-            <Field label="Employee Code">
-              <input value={form.empCode || 'Auto on save'} readOnly tabIndex={-1} />
-            </Field>
-            <Field label="Ext. Employee No.">
-              <input value={form.extEmployeeNo} onChange={(e) => set('extEmployeeNo', e.target.value)} />
-            </Field>
-            <label className="emp-master-check emp-master-active-check">
-              <input
-                type="checkbox"
-                checked={!!form.activeEmployee}
-                onChange={(e) => {
-                  const active = e.target.checked;
-                  setForm({
-                    ...form,
-                    activeEmployee: active,
-                    status: active ? (form.status === 'exited' ? 'active' : form.status) : 'exited',
-                  });
-                }}
-              />
-              <span>Active Employee</span>
-            </label>
-            <Field label="Office Phone">
-              <input value={form.officePhone} onChange={(e) => set('officePhone', e.target.value)} />
-            </Field>
-            <Field label="Ext.">
-              <input value={form.officeExt} onChange={(e) => set('officeExt', e.target.value)} />
-            </Field>
-            <Field label="Mobile Phone">
-              <input value={form.mobilePhone} onChange={(e) => set('mobilePhone', e.target.value)} />
-            </Field>
-            <Field label="Pager">
-              <input value={form.pager} onChange={(e) => set('pager', e.target.value)} />
-            </Field>
-            <Field label="Home Phone">
-              <input value={form.homePhone} onChange={(e) => set('homePhone', e.target.value)} />
-            </Field>
-            <Field label="Fax">
-              <input value={form.fax} onChange={(e) => set('fax', e.target.value)} />
-            </Field>
-            <Field label="E-Mail">
-              <input required type="email" value={form.email} onChange={(e) => set('email', e.target.value)} />
-            </Field>
-            <Field label="Linked Vendor">
-              <input value={form.linkedVendor} onChange={(e) => set('linkedVendor', e.target.value)} />
-            </Field>
-            <Field label="Division / Company">
-              <select value={form.divisionId} onChange={(e) => set('divisionId', e.target.value)}>
-                <option value="">— Select —</option>
-                {divisions.map((d) => (
-                  <option key={v(d, 'id')} value={v(d, 'id')}>
-                    {v(d, 'name')} ({v(d, 'code')})
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Designation">
-              <select value={form.designationId} onChange={(e) => set('designationId', e.target.value)}>
-                <option value="">— Select —</option>
-                {designations.map((d) => (
-                  <option key={v(d, 'id')} value={v(d, 'id')}>
-                    {v(d, 'name')}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Employment Type">
-              <select value={form.employmentTypeId} onChange={(e) => set('employmentTypeId', e.target.value)}>
-                <option value="">— Select —</option>
-                {employmentTypes.map((d) => (
-                  <option key={v(d, 'id')} value={v(d, 'id')}>
-                    {v(d, 'name')}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Join Date">
-              <input type="date" value={form.joinDate} onChange={(e) => set('joinDate', e.target.value)} />
-            </Field>
-            {!isEdit ? (
-              <Field label="App Password">
-                <input
-                  required
-                  type="password"
-                  minLength={6}
-                  value={form.password}
-                  onChange={(e) => set('password', e.target.value)}
-                />
-              </Field>
-            ) : (
-              <Field label="Status">
-                <select
-                  value={form.status}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      status: e.target.value,
-                      activeEmployee: e.target.value !== 'exited',
-                    })
-                  }
-                >
-                  <option value="active">active</option>
-                  <option value="onboarding">onboarding</option>
-                  <option value="exited">exited</option>
-                </select>
-              </Field>
-            )}
-          </div>
-          <div className="emp-master-photo">
-            <button
-              type="button"
-              className="emp-master-photo-box"
-              onClick={() => photoInputRef.current?.click()}
-              title="Upload profile photo"
-            >
-              {photoSrc() ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={photoSrc()} alt="Employee profile" className="emp-master-photo-img" />
-              ) : (
-                <>
-                  <span>Photo</span>
-                  <small className="muted">Click to upload</small>
-                </>
-              )}
-            </button>
-            <input
-              ref={photoInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              style={{ display: 'none' }}
-              onChange={onPhotoPick}
-            />
-            <div className="emp-master-photo-actions">
-              <button type="button" className="btn secondary" onClick={() => photoInputRef.current?.click()}>
-                {photoSrc() ? 'Change' : 'Upload'}
-              </button>
-              {form.photoPreview ? (
-                <button type="button" className="btn secondary" onClick={clearPhoto}>
-                  Clear
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', textAlign: 'left', marginBottom: '22px' }}>
+              {divisions.map((div) => {
+                const id = String(v(div, 'id'));
+                const name = v(div, 'name');
+                const code = v(div, 'code');
+                const isChecked = selectedCompanies.includes(id);
+
+                return (
+                  <label
+                    key={id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '12px 16px',
+                      borderRadius: '8px',
+                      border: `2px solid ${isChecked ? '#00b8db' : 'var(--line)'}`,
+                      background: isChecked ? 'rgba(0, 184, 219, 0.05)' : 'var(--surface)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleCompany(id)}
+                        style={{ width: '18px', height: '18px', accentColor: '#00b8db' }}
+                      />
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--ink)' }}>{name}</div>
+                        {code ? <div className="muted" style={{ fontSize: '12px' }}>Code: {code}</div> : null}
+                      </div>
+                    </div>
+                    {isChecked ? (
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: '#008fa8', background: 'rgba(0, 184, 219, 0.12)', padding: '2px 8px', borderRadius: '4px' }}>
+                        Selected
+                      </span>
+                    ) : null}
+                  </label>
+                );
+              })}
+              {!divisions.length ? (
+                <div className="muted" style={{ textAlign: 'center', padding: '16px' }}>
+                  No companies configured. Please add companies in Company Master first.
+                </div>
+              ) : null}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
+              {onCancel ? (
+                <button type="button" className="btn secondary" onClick={onCancel} style={{ padding: '8px 20px' }}>
+                  Cancel
                 </button>
               ) : null}
+              <button
+                type="button"
+                className="btn"
+                disabled={!selectedCompanies.length}
+                onClick={handleConfirmCompany}
+                style={{
+                  background: '#00b8db',
+                  color: '#ffffff',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  padding: '8px 24px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  cursor: selectedCompanies.length ? 'pointer' : 'not-allowed',
+                  opacity: selectedCompanies.length ? 1 : 0.6,
+                }}
+              >
+                Continue to Employee Details →
+              </button>
             </div>
           </div>
         </div>
-      </section>
-
-      <div className="emp-master-tabs" role="tablist">
-        {MASTER_TABS.map((t) => (
-          <button
-            key={t}
-            type="button"
-            role="tab"
-            aria-selected={tab === t}
-            className={`emp-master-tab ${tab === t ? 'active' : ''}`}
-            onClick={() => setTab(t)}
+      ) : (
+        /* =========================================================================
+            STEP 2: Clean Employee Details Form (Sequenced Sections)
+           ========================================================================= */
+        <form onSubmit={onSubmit} className="stack emp-form-sections" style={{ gap: '20px' }}>
+          {/* Assigned Company Header / Banner */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '10px 16px',
+              background: 'rgba(0, 184, 219, 0.08)',
+              border: '1px solid rgba(0, 184, 219, 0.25)',
+              borderRadius: '8px',
+            }}
           >
-            {t}
-          </button>
-        ))}
-      </div>
-
-      <div className="emp-master-tab-panel">
-        {tab === 'Address' ? (
-          <div className="emp-master-address-row">
-            <AddressBlock title="Work Address" value={form.workAddress} onChange={(val) => setNested('workAddress', val)} />
-            <AddressBlock title="Home Address" value={form.homeAddress} onChange={(val) => setNested('homeAddress', val)} />
-          </div>
-        ) : null}
-
-        {tab === 'Membership' ? (
-          <div className="emp-master-grid emp-master-grid-2">
-            <Field label="Union / Association">
-              <input
-                value={form.membership.union}
-                onChange={(e) => setNested('membership', { ...form.membership, union: e.target.value })}
-              />
-            </Field>
-            <Field label="Membership No.">
-              <input
-                value={form.membership.membershipNo}
-                onChange={(e) => setNested('membership', { ...form.membership, membershipNo: e.target.value })}
-              />
-            </Field>
-            <Field label="Start Date">
-              <input
-                type="date"
-                value={form.membership.startDate}
-                onChange={(e) => setNested('membership', { ...form.membership, startDate: e.target.value })}
-              />
-            </Field>
-            <Field label="End Date">
-              <input
-                type="date"
-                value={form.membership.endDate}
-                onChange={(e) => setNested('membership', { ...form.membership, endDate: e.target.value })}
-              />
-            </Field>
-          </div>
-        ) : null}
-
-        {tab === 'Administration' ? (
-          <div className="emp-master-grid emp-master-grid-2">
-            <Field label="User Group">
-              <input
-                value={form.administration.userGroup}
-                onChange={(e) => setNested('administration', { ...form.administration, userGroup: e.target.value })}
-              />
-            </Field>
-            <Field label="License Type">
-              <input
-                value={form.administration.licenseType}
-                onChange={(e) => setNested('administration', { ...form.administration, licenseType: e.target.value })}
-              />
-            </Field>
-            <Field label="Portal Access">
-              <input
-                value={form.administration.portalAccess}
-                onChange={(e) => setNested('administration', { ...form.administration, portalAccess: e.target.value })}
-              />
-            </Field>
-            <Field label="Admin Notes" className="emp-master-span-full">
-              <textarea
-                rows={3}
-                value={form.administration.notes}
-                onChange={(e) => setNested('administration', { ...form.administration, notes: e.target.value })}
-              />
-            </Field>
-          </div>
-        ) : null}
-
-        {tab === 'Personal' ? (
-          <div className="emp-master-grid emp-master-grid-2">
-            <Field label="Date of Birth">
-              <input
-                type="date"
-                value={form.personal.dateOfBirth}
-                onChange={(e) => setNested('personal', { ...form.personal, dateOfBirth: e.target.value })}
-              />
-            </Field>
-            <Field label="Gender">
-              <select
-                value={form.personal.gender}
-                onChange={(e) => setNested('personal', { ...form.personal, gender: e.target.value })}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)' }}>Assigned Company:</span>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {(form.companyIds || selectedCompanies).map((id) => {
+                  const div = divisions.find((d) => String(v(d, 'id')) === String(id));
+                  return (
+                    <span key={id} style={{ background: '#00b8db', color: '#ffffff', fontSize: '11.5px', fontWeight: 600, padding: '2px 8px', borderRadius: '4px' }}>
+                      {div ? v(div, 'name') : `Company #${id}`}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+            {!isEdit ? (
+              <button
+                type="button"
+                onClick={() => setCompanyConfirmed(false)}
+                style={{ background: 'transparent', border: 'none', color: '#008fa8', fontSize: '12px', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
               >
-                <option value="">—</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-                <option value="other">Other</option>
-              </select>
-            </Field>
-            <Field label="Nationality">
+                Change Company
+              </button>
+            ) : null}
+          </div>
+
+          {/* Profile Photo Uploader at Top */}
+          <div className="card" style={{ padding: '16px 20px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '20px' }}>
+            <div
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: '50%',
+                background: photoUrl ? `url(${photoUrl}) center/cover no-repeat` : 'var(--surface-alt)',
+                border: '2px dashed var(--line)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--muted)',
+                fontSize: '11px',
+                flexShrink: 0,
+                overflow: 'hidden',
+              }}
+            >
+              {!photoUrl ? 'No Photo' : null}
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: '13.5px', color: 'var(--ink)', marginBottom: '4px' }}>
+                Profile Photo
+              </div>
+              <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginBottom: '8px' }}>
+                Upload employee avatar for ID badge & mobile profile (PNG, JPG, max 5MB)
+              </div>
               <input
-                value={form.personal.nationality}
-                onChange={(e) => setNested('personal', { ...form.personal, nationality: e.target.value })}
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                style={{ display: 'none' }}
+                onChange={handlePhotoSelect}
               />
-            </Field>
-            <Field label="Marital Status">
-              <select
-                value={form.personal.maritalStatus}
-                onChange={(e) => setNested('personal', { ...form.personal, maritalStatus: e.target.value })}
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => fileInputRef.current?.click()}
+                style={{ fontSize: '12px', padding: '4px 12px' }}
               >
-                <option value="">—</option>
-                <option value="single">Single</option>
-                <option value="married">Married</option>
-                <option value="other">Other</option>
-              </select>
-            </Field>
-            <Field label="Blood Group">
-              <input
-                value={form.personal.bloodGroup}
-                onChange={(e) => setNested('personal', { ...form.personal, bloodGroup: e.target.value })}
-              />
-            </Field>
-            <Field label="Religion">
-              <input
-                value={form.personal.religion}
-                onChange={(e) => setNested('personal', { ...form.personal, religion: e.target.value })}
-              />
-            </Field>
-            <Field label="Emergency Contact">
-              <input
-                value={form.personal.emergencyContact}
-                onChange={(e) => setNested('personal', { ...form.personal, emergencyContact: e.target.value })}
-              />
-            </Field>
-            <Field label="Emergency Phone">
-              <input
-                value={form.personal.emergencyPhone}
-                onChange={(e) => setNested('personal', { ...form.personal, emergencyPhone: e.target.value })}
-              />
-            </Field>
+                {form.photoFile ? 'Change Photo' : 'Upload Photo'}
+              </button>
+              {form.photoFile ? (
+                <span style={{ fontSize: '11px', color: '#10b981', marginLeft: '10px', fontWeight: 600 }}>
+                  Selected: {form.photoFile.name}
+                </span>
+              ) : null}
+            </div>
           </div>
-        ) : null}
 
-        {tab === 'Finance' ? (
-          <div className="emp-master-grid emp-master-grid-2">
-            <Field label="Bank Name">
-              <input
-                value={form.finance.bankName}
-                onChange={(e) => setNested('finance', { ...form.finance, bankName: e.target.value })}
-              />
-            </Field>
-            <Field label="Account No.">
-              <input
-                value={form.finance.accountNo}
-                onChange={(e) => setNested('finance', { ...form.finance, accountNo: e.target.value })}
-              />
-            </Field>
-            <Field label="IBAN">
-              <input
-                value={form.finance.iban}
-                onChange={(e) => setNested('finance', { ...form.finance, iban: e.target.value })}
-              />
-            </Field>
-            <Field label="Payment Method">
-              <input
-                value={form.finance.paymentMethod}
-                onChange={(e) => setNested('finance', { ...form.finance, paymentMethod: e.target.value })}
-              />
-            </Field>
-            <Field label="Tax ID">
-              <input
-                value={form.finance.taxId}
-                onChange={(e) => setNested('finance', { ...form.finance, taxId: e.target.value })}
-              />
-            </Field>
+          {/* -----------------------------------------------------------------------
+              SECTION 1: Personal & Official Details
+             ----------------------------------------------------------------------- */}
+          <div className="card" style={{ padding: '20px 24px', marginBottom: '16px' }}>
+            <div style={{ borderBottom: '1px solid var(--line)', paddingBottom: '10px', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0, color: 'var(--ink)' }}>
+                1. Personal & Official Details
+              </h3>
+              <p className="muted" style={{ fontSize: '12px', margin: '2px 0 0' }}>
+                Basic identification, contact information, official assignments and legal travel documents
+              </p>
+            </div>
+
+            {/* Grid 1: Basic Identity & Logins */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', marginBottom: '16px' }}>
+              <Field label="Employee Code" helper="Auto-generated serial">
+                <input
+                  value={form.empCode || 'Auto-generated'}
+                  readOnly={!isEdit}
+                  onChange={(e) => set('empCode', e.target.value)}
+                  style={{ background: !isEdit ? 'var(--surface-alt)' : 'inherit', fontWeight: 600 }}
+                />
+              </Field>
+
+              <Field label="First Name" required>
+                <input
+                  required
+                  placeholder="e.g. John"
+                  value={form.firstName}
+                  onChange={(e) => set('firstName', e.target.value)}
+                />
+              </Field>
+
+              <Field label="Last Name" required>
+                <input
+                  required
+                  placeholder="e.g. Doe"
+                  value={form.lastName}
+                  onChange={(e) => set('lastName', e.target.value)}
+                />
+              </Field>
+
+              <Field label="App Login Email" required helper="Used for mobile app login">
+                <input
+                  required
+                  type="email"
+                  placeholder="e.g. john@digitaldive.demo"
+                  value={form.email}
+                  onChange={(e) => set('email', e.target.value)}
+                />
+              </Field>
+
+              <Field label="Phone Number" helper="Official mobile contact">
+                <input
+                  placeholder="e.g. +971 50 1234567"
+                  value={form.mobilePhone}
+                  onChange={(e) => set('mobilePhone', e.target.value)}
+                />
+              </Field>
+
+              {!isEdit ? (
+                <Field label="App Login Password" helper="Default: demo123">
+                  <input
+                    type="password"
+                    placeholder="demo123"
+                    value={form.appPassword || 'demo123'}
+                    onChange={(e) => set('appPassword', e.target.value)}
+                  />
+                </Field>
+              ) : null}
+            </div>
+
+            {/* Grid 2: Official Corporate Assignments */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', marginBottom: '16px' }}>
+              <Field label="Department">
+                <select value={form.departmentId} onChange={(e) => set('departmentId', e.target.value)}>
+                  <option value="">— Select Department —</option>
+                  {departments.map((d) => (
+                    <option key={v(d, 'id')} value={v(d, 'id')}>
+                      {v(d, 'name')}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Designation / Job Title">
+                <select value={form.jobTitle} onChange={(e) => set('jobTitle', e.target.value)}>
+                  <option value="">— Select Designation —</option>
+                  {designations.map((d) => (
+                    <option key={v(d, 'id')} value={v(d, 'name')}>
+                      {v(d, 'name')}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Position / Role Level">
+                <input
+                  placeholder="e.g. Senior Associate / Team Lead"
+                  value={form.position}
+                  onChange={(e) => set('position', e.target.value)}
+                />
+              </Field>
+
+              <Field label="Reporting Manager">
+                <select value={form.managerId} onChange={(e) => set('managerId', e.target.value)}>
+                  <option value="">— No Manager (Executive / Independent) —</option>
+                  {managers.map((m) => (
+                    <option key={v(m, 'id')} value={v(m, 'id')}>
+                      {v(m, 'fullName', 'full_name')} {v(m, 'jobTitle') ? `(${v(m, 'jobTitle')})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Employment Type">
+                <select value={form.employmentTypeId} onChange={(e) => set('employmentTypeId', e.target.value)}>
+                  <option value="">— Select Type —</option>
+                  {employmentTypes.map((t) => (
+                    <option key={v(t, 'id')} value={v(t, 'id')}>
+                      {v(t, 'name')}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Start / Joining Date">
+                <input
+                  type="date"
+                  value={form.joinDate}
+                  onChange={(e) => set('joinDate', e.target.value)}
+                />
+              </Field>
+            </div>
+
+            {/* Grid 3: Nationality & Addresses */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', marginBottom: '16px' }}>
+              <Field label="Nationality">
+                <select value={form.nationality} onChange={(e) => set('nationality', e.target.value)}>
+                  <option value="">— Select Country / Nationality —</option>
+                  {COUNTRIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Current Address">
+                <input
+                  placeholder="e.g. Apt 402, Marina Heights, Dubai"
+                  value={form.currentAddress}
+                  onChange={(e) => set('currentAddress', e.target.value)}
+                />
+              </Field>
+
+              <Field label="Address in UAE">
+                <input
+                  placeholder="e.g. Al Barsha 1, Dubai, UAE"
+                  value={form.addressInUae}
+                  onChange={(e) => set('addressInUae', e.target.value)}
+                />
+              </Field>
+
+              <Field label="Home Country Address">
+                <input
+                  placeholder="e.g. Street 12, F-8/3, Islamabad"
+                  value={form.homeCountryAddress}
+                  onChange={(e) => set('homeCountryAddress', e.target.value)}
+                />
+              </Field>
+            </div>
+
+            {/* Grid 4: Passport, Emirates ID & Visa Credentials */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+              <Field label="Passport Number">
+                <input
+                  placeholder="e.g. A12345678"
+                  value={form.passportNumber}
+                  onChange={(e) => set('passportNumber', e.target.value)}
+                />
+              </Field>
+
+              <Field label="Passport Issue Date">
+                <input
+                  type="date"
+                  value={form.passportStartDate}
+                  onChange={(e) => set('passportStartDate', e.target.value)}
+                />
+              </Field>
+
+              <Field label="Passport Expiry Date">
+                <input
+                  type="date"
+                  value={form.passportExpiryDate}
+                  onChange={(e) => set('passportExpiryDate', e.target.value)}
+                />
+              </Field>
+
+              <Field label="Emirates ID Number">
+                <input
+                  placeholder="784-1990-1234567-1"
+                  value={form.emiratesIdNumber}
+                  onChange={(e) => set('emiratesIdNumber', e.target.value)}
+                />
+              </Field>
+
+              <Field label="Emirates ID Issue Date">
+                <input
+                  type="date"
+                  value={form.emiratesIdStartDate}
+                  onChange={(e) => set('emiratesIdStartDate', e.target.value)}
+                />
+              </Field>
+
+              <Field label="Emirates ID Expiry Date">
+                <input
+                  type="date"
+                  value={form.emiratesIdExpiryDate}
+                  onChange={(e) => set('emiratesIdExpiryDate', e.target.value)}
+                />
+              </Field>
+
+              <Field label="Previous Visa Type">
+                <select value={form.previousVisaType} onChange={(e) => set('previousVisaType', e.target.value)}>
+                  {PREVIOUS_VISA_TYPES.map((vt) => (
+                    <option key={vt} value={vt}>{vt}</option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Experience Letter (Optional)">
+                <input
+                  ref={expLetterRef}
+                  type="file"
+                  onChange={(e) => set('experienceLetterName', e.target.files?.[0]?.name || '')}
+                />
+              </Field>
+
+              <Field label="Educational Certificate (Optional)">
+                <input
+                  ref={eduCertRef}
+                  type="file"
+                  onChange={(e) => set('educationalCertificateName', e.target.files?.[0]?.name || '')}
+                />
+              </Field>
+            </div>
           </div>
-        ) : null}
 
-        {tab === 'Remarks' ? (
-          <Field label="Remarks">
-            <textarea rows={6} value={form.remarks} onChange={(e) => set('remarks', e.target.value)} />
-          </Field>
-        ) : null}
+          {/* -----------------------------------------------------------------------
+              SECTION 2: Work Experience (No duplicate personal fields)
+             ----------------------------------------------------------------------- */}
+          <div className="card" style={{ padding: '20px 24px', marginBottom: '16px' }}>
+            <div style={{ borderBottom: '1px solid var(--line)', paddingBottom: '10px', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0, color: 'var(--ink)' }}>
+                2. Work Experience
+              </h3>
+              <p className="muted" style={{ fontSize: '12px', margin: '2px 0 0' }}>
+                Previous employment background, industry field, and past roles (optional)
+              </p>
+            </div>
 
-        {tab === 'Attachments' ? (
-          <div className="stack">
-            <Field label="Attachment Notes">
-              <textarea rows={4} value={form.attachmentsNote} onChange={(e) => set('attachmentsNote', e.target.value)} />
-            </Field>
-            <p className="muted">Use the Documents module to attach passport, visa, and contract files.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+              <Field label="Previous Company Name">
+                <input
+                  placeholder="e.g. Emirates Tech Solutions LLC"
+                  value={form.workExperience?.previousCompany || ''}
+                  onChange={(e) => setWorkExp('previousCompany', e.target.value)}
+                />
+              </Field>
+
+              <Field label="Field of Work / Industry">
+                <input
+                  placeholder="e.g. Information Technology / Logistics"
+                  value={form.workExperience?.fieldOfWork || ''}
+                  onChange={(e) => setWorkExp('fieldOfWork', e.target.value)}
+                />
+              </Field>
+
+              <Field label="Position / Job Title Held">
+                <input
+                  placeholder="e.g. Software Engineer / Operations Officer"
+                  value={form.workExperience?.position || ''}
+                  onChange={(e) => setWorkExp('position', e.target.value)}
+                />
+              </Field>
+
+              <Field label="Duration / Time Period">
+                <input
+                  placeholder="e.g. 2 Years (Jan 2022 – Dec 2023)"
+                  value={form.workExperience?.duration || ''}
+                  onChange={(e) => setWorkExp('duration', e.target.value)}
+                />
+              </Field>
+            </div>
           </div>
-        ) : null}
-      </div>
 
-      <footer className="emp-master-footer">
-        <div className="emp-master-footer-title">Personal Data Protection</div>
-        <div className="emp-master-footer-row">
-          <label className="emp-master-check">
-            <input
-              type="checkbox"
-              checked={!!form.naturalPerson}
-              onChange={(e) => set('naturalPerson', e.target.checked)}
-            />
-            <span>Natural Person</span>
-          </label>
-          <Field label="Status">
-            <select value={form.dataProtectionStatus} onChange={(e) => set('dataProtectionStatus', e.target.value)}>
-              <option value="none">None</option>
-              <option value="consent_given">Consent given</option>
-              <option value="pending">Pending</option>
-              <option value="withdrawn">Withdrawn</option>
-            </select>
-          </Field>
-        </div>
-      </footer>
+          {/* -----------------------------------------------------------------------
+              SECTION 3: Education Details (Dubai / UAE Accredited Standard)
+             ----------------------------------------------------------------------- */}
+          <div className="card" style={{ padding: '20px 24px', marginBottom: '20px' }}>
+            <div style={{ borderBottom: '1px solid var(--line)', paddingBottom: '10px', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0, color: 'var(--ink)' }}>
+                3. Education Details
+              </h3>
+              <p className="muted" style={{ fontSize: '12px', margin: '2px 0 0' }}>
+                Academic qualifications structured in accordance with UAE / Dubai Ministry of Education standards (all optional)
+              </p>
+            </div>
 
-      <div className="emp-master-actions">
-        {onCancel ? (
-          <button type="button" className="btn secondary" onClick={onCancel}>
-            Cancel
-          </button>
-        ) : null}
-        <button className="btn" type="submit" disabled={saving}>
-          {saving ? 'Saving…' : isEdit ? 'Save employee master' : 'Create employee'}
-        </button>
-      </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+              <Field label="Education Level (UAE Standard)">
+                <select
+                  value={form.education?.educationLevel || ''}
+                  onChange={(e) => setEdu('educationLevel', e.target.value)}
+                >
+                  <option value="">— Select Education Level —</option>
+                  {DUBAI_EDUCATION_LEVELS.map((lvl) => (
+                    <option key={lvl} value={lvl}>{lvl}</option>
+                  ))}
+                </select>
+              </Field>
 
-      {extraFooter}
-    </form>
+              <Field label="Degree / Major Field">
+                <input
+                  placeholder="e.g. B.Sc. Computer Science / Business Administration"
+                  value={form.education?.degreeMajor || ''}
+                  onChange={(e) => setEdu('degreeMajor', e.target.value)}
+                />
+              </Field>
+
+              <Field label="University / Institute Name">
+                <input
+                  placeholder="e.g. Heriot-Watt University Dubai"
+                  value={form.education?.universityName || ''}
+                  onChange={(e) => setEdu('universityName', e.target.value)}
+                />
+              </Field>
+
+              <Field label="Country of Study">
+                <select
+                  value={form.education?.countryOfStudy || ''}
+                  onChange={(e) => setEdu('countryOfStudy', e.target.value)}
+                >
+                  <option value="">— Select Country —</option>
+                  {COUNTRIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Graduation Year">
+                <input
+                  placeholder="e.g. 2021"
+                  value={form.education?.graduationYear || ''}
+                  onChange={(e) => setEdu('graduationYear', e.target.value)}
+                />
+              </Field>
+
+              <Field label="UAE MOFA / MOE Attestation (Optional)">
+                <select
+                  value={form.education?.attestationStatus || 'Not Attested'}
+                  onChange={(e) => setEdu('attestationStatus', e.target.value)}
+                >
+                  <option value="Not Attested">Not Attested</option>
+                  <option value="Attested (MOFA/MOE UAE)">Attested (MOFA / MOE UAE)</option>
+                  <option value="In Process">In Process</option>
+                </select>
+              </Field>
+
+              <Field label="Grade / GPA / Division (Optional)">
+                <input
+                  placeholder="e.g. 3.7 GPA / First Class"
+                  value={form.education?.gradeGpa || ''}
+                  onChange={(e) => setEdu('gradeGpa', e.target.value)}
+                />
+              </Field>
+            </div>
+          </div>
+
+          {/* Form Actions */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '10px' }}>
+            {onCancel ? (
+              <button type="button" className="btn secondary" onClick={onCancel} style={{ padding: '8px 18px' }}>
+                Cancel
+              </button>
+            ) : null}
+            <button
+              type="submit"
+              className="btn"
+              disabled={saving}
+              style={{
+                background: '#00b8db',
+                color: '#ffffff',
+                fontWeight: 600,
+                fontSize: '13px',
+                padding: '8px 24px',
+                borderRadius: '6px',
+                border: 'none',
+                cursor: saving ? 'wait' : 'pointer',
+              }}
+            >
+              {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Employee Record'}
+            </button>
+          </div>
+
+          {extraFooter}
+        </form>
+      )}
+    </div>
   );
 }

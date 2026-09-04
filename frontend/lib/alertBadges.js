@@ -111,7 +111,6 @@ export async function fetchPortalBadgeCounts(api) {
 
   bump(counts, '/leave', dashboard?.pendingLeave);
   bump(counts, '/notifications', dashboard?.unreadNotifications);
-  bump(counts, '/documents', dashboard?.expiringDocs);
   bump(counts, '/certificates', dashboard?.pendingCertificates);
 
   const pendingApprovals = pendingRows(approvals);

@@ -103,15 +103,18 @@ export default function PerformancePage() {
   }
 
   async function bumpProgress(id, current) {
+    setMsg('');
+    setError('');
     const next = Math.min(100, Number(current || 0) + 10);
     try {
       await api(`/performance/goals/${id}`, {
         method: 'PATCH',
         body: JSON.stringify({ progressPct: next, status: next >= 100 ? 'completed' : 'active' }),
       });
+      setMsg(`Progress updated to ${next}%.`);
       load();
     } catch (e) {
-      setError(e.message);
+      setError(e.message || 'Failed to update progress. Please try again.');
     }
   }
 

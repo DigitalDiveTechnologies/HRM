@@ -43,7 +43,7 @@ export default function DivisionsPage() {
           payrollType: form.payrollType,
         }),
       });
-      setMsg('Division created.');
+      setMsg('Company created.');
       setForm(emptyForm());
       load();
     } catch (err) {
@@ -61,7 +61,7 @@ export default function DivisionsPage() {
         method: 'PATCH',
         body: JSON.stringify({ status }),
       });
-      setMsg(status === 'inactive' ? 'Division deactivated (soft delete).' : 'Division reactivated.');
+      setMsg(status === 'inactive' ? 'Company deactivated (soft delete).' : 'Company reactivated.');
       load();
     } catch (err) {
       setError(err.message);
@@ -75,16 +75,16 @@ export default function DivisionsPage() {
   }
 
   return (
-    <AppShell title="Division Master" subtitle="GOCs companies — Alkidma, Alqat, Overseas, Royal Oceans">
+    <AppShell title="Company Master" subtitle="GOCs companies — Alkidma, Alqat, Overseas, Royal Oceans">
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
 
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="panel-title">
-          <h3>Add division</h3>
+          <h3>Add company</h3>
         </div>
         <p className="muted" style={{ marginBottom: 12 }}>
-          Divisions are never hard-deleted — use <strong>Deactivate</strong> to set inactive.
+          Companies are never hard-deleted — use <strong>Deactivate</strong> to set inactive.
         </p>
         <form className="stack" onSubmit={createDivision}>
           <div className="grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
@@ -115,14 +115,14 @@ export default function DivisionsPage() {
             </label>
           </div>
           <button className="btn" type="submit" disabled={saving}>
-            {saving ? 'Saving…' : 'Create division'}
+            {saving ? 'Saving…' : 'Create company'}
           </button>
         </form>
       </div>
 
       <div className="card">
         <div className="panel-title">
-          <h3>All divisions</h3>
+          <h3>All companies</h3>
         </div>
         <div className="table-wrap">
           <table>
@@ -161,7 +161,7 @@ export default function DivisionsPage() {
               ))}
               {!rows.length ? (
                 <tr>
-                  <td colSpan={6}>No divisions yet.</td>
+                  <td colSpan={6}>No companies yet.</td>
                 </tr>
               ) : null}
             </tbody>

@@ -110,7 +110,7 @@ export default function CertificatesPage() {
       <div className="card" style={{ marginBottom: 16 }}>
         <h3 style={{ marginTop: 0 }}>Pending queue ({pending.length})</h3>
         <p className="muted" style={{ marginTop: 0 }}>
-          Approve or reject, then generate the demo certificate (HTML — client Word templates plug in later).
+          Review pending employee certificate requests, approve or reject, and generate official employment certificates.
         </p>
         {!pending.length ? (
           <p className="muted">No pending requests.</p>

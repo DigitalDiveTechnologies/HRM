@@ -15,6 +15,7 @@ export default function DocumentsPage() {
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState(null);
+  const [fileBack, setFileBack] = useState(null);
   const [form, setForm] = useState({
     employeeId: '',
     docType: 'passport',
@@ -22,6 +23,9 @@ export default function DocumentsPage() {
     issueDate: todayISO(),
     expiryDate: '',
   });
+
+  // Doc types that have front + back sides
+  const hasTwoSides = form.docType === 'emirates_id' || form.docType === 'cnic';
 
   const load = useCallback(() => {
     setError('');
@@ -40,6 +44,10 @@ export default function DocumentsPage() {
     load();
   }, [load]);
 
+  async function uploadSingle(fd) {
+    await apiUpload('/documents/upload', fd);
+  }
+
   async function onCreate(e) {
     e.preventDefault();
     setMsg('');
@@ -50,17 +58,31 @@ export default function DocumentsPage() {
     }
     setBusy(true);
     try {
-      const fd = new FormData();
-      fd.append('employeeId', String(Number(form.employeeId)));
-      fd.append('docType', form.docType);
-      fd.append('title', form.title);
-      if (form.issueDate) fd.append('issueDate', form.issueDate);
-      if (form.expiryDate) fd.append('expiryDate', form.expiryDate);
-      fd.append('file', file);
+      // Upload front file (always)
+      const fdFront = new FormData();
+      fdFront.append('employeeId', String(Number(form.employeeId)));
+      fdFront.append('docType', form.docType);
+      fdFront.append('title', hasTwoSides ? `${form.title} — Front` : form.title);
+      if (form.issueDate) fdFront.append('issueDate', form.issueDate);
+      if (form.expiryDate) fdFront.append('expiryDate', form.expiryDate);
+      fdFront.append('file', file);
+      await uploadSingle(fdFront);
 
-      await apiUpload('/documents/upload', fd);
-      setMsg('Document uploaded.');
+      // Upload back file if provided (Emirates ID / CNIC)
+      if (hasTwoSides && fileBack) {
+        const fdBack = new FormData();
+        fdBack.append('employeeId', String(Number(form.employeeId)));
+        fdBack.append('docType', form.docType);
+        fdBack.append('title', `${form.title} — Back`);
+        if (form.issueDate) fdBack.append('issueDate', form.issueDate);
+        if (form.expiryDate) fdBack.append('expiryDate', form.expiryDate);
+        fdBack.append('file', fileBack);
+        await uploadSingle(fdBack);
+      }
+
+      setMsg(hasTwoSides && fileBack ? 'Front & back uploaded successfully.' : 'Document uploaded.');
       setFile(null);
+      setFileBack(null);
       setForm({
         employeeId: '',
         docType: 'passport',
@@ -70,6 +92,8 @@ export default function DocumentsPage() {
       });
       const input = document.getElementById('doc-file-input');
       if (input) input.value = '';
+      const inputBack = document.getElementById('doc-file-back-input');
+      if (inputBack) inputBack.value = '';
       load();
     } catch (err) {
       setError(err.message);
@@ -106,6 +130,7 @@ export default function DocumentsPage() {
                 <select value={form.docType} onChange={(e) => setForm({ ...form, docType: e.target.value })}>
                   <option value="passport">Passport</option>
                   <option value="emirates_id">Emirates ID</option>
+                  <option value="cnic">CNIC</option>
                   <option value="visa">Visa</option>
                   <option value="contract">Contract</option>
                   <option value="other">Other</option>
@@ -116,7 +141,7 @@ export default function DocumentsPage() {
                 <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
               </label>
               <label className="field">
-                File upload
+                {hasTwoSides ? 'Front side file' : 'File upload'}
                 <input
                   id="doc-file-input"
                   type="file"
@@ -125,6 +150,17 @@ export default function DocumentsPage() {
                   onChange={(e) => setFile(e.target.files?.[0] || null)}
                 />
               </label>
+              {hasTwoSides && (
+                <label className="field">
+                  Back side file <span className="muted" style={{ fontWeight: 400 }}>(optional)</span>
+                  <input
+                    id="doc-file-back-input"
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg,.webp"
+                    onChange={(e) => setFileBack(e.target.files?.[0] || null)}
+                  />
+                </label>
+              )}
               <label className="field">
                 Issue date
                 <input type="date" value={form.issueDate} onChange={(e) => setForm({ ...form, issueDate: e.target.value })} />
@@ -134,11 +170,13 @@ export default function DocumentsPage() {
                 <input type="date" value={form.expiryDate} onChange={(e) => setForm({ ...form, expiryDate: e.target.value })} />
               </label>
             </div>
-            {file ? <div className="muted">Selected: {file.name} ({Math.round(file.size / 1024)} KB)</div> : null}
+            {file ? <div className="muted">Front: {file.name} ({Math.round(file.size / 1024)} KB)</div> : null}
+            {fileBack ? <div className="muted">Back: {fileBack.name} ({Math.round(fileBack.size / 1024)} KB)</div> : null}
             <button className="btn" type="submit" disabled={busy}>
               {busy ? 'Uploading…' : 'Upload document'}
             </button>
           </form>
+
         </div>
       ) : null}
 

@@ -3,7 +3,6 @@ export const NAV = [
     title: 'Overview',
     links: [
       { href: '/dashboard', label: 'Dashboard', roles: ['admin'] },
-      { href: '/mss', label: 'Manager Self-Service', roles: ['admin'] },
       { href: '/reports', label: 'Reports & Analytics', roles: ['admin'] },
       { href: '/notifications', label: 'Notifications', roles: ['admin'] },
       { href: '/approvals', label: 'Approvals', roles: ['admin'] },
@@ -14,8 +13,8 @@ export const NAV = [
     title: 'Core HR',
     links: [
       { href: '/employees', label: 'Employees', roles: ['admin'] },
-      { href: '/masters', label: 'HR Masters', roles: ['admin'] },
-      { href: '/divisions', label: 'Divisions', roles: ['admin'] },
+      { href: '/masters', label: 'Designations & Types', roles: ['admin'] },
+      { href: '/divisions', label: 'Company', roles: ['admin'] },
       { href: '/onboarding', label: 'Onboarding', roles: ['admin'] },
       { href: '/recruitment', label: 'Recruitment & ATS', roles: ['admin'] },
       { href: '/exit', label: 'Employee Exit', roles: ['admin'] },

@@ -102,14 +102,17 @@ export default function RecruitmentPage() {
   }
 
   async function setStage(id, stage) {
+    setMsg('');
+    setError('');
     try {
       await api(`/recruitment/candidates/${id}`, {
         method: 'PATCH',
         body: JSON.stringify({ stage }),
       });
+      setMsg(`Stage updated to "${stage}".`);
       load();
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Failed to update stage. Please try again.');
     }
   }
 

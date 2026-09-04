@@ -114,7 +114,7 @@ export default function MastersPage() {
   }
 
   return (
-    <AppShell title="HR Masters" subtitle="Designations & employment types — soft delete only">
+    <AppShell title="Designations & Employment Types" subtitle="Manage job designations and employee contract / employment types">
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
 
