@@ -268,7 +268,7 @@ export default function DashboardPage() {
                 <span className="kpi-label">Docs Expiring (90d)</span>
                 <div className="kpi-val">{expiringDocs}</div>
                 <div className="kpi-footer">
-                  <span className="kpi-subtext">Action Required</span>
+                  <span className="kpi-subtext">{expiringDocs} documents expiring in next 90 days</span>
                 </div>
               </div>
               <div className="kpi-chart-ring">

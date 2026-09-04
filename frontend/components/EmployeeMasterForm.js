@@ -158,50 +158,50 @@ export default function EmployeeMasterForm({
               Please select the company this employee will work for. An employee can also be assigned to multiple companies.
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', textAlign: 'left', marginBottom: '22px' }}>
-              {divisions.map((div) => {
-                const id = String(v(div, 'id'));
-                const name = v(div, 'name');
-                const code = v(div, 'code');
-                const isChecked = selectedCompanies.includes(id);
-
-                return (
-                  <label
-                    key={id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '12px 16px',
-                      borderRadius: '8px',
-                      border: `2px solid ${isChecked ? '#00b8db' : 'var(--line)'}`,
-                      background: isChecked ? 'rgba(0, 184, 219, 0.05)' : 'var(--surface)',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => toggleCompany(id)}
-                        style={{ width: '18px', height: '18px', accentColor: '#00b8db' }}
-                      />
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--ink)' }}>{name}</div>
-                        {code ? <div className="muted" style={{ fontSize: '12px' }}>Code: {code}</div> : null}
-                      </div>
-                    </div>
-                    {isChecked ? (
-                      <span style={{ fontSize: '11px', fontWeight: 600, color: '#008fa8', background: 'rgba(0, 184, 219, 0.12)', padding: '2px 8px', borderRadius: '4px' }}>
-                        Selected
-                      </span>
-                    ) : null}
-                  </label>
-                );
-              })}
+            <div style={{ marginBottom: '22px', textAlign: 'left' }}>
+              <label style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)', display: 'block', marginBottom: '6px' }}>
+                Select Operating Company <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <select
+                value={selectedCompanies[0] || ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val) {
+                    setSelectedCompanies([val]);
+                    set('companyIds', [val]);
+                    set('divisionId', val);
+                  } else {
+                    setSelectedCompanies([]);
+                    set('companyIds', []);
+                    set('divisionId', '');
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--line-strong, #cbd5e1)',
+                  background: 'var(--surface, #ffffff)',
+                  color: 'var(--ink)',
+                  fontSize: '13.5px',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <option value="">-- Select Company --</option>
+                {divisions.map((div) => {
+                  const id = String(v(div, 'id'));
+                  const name = v(div, 'name');
+                  const code = v(div, 'code');
+                  return (
+                    <option key={id} value={id}>
+                      {name} {code ? `(Code: ${code})` : ''}
+                    </option>
+                  );
+                })}
+              </select>
               {!divisions.length ? (
-                <div className="muted" style={{ textAlign: 'center', padding: '16px' }}>
+                <div className="muted" style={{ textAlign: 'center', padding: '12px 0', fontSize: '12px' }}>
                   No companies configured. Please add companies in Company Master first.
                 </div>
               ) : null}
