@@ -131,26 +131,16 @@ export default function DashboardPage() {
 
   const unreadNotifications = data?.unreadNotifications ?? 0;
 
-  // Dynamic on-leave employee names and count
-  const { todayOnLeave, onLeaveNames, onLeaveDetail } = useMemo(() => {
-    // 1. Check attendance records marked as leave
-    const attOnLeave = (data?.recentAttendance || [])
-      .filter((a) => (v(a, 'status') || '').toLowerCase().includes('leave'))
-      .map((a) => ({
-        name: v(a, 'fullName', 'full_name'),
-        type: 'On Leave',
-      }))
-      .filter((a) => Boolean(a.name));
+  // Dynamic on-leave count (checks attendance records or approved leave requests for today)
+  const todayOnLeave = useMemo(() => {
+    // 1. Check attendance records marked with status 'leave'
+    const attOnLeave = (data?.recentAttendance || []).filter(
+      (a) => (v(a, 'status') || '').toLowerCase().includes('leave')
+    ).length;
 
-    if (attOnLeave.length > 0) {
-      return {
-        todayOnLeave: attOnLeave.length,
-        onLeaveNames: attOnLeave.map((a) => a.name).join(', '),
-        onLeaveDetail: attOnLeave.map((a) => `${a.name} (${a.type})`).join(', '),
-      };
-    }
+    if (attOnLeave > 0) return attOnLeave;
 
-    // 2. Check active approved leave requests for today
+    // 2. Check active approved leave requests covering today
     const todayStr = new Date().toISOString().slice(0, 10);
     const approvedToday = (leaves || []).filter((l) => {
       const st = String(v(l, 'status') || '').toLowerCase();
@@ -158,30 +148,11 @@ export default function DashboardPage() {
       const s = String(v(l, 'startDate', 'start_date') || '').slice(0, 10);
       const e = String(v(l, 'endDate', 'end_date') || '').slice(0, 10);
       return s <= todayStr && e >= todayStr;
-    });
+    }).length;
 
-    if (approvedToday.length > 0) {
-      const names = approvedToday.map((l) => v(l, 'fullName', 'full_name') || 'Employee');
-      const details = approvedToday.map(
-        (l) => `${v(l, 'fullName', 'full_name') || 'Employee'} (${v(l, 'leaveType', 'leave_type') || 'Annual'} Leave)`
-      );
-      return {
-        todayOnLeave: approvedToday.length,
-        onLeaveNames: names.join(', '),
-        onLeaveDetail: details.join(', '),
-      };
-    }
+    if (approvedToday > 0) return approvedToday;
 
-    // 3. System dataset resolution: show approved employee name (e.g. Fatima Noor) so user always knows who is on leave
-    const latestApproved = (leaves || []).find((l) => String(v(l, 'status') || '').toLowerCase() === 'approved');
-    const name = latestApproved ? (v(latestApproved, 'fullName', 'full_name') || 'Fatima Noor') : 'Fatima Noor';
-    const type = latestApproved ? `${v(latestApproved, 'leaveType', 'leave_type') || 'Annual'} Leave` : 'Annual Leave';
-
-    return {
-      todayOnLeave: 1,
-      onLeaveNames: name,
-      onLeaveDetail: `${name} (${type})`,
-    };
+    return 0;
   }, [data, leaves]);
 
   // Fully functional dynamic workforce calculations
@@ -280,12 +251,7 @@ export default function DashboardPage() {
                 <span className="kpi-label">Pending Leave</span>
                 <div className="kpi-val">{pendingLeaves}</div>
                 <div className="kpi-footer">
-                  <span
-                    className="kpi-subtext"
-                    title={onLeaveDetail ? `Today on leave: ${onLeaveDetail}` : 'Today on leave'}
-                  >
-                    Today on leave: {todayOnLeave} {onLeaveNames ? `(${onLeaveNames})` : ''}
-                  </span>
+                  <span className="kpi-subtext">Today on leave: {todayOnLeave}</span>
                 </div>
               </div>
               <div className="kpi-chart-ring">
@@ -484,13 +450,13 @@ export default function DashboardPage() {
               </div>
 
               <div className="dash-scroll-box" style={{ maxHeight: '270px' }}>
-                <table className="dash-table">
+                <table className="dash-table" style={{ minWidth: '440px' }}>
                   <thead>
                     <tr>
-                      <th style={{ width: '24%' }}>Date</th>
-                      <th style={{ width: '36%' }}>Employee</th>
-                      <th style={{ width: '22%' }}>Status</th>
-                      <th style={{ width: '18%', textAlign: 'right' }}>Late (min)</th>
+                      <th style={{ width: '25%', whiteSpace: 'nowrap' }}>Date</th>
+                      <th style={{ width: '35%', whiteSpace: 'nowrap' }}>Employee</th>
+                      <th style={{ width: '20%', whiteSpace: 'nowrap' }}>Status</th>
+                      <th style={{ width: '20%', textAlign: 'right', whiteSpace: 'nowrap' }}>Late (min)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -606,14 +572,14 @@ export default function DashboardPage() {
               </div>
 
               <div className="dash-scroll-box" style={{ maxHeight: '290px' }}>
-                <table className="dash-table emp-directory-table">
+                <table className="dash-table emp-directory-table" style={{ minWidth: '480px' }}>
                   <thead>
                     <tr>
-                      <th style={{ width: '10%' }}>#</th>
-                      <th style={{ width: '22%' }}>Code</th>
-                      <th style={{ width: '33%' }}>Name</th>
-                      <th style={{ width: '20%' }}>Department</th>
-                      <th style={{ width: '15%', textAlign: 'right' }}>Status</th>
+                      <th style={{ width: '10%', whiteSpace: 'nowrap' }}>#</th>
+                      <th style={{ width: '22%', whiteSpace: 'nowrap' }}>Code</th>
+                      <th style={{ width: '30%', whiteSpace: 'nowrap' }}>Name</th>
+                      <th style={{ width: '23%', whiteSpace: 'nowrap' }}>Department</th>
+                      <th style={{ width: '15%', textAlign: 'right', whiteSpace: 'nowrap' }}>Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1136,13 +1102,15 @@ export default function DashboardPage() {
         /* --- Scrollable Table & Lists (Zones 2 & 3) --- */
         .dash-scroll-box {
           overflow-y: auto;
-          overflow-x: hidden;
+          overflow-x: auto;
           width: 100%;
           border-radius: 6px;
+          -webkit-overflow-scrolling: touch;
         }
 
         .dash-scroll-box::-webkit-scrollbar {
           width: 5px;
+          height: 5px;
         }
 
         .dash-scroll-box::-webkit-scrollbar-track {
