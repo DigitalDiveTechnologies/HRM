@@ -2,30 +2,6 @@ import { useRef, useState } from 'react';
 import { getApiBase } from '../lib/auth';
 import { v } from '../lib/format';
 
-const COUNTRIES = [
-  'United Arab Emirates',
-  'Pakistan',
-  'India',
-  'Egypt',
-  'Philippines',
-  'United Kingdom',
-  'United States',
-  'Canada',
-  'Saudi Arabia',
-  'Oman',
-  'Kuwait',
-  'Qatar',
-  'Bahrain',
-  'Jordan',
-  'Lebanon',
-  'Syria',
-  'Bangladesh',
-  'Sri Lanka',
-  'Nepal',
-  'South Africa',
-  'Other',
-];
-
 const PREVIOUS_VISA_TYPES = [
   'N/A',
   'Employment Visa',
@@ -48,34 +24,65 @@ const DUBAI_EDUCATION_LEVELS = [
   'Other',
 ];
 
-const MARITAL_STATUSES = [
-  'Single',
-  'Married',
-  'Divorced',
-  'Widowed',
-];
-
-function CleanField({ label, required = false, children, helper = '', style = {} }) {
+function FieldRow({ label, required = false, children, helper = '' }) {
   return (
-    <label style={{ display: 'block', margin: 0, ...style }}>
-      <span
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '190px 1fr',
+        gap: '16px',
+        alignItems: 'center',
+        padding: '10px 0',
+        borderBottom: '1px solid #f8fafc',
+      }}
+    >
+      <label style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', margin: 0 }}>
+        {label} {required ? <span style={{ color: '#ef4444' }}>*</span> : null}
+        {helper ? (
+          <span style={{ display: 'block', fontSize: '11px', fontWeight: 400, color: '#94a3b8', marginTop: 2 }}>
+            {helper}
+          </span>
+        ) : null}
+      </label>
+      <div>{children}</div>
+    </div>
+  );
+}
+
+function SectionCard({ title, children, style = {} }) {
+  return (
+    <div
+      style={{
+        background: '#ffffff',
+        borderRadius: '14px',
+        border: '1px solid #e5e7eb',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+        padding: '22px 24px',
+        ...style,
+      }}
+    >
+      <div
         style={{
-          fontSize: '12px',
-          fontWeight: 600,
-          color: '#475569',
-          display: 'block',
-          marginBottom: '5px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '14px',
+          paddingBottom: '10px',
+          borderBottom: '1px solid #f1f5f9',
         }}
       >
-        {label} {required ? <span style={{ color: '#ef4444' }}>*</span> : null}
-      </span>
-      {children}
-      {helper ? (
-        <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '3px', display: 'block' }}>
-          {helper}
+        <h4 style={{ fontSize: '15.5px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+          {title}
+        </h4>
+        <span style={{ color: '#94a3b8' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+            <path d="m15 5 4 4" />
+          </svg>
         </span>
-      ) : null}
-    </label>
+      </div>
+      {children}
+    </div>
   );
 }
 
@@ -98,10 +105,9 @@ export default function EmployeeMasterForm({
   const expLetterRef = useRef(null);
   const eduCertRef = useRef(null);
 
-  // Form Tabs State: 'Personal info' | 'Employee details' | 'Documents'
   const [activeTab, setActiveTab] = useState('Personal info');
 
-  // Step 1: Gatekeeper Company Selection during create mode
+  // Step 1: Gatekeeper Company Selection during create mode (Locked 100%)
   const [selectedCompanies, setSelectedCompanies] = useState(() => {
     if (form.companyIds?.length) return form.companyIds;
     if (form.divisionId) return [String(form.divisionId)];
@@ -130,7 +136,6 @@ export default function EmployeeMasterForm({
     setCompanyConfirmed(true);
   };
 
-  // Profile image handler
   const handlePhotoSelect = (e) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -139,7 +144,6 @@ export default function EmployeeMasterForm({
     }
   };
 
-  // Helper to resolve photo preview
   const photoUrl =
     form.photoPreview ||
     (form.photoPath
@@ -148,7 +152,7 @@ export default function EmployeeMasterForm({
 
   const inputStyle = {
     width: '100%',
-    padding: '8.5px 12px',
+    padding: '8px 12px',
     borderRadius: '8px',
     border: '1px solid #cbd5e1',
     fontSize: '13px',
@@ -156,23 +160,21 @@ export default function EmployeeMasterForm({
     background: '#ffffff',
     outline: 'none',
     boxSizing: 'border-box',
-    transition: 'border-color 0.15s ease',
   };
 
   return (
-    <div className="emp-clean-form-container" style={{ width: '100%' }}>
+    <div style={{ width: '100%' }}>
       {/* =========================================================================
-          STEP 1: Company Selection Gatekeeper (Only during create mode)
+          STEP 1: Company Selection Gatekeeper (Only during create mode - Locked)
          ========================================================================= */}
       {!companyConfirmed && !isEdit ? (
         <div
-          className="card company-select-gate"
           style={{
             padding: '36px 28px',
             textAlign: 'center',
             background: '#ffffff',
-            borderRadius: '12px',
-            border: '1px solid #e2e8f0',
+            borderRadius: '14px',
+            border: '1px solid #e5e7eb',
             boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
           }}
         >
@@ -191,22 +193,14 @@ export default function EmployeeMasterForm({
               </svg>
             </div>
             <h3 style={{ fontSize: '19px', fontWeight: 700, margin: '0 0 6px', color: '#0f172a' }}>
-              Step 1: Select Company
+              Step 1: Select Operating Company
             </h3>
             <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 24px', lineHeight: 1.5 }}>
-              Please select the operating company this employee will work for. You can reassign or adjust divisions at any time.
+              Please select the operating company this employee will work for.
             </p>
 
             <div style={{ marginBottom: '24px', textAlign: 'left' }}>
-              <label
-                style={{
-                  fontSize: '12.5px',
-                  fontWeight: 600,
-                  color: '#334155',
-                  display: 'block',
-                  marginBottom: '6px',
-                }}
-              >
+              <label style={{ fontSize: '12.5px', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '6px' }}>
                 Select Operating Company <span style={{ color: '#ef4444' }}>*</span>
               </label>
               <select
@@ -223,12 +217,7 @@ export default function EmployeeMasterForm({
                     set('divisionId', '');
                   }
                 }}
-                style={{
-                  ...inputStyle,
-                  padding: '10px 14px',
-                  fontSize: '13.5px',
-                  fontWeight: 500,
-                }}
+                style={{ ...inputStyle, padding: '10px 14px', fontSize: '13.5px', fontWeight: 500 }}
               >
                 <option value="">-- Select Company --</option>
                 {divisions.map((div) => {
@@ -242,11 +231,6 @@ export default function EmployeeMasterForm({
                   );
                 })}
               </select>
-              {!divisions.length ? (
-                <div style={{ textAlign: 'center', padding: '12px 0', fontSize: '12px', color: '#94a3b8' }}>
-                  No companies configured. Please add companies in Company Master first.
-                </div>
-              ) : null}
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
@@ -255,15 +239,7 @@ export default function EmployeeMasterForm({
                   type="button"
                   className="btn secondary"
                   onClick={onCancel}
-                  style={{
-                    padding: '9px 22px',
-                    fontSize: '13px',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
-                    background: '#ffffff',
-                    color: '#334155',
-                    cursor: 'pointer',
-                  }}
+                  style={{ padding: '9px 22px', fontSize: '13px', borderRadius: '8px' }}
                 >
                   Cancel
                 </button>
@@ -283,7 +259,6 @@ export default function EmployeeMasterForm({
                   border: 'none',
                   cursor: selectedCompanies.length ? 'pointer' : 'not-allowed',
                   opacity: selectedCompanies.length ? 1 : 0.6,
-                  boxShadow: '0 2px 6px rgba(0, 184, 219, 0.3)',
                 }}
               >
                 Continue to Employee Details →
@@ -293,10 +268,10 @@ export default function EmployeeMasterForm({
         </div>
       ) : (
         /* =========================================================================
-            STEP 2: Executive Multi-Tab Form (Exact Reference Screenshot Layout)
+            STEP 2: Exact Reference Screenshot Cards Layout
            ========================================================================= */
         <form onSubmit={onSubmit} style={{ width: '100%' }}>
-          {/* Executive Top Header (Matching Screenshot) */}
+          {/* Top Bar matching screenshot */}
           <div
             style={{
               display: 'flex',
@@ -306,26 +281,18 @@ export default function EmployeeMasterForm({
               gap: 12,
               marginBottom: 16,
               paddingBottom: 12,
-              borderBottom: '1px solid #e2e8f0',
+              borderBottom: '1px solid #e5e7eb',
             }}
           >
             <div>
               <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
                 Employee
               </h2>
-              <div
-                style={{
-                  fontSize: '12px',
-                  color: '#008fa8',
-                  fontWeight: 600,
-                  marginTop: 2,
-                }}
-              >
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: 2 }}>
                 Employee / {isEdit ? 'Edit Employee Details' : 'Create Employee'}
               </div>
             </div>
 
-            {/* Operating Company Badge & Change Action */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div
                 style={{
@@ -378,12 +345,12 @@ export default function EmployeeMasterForm({
             </div>
           </div>
 
-          {/* Horizontal Tabs Navigation Bar (Cyan Underline on Active Tab) */}
+          {/* Horizontal Tabs Navigation Bar */}
           <div
             style={{
               display: 'flex',
               gap: '24px',
-              borderBottom: '1px solid #e2e8f0',
+              borderBottom: '1px solid #e5e7eb',
               marginBottom: '20px',
               overflowX: 'auto',
             }}
@@ -406,7 +373,7 @@ export default function EmployeeMasterForm({
                     fontSize: '13.5px',
                     fontWeight: isActive ? 700 : 500,
                     color: isActive ? '#0f172a' : '#64748b',
-                    borderBottom: isActive ? '2.5px solid #00b8db' : '2.5px solid transparent',
+                    borderBottom: isActive ? '2.5px solid #0f172a' : '2.5px solid transparent',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
                     whiteSpace: 'nowrap',
@@ -418,63 +385,31 @@ export default function EmployeeMasterForm({
             })}
           </div>
 
-          {/* Sub-header section name matching screenshot */}
+          {/* Subheader section name */}
           <div style={{ marginBottom: '16px' }}>
-            <h3 style={{ fontSize: '17px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
               {activeTab}
             </h3>
           </div>
 
           {/* =========================================================================
-              TAB 1: Personal info
+              TAB 1: Personal info (Basic info, Address, Work experience, Education)
              ========================================================================= */}
           {activeTab === 'Personal info' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               {/* Card 1: Basic Information */}
-              <div
-                className="card"
-                style={{
-                  background: '#ffffff',
-                  borderRadius: '12px',
-                  border: '1px solid #e2e8f0',
-                  padding: '24px',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '18px',
-                  }}
-                >
-                  <h4 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
-                    Basic information
-                  </h4>
-                  <span style={{ color: '#008fa8', fontSize: '13px' }}>✎</span>
-                </div>
-
-                {/* Avatar + Fields Layout */}
+              <SectionCard title="Basic information">
                 <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                  {/* Left: Avatar circle with upload button */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 8,
-                      minWidth: 120,
-                    }}
-                  >
+                  {/* Left: Avatar Upload Circle */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, minWidth: 120 }}>
                     <div
                       style={{
-                        width: 90,
-                        height: 90,
+                        width: 92,
+                        height: 92,
                         borderRadius: '50%',
                         background: photoUrl
                           ? `url(${photoUrl}) center/cover no-repeat`
-                          : 'linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%)',
+                          : 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
                         border: '3px solid #00b8db',
                         boxShadow: '0 2px 8px rgba(0, 184, 219, 0.2)',
                         display: 'flex',
@@ -520,25 +455,18 @@ export default function EmployeeMasterForm({
                     </button>
                   </div>
 
-                  {/* Right: Grid of fields */}
-                  <div
-                    style={{
-                      flex: 1,
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                      gap: '14px',
-                    }}
-                  >
-                    <CleanField label="Employee Code" helper="Auto-generated serial">
+                  {/* Right: Key-Value Rows for Basic Info */}
+                  <div style={{ flex: 1 }}>
+                    <FieldRow label="Employee Code" helper="Auto-generated serial">
                       <input
                         style={{ ...inputStyle, background: '#f8fafc', fontWeight: 700, color: '#008fa8' }}
                         value={form.empCode || 'Auto-generated'}
                         readOnly={!isEdit}
                         onChange={(e) => set('empCode', e.target.value)}
                       />
-                    </CleanField>
+                    </FieldRow>
 
-                    <CleanField label="First Name" required>
+                    <FieldRow label="First Name" required>
                       <input
                         required
                         style={inputStyle}
@@ -546,9 +474,9 @@ export default function EmployeeMasterForm({
                         value={form.firstName || ''}
                         onChange={(e) => set('firstName', e.target.value)}
                       />
-                    </CleanField>
+                    </FieldRow>
 
-                    <CleanField label="Last Name" required>
+                    <FieldRow label="Last Name" required>
                       <input
                         required
                         style={inputStyle}
@@ -556,9 +484,9 @@ export default function EmployeeMasterForm({
                         value={form.lastName || ''}
                         onChange={(e) => set('lastName', e.target.value)}
                       />
-                    </CleanField>
+                    </FieldRow>
 
-                    <CleanField label="Gender">
+                    <FieldRow label="Gender">
                       <select
                         style={inputStyle}
                         value={form.gender || form.personal?.gender || ''}
@@ -575,9 +503,9 @@ export default function EmployeeMasterForm({
                         <option value="Female">Female</option>
                         <option value="Other">Other</option>
                       </select>
-                    </CleanField>
+                    </FieldRow>
 
-                    <CleanField label="App Login Email" required helper="Used for mobile app login">
+                    <FieldRow label="App Login Email" required helper="Used for mobile app login">
                       <input
                         required
                         type="email"
@@ -586,676 +514,390 @@ export default function EmployeeMasterForm({
                         value={form.email || ''}
                         onChange={(e) => set('email', e.target.value)}
                       />
-                    </CleanField>
+                    </FieldRow>
 
-                    <CleanField label="Mobile Phone" helper="Official mobile contact">
+                    <FieldRow label="Mobile Phone" helper="Official mobile contact">
                       <input
                         style={inputStyle}
                         placeholder="e.g. +971 50 1234567"
                         value={form.mobilePhone || ''}
                         onChange={(e) => set('mobilePhone', e.target.value)}
                       />
-                    </CleanField>
-
-                    <CleanField label="Birth date">
-                      <input
-                        type="date"
-                        style={inputStyle}
-                        value={form.dateOfBirth || form.personal?.dateOfBirth || ''}
-                        onChange={(e) => {
-                          set('dateOfBirth', e.target.value);
-                          setForm((prev) => ({
-                            ...prev,
-                            personal: { ...(prev.personal || {}), dateOfBirth: e.target.value },
-                          }));
-                        }}
-                      />
-                    </CleanField>
-
-                    <CleanField label="Marital Status">
-                      <select
-                        style={inputStyle}
-                        value={form.maritalStatus || form.personal?.maritalStatus || ''}
-                        onChange={(e) => {
-                          set('maritalStatus', e.target.value);
-                          setForm((prev) => ({
-                            ...prev,
-                            personal: { ...(prev.personal || {}), maritalStatus: e.target.value },
-                          }));
-                        }}
-                      >
-                        <option value="">— Select Status —</option>
-                        {MARITAL_STATUSES.map((st) => (
-                          <option key={st} value={st}>{st}</option>
-                        ))}
-                      </select>
-                    </CleanField>
-
-                    <CleanField label="Nationality">
-                      <select
-                        style={inputStyle}
-                        value={form.nationality || form.personal?.nationality || ''}
-                        onChange={(e) => {
-                          set('nationality', e.target.value);
-                          setForm((prev) => ({
-                            ...prev,
-                            personal: { ...(prev.personal || {}), nationality: e.target.value },
-                          }));
-                        }}
-                      >
-                        <option value="">— Select Country —</option>
-                        {COUNTRIES.map((c) => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
-                    </CleanField>
+                    </FieldRow>
                   </div>
                 </div>
-              </div>
+              </SectionCard>
 
-              {/* Cards Grid 2: Address & Education */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-                  gap: '20px',
-                }}
-              >
+              {/* 2-Column Grid: Address & Work Experience */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
                 {/* Card 2: Address */}
-                <div
-                  className="card"
-                  style={{
-                    background: '#ffffff',
-                    borderRadius: '12px',
-                    border: '1px solid #e2e8f0',
-                    padding: '22px',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: '16px',
-                    }}
-                  >
-                    <h4 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
-                      Address
-                    </h4>
-                    <span style={{ color: '#008fa8', fontSize: '13px' }}>✎</span>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <CleanField label="Citizen ID Address / Home Country Address">
-                      <input
-                        style={inputStyle}
-                        placeholder="e.g. Street 12, Sector F-8/3, Islamabad"
-                        value={form.homeCountryAddress || ''}
-                        onChange={(e) => set('homeCountryAddress', e.target.value)}
-                      />
-                    </CleanField>
-
-                    <CleanField label="Residential Address / Address in UAE">
-                      <input
-                        style={inputStyle}
-                        placeholder="e.g. Apt 402, Marina Heights, Dubai, UAE"
-                        value={form.addressInUae || ''}
-                        onChange={(e) => set('addressInUae', e.target.value)}
-                      />
-                    </CleanField>
-
-                    <CleanField label="Current / Local Address (Optional)">
-                      <input
-                        style={inputStyle}
-                        placeholder="e.g. Al Barsha 1, Dubai"
-                        value={form.currentAddress || ''}
-                        onChange={(e) => set('currentAddress', e.target.value)}
-                      />
-                    </CleanField>
-                  </div>
-                </div>
-
-                {/* Card 3: Education */}
-                <div
-                  className="card"
-                  style={{
-                    background: '#ffffff',
-                    borderRadius: '12px',
-                    border: '1px solid #e2e8f0',
-                    padding: '22px',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: '16px',
-                    }}
-                  >
-                    <h4 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
-                      Education (UAE Standard)
-                    </h4>
-                    <span style={{ color: '#008fa8', fontSize: '13px' }}>✎</span>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <CleanField label="Education Level">
-                      <select
-                        style={inputStyle}
-                        value={form.education?.educationLevel || ''}
-                        onChange={(e) => setEdu('educationLevel', e.target.value)}
-                      >
-                        <option value="">— Select Education Level —</option>
-                        {DUBAI_EDUCATION_LEVELS.map((lvl) => (
-                          <option key={lvl} value={lvl}>{lvl}</option>
-                        ))}
-                      </select>
-                    </CleanField>
-
-                    <CleanField label="Degree / Major Field">
-                      <input
-                        style={inputStyle}
-                        placeholder="e.g. Master Degree in Business / Computer Science"
-                        value={form.education?.degreeMajor || ''}
-                        onChange={(e) => setEdu('degreeMajor', e.target.value)}
-                      />
-                    </CleanField>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                      <CleanField label="University / Institute">
-                        <input
-                          style={inputStyle}
-                          placeholder="e.g. Heriot-Watt Dubai"
-                          value={form.education?.universityName || ''}
-                          onChange={(e) => setEdu('universityName', e.target.value)}
-                        />
-                      </CleanField>
-
-                      <CleanField label="Graduation Year">
-                        <input
-                          style={inputStyle}
-                          placeholder="e.g. 2021"
-                          value={form.education?.graduationYear || ''}
-                          onChange={(e) => setEdu('graduationYear', e.target.value)}
-                        />
-                      </CleanField>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                      <CleanField label="Country of Study">
-                        <select
-                          style={inputStyle}
-                          value={form.education?.countryOfStudy || ''}
-                          onChange={(e) => setEdu('countryOfStudy', e.target.value)}
-                        >
-                          <option value="">— Select Country —</option>
-                          {COUNTRIES.map((c) => (
-                            <option key={c} value={c}>{c}</option>
-                          ))}
-                        </select>
-                      </CleanField>
-
-                      <CleanField label="Grade / GPA">
-                        <input
-                          style={inputStyle}
-                          placeholder="e.g. GPA (3.8)"
-                          value={form.education?.gradeGpa || ''}
-                          onChange={(e) => setEdu('gradeGpa', e.target.value)}
-                        />
-                      </CleanField>
-                    </div>
-
-                    <CleanField label="MOFA / MOE Attestation Status">
-                      <select
-                        style={inputStyle}
-                        value={form.education?.attestationStatus || 'Not Attested'}
-                        onChange={(e) => setEdu('attestationStatus', e.target.value)}
-                      >
-                        <option value="Not Attested">Not Attested</option>
-                        <option value="Attested (MOFA/MOE UAE)">Attested (MOFA / MOE UAE)</option>
-                        <option value="In Process">In Process</option>
-                      </select>
-                    </CleanField>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* =========================================================================
-              TAB 2: Employee details
-             ========================================================================= */}
-          {activeTab === 'Employee details' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {/* Card 1: Job & Organization Profile */}
-              <div
-                className="card"
-                style={{
-                  background: '#ffffff',
-                  borderRadius: '12px',
-                  border: '1px solid #e2e8f0',
-                  padding: '22px',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '16px',
-                  }}
-                >
-                  <h4 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
-                    Job & Organization Profile
-                  </h4>
-                  <span style={{ color: '#008fa8', fontSize: '13px' }}>✎</span>
-                </div>
-
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                    gap: '14px',
-                  }}
-                >
-                  <CleanField label="Operating Company">
-                    <select
-                      style={inputStyle}
-                      value={form.divisionId || selectedCompanies[0] || ''}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        set('divisionId', val);
-                        set('companyIds', [val]);
-                      }}
-                    >
-                      <option value="">— Select Company —</option>
-                      {divisions.map((d) => (
-                        <option key={v(d, 'id')} value={v(d, 'id')}>
-                          {v(d, 'name')}
-                        </option>
-                      ))}
-                    </select>
-                  </CleanField>
-
-                  <CleanField label="Department">
-                    <select
-                      style={inputStyle}
-                      value={form.departmentId || ''}
-                      onChange={(e) => set('departmentId', e.target.value)}
-                    >
-                      <option value="">— Select Department —</option>
-                      {departments.map((d) => (
-                        <option key={v(d, 'id')} value={v(d, 'id')}>
-                          {v(d, 'name')}
-                        </option>
-                      ))}
-                    </select>
-                  </CleanField>
-
-                  <CleanField label="Designation / Job Title">
-                    <select
-                      style={inputStyle}
-                      value={form.jobTitle || ''}
-                      onChange={(e) => set('jobTitle', e.target.value)}
-                    >
-                      <option value="">— Select Designation —</option>
-                      {designations.map((d) => (
-                        <option key={v(d, 'id')} value={v(d, 'name')}>
-                          {v(d, 'name')}
-                        </option>
-                      ))}
-                    </select>
-                  </CleanField>
-
-                  <CleanField label="Position / Role Level">
+                <SectionCard title="Address">
+                  <FieldRow label="Citizen ID address">
                     <input
                       style={inputStyle}
-                      placeholder="e.g. Senior Associate / Team Lead"
-                      value={form.position || ''}
-                      onChange={(e) => set('position', e.target.value)}
+                      placeholder="e.g. Street 12, Sector F-8/3, Islamabad"
+                      value={form.homeCountryAddress || ''}
+                      onChange={(e) => set('homeCountryAddress', e.target.value)}
                     />
-                  </CleanField>
+                  </FieldRow>
 
-                  <CleanField label="Reporting Manager">
-                    <select
-                      style={inputStyle}
-                      value={form.managerId || ''}
-                      onChange={(e) => set('managerId', e.target.value)}
-                    >
-                      <option value="">— No Manager (Executive / Independent) —</option>
-                      {managers.map((m) => (
-                        <option key={v(m, 'id')} value={v(m, 'id')}>
-                          {v(m, 'fullName', 'full_name')} {v(m, 'jobTitle') ? `(${v(m, 'jobTitle')})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </CleanField>
-
-                  <CleanField label="Employment Type">
-                    <select
-                      style={inputStyle}
-                      value={form.employmentTypeId || ''}
-                      onChange={(e) => set('employmentTypeId', e.target.value)}
-                    >
-                      <option value="">— Select Type —</option>
-                      {employmentTypes.map((t) => (
-                        <option key={v(t, 'id')} value={v(t, 'id')}>
-                          {v(t, 'name')}
-                        </option>
-                      ))}
-                    </select>
-                  </CleanField>
-
-                  <CleanField label="Start / Joining Date">
+                  <FieldRow label="Residential address">
                     <input
-                      type="date"
                       style={inputStyle}
-                      value={form.joinDate || ''}
-                      onChange={(e) => set('joinDate', e.target.value)}
+                      placeholder="e.g. Apt 402, Marina Heights, Dubai, UAE"
+                      value={form.addressInUae || ''}
+                      onChange={(e) => set('addressInUae', e.target.value)}
                     />
-                  </CleanField>
+                  </FieldRow>
 
-                  <CleanField label="Employment Status">
-                    <select
+                  <FieldRow label="Current address">
+                    <input
                       style={inputStyle}
-                      value={form.status || 'active'}
-                      onChange={(e) => set('status', e.target.value)}
-                    >
-                      <option value="active">Active</option>
-                      <option value="onboarding">Onboarding</option>
-                      <option value="on leave">On Leave</option>
-                      <option value="exited">Exited</option>
-                    </select>
-                  </CleanField>
-                </div>
-              </div>
+                      placeholder="e.g. Al Barsha 1, Dubai"
+                      value={form.currentAddress || ''}
+                      onChange={(e) => set('currentAddress', e.target.value)}
+                    />
+                  </FieldRow>
+                </SectionCard>
 
-              {/* Card 2: Work Experience */}
-              <div
-                className="card"
-                style={{
-                  background: '#ffffff',
-                  borderRadius: '12px',
-                  border: '1px solid #e2e8f0',
-                  padding: '22px',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '16px',
-                  }}
-                >
-                  <h4 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
-                    Work Experience
-                  </h4>
-                  <span style={{ color: '#008fa8', fontSize: '13px' }}>✎</span>
-                </div>
-
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                    gap: '14px',
-                  }}
-                >
-                  <CleanField label="Previous Company Name">
+                {/* Card 3: Work Experience */}
+                <SectionCard title="Work experience">
+                  <FieldRow label="Previous company">
                     <input
                       style={inputStyle}
                       placeholder="e.g. Emirates Tech Solutions LLC"
                       value={form.workExperience?.previousCompany || ''}
                       onChange={(e) => setWorkExp('previousCompany', e.target.value)}
                     />
-                  </CleanField>
+                  </FieldRow>
 
-                  <CleanField label="Field of Work / Industry">
+                  <FieldRow label="Position / Role">
                     <input
                       style={inputStyle}
-                      placeholder="e.g. Information Technology / Logistics"
-                      value={form.workExperience?.fieldOfWork || ''}
-                      onChange={(e) => setWorkExp('fieldOfWork', e.target.value)}
-                    />
-                  </CleanField>
-
-                  <CleanField label="Position / Role Held">
-                    <input
-                      style={inputStyle}
-                      placeholder="e.g. Software Engineer / Operations Officer"
+                      placeholder="e.g. Software Engineer"
                       value={form.workExperience?.position || ''}
                       onChange={(e) => setWorkExp('position', e.target.value)}
                     />
-                  </CleanField>
+                  </FieldRow>
 
-                  <CleanField label="Duration / Time Period">
+                  <FieldRow label="Field of work">
+                    <input
+                      style={inputStyle}
+                      placeholder="e.g. Information Technology"
+                      value={form.workExperience?.fieldOfWork || ''}
+                      onChange={(e) => setWorkExp('fieldOfWork', e.target.value)}
+                    />
+                  </FieldRow>
+
+                  <FieldRow label="Duration">
                     <input
                       style={inputStyle}
                       placeholder="e.g. 2 Years (Jan 2022 – Dec 2023)"
                       value={form.workExperience?.duration || ''}
                       onChange={(e) => setWorkExp('duration', e.target.value)}
                     />
-                  </CleanField>
-                </div>
+                  </FieldRow>
+                </SectionCard>
               </div>
 
-              {/* Card 3: Mobile App Login Credentials (During Create Mode) */}
-              {!isEdit ? (
-                <div
-                  className="card"
-                  style={{
-                    background: '#ffffff',
-                    borderRadius: '12px',
-                    border: '1px solid #e2e8f0',
-                    padding: '22px',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-                  }}
-                >
-                  <h4 style={{ fontSize: '15px', fontWeight: 700, margin: '0 0 8px', color: '#0f172a' }}>
-                    Mobile App Login Credentials
-                  </h4>
-                  <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 14px' }}>
-                    Specify the default password for the employee&apos;s mobile app account. They will use their App Login Email and this password.
-                  </p>
+              {/* Card 4: Education (Full Width) */}
+              <SectionCard title="Education">
+                <FieldRow label="Education Level">
+                  <select
+                    style={inputStyle}
+                    value={form.education?.educationLevel || ''}
+                    onChange={(e) => setEdu('educationLevel', e.target.value)}
+                  >
+                    <option value="">— Select Education Level —</option>
+                    {DUBAI_EDUCATION_LEVELS.map((lvl) => (
+                      <option key={lvl} value={lvl}>{lvl}</option>
+                    ))}
+                  </select>
+                </FieldRow>
 
-                  <div style={{ maxWidth: '340px' }}>
-                    <CleanField label="Initial App Password" helper="Default: demo123 (min 6 chars)">
-                      <input
-                        type="password"
-                        style={inputStyle}
-                        placeholder="demo123"
-                        value={form.password || form.appPassword || 'demo123'}
-                        onChange={(e) => {
-                          set('password', e.target.value);
-                          set('appPassword', e.target.value);
-                        }}
-                      />
-                    </CleanField>
-                  </div>
-                </div>
+                <FieldRow label="Degree / Major">
+                  <input
+                    style={inputStyle}
+                    placeholder="e.g. Master Degree in Business / Computer Science"
+                    value={form.education?.degreeMajor || ''}
+                    onChange={(e) => setEdu('degreeMajor', e.target.value)}
+                  />
+                </FieldRow>
+
+                <FieldRow label="University / Institute">
+                  <input
+                    style={inputStyle}
+                    placeholder="e.g. Heriot-Watt Dubai"
+                    value={form.education?.universityName || ''}
+                    onChange={(e) => setEdu('universityName', e.target.value)}
+                  />
+                </FieldRow>
+
+                <FieldRow label="Graduation Year">
+                  <input
+                    style={inputStyle}
+                    placeholder="e.g. 2021"
+                    value={form.education?.graduationYear || ''}
+                    onChange={(e) => setEdu('graduationYear', e.target.value)}
+                  />
+                </FieldRow>
+
+                <FieldRow label="Grade / GPA">
+                  <input
+                    style={inputStyle}
+                    placeholder="e.g. GPA (3.8)"
+                    value={form.education?.gradeGpa || ''}
+                    onChange={(e) => setEdu('gradeGpa', e.target.value)}
+                  />
+                </FieldRow>
+
+                <FieldRow label="MOFA / MOE Attestation">
+                  <select
+                    style={inputStyle}
+                    value={form.education?.attestationStatus || 'Not Attested'}
+                    onChange={(e) => setEdu('attestationStatus', e.target.value)}
+                  >
+                    <option value="Not Attested">Not Attested</option>
+                    <option value="Attested (MOFA/MOE UAE)">Attested (MOFA / MOE UAE)</option>
+                    <option value="In Process">In Process</option>
+                  </select>
+                </FieldRow>
+              </SectionCard>
+            </div>
+          )}
+
+          {/* =========================================================================
+              TAB 2: Employee details (Organization & App Credentials)
+             ========================================================================= */}
+          {activeTab === 'Employee details' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <SectionCard title="Job & Organization Profile">
+                <FieldRow label="Operating Company">
+                  <select
+                    style={inputStyle}
+                    value={form.divisionId || selectedCompanies[0] || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      set('divisionId', val);
+                      set('companyIds', [val]);
+                    }}
+                  >
+                    <option value="">— Select Company —</option>
+                    {divisions.map((d) => (
+                      <option key={v(d, 'id')} value={v(d, 'id')}>
+                        {v(d, 'name')}
+                      </option>
+                    ))}
+                  </select>
+                </FieldRow>
+
+                <FieldRow label="Department">
+                  <select
+                    style={inputStyle}
+                    value={form.departmentId || ''}
+                    onChange={(e) => set('departmentId', e.target.value)}
+                  >
+                    <option value="">— Select Department —</option>
+                    {departments.map((d) => (
+                      <option key={v(d, 'id')} value={v(d, 'id')}>
+                        {v(d, 'name')}
+                      </option>
+                    ))}
+                  </select>
+                </FieldRow>
+
+                <FieldRow label="Designation / Job Title">
+                  <select
+                    style={inputStyle}
+                    value={form.jobTitle || ''}
+                    onChange={(e) => set('jobTitle', e.target.value)}
+                  >
+                    <option value="">— Select Designation —</option>
+                    {designations.map((d) => (
+                      <option key={v(d, 'id')} value={v(d, 'name')}>
+                        {v(d, 'name')}
+                      </option>
+                    ))}
+                  </select>
+                </FieldRow>
+
+                <FieldRow label="Position / Role Level">
+                  <input
+                    style={inputStyle}
+                    placeholder="e.g. Senior Associate / Team Lead"
+                    value={form.position || ''}
+                    onChange={(e) => set('position', e.target.value)}
+                  />
+                </FieldRow>
+
+                <FieldRow label="Reporting Manager">
+                  <select
+                    style={inputStyle}
+                    value={form.managerId || ''}
+                    onChange={(e) => set('managerId', e.target.value)}
+                  >
+                    <option value="">— No Manager (Executive / Independent) —</option>
+                    {managers.map((m) => (
+                      <option key={v(m, 'id')} value={v(m, 'id')}>
+                        {v(m, 'fullName', 'full_name')} {v(m, 'jobTitle') ? `(${v(m, 'jobTitle')})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </FieldRow>
+
+                <FieldRow label="Employment Type">
+                  <select
+                    style={inputStyle}
+                    value={form.employmentTypeId || ''}
+                    onChange={(e) => set('employmentTypeId', e.target.value)}
+                  >
+                    <option value="">— Select Type —</option>
+                    {employmentTypes.map((t) => (
+                      <option key={v(t, 'id')} value={v(t, 'id')}>
+                        {v(t, 'name')}
+                      </option>
+                    ))}
+                  </select>
+                </FieldRow>
+
+                <FieldRow label="Joining Date">
+                  <input
+                    type="date"
+                    style={inputStyle}
+                    value={form.joinDate || ''}
+                    onChange={(e) => set('joinDate', e.target.value)}
+                  />
+                </FieldRow>
+
+                <FieldRow label="Employment Status">
+                  <select
+                    style={inputStyle}
+                    value={form.status || 'active'}
+                    onChange={(e) => set('status', e.target.value)}
+                  >
+                    <option value="active">Active</option>
+                    <option value="onboarding">Onboarding</option>
+                    <option value="on leave">On Leave</option>
+                    <option value="exited">Exited</option>
+                  </select>
+                </FieldRow>
+              </SectionCard>
+
+              {!isEdit ? (
+                <SectionCard title="Mobile App Login Credentials">
+                  <FieldRow label="Initial App Password" helper="Default: demo123 (min 6 characters)">
+                    <input
+                      type="password"
+                      style={inputStyle}
+                      placeholder="demo123"
+                      value={form.password || form.appPassword || 'demo123'}
+                      onChange={(e) => {
+                        set('password', e.target.value);
+                        set('appPassword', e.target.value);
+                      }}
+                    />
+                  </FieldRow>
+                </SectionCard>
               ) : null}
             </div>
           )}
 
           {/* =========================================================================
-              TAB 3: Documents
+              TAB 3: Documents (Passport, Emirates ID, Files)
              ========================================================================= */}
           {activeTab === 'Documents' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {/* Card 1: Passport & Emirates ID */}
-              <div
-                className="card"
-                style={{
-                  background: '#ffffff',
-                  borderRadius: '12px',
-                  border: '1px solid #e2e8f0',
-                  padding: '22px',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '16px',
-                  }}
-                >
-                  <h4 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
-                    Passport & Emirates ID Credentials
-                  </h4>
-                  <span style={{ color: '#008fa8', fontSize: '13px' }}>✎</span>
-                </div>
+              <SectionCard title="Passport & Emirates ID Credentials">
+                <FieldRow label="Passport Number">
+                  <input
+                    style={inputStyle}
+                    placeholder="e.g. A12345678"
+                    value={form.passportNumber || ''}
+                    onChange={(e) => set('passportNumber', e.target.value)}
+                  />
+                </FieldRow>
 
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                    gap: '14px',
-                  }}
-                >
-                  <CleanField label="Passport Number">
-                    <input
-                      style={inputStyle}
-                      placeholder="e.g. A12345678"
-                      value={form.passportNumber || ''}
-                      onChange={(e) => set('passportNumber', e.target.value)}
-                    />
-                  </CleanField>
+                <FieldRow label="Passport Issue Date">
+                  <input
+                    type="date"
+                    style={inputStyle}
+                    value={form.passportStartDate || ''}
+                    onChange={(e) => set('passportStartDate', e.target.value)}
+                  />
+                </FieldRow>
 
-                  <CleanField label="Passport Issue Date">
-                    <input
-                      type="date"
-                      style={inputStyle}
-                      value={form.passportStartDate || ''}
-                      onChange={(e) => set('passportStartDate', e.target.value)}
-                    />
-                  </CleanField>
+                <FieldRow label="Passport Expiry Date">
+                  <input
+                    type="date"
+                    style={inputStyle}
+                    value={form.passportExpiryDate || ''}
+                    onChange={(e) => set('passportExpiryDate', e.target.value)}
+                  />
+                </FieldRow>
 
-                  <CleanField label="Passport Expiry Date">
-                    <input
-                      type="date"
-                      style={inputStyle}
-                      value={form.passportExpiryDate || ''}
-                      onChange={(e) => set('passportExpiryDate', e.target.value)}
-                    />
-                  </CleanField>
+                <FieldRow label="Emirates ID Number">
+                  <input
+                    style={inputStyle}
+                    placeholder="784-1990-1234567-1"
+                    value={form.emiratesIdNumber || ''}
+                    onChange={(e) => set('emiratesIdNumber', e.target.value)}
+                  />
+                </FieldRow>
 
-                  <CleanField label="Emirates ID Number">
-                    <input
-                      style={inputStyle}
-                      placeholder="784-1990-1234567-1"
-                      value={form.emiratesIdNumber || ''}
-                      onChange={(e) => set('emiratesIdNumber', e.target.value)}
-                    />
-                  </CleanField>
+                <FieldRow label="Emirates ID Issue Date">
+                  <input
+                    type="date"
+                    style={inputStyle}
+                    value={form.emiratesIdStartDate || ''}
+                    onChange={(e) => set('emiratesIdStartDate', e.target.value)}
+                  />
+                </FieldRow>
 
-                  <CleanField label="Emirates ID Issue Date">
-                    <input
-                      type="date"
-                      style={inputStyle}
-                      value={form.emiratesIdStartDate || ''}
-                      onChange={(e) => set('emiratesIdStartDate', e.target.value)}
-                    />
-                  </CleanField>
+                <FieldRow label="Emirates ID Expiry Date">
+                  <input
+                    type="date"
+                    style={inputStyle}
+                    value={form.emiratesIdExpiryDate || ''}
+                    onChange={(e) => set('emiratesIdExpiryDate', e.target.value)}
+                  />
+                </FieldRow>
 
-                  <CleanField label="Emirates ID Expiry Date">
-                    <input
-                      type="date"
-                      style={inputStyle}
-                      value={form.emiratesIdExpiryDate || ''}
-                      onChange={(e) => set('emiratesIdExpiryDate', e.target.value)}
-                    />
-                  </CleanField>
+                <FieldRow label="Previous Visa Type">
+                  <select
+                    style={inputStyle}
+                    value={form.previousVisaType || 'N/A'}
+                    onChange={(e) => set('previousVisaType', e.target.value)}
+                  >
+                    {PREVIOUS_VISA_TYPES.map((vt) => (
+                      <option key={vt} value={vt}>{vt}</option>
+                    ))}
+                  </select>
+                </FieldRow>
+              </SectionCard>
 
-                  <CleanField label="Previous Visa Type">
-                    <select
-                      style={inputStyle}
-                      value={form.previousVisaType || 'N/A'}
-                      onChange={(e) => set('previousVisaType', e.target.value)}
-                    >
-                      {PREVIOUS_VISA_TYPES.map((vt) => (
-                        <option key={vt} value={vt}>{vt}</option>
-                      ))}
-                    </select>
-                  </CleanField>
-                </div>
-              </div>
+              <SectionCard title="Uploaded Documents & Attachments">
+                <FieldRow label="Experience Letter">
+                  <input
+                    ref={expLetterRef}
+                    type="file"
+                    style={inputStyle}
+                    onChange={(e) => set('experienceLetterName', e.target.files?.[0]?.name || '')}
+                  />
+                </FieldRow>
 
-              {/* Card 2: Uploaded Files & Attachments */}
-              <div
-                className="card"
-                style={{
-                  background: '#ffffff',
-                  borderRadius: '12px',
-                  border: '1px solid #e2e8f0',
-                  padding: '22px',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '16px',
-                  }}
-                >
-                  <h4 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
-                    Uploaded Documents & Attachments
-                  </h4>
-                  <span style={{ color: '#008fa8', fontSize: '13px' }}>✎</span>
-                </div>
-
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                    gap: '16px',
-                  }}
-                >
-                  <div>
-                    <CleanField label="Experience Letter (Optional)">
-                      <input
-                        ref={expLetterRef}
-                        type="file"
-                        style={inputStyle}
-                        onChange={(e) => set('experienceLetterName', e.target.files?.[0]?.name || '')}
-                      />
-                    </CleanField>
-                    {form.experienceLetterName ? (
-                      <div style={{ fontSize: '12px', color: '#10b981', marginTop: 4, fontWeight: 600 }}>
-                        ✓ {form.experienceLetterName}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div>
-                    <CleanField label="Educational Certificate (Optional)">
-                      <input
-                        ref={eduCertRef}
-                        type="file"
-                        style={inputStyle}
-                        onChange={(e) => set('educationalCertificateName', e.target.files?.[0]?.name || '')}
-                      />
-                    </CleanField>
-                    {form.educationalCertificateName ? (
-                      <div style={{ fontSize: '12px', color: '#10b981', marginTop: 4, fontWeight: 600 }}>
-                        ✓ {form.educationalCertificateName}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
+                <FieldRow label="Educational Certificate">
+                  <input
+                    ref={eduCertRef}
+                    type="file"
+                    style={inputStyle}
+                    onChange={(e) => set('educationalCertificateName', e.target.files?.[0]?.name || '')}
+                  />
+                </FieldRow>
+              </SectionCard>
             </div>
           )}
 
-          {/* Form Actions / Navigation Footer */}
+          {/* Form Actions Footer */}
           <div
             style={{
               display: 'flex',
@@ -1265,10 +907,9 @@ export default function EmployeeMasterForm({
               gap: 12,
               marginTop: '24px',
               paddingTop: '16px',
-              borderTop: '1px solid #e2e8f0',
+              borderTop: '1px solid #e5e7eb',
             }}
           >
-            {/* Left: Tab switch shortcuts */}
             <div style={{ display: 'flex', gap: 8 }}>
               {activeTab !== 'Personal info' ? (
                 <button
@@ -1278,15 +919,7 @@ export default function EmployeeMasterForm({
                     if (activeTab === 'Documents') setActiveTab('Employee details');
                     else if (activeTab === 'Employee details') setActiveTab('Personal info');
                   }}
-                  style={{
-                    padding: '8px 16px',
-                    fontSize: '12.5px',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
-                    background: '#ffffff',
-                    color: '#334155',
-                    cursor: 'pointer',
-                  }}
+                  style={{ padding: '8px 16px', fontSize: '12.5px', borderRadius: '8px' }}
                 >
                   ← Previous Tab
                 </button>
@@ -1300,38 +933,20 @@ export default function EmployeeMasterForm({
                     if (activeTab === 'Personal info') setActiveTab('Employee details');
                     else if (activeTab === 'Employee details') setActiveTab('Documents');
                   }}
-                  style={{
-                    padding: '8px 16px',
-                    fontSize: '12.5px',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
-                    background: '#ffffff',
-                    color: '#008fa8',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
+                  style={{ padding: '8px 16px', fontSize: '12.5px', borderRadius: '8px', color: '#008fa8', fontWeight: 600 }}
                 >
                   Next Tab →
                 </button>
               ) : null}
             </div>
 
-            {/* Right: Submit / Cancel */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               {onCancel ? (
                 <button
                   type="button"
                   className="btn secondary"
                   onClick={onCancel}
-                  style={{
-                    padding: '8px 18px',
-                    fontSize: '12.5px',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
-                    background: '#ffffff',
-                    color: '#334155',
-                    cursor: 'pointer',
-                  }}
+                  style={{ padding: '8px 18px', fontSize: '12.5px', borderRadius: '8px' }}
                 >
                   Cancel
                 </button>
