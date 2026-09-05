@@ -12,6 +12,23 @@ import {
 } from '../../lib/employeeMaster';
 import { formatDate, v } from '../../lib/format';
 
+function getEmployeePhotoUrl(emp) {
+  if (!emp) return null;
+  const p = v(emp, 'photoPath', 'photo_path');
+  if (!p) return null;
+  return `${getApiBase().replace(/\/api\/?$/, '')}/${String(p).replace(/^\//, '')}`;
+}
+
+function getInitials(name) {
+  const parts = String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return 'E';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 function EmployeesContent() {
   const role = normalizeRole(getUser());
   const isAdmin = role === 'admin';
@@ -169,16 +186,21 @@ function EmployeesContent() {
   }, [load]);
 
   async function openDetail(e) {
+    if (!e) return;
     const empId = String(v(e, 'id'));
     setSelected(e);
     setIsEditingProfile(false);
     setSelectedTab('Personal info');
-    setMasterForm(masterFormFromEmployee(e));
+    try {
+      setMasterForm(masterFormFromEmployee(e));
+    } catch {}
     setLoadingTabDetails(true);
 
     setTimeout(() => {
-      const el = document.getElementById('employee-profile-detail');
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      try {
+        const el = document.getElementById('employee-profile-detail');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } catch {}
     }, 60);
 
     try {
@@ -192,12 +214,20 @@ function EmployeesContent() {
         api('/attendance'),
       ]);
 
-      if (fullRes.status === 'fulfilled' && fullRes.value) {
+      if (
+        fullRes.status === 'fulfilled' &&
+        fullRes.value &&
+        typeof fullRes.value === 'object' &&
+        !fullRes.value.error &&
+        v(fullRes.value, 'id')
+      ) {
         setSelected(fullRes.value);
-        setMasterForm(masterFormFromEmployee(fullRes.value));
+        try {
+          setMasterForm(masterFormFromEmployee(fullRes.value));
+        } catch {}
       }
       if (histRes.status === 'fulfilled') {
-        setHistory(histRes.value || []);
+        setHistory(Array.isArray(histRes.value) ? histRes.value : []);
       }
       if (payRes.status === 'fulfilled' && Array.isArray(payRes.value)) {
         setEmpPayslips(payRes.value.filter((p) => String(v(p, 'employeeId', 'employee_id')) === empId));
@@ -215,7 +245,7 @@ function EmployeesContent() {
         setEmpAttendance(attRes.value.filter((a) => String(v(a, 'employeeId', 'employee_id')) === empId));
       }
     } catch (err) {
-      setError(err.message);
+      setError(err?.message || 'Failed to load employee details');
     } finally {
       setLoadingTabDetails(false);
     }
@@ -550,14 +580,11 @@ function EmployeesContent() {
         return {};
       }
     }
-    return raw;
+    return typeof raw === 'object' && raw !== null ? raw : {};
   }, [selected]);
 
   const selectedPhotoUrl = useMemo(() => {
-    if (!selected) return null;
-    const p = v(selected, 'photoPath', 'photo_path');
-    if (!p) return null;
-    return `${getApiBase().replace(/\/api\/?$/, '')}/${p.replace(/^\//, '')}`;
+    return getEmployeePhotoUrl(selected);
   }, [selected]);
 
   return (
@@ -878,11 +905,7 @@ function EmployeesContent() {
                       }}
                     >
                       {!selectedPhotoUrl
-                        ? String(v(selected, 'fullName', 'full_name') || 'E')
-                            .split(' ')
-                            .map((p) => p[0])
-                            .join('')
-                            .slice(0, 2)
+                        ? getInitials(v(selected, 'fullName', 'full_name'))
                         : null}
                     </div>
                     <div style={{ textAlign: 'left' }}>
@@ -986,11 +1009,7 @@ function EmployeesContent() {
                                     }}
                                   >
                                     {!photo
-                                      ? String(v(emp, 'fullName', 'full_name') || 'E')
-                                          .split(' ')
-                                          .map((p) => p[0])
-                                          .join('')
-                                          .slice(0, 2)
+                                      ? getInitials(v(emp, 'fullName', 'full_name'))
                                       : null}
                                   </div>
                                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -1141,11 +1160,7 @@ function EmployeesContent() {
                           }}
                         >
                           {!selectedPhotoUrl
-                            ? String(v(selected, 'fullName', 'full_name') || 'E')
-                                .split(' ')
-                                .map((p) => p[0])
-                                .join('')
-                                .slice(0, 2)
+                            ? getInitials(v(selected, 'fullName', 'full_name'))
                             : null}
                         </div>
 
@@ -1336,7 +1351,7 @@ function EmployeesContent() {
                       ) : null}
                     </div>
 
-                    {selectedMd.education?.degreeMajor || selectedMd.education?.educationLevel ? (
+                    {selectedMd.education && typeof selectedMd.education === 'object' && (selectedMd.education.degreeMajor || selectedMd.education.educationLevel) ? (
                       <div style={{ position: 'relative', paddingLeft: 22, borderLeft: '2px solid var(--line, #e5e7eb)', marginLeft: 6 }}>
                         <div
                           style={{
