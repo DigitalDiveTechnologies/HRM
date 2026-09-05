@@ -15,8 +15,33 @@ import { formatDate, v } from '../../lib/format';
 function EmployeesContent() {
   const role = normalizeRole(getUser());
   const isAdmin = role === 'admin';
-  const [rows, setRows] = useState([]);
-  const [chart, setChart] = useState([]);
+  const [rows, setRows] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_employees');
+        if (cached) return JSON.parse(cached);
+      } catch {}
+    }
+    return [];
+  });
+  const [chart, setChart] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_org');
+        if (cached) return JSON.parse(cached);
+      } catch {}
+    }
+    return [];
+  });
+  const [loadingEmps, setLoadingEmps] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_employees');
+        if (cached && JSON.parse(cached).length > 0) return false;
+      } catch {}
+    }
+    return true;
+  });
   const [departments, setDepartments] = useState([]);
   const [divisions, setDivisions] = useState([]);
   const [designations, setDesignations] = useState([]);
@@ -80,29 +105,52 @@ function EmployeesContent() {
   };
 
   const load = useCallback(() => {
-    const tasks = [api('/employees'), api('/org/chart')];
-    if (isAdmin) {
-      tasks.push(api('/employees/departments'));
-      tasks.push(api('/divisions?activeOnly=true'));
-      tasks.push(api('/designations?activeOnly=true'));
-      tasks.push(api('/employment-types?activeOnly=true'));
-    }
-    Promise.all(tasks)
-      .then(([emps, org, depts, divs, desigs, empTypes]) => {
-        setRows(emps || []);
-        setChart(org || []);
-        if (depts) setDepartments(depts || []);
-        if (divs) setDivisions(divs || []);
-        if (desigs) setDesignations(desigs || []);
-        if (empTypes) setEmploymentTypes(empTypes || []);
-
-        // Auto-generate code for new employee
+    // 1. Prioritized immediate load for Employees table
+    api('/employees')
+      .then((emps) => {
+        const list = emps || [];
+        setRows(list);
+        setLoadingEmps(false);
+        try {
+          localStorage.setItem('gocs_cached_employees', JSON.stringify(list));
+        } catch {}
         setCreateForm((prev) => ({
           ...prev,
-          empCode: prev.empCode || calculateNextCode(emps),
+          empCode: prev.empCode || calculateNextCode(list),
         }));
       })
-      .catch((e) => setError(e.message));
+      .catch((e) => {
+        setError(e.message);
+        setLoadingEmps(false);
+      });
+
+    // 2. Load Org Chart concurrently
+    api('/org/chart')
+      .then((org) => {
+        const o = org || [];
+        setChart(o);
+        try {
+          localStorage.setItem('gocs_cached_org', JSON.stringify(o));
+        } catch {}
+      })
+      .catch(() => {});
+
+    // 3. Load Admin dropdown masters in background
+    if (isAdmin) {
+      Promise.all([
+        api('/employees/departments'),
+        api('/divisions?activeOnly=true'),
+        api('/designations?activeOnly=true'),
+        api('/employment-types?activeOnly=true'),
+      ])
+        .then(([depts, divs, desigs, empTypes]) => {
+          if (depts) setDepartments(depts || []);
+          if (divs) setDivisions(divs || []);
+          if (desigs) setDesignations(desigs || []);
+          if (empTypes) setEmploymentTypes(empTypes || []);
+        })
+        .catch(() => {});
+    }
   }, [isAdmin]);
 
   useEffect(() => {
@@ -533,8 +581,22 @@ function EmployeesContent() {
       <div id="all-employees" className="card" style={{ marginBottom: 20, padding: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
           <div>
-            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>
-              All Employees ({filteredRows.length})
+            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>All Employees {loadingEmps && !filteredRows.length ? '' : `(${filteredRows.length})`}</span>
+              {loadingEmps && !filteredRows.length ? (
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: 13,
+                    height: 13,
+                    border: '2px solid rgba(0, 184, 219, 0.3)',
+                    borderTopColor: '#00b8db',
+                    borderRadius: '50%',
+                    animation: 'spin 0.7s linear infinite',
+                  }}
+                  title="Loading..."
+                />
+              ) : null}
             </h3>
             <p className="muted" style={{ fontSize: '12px', margin: '2px 0 0' }}>
               Click any employee row to open their profile details & edit credentials
@@ -673,7 +735,25 @@ function EmployeesContent() {
                   </tr>
                 );
               })}
-              {!filteredRows.length ? (
+              {loadingEmps && !filteredRows.length ? (
+                <tr>
+                  <td colSpan={10} style={{ textAlign: 'center', padding: '36px 16px' }} className="muted">
+                    <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                      <div
+                        style={{
+                          width: 26,
+                          height: 26,
+                          border: '2.5px solid rgba(0, 184, 219, 0.25)',
+                          borderTopColor: '#00b8db',
+                          borderRadius: '50%',
+                          animation: 'spin 0.8s linear infinite',
+                        }}
+                      />
+                      <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--ink)' }}>Loading employees...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : !filteredRows.length ? (
                 <tr>
                   <td colSpan={10} style={{ textAlign: 'center', padding: '24px' }} className="muted">
                     No employees matching current filter.
