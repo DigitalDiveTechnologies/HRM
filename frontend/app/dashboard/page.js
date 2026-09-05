@@ -265,10 +265,15 @@ export default function DashboardPage() {
               }}
             >
               <div className="kpi-content">
-                <span className="kpi-label">Docs Expiring (90d)</span>
+                <span className="kpi-label" style={{ whiteSpace: 'normal', lineHeight: 1.25 }}>
+                  Docs Expiring (90 Days)
+                </span>
                 <div className="kpi-val">{expiringDocs}</div>
+                <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.92)', fontWeight: 500, lineHeight: 1.25 }}>
+                  {expiringDocs} documents expiring in next 90 days
+                </div>
                 <div className="kpi-footer">
-                  <span className="kpi-subtext">{expiringDocs} documents expiring in next 90 days</span>
+                  <span className="kpi-subtext">Action Required</span>
                 </div>
               </div>
               <div className="kpi-chart-ring">
