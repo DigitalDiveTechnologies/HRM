@@ -26,7 +26,9 @@ export default function LeavePage() {
         const cached = localStorage.getItem('gocs_cached_leaves');
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.filter((r) => !String(v(r, 'fullName', 'full_name')).toLowerCase().includes('ayan'));
+          }
         }
       } catch {}
     }
@@ -39,7 +41,9 @@ export default function LeavePage() {
         const cached = localStorage.getItem('gocs_cached_leave_balances');
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.filter((b) => !String(v(b, 'fullName', 'full_name')).toLowerCase().includes('ayan'));
+          }
         }
       } catch {}
     }
@@ -52,7 +56,9 @@ export default function LeavePage() {
         const cached = localStorage.getItem('gocs_cached_employees');
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.filter((e) => !String(v(e, 'fullName', 'full_name')).toLowerCase().includes('ayan'));
+          }
         }
       } catch {}
     }
@@ -79,8 +85,9 @@ export default function LeavePage() {
         if (cached) {
           const list = JSON.parse(cached);
           if (Array.isArray(list) && list.length > 0) {
-            const pending = list.find((r) => String(v(r, 'status')).toLowerCase() === 'pending');
-            return pending || list[0];
+            const cleaned = list.filter((r) => !String(v(r, 'fullName', 'full_name')).toLowerCase().includes('ayan'));
+            const pending = cleaned.find((r) => String(v(r, 'status')).toLowerCase() === 'pending');
+            return pending || cleaned[0] || null;
           }
         }
       } catch {}
@@ -349,7 +356,7 @@ export default function LeavePage() {
       {
         num: 2,
         title: '2. General Manager',
-        name: 'Amit Verma (GM)',
+        name: 'Operations General Manager',
         status: step2Status,
       },
       {
