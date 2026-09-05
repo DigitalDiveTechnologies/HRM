@@ -265,8 +265,8 @@ export default function DashboardPage() {
               }}
             >
               <div className="kpi-content">
-                <span className="kpi-label" style={{ fontSize: '13px', whiteSpace: 'nowrap', letterSpacing: '-0.2px' }}>
-                  Docs Expiring (90 Days)
+                <span className="kpi-label" style={{ fontSize: '13.5px', whiteSpace: 'nowrap', overflow: 'visible', textOverflow: 'clip' }}>
+                  Docs Expiring ({expiringDocs})
                 </span>
                 <div className="kpi-val">{expiringDocs}</div>
                 <div className="kpi-footer">
@@ -837,8 +837,7 @@ export default function DashboardPage() {
           color: rgba(255, 255, 255, 0.95) !important;
           letter-spacing: 0.2px;
           white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          overflow: visible;
         }
 
         .kpi-val {
