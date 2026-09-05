@@ -14,6 +14,7 @@ export default function DashboardPage() {
   const [activities, setActivities] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [leaves, setLeaves] = useState([]);
+  const [attendanceList, setAttendanceList] = useState([]);
   const [showAddCompany, setShowAddCompany] = useState(false);
   const [newCompany, setNewCompany] = useState({ code: '', name: '', payrollType: 'wps' });
   const [companySaving, setCompanySaving] = useState(false);
@@ -29,12 +30,14 @@ export default function DashboardPage() {
       api('/notifications').catch(() => []),
       api('/divisions').catch(() => []),
       api('/leave').catch(() => []),
+      api('/attendance').catch(() => []),
     ])
-      .then(([dash, emps, notifs, divs, leaveRows]) => {
+      .then(([dash, emps, notifs, divs, leaveRows, attRows]) => {
         setData(dash || {});
         setEmployees(Array.isArray(emps) ? emps : []);
         setCompanies(Array.isArray(divs) ? divs : []);
         setLeaves(Array.isArray(leaveRows) ? leaveRows : []);
+        setAttendanceList(Array.isArray(attRows) && attRows.length ? attRows : (dash?.recentAttendance || []));
 
         const feed = [];
         if (Array.isArray(notifs) && notifs.length) {
@@ -161,21 +164,99 @@ export default function DashboardPage() {
   const leavePercent = totalEmployees > 0 ? Math.round((todayOnLeave / totalEmployees) * 100) : 0;
   const expiringPercent = totalEmployees > 0 ? Math.round((expiringDocs / totalEmployees) * 100) : 23;
 
-  // 12 Months floating segmented bars data (Matching Image 4 exactly)
-  const monthlyStats = [
-    { month: 'Jan', present: 48, late: 20, leave: 14 },
-    { month: 'Feb', present: 58, late: 26, leave: 16 },
-    { month: 'Mar', present: 28, late: 38, leave: 12 },
-    { month: 'Apr', present: 28, late: 38, leave: 14 },
-    { month: 'May', present: 56, late: 18, leave: 16 },
-    { month: 'Jun', present: 42, late: 32, leave: 14 },
-    { month: 'July', present: 52, late: 28, leave: 16 },
-    { month: 'Aug', present: 62, late: 18, leave: 14 },
-    { month: 'Sep', present: 54, late: 28, leave: 18 },
-    { month: 'Oct', present: 30, late: 18, leave: 28 },
-    { month: 'Nov', present: 56, late: 30, leave: 10 },
-    { month: 'Dec', present: 28, late: 40, leave: 14 },
-  ];
+  const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'July', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  // Dynamic 12-month workforce attendance statistics computed from real DB logs & approved leaves
+  const monthlyStats = useMemo(() => {
+    // Combine all available attendance sources
+    const allAtt = [...(attendanceList || [])];
+    if (data?.recentAttendance && Array.isArray(data.recentAttendance)) {
+      data.recentAttendance.forEach((ra) => {
+        const id = v(ra, 'id');
+        if (!allAtt.some((a) => v(a, 'id') === id)) {
+          allAtt.push(ra);
+        }
+      });
+    }
+
+    const currentYear = new Date().getFullYear();
+
+    return MONTH_NAMES.map((monthName, monthIndex) => {
+      // Filter attendance records in this month
+      const monthAtt = allAtt.filter((a) => {
+        const d = v(a, 'workDate', 'work_date');
+        if (!d) return false;
+        const dt = new Date(d);
+        if (isNaN(dt.getTime())) return false;
+        return dt.getMonth() === monthIndex;
+      });
+
+      // Filter approved leaves active in this month
+      const monthLeaves = (leaves || []).filter((l) => {
+        const status = String(v(l, 'status') || '').toLowerCase();
+        if (status !== 'approved') return false;
+        const s = v(l, 'startDate', 'start_date');
+        const e = v(l, 'endDate', 'end_date');
+        if (!s) return false;
+        const startDt = new Date(s);
+        const endDt = e ? new Date(e) : startDt;
+        if (isNaN(startDt.getTime())) return false;
+        const monthStart = new Date(currentYear, monthIndex, 1);
+        const monthEnd = new Date(currentYear, monthIndex + 1, 0, 23, 59, 59);
+        return startDt <= monthEnd && endDt >= monthStart;
+      });
+
+      const presentCount = monthAtt.filter((a) => {
+        const st = String(v(a, 'status') || '').toLowerCase();
+        const lateMins = Number(v(a, 'lateMinutes', 'late_minutes')) || 0;
+        return (st === 'present' || st === 'on-time' || st === 'active') && lateMins === 0;
+      }).length;
+
+      const lateCount = monthAtt.filter((a) => {
+        const st = String(v(a, 'status') || '').toLowerCase();
+        const lateMins = Number(v(a, 'lateMinutes', 'late_minutes')) || 0;
+        return st === 'late' || lateMins > 0;
+      }).length;
+
+      const attLeaveCount = monthAtt.filter((a) => {
+        const st = String(v(a, 'status') || '').toLowerCase();
+        return st.includes('leave') || st === 'absent';
+      }).length;
+
+      const leaveTotalCount = attLeaveCount + monthLeaves.length;
+      const totalEvents = presentCount + lateCount + leaveTotalCount;
+
+      if (totalEvents > 0) {
+        // Calculate proportional heights (summing to ~80-100% or scaled accurately)
+        const pPct = Math.max(12, Math.round((presentCount / totalEvents) * 65));
+        const lPct = Math.max(10, Math.round((lateCount / totalEvents) * 45));
+        const lvPct = Math.max(10, Math.round((leaveTotalCount / totalEvents) * 40));
+        return {
+          month: monthName,
+          present: pPct,
+          late: lPct,
+          leave: lvPct,
+          hasData: true,
+          total: totalEvents,
+          presentCount,
+          lateCount,
+          leaveCount: leaveTotalCount,
+        };
+      }
+
+      return {
+        month: monthName,
+        present: 0,
+        late: 0,
+        leave: 0,
+        hasData: false,
+        total: 0,
+        presentCount: 0,
+        lateCount: 0,
+        leaveCount: 0,
+      };
+    });
+  }, [attendanceList, data, leaves]);
 
   return (
     <AppShell title="Dashboard" subtitle="Workforce overview, live statistics and operational metrics">
@@ -396,25 +477,44 @@ export default function DashboardPage() {
                 <div className="chart-bars-container">
                   {monthlyStats.map((item, idx) => (
                     <div key={idx} className="chart-col">
-                      <div className="chart-floating-slot">
+                      <div className="chart-floating-slot" style={{ justifyContent: item.hasData ? 'flex-start' : 'flex-end' }}>
                         {/* Top: Leave (Coral Red) */}
-                        <div
-                          className="segment-pill segment-leave"
-                          style={{ height: `${item.leave}%` }}
-                          title={`${item.month} Leave: ${item.leave}%`}
-                        />
+                        {item.leave > 0 ? (
+                          <div
+                            className="segment-pill segment-leave"
+                            style={{ height: `${item.leave}%` }}
+                            title={`${item.month} Leave: ${item.leave}% (${item.leaveCount} records)`}
+                          />
+                        ) : null}
                         {/* Middle: Late (Amber Yellow) */}
-                        <div
-                          className="segment-pill segment-late"
-                          style={{ height: `${item.late}%` }}
-                          title={`${item.month} Late: ${item.late}%`}
-                        />
+                        {item.late > 0 ? (
+                          <div
+                            className="segment-pill segment-late"
+                            style={{ height: `${item.late}%` }}
+                            title={`${item.month} Late: ${item.late}% (${item.lateCount} records)`}
+                          />
+                        ) : null}
                         {/* Bottom: Present (Cyan Blue) */}
-                        <div
-                          className="segment-pill segment-present"
-                          style={{ height: `${item.present}%` }}
-                          title={`${item.month} Present: ${item.present}%`}
-                        />
+                        {item.present > 0 ? (
+                          <div
+                            className="segment-pill segment-present"
+                            style={{ height: `${item.present}%` }}
+                            title={`${item.month} Present: ${item.present}% (${item.presentCount} records)`}
+                          />
+                        ) : null}
+                        {!item.hasData ? (
+                          <div
+                            style={{
+                              width: 5,
+                              height: 5,
+                              borderRadius: '50%',
+                              background: 'var(--line-strong, #cbd5e1)',
+                              opacity: 0.45,
+                              marginBottom: 2,
+                            }}
+                            title={`${item.month}: No attendance logs yet`}
+                          />
+                        ) : null}
                       </div>
                       <span className="chart-label">{item.month}</span>
                     </div>
