@@ -7,16 +7,97 @@ import { formatDate, todayISO, v } from '../../lib/format';
 import { UAE_HOLIDAYS_2026 } from '../../lib/holidays';
 
 export default function LeavePage() {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return getUser();
+      } catch {}
+    }
+    return null;
+  });
   const role = normalizeRole(user);
   const isEmployee = role === 'employee';
   const canApprove = role === 'admin';
 
-  const [rows, setRows] = useState([]);
-  const [balances, setBalances] = useState([]);
-  const [employees, setEmployees] = useState([]);
-  const [approvals, setApprovals] = useState([]);
-  const [selectedLeave, setSelectedLeave] = useState(null);
+  // Instant local cache hydration (eliminates "0 records" and "No data" flash)
+  const [rows, setRows] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_leaves');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
+
+  const [balances, setBalances] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_leave_balances');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
+
+  const [employees, setEmployees] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_employees');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
+
+  const [approvals, setApprovals] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_leave_approvals');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
+
+  const [selectedLeave, setSelectedLeave] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_leaves');
+        if (cached) {
+          const list = JSON.parse(cached);
+          if (Array.isArray(list) && list.length > 0) {
+            const pending = list.find((r) => String(v(r, 'status')).toLowerCase() === 'pending');
+            return pending || list[0];
+          }
+        }
+      } catch {}
+    }
+    return null;
+  });
+
+  const [loading, setLoading] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_leaves');
+        if (cached && JSON.parse(cached).length > 0) return false;
+      } catch {}
+    }
+    return true;
+  });
+
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -31,40 +112,72 @@ export default function LeavePage() {
   });
 
   useEffect(() => {
-    setUser(getUser());
+    const u = getUser();
+    if (u) setUser(u);
   }, []);
 
   const load = useCallback(async () => {
-    if (!user) return;
     try {
-      const [leave, bal, emps, appr] = await Promise.all([
+      // Concurrently fetch with resilient fallback
+      const [leaveRes, balRes, empsRes, apprRes] = await Promise.allSettled([
         api('/leave'),
         api('/leave/balances'),
         api('/employees'),
         api('/approvals'),
       ]);
-      const list = leave || [];
-      setRows(list);
-      setBalances(bal || []);
-      setEmployees(emps || []);
-      setApprovals(appr || []);
-      if (normalizeRole(user) === 'employee' && user?.employeeId) {
-        setForm((f) => ({ ...f, employeeId: String(user.employeeId) }));
+
+      const list = leaveRes.status === 'fulfilled' && Array.isArray(leaveRes.value) ? leaveRes.value : [];
+      const bal = balRes.status === 'fulfilled' && Array.isArray(balRes.value) ? balRes.value : [];
+      const emps = empsRes.status === 'fulfilled' && Array.isArray(empsRes.value) ? empsRes.value : [];
+      const appr = apprRes.status === 'fulfilled' && Array.isArray(apprRes.value) ? apprRes.value : [];
+
+      if (list.length > 0) {
+        setRows(list);
+        try {
+          localStorage.setItem('gocs_cached_leaves', JSON.stringify(list));
+        } catch {}
+
+        setSelectedLeave((prev) => {
+          if (prev) {
+            const fresh = list.find((r) => String(v(r, 'id')) === String(v(prev, 'id')));
+            if (fresh) return fresh;
+          }
+          const pending = list.find((r) => String(v(r, 'status')).toLowerCase() === 'pending');
+          return pending || list[0] || null;
+        });
       }
 
-      // Auto-select pending request or first request
-      setSelectedLeave((prev) => {
-        if (prev) {
-          const fresh = list.find((r) => String(v(r, 'id')) === String(v(prev, 'id')));
-          if (fresh) return fresh;
-        }
-        const pending = list.find((r) => String(v(r, 'status')).toLowerCase() === 'pending');
-        return pending || list[0] || null;
-      });
+      if (bal.length > 0) {
+        setBalances(bal);
+        try {
+          localStorage.setItem('gocs_cached_leave_balances', JSON.stringify(bal));
+        } catch {}
+      }
+
+      if (emps.length > 0) {
+        setEmployees(emps);
+        try {
+          localStorage.setItem('gocs_cached_employees', JSON.stringify(emps));
+        } catch {}
+      }
+
+      if (appr.length > 0) {
+        setApprovals(appr);
+        try {
+          localStorage.setItem('gocs_cached_leave_approvals', JSON.stringify(appr));
+        } catch {}
+      }
+
+      const currentUser = getUser();
+      if (normalizeRole(currentUser) === 'employee' && currentUser?.employeeId) {
+        setForm((f) => ({ ...f, employeeId: String(currentUser.employeeId) }));
+      }
     } catch (e) {
       setError(e.message);
+    } finally {
+      setLoading(false);
     }
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     load();
@@ -236,7 +349,7 @@ export default function LeavePage() {
       {
         num: 2,
         title: '2. General Manager',
-        name: v(leaveEmp, 'divisionName', 'division_name') ? `${v(leaveEmp, 'divisionName')} GM` : 'Operations GM',
+        name: 'Amit Verma (GM)',
         status: step2Status,
       },
       {
@@ -260,12 +373,9 @@ export default function LeavePage() {
         <div id="leave-request-details-section">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
             <div>
-              <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--ink, #0f172a)', margin: 0 }}>
-                Leave Request Details
-              </h2>
-              <p className="muted" style={{ fontSize: '12.5px', margin: '3px 0 0' }}>
+              <p className="muted" style={{ fontSize: '13px', margin: 0, fontWeight: 500 }}>
                 {selectedLeave
-                  ? `Showing leave summary and live multi-level approval pipeline for ${v(selectedLeave, 'fullName', 'full_name')}`
+                  ? `Showing leave summary & live multi-level approval pipeline for ${v(selectedLeave, 'fullName', 'full_name')}`
                   : 'Select any employee leave request from the table below to inspect details'}
               </p>
             </div>
@@ -728,6 +838,24 @@ export default function LeavePage() {
                 </div>
               </div>
             </div>
+          ) : loading && rows.length === 0 ? (
+            <div className="card" style={{ padding: '44px 20px', textAlign: 'center', borderRadius: 14 }}>
+              <div
+                style={{
+                  display: 'inline-block',
+                  width: 28,
+                  height: 28,
+                  border: '3px solid #00b8db',
+                  borderTopColor: 'transparent',
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite',
+                  marginBottom: 12,
+                }}
+              />
+              <p className="muted" style={{ margin: 0, fontSize: '13.5px', fontWeight: 600 }}>
+                Loading leave requests & live approvals pipeline…
+              </p>
+            </div>
           ) : (
             <div className="card" style={{ padding: '32px', textAlign: 'center' }}>
               <p className="muted" style={{ margin: 0 }}>No active leave requests found.</p>
@@ -832,7 +960,7 @@ export default function LeavePage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
             <div>
               <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>
-                All Leave Requests ({filteredLeaves.length})
+                All Leave Requests {rows.length > 0 ? `(${filteredLeaves.length})` : ''}
               </h3>
               <p className="muted" style={{ margin: '2px 0 0', fontSize: '12px' }}>
                 Click any row to inspect its summary & live approval workflow pipeline above
@@ -1001,7 +1129,14 @@ export default function LeavePage() {
                     </tr>
                   );
                 })}
-                {!filteredLeaves.length ? (
+                {loading && rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="muted" style={{ textAlign: 'center', padding: '32px 0' }}>
+                      <div style={{ display: 'inline-block', width: 18, height: 18, border: '2.5px solid #00b8db', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite', verticalAlign: 'middle', marginRight: 8 }} />
+                      Loading leave records…
+                    </td>
+                  </tr>
+                ) : !filteredLeaves.length ? (
                   <tr>
                     <td colSpan={7} className="muted" style={{ textAlign: 'center', padding: '28px 0' }}>
                       No leave records matching current filter.
@@ -1051,7 +1186,14 @@ export default function LeavePage() {
                     </td>
                   </tr>
                 ))}
-                {!balances.length ? (
+                {loading && balances.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="muted" style={{ textAlign: 'center', padding: '24px 0' }}>
+                      <div style={{ display: 'inline-block', width: 18, height: 18, border: '2.5px solid #00b8db', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite', verticalAlign: 'middle', marginRight: 8 }} />
+                      Loading leave balances…
+                    </td>
+                  </tr>
+                ) : !balances.length ? (
                   <tr>
                     <td colSpan={5} className="muted" style={{ textAlign: 'center', padding: '20px 0' }}>
                       No balance records found.
