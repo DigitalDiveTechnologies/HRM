@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import AppShell, { Badge } from '../../components/AppShell';
 import EmployeeMasterForm from '../../components/EmployeeMasterForm';
@@ -260,7 +260,7 @@ function EmployeesContent() {
     });
   }, [rows, searchTerm, filterCompany, filterDept, filterStatus]);
 
-  // Hierarchical Org Chart (Modern Executive Cards with Team Grids)
+  // Hierarchical Org Chart (Modern Concentric Avatars with Dotted Directional Connectors)
   const childrenOf = useCallback((id) => chart.filter((c) => String(v(c, 'managerId', 'manager_id')) === String(id)), [chart]);
 
   // Leadership roots: nodes with direct reports whose manager is null or not found in chart
@@ -284,6 +284,60 @@ function EmployeesContent() {
     });
   }, [chart, childrenOf]);
 
+  const chartContainerRef = useRef(null);
+  const [connectorLines, setConnectorLines] = useState([]);
+
+  const updateConnectorLines = useCallback(() => {
+    if (!chartContainerRef.current) return;
+    const contRect = chartContainerRef.current.getBoundingClientRect();
+    const lines = [];
+
+    chart.forEach((node) => {
+      const nodeId = v(node, 'id');
+      const pEl = document.getElementById(`org-node-${nodeId}`);
+      if (!pEl) return;
+
+      const kids = childrenOf(nodeId);
+      kids.forEach((child) => {
+        const childId = v(child, 'id');
+        const cEl = document.getElementById(`org-node-${childId}`);
+        if (!cEl) return;
+
+        const pRect = pEl.getBoundingClientRect();
+        const cRect = cEl.getBoundingClientRect();
+
+        const x1 = pRect.left + pRect.width / 2 - contRect.left;
+        const y1 = pRect.bottom - contRect.top;
+        const x2 = cRect.left + cRect.width / 2 - contRect.left;
+        const y2 = cRect.top - contRect.top - 4;
+
+        lines.push({ x1, y1, x2, y2, key: `${nodeId}-${childId}` });
+      });
+    });
+
+    setConnectorLines(lines);
+  }, [chart, childrenOf]);
+
+  useEffect(() => {
+    updateConnectorLines();
+    const t1 = setTimeout(updateConnectorLines, 100);
+    const t2 = setTimeout(updateConnectorLines, 400);
+    window.addEventListener('resize', updateConnectorLines);
+
+    let ro;
+    if (typeof ResizeObserver !== 'undefined' && chartContainerRef.current) {
+      ro = new ResizeObserver(updateConnectorLines);
+      ro.observe(chartContainerRef.current);
+    }
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      window.removeEventListener('resize', updateConnectorLines);
+      if (ro) ro.disconnect();
+    };
+  }, [updateConnectorLines]);
+
   function OrgNodeView({ node }) {
     const kids = childrenOf(v(node, 'id'));
     const title = v(node, 'jobTitle', 'job_title') || v(node, 'fullName', 'full_name') || 'Employee';
@@ -292,7 +346,7 @@ function EmployeesContent() {
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
-        {/* Navy Circular Avatar Node */}
+        {/* Concentric Dual-Ring Avatar Node (Matching Client Screenshot) */}
         <div
           onClick={() => openDetail(node)}
           style={{
@@ -300,43 +354,61 @@ function EmployeesContent() {
             flexDirection: 'column',
             alignItems: 'center',
             cursor: 'pointer',
-            zIndex: 2,
+            zIndex: 3,
           }}
           title={`Click to view profile of ${name}`}
         >
-          {/* Navy Circle Badge */}
+          {/* Outer Concentric Ring */}
           <div
+            id={`org-node-${v(node, 'id')}`}
             style={{
-              width: 56,
-              height: 56,
+              width: 58,
+              height: 58,
               borderRadius: '50%',
-              background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
-              border: '3px solid #00b8db',
-              boxShadow: '0 4px 14px rgba(15, 23, 42, 0.25)',
+              border: '1.5px solid rgba(0, 184, 219, 0.45)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#ffffff',
+              padding: 3,
+              boxSizing: 'border-box',
               transition: 'all 0.2s ease',
+              background: 'transparent',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'scale(1.12)';
-              e.currentTarget.style.boxShadow = '0 6px 18px rgba(0, 184, 219, 0.5)';
+              e.currentTarget.style.transform = 'scale(1.1)';
+              e.currentTarget.style.borderColor = '#00b8db';
+              e.currentTarget.style.boxShadow = '0 0 14px rgba(0, 184, 219, 0.45)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'scale(1)';
-              e.currentTarget.style.boxShadow = '0 4px 14px rgba(15, 23, 42, 0.25)';
+              e.currentTarget.style.borderColor = 'rgba(0, 184, 219, 0.45)';
+              e.currentTarget.style.boxShadow = 'none';
             }}
           >
-            {/* White Person / User Icon */}
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
+            {/* Inner Circle with Persona Icon */}
+            <div
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: '50%',
+                background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
+                border: '2px solid #00b8db',
+                boxShadow: '0 4px 10px rgba(15, 23, 42, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ffffff',
+              }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            </div>
           </div>
 
-          {/* Text Labels under Circle */}
-          <div style={{ textAlign: 'center', marginTop: 8, maxWidth: 160 }}>
+          {/* Role & Name beneath Circle */}
+          <div style={{ textAlign: 'center', marginTop: 8, maxWidth: 150 }}>
             <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink, #0f172a)', lineHeight: 1.25 }}>
               {title}
             </div>
@@ -344,62 +416,26 @@ function EmployeesContent() {
               <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)', marginTop: 2 }}>{name}</div>
             ) : null}
             {dept ? (
-              <div style={{ fontSize: '10px', color: '#008fa8', fontWeight: 600, marginTop: 2 }}>{dept}</div>
+              <div style={{ fontSize: '9.5px', color: '#008fa8', fontWeight: 600, marginTop: 2 }}>{dept}</div>
             ) : null}
           </div>
         </div>
 
-        {/* Children Tree with Cyan Connectors */}
+        {/* Children Row with Natural Angled Branches */}
         {kids.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', marginTop: 6 }}>
-            {/* Cyan Vertical Stem coming down from parent */}
-            <div style={{ width: 2, height: 18, background: '#00b8db' }} />
-            {/* Cyan Arrowhead pointing down */}
-            <div
-              style={{
-                width: 0,
-                height: 0,
-                borderLeft: '5px solid transparent',
-                borderRight: '5px solid transparent',
-                borderTop: '6px solid #00b8db',
-                marginBottom: 6,
-              }}
-            />
-
-            {/* Horizontal Branch Container */}
-            <div style={{ display: 'flex', justifyContent: 'center', position: 'relative', gap: 32 }}>
-              {kids.map((child, idx) => (
-                <div
-                  key={v(child, 'id')}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    position: 'relative',
-                  }}
-                >
-                  {/* Top Horizontal Bar segment across children */}
-                  {kids.length > 1 ? (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: idx === 0 ? '50%' : '0%',
-                        right: idx === kids.length - 1 ? '50%' : '0%',
-                        height: 2,
-                        background: '#00b8db',
-                      }}
-                    />
-                  ) : null}
-
-                  {/* Vertical stem down to child node */}
-                  <div style={{ width: 2, height: 16, background: '#00b8db' }} />
-
-                  {/* Child Recursive Node */}
-                  <OrgNodeView node={child} />
-                </div>
-              ))}
-            </div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: 40,
+              marginTop: 48,
+              zIndex: 2,
+              position: 'relative',
+            }}
+          >
+            {kids.map((child) => (
+              <OrgNodeView key={v(child, 'id')} node={child} />
+            ))}
           </div>
         ) : null}
       </div>
@@ -534,9 +570,59 @@ function EmployeesContent() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0', minWidth: 'max-content' }}>
+        <div
+          ref={chartContainerRef}
+          style={{
+            position: 'relative',
+            display: 'flex',
+            justifyContent: 'center',
+            padding: '24px 16px',
+            minWidth: 'max-content',
+            margin: '0 auto',
+          }}
+        >
+          {/* Dynamic SVG Dotted Connector Arrows Overlay (Matching Client Screenshot) */}
+          <svg
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              pointerEvents: 'none',
+              zIndex: 1,
+            }}
+          >
+            <defs>
+              <marker
+                id="cyan-arrow"
+                viewBox="0 0 10 10"
+                refX="6"
+                refY="5"
+                markerWidth="6.5"
+                markerHeight="6.5"
+                orient="auto"
+              >
+                <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#00b8db" />
+              </marker>
+            </defs>
+            {connectorLines.map((line) => (
+              <line
+                key={line.key}
+                x1={line.x1}
+                y1={line.y1}
+                x2={line.x2}
+                y2={line.y2}
+                stroke="#00b8db"
+                strokeWidth="1.8"
+                strokeDasharray="4 3.5"
+                markerEnd="url(#cyan-arrow)"
+              />
+            ))}
+          </svg>
+
           {leadershipRoots.length ? (
-            <div style={{ display: 'flex', gap: 48, justifyContent: 'center' }}>
+            <div style={{ display: 'flex', gap: 56, justifyContent: 'center', zIndex: 2 }}>
               {leadershipRoots.map((r) => (
                 <OrgNodeView key={v(r, 'id')} node={r} />
               ))}
@@ -590,22 +676,36 @@ function EmployeesContent() {
                   >
                     <div
                       style={{
-                        width: 46,
-                        height: 46,
+                        width: 52,
+                        height: 52,
                         borderRadius: '50%',
-                        background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
-                        border: '2px solid #00b8db',
+                        border: '1.5px solid rgba(0, 184, 219, 0.45)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        color: '#ffffff',
+                        padding: 3,
+                        boxSizing: 'border-box',
                         marginBottom: 8,
                       }}
                     >
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                        <circle cx="12" cy="7" r="4" />
-                      </svg>
+                      <div
+                        style={{
+                          width: 42,
+                          height: 42,
+                          borderRadius: '50%',
+                          background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
+                          border: '2px solid #00b8db',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#ffffff',
+                        }}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                          <circle cx="12" cy="7" r="4" />
+                        </svg>
+                      </div>
                     </div>
                     <div style={{ textAlign: 'center' }}>
                       <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--ink, #0f172a)', lineHeight: 1.2 }}>
