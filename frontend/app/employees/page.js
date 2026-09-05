@@ -59,6 +59,15 @@ function EmployeesContent() {
   const [resetPassword, setResetPassword] = useState('');
   const [resetting, setResetting] = useState(false);
 
+  // Profile View multi-tab state (matching reference screenshot)
+  const [selectedTab, setSelectedTab] = useState('Personal info');
+  const [empPayslips, setEmpPayslips] = useState([]);
+  const [empDocuments, setEmpDocuments] = useState([]);
+  const [empLeaves, setEmpLeaves] = useState([]);
+  const [empBalances, setEmpBalances] = useState([]);
+  const [empAttendance, setEmpAttendance] = useState([]);
+  const [loadingTabDetails, setLoadingTabDetails] = useState(false);
+
   // Table search & filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCompany, setFilterCompany] = useState('');
@@ -158,17 +167,50 @@ function EmployeesContent() {
   }, [load]);
 
   async function openDetail(e) {
+    const empId = String(v(e, 'id'));
     setSelected(e);
     setIsEditingProfile(false);
+    setSelectedTab('Personal info');
     setMasterForm(masterFormFromEmployee(e));
+    setLoadingTabDetails(true);
+
     try {
-      const full = await api(`/employees/${v(e, 'id')}`);
-      setSelected(full);
-      setMasterForm(masterFormFromEmployee(full));
-      const h = await api(`/org/history/${v(e, 'id')}`);
-      setHistory(h || []);
+      const [fullRes, histRes, payRes, docRes, leaveRes, balRes, attRes] = await Promise.allSettled([
+        api(`/employees/${empId}`),
+        api(`/org/history/${empId}`),
+        api('/payroll'),
+        api('/documents'),
+        api('/leave'),
+        api('/leave/balances'),
+        api('/attendance'),
+      ]);
+
+      if (fullRes.status === 'fulfilled' && fullRes.value) {
+        setSelected(fullRes.value);
+        setMasterForm(masterFormFromEmployee(fullRes.value));
+      }
+      if (histRes.status === 'fulfilled') {
+        setHistory(histRes.value || []);
+      }
+      if (payRes.status === 'fulfilled' && Array.isArray(payRes.value)) {
+        setEmpPayslips(payRes.value.filter((p) => String(v(p, 'employeeId', 'employee_id')) === empId));
+      }
+      if (docRes.status === 'fulfilled' && Array.isArray(docRes.value)) {
+        setEmpDocuments(docRes.value.filter((d) => String(v(d, 'employeeId', 'employee_id')) === empId));
+      }
+      if (leaveRes.status === 'fulfilled' && Array.isArray(leaveRes.value)) {
+        setEmpLeaves(leaveRes.value.filter((l) => String(v(l, 'employeeId', 'employee_id')) === empId));
+      }
+      if (balRes.status === 'fulfilled' && Array.isArray(balRes.value)) {
+        setEmpBalances(balRes.value.filter((b) => String(v(b, 'employeeId', 'employee_id')) === empId));
+      }
+      if (attRes.status === 'fulfilled' && Array.isArray(attRes.value)) {
+        setEmpAttendance(attRes.value.filter((a) => String(v(a, 'employeeId', 'employee_id')) === empId));
+      }
     } catch (err) {
       setError(err.message);
+    } finally {
+      setLoadingTabDetails(false);
     }
   }
 
@@ -963,60 +1005,191 @@ function EmployeesContent() {
       </div>
 
       {/* =========================================================================
-          5. EMPLOYEE PROFILE DETAIL VIEW (Exact Image 4 Executive Cards Design)
+          5. EMPLOYEE PROFILE DETAIL VIEW (Exact Reference Screenshot Multi-Tab Design)
          ========================================================================= */}
       {selected ? (
-        <div id="employee-profile-detail" className="card" style={{ marginTop: 20, padding: '24px', borderRadius: 12 }}>
-          {/* Breadcrumb & Top Bar */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, borderBottom: '1px solid var(--line)', paddingBottom: 16, marginBottom: 20 }}>
+        <div
+          id="employee-profile-detail"
+          className="card"
+          style={{
+            marginTop: 24,
+            padding: '28px',
+            borderRadius: '14px',
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
+          }}
+        >
+          {/* Top Header & Navigation (Matching Screenshot) */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 16,
+              borderBottom: '1px solid #e2e8f0',
+              paddingBottom: 18,
+              marginBottom: 20,
+            }}
+          >
             <div>
-              <div style={{ fontSize: '11.5px', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              <h2 style={{ fontSize: '22px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+                Employee
+              </h2>
+              <div style={{ fontSize: '12px', color: '#008fa8', fontWeight: 600, marginTop: 2 }}>
                 Employee / Employee Detail
               </div>
-              <h2 style={{ fontSize: '20px', fontWeight: 600, margin: '4px 0 0', color: 'var(--ink)' }}>
-                {v(selected, 'fullName', 'full_name')}
-              </h2>
             </div>
 
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Employee Persona Tag (Right side of header) */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '4px 12px 4px 6px',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '30px',
+                }}
+              >
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%',
+                    background: selectedPhotoUrl
+                      ? `url(${selectedPhotoUrl}) center/cover no-repeat`
+                      : 'linear-gradient(135deg, #00b8db 0%, #008fa8 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ffffff',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                  }}
+                >
+                  {!selectedPhotoUrl
+                    ? String(v(selected, 'fullName', 'full_name') || 'E')
+                        .split(' ')
+                        .map((p) => p[0])
+                        .join('')
+                        .slice(0, 2)
+                    : null}
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a', lineHeight: 1.1 }}>
+                    {v(selected, 'fullName', 'full_name')}
+                  </div>
+                  <div style={{ fontSize: '10.5px', color: '#64748b' }}>
+                    {v(selected, 'jobTitle', 'job_title') || 'Employee'}
+                  </div>
+                </div>
+              </div>
+
               {isAdmin ? (
                 <button
                   type="button"
                   className="btn"
                   onClick={() => setIsEditingProfile(!isEditingProfile)}
                   style={{
-                    background: isEditingProfile ? 'var(--surface-alt)' : '#00b8db',
-                    color: isEditingProfile ? 'var(--ink)' : '#ffffff',
+                    background: isEditingProfile ? '#f1f5f9' : '#00b8db',
+                    color: isEditingProfile ? '#334155' : '#ffffff',
                     fontWeight: 700,
                     fontSize: '12.5px',
                     padding: '8px 16px',
-                    borderRadius: 8,
-                    border: '1px solid var(--line)',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    cursor: 'pointer',
                   }}
                 >
                   {isEditingProfile ? '✕ Cancel Edit' : '✎ Edit Details'}
                 </button>
               ) : null}
+
               <button
                 type="button"
                 className="btn secondary"
                 onClick={() => setSelected(null)}
-                style={{ fontSize: '12.5px', padding: '8px 16px', borderRadius: 8 }}
+                style={{
+                  fontSize: '12.5px',
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#334155',
+                  cursor: 'pointer',
+                }}
               >
                 Close
               </button>
             </div>
           </div>
 
-          {/* EDIT MODE: Render full editable form */}
+          {/* Horizontal Tabs Navigation Bar (Exact Screenshot Structure) */}
+          <div
+            style={{
+              display: 'flex',
+              gap: '26px',
+              borderBottom: '1px solid #e2e8f0',
+              marginBottom: '20px',
+              overflowX: 'auto',
+            }}
+          >
+            {[
+              { id: 'Personal info', label: 'Personal info' },
+              { id: 'Employee details', label: 'Employee details' },
+              { id: 'Payroll', label: 'Payroll' },
+              { id: 'Documents', label: 'Documents' },
+              { id: 'Leave history', label: 'Leave history' },
+              { id: 'Attendance', label: 'Attendance' },
+            ].map((tab) => {
+              const isActive = selectedTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedTab(tab.id);
+                    setIsEditingProfile(false);
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    padding: '10px 4px 12px',
+                    fontSize: '13.5px',
+                    fontWeight: isActive ? 700 : 500,
+                    color: isActive ? '#0f172a' : '#64748b',
+                    borderBottom: isActive ? '2.5px solid #00b8db' : '2.5px solid transparent',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Subheader section title matching reference screenshot */}
+          <div style={{ marginBottom: '18px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+              {isEditingProfile ? `Edit ${selectedTab}` : selectedTab}
+            </h3>
+          </div>
+
+          {/* EDIT MODE: Render full editable form inside the executive tabs layout */}
           {isEditingProfile ? (
-            <div style={{ background: 'var(--surface-alt)', padding: 18, borderRadius: 10, marginBottom: 20 }}>
+            <div style={{ background: '#f8fafc', padding: 20, borderRadius: 12, border: '1px solid #e2e8f0', marginBottom: 20 }}>
               <div style={{ marginBottom: 14 }}>
-                <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0, color: 'var(--ink)' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0, color: '#0f172a' }}>
                   Editing Profile: {v(selected, 'fullName', 'full_name')}
                 </h3>
-                <p className="muted" style={{ fontSize: '12px', margin: '2px 0 0' }}>
-                  Update employee attributes, job specifications, and legal document dates. Click &quot;Save Changes&quot; to apply.
+                <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0' }}>
+                  Update employee attributes, job specifications, and travel credentials. Click &quot;Save Changes&quot; to apply.
                 </p>
               </div>
 
@@ -1035,421 +1208,1169 @@ function EmployeesContent() {
               />
             </div>
           ) : (
-            /* VIEW MODE: Exact Image 4 Executive Cards Grid */
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 18 }}>
-              {/* Card 1: Basic Information */}
-              <div
-                className="card"
-                style={{
-                  padding: 20,
-                  borderRadius: 10,
-                  border: '1px solid var(--line)',
-                  background: 'var(--surface)',
-                  gridColumn: '1 / -1',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                  <h4 style={{ fontSize: '15px', fontWeight: 600, margin: 0, color: 'var(--ink)' }}>
-                    Basic Information
-                  </h4>
-                  {isAdmin ? (
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingProfile(true)}
-                      style={{ background: 'transparent', border: 'none', color: '#008fa8', cursor: 'pointer', fontSize: '13px' }}
-                      title="Edit basic information"
-                    >
-                      ✎
-                    </button>
-                  ) : null}
-                </div>
-
-                <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
+            /* VIEW MODE: Exact Reference Screenshot Layout */
+            <div>
+              {/* =========================================================================
+                  TAB 1: Personal info (Exact Card 1 Basic Info, Card 2 Address, Card 3 Education)
+                 ========================================================================= */}
+              {selectedTab === 'Personal info' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {/* Card 1: Basic Information */}
                   <div
+                    className="card"
                     style={{
-                      width: 84,
-                      height: 84,
-                      borderRadius: '50%',
-                      background: selectedPhotoUrl
-                        ? `url(${selectedPhotoUrl}) center/cover no-repeat`
-                        : 'rgba(0, 184, 219, 0.12)',
-                      border: '3px solid #00b8db',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '22px',
-                      fontWeight: 600,
-                      color: '#008fa8',
-                      flexShrink: 0,
+                      padding: '24px',
+                      borderRadius: '12px',
+                      border: '1px solid #e2e8f0',
+                      background: '#ffffff',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
                     }}
                   >
-                    {!selectedPhotoUrl
-                      ? String(v(selected, 'fullName', 'full_name') || 'E')
-                          .split(' ')
-                          .map((p) => p[0])
-                          .join('')
-                          .slice(0, 2)
-                      : null}
-                  </div>
-
-                  <div style={{ flex: 1, minWidth: 260 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                      <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--ink)' }}>
-                        {v(selected, 'fullName', 'full_name')}
-                      </h3>
-                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#008fa8', background: 'rgba(0, 184, 219, 0.12)', padding: '2px 8px', borderRadius: 4 }}>
-                        {v(selected, 'empCode', 'emp_code')}
-                      </span>
-                      <Badge status={v(selected, 'status')} />
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px 18px', marginTop: 14 }}>
-                      <div>
-                        <div className="muted" style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600 }}>App Login Email</div>
-                        <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink)' }}>{v(selected, 'email') || '—'}</div>
-                      </div>
-                      <div>
-                        <div className="muted" style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600 }}>Phone Number</div>
-                        <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink)' }}>{v(selected, 'phone') || selectedMd.mobilePhone || '—'}</div>
-                      </div>
-                      <div>
-                        <div className="muted" style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600 }}>Company</div>
-                        <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink)' }}>{v(selected, 'divisionName', 'division_name') || '—'}</div>
-                      </div>
-                      <div>
-                        <div className="muted" style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600 }}>Department</div>
-                        <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink)' }}>{v(selected, 'departmentName', 'department_name') || '—'}</div>
-                      </div>
-                      <div>
-                        <div className="muted" style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600 }}>Designation / Title</div>
-                        <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink)' }}>{v(selected, 'jobTitle', 'job_title') || '—'}</div>
-                      </div>
-                      <div>
-                        <div className="muted" style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600 }}>Reporting Manager</div>
-                        <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink)' }}>{v(selected, 'managerName', 'manager_name') || '—'}</div>
-                      </div>
-                      <div>
-                        <div className="muted" style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600 }}>Employment Type</div>
-                        <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink)' }}>{v(selected, 'employmentTypeName', 'employment_type_name') || 'Full-time'}</div>
-                      </div>
-                      <div>
-                        <div className="muted" style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600 }}>Join Date</div>
-                        <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink)' }}>{formatDate(v(selected, 'joinDate', 'join_date')) || '—'}</div>
-                      </div>
-                      <div>
-                        <div className="muted" style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600 }}>Nationality</div>
-                        <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink)' }}>{selectedMd.nationality || selectedMd.personal?.nationality || '—'}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 2: Address Information */}
-              <div
-                className="card"
-                style={{
-                  padding: 20,
-                  borderRadius: 10,
-                  border: '1px solid var(--line)',
-                  background: 'var(--surface)',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                  <h4 style={{ fontSize: '14.5px', fontWeight: 600, margin: 0, color: 'var(--ink)' }}>
-                    Address
-                  </h4>
-                  {isAdmin ? (
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingProfile(true)}
-                      style={{ background: 'transparent', border: 'none', color: '#008fa8', cursor: 'pointer', fontSize: '13px' }}
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '18px',
+                      }}
                     >
-                      ✎
-                    </button>
-                  ) : null}
-                </div>
-
-                <div className="stack" style={{ gap: 12 }}>
-                  <div>
-                    <div className="muted" style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600 }}>Current Address</div>
-                    <div style={{ fontSize: '13px', color: 'var(--ink)', marginTop: 2 }}>{selectedMd.currentAddress || '—'}</div>
-                  </div>
-                  <div>
-                    <div className="muted" style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600 }}>Address in UAE</div>
-                    <div style={{ fontSize: '13px', color: 'var(--ink)', marginTop: 2 }}>{selectedMd.addressInUae || '—'}</div>
-                  </div>
-                  <div>
-                    <div className="muted" style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600 }}>Home Country Address</div>
-                    <div style={{ fontSize: '13px', color: 'var(--ink)', marginTop: 2 }}>{selectedMd.homeCountryAddress || '—'}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 3: Passport, Emirates ID & Visa */}
-              <div
-                className="card"
-                style={{
-                  padding: 20,
-                  borderRadius: 10,
-                  border: '1px solid var(--line)',
-                  background: 'var(--surface)',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                  <h4 style={{ fontSize: '14.5px', fontWeight: 600, margin: 0, color: 'var(--ink)' }}>
-                    Passport & Visa Credentials
-                  </h4>
-                  {isAdmin ? (
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingProfile(true)}
-                      style={{ background: 'transparent', border: 'none', color: '#008fa8', cursor: 'pointer', fontSize: '13px' }}
-                    >
-                      ✎
-                    </button>
-                  ) : null}
-                </div>
-
-                <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <div className="muted" style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600 }}>Passport Number</div>
-                    <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink)' }}>{selectedMd.passportNumber || v(selected, 'passportNo', 'passport_no') || '—'}</div>
-                  </div>
-                  <div>
-                    <div className="muted" style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600 }}>Passport Expiry</div>
-                    <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink)' }}>{formatDate(selectedMd.passportExpiryDate || v(selected, 'passportExpiry', 'passport_expiry')) || '—'}</div>
-                  </div>
-                  <div>
-                    <div className="muted" style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600 }}>Emirates ID</div>
-                    <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink)' }}>{selectedMd.emiratesIdNumber || '—'}</div>
-                  </div>
-                  <div>
-                    <div className="muted" style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600 }}>Emirates ID Expiry</div>
-                    <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink)' }}>{formatDate(selectedMd.emiratesIdExpiryDate) || '—'}</div>
-                  </div>
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <div className="muted" style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600 }}>Previous Visa Type</div>
-                    <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink)' }}>{selectedMd.previousVisaType || 'N/A'}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 4: Work Experience */}
-              <div
-                className="card"
-                style={{
-                  padding: 20,
-                  borderRadius: 10,
-                  border: '1px solid var(--line)',
-                  background: 'var(--surface)',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                  <h4 style={{ fontSize: '14.5px', fontWeight: 600, margin: 0, color: 'var(--ink)' }}>
-                    Work Experience
-                  </h4>
-                  {isAdmin ? (
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingProfile(true)}
-                      style={{ background: 'transparent', border: 'none', color: '#008fa8', cursor: 'pointer', fontSize: '13px' }}
-                    >
-                      ✎
-                    </button>
-                  ) : null}
-                </div>
-
-                {selectedMd.workExperience?.previousCompany ? (
-                  <div className="stack" style={{ gap: 8 }}>
-                    <div style={{ fontWeight: 700, fontSize: '13.5px', color: 'var(--ink)' }}>
-                      {selectedMd.workExperience.position || 'Position not listed'}
-                    </div>
-                    <div style={{ fontSize: '12.5px', color: '#008fa8', fontWeight: 600 }}>
-                      {selectedMd.workExperience.previousCompany}
-                    </div>
-                    <div className="muted" style={{ fontSize: '12px' }}>
-                      Field: {selectedMd.workExperience.fieldOfWork || '—'} · Duration: {selectedMd.workExperience.duration || '—'}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="muted" style={{ fontSize: '12.5px' }}>No previous work experience recorded.</div>
-                )}
-              </div>
-
-              {/* Card 5: Education Details (Dubai Standard) */}
-              <div
-                className="card"
-                style={{
-                  padding: 20,
-                  borderRadius: 10,
-                  border: '1px solid var(--line)',
-                  background: 'var(--surface)',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                  <h4 style={{ fontSize: '14.5px', fontWeight: 600, margin: 0, color: 'var(--ink)' }}>
-                    Education (UAE Standard)
-                  </h4>
-                  {isAdmin ? (
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingProfile(true)}
-                      style={{ background: 'transparent', border: 'none', color: '#008fa8', cursor: 'pointer', fontSize: '13px' }}
-                    >
-                      ✎
-                    </button>
-                  ) : null}
-                </div>
-
-                {selectedMd.education?.degreeMajor || selectedMd.education?.educationLevel ? (
-                  <div className="stack" style={{ gap: 8 }}>
-                    <div style={{ fontWeight: 700, fontSize: '13.5px', color: 'var(--ink)' }}>
-                      {selectedMd.education.degreeMajor || selectedMd.education.educationLevel}
-                    </div>
-                    <div style={{ fontSize: '12.5px', color: '#008fa8', fontWeight: 600 }}>
-                      {selectedMd.education.universityName || 'Institute not specified'}
-                      {selectedMd.education.countryOfStudy ? ` (${selectedMd.education.countryOfStudy})` : ''}
-                    </div>
-                    <div className="muted" style={{ fontSize: '12px' }}>
-                      Level: {selectedMd.education.educationLevel || '—'} · Year: {selectedMd.education.graduationYear || '—'}
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                      <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: selectedMd.education.attestationStatus?.includes('Attested') ? 'rgba(16, 185, 129, 0.12)' : 'var(--surface-alt)', color: selectedMd.education.attestationStatus?.includes('Attested') ? '#10b981' : 'var(--muted)' }}>
-                        {selectedMd.education.attestationStatus || 'Not Attested'}
-                      </span>
-                      {selectedMd.education.gradeGpa ? (
-                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: 'rgba(0, 184, 219, 0.12)', color: '#008fa8' }}>
-                          GPA: {selectedMd.education.gradeGpa}
-                        </span>
+                      <h4 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+                        Basic information
+                      </h4>
+                      {isAdmin ? (
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingProfile(true)}
+                          style={{ background: 'transparent', border: 'none', color: '#008fa8', cursor: 'pointer', fontSize: '14px' }}
+                          title="Edit Basic information"
+                        >
+                          ✎
+                        </button>
                       ) : null}
                     </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', alignItems: 'center' }}>
+                      {/* Left: Avatar & Primary Contact */}
+                      <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+                        <div
+                          style={{
+                            width: 88,
+                            height: 88,
+                            borderRadius: '50%',
+                            background: selectedPhotoUrl
+                              ? `url(${selectedPhotoUrl}) center/cover no-repeat`
+                              : 'linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%)',
+                            border: '3px solid #00b8db',
+                            boxShadow: '0 2px 8px rgba(0, 184, 219, 0.25)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '24px',
+                            fontWeight: 700,
+                            color: '#008fa8',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {!selectedPhotoUrl
+                            ? String(v(selected, 'fullName', 'full_name') || 'E')
+                                .split(' ')
+                                .map((p) => p[0])
+                                .join('')
+                                .slice(0, 2)
+                            : null}
+                        </div>
+
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <h3 style={{ margin: 0, fontSize: '19px', fontWeight: 700, color: '#0f172a' }}>
+                              {v(selected, 'fullName', 'full_name')}
+                            </h3>
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, marginTop: 2 }}>
+                            {v(selected, 'empCode', 'emp_code') || 'DD-1000'}
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8 }}>
+                            {/* Gender with icon */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12.5px', color: '#475569' }}>
+                              <span>⚥</span>
+                              <span>{selectedMd.personal?.gender || selectedMd.gender || 'Not specified'}</span>
+                            </div>
+
+                            {/* Email with icon */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12.5px', color: '#475569' }}>
+                              <span>✉</span>
+                              <span>{v(selected, 'email') || '—'}</span>
+                            </div>
+
+                            {/* Phone with icon */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12.5px', color: '#475569' }}>
+                              <span>📞</span>
+                              <span>{v(selected, 'phone') || selectedMd.mobilePhone || '—'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right: Personal Attributes (Excludes Place of birth, Blood type, Religion) */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '14px' }}>
+                        <div>
+                          <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>
+                            Birth date
+                          </div>
+                          <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', marginTop: 2 }}>
+                            {formatDate(selectedMd.personal?.dateOfBirth || selectedMd.dateOfBirth) || '—'}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>
+                            Marital Status
+                          </div>
+                          <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', marginTop: 2 }}>
+                            {selectedMd.personal?.maritalStatus || selectedMd.maritalStatus || '—'}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>
+                            Nationality
+                          </div>
+                          <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', marginTop: 2 }}>
+                            {selectedMd.nationality || selectedMd.personal?.nationality || '—'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                ) : (
-                  <div className="muted" style={{ fontSize: '12.5px' }}>No formal education credentials recorded.</div>
-                )}
-              </div>
 
-              {/* Card 6: App Login & Reset Password */}
-              {isAdmin ? (
-                <div
-                  className="card"
-                  style={{
-                    padding: 20,
-                    borderRadius: 10,
-                    border: '1px solid var(--line)',
-                    background: 'var(--surface)',
-                    gridColumn: '1 / -1',
-                  }}
-                >
-                  <h4 style={{ fontSize: '14.5px', fontWeight: 600, margin: '0 0 6px', color: 'var(--ink)' }}>
-                    Mobile App Security & Password Reset
-                  </h4>
-                  <p className="muted" style={{ fontSize: '12px', margin: '0 0 14px' }}>
-                    If the employee cannot sign in on the mobile app or forgets their password, reset it here:
-                  </p>
-                  <form onSubmit={resetAppPassword} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <input
-                      required
-                      type="password"
-                      placeholder="Enter new app password (min 6 characters)"
-                      minLength={6}
-                      value={resetPassword}
-                      onChange={(e) => setResetPassword(e.target.value)}
-                      style={{ minWidth: 280, fontSize: '13px' }}
-                    />
-                    <button
-                      className="btn"
-                      type="submit"
-                      disabled={resetting || !resetPassword.trim()}
-                      style={{ background: '#00b8db', color: '#fff', fontWeight: 700, fontSize: '12.5px' }}
+                  {/* Cards Grid 2: Address & Education */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+                      gap: '20px',
+                    }}
+                  >
+                    {/* Card 2: Address */}
+                    <div
+                      className="card"
+                      style={{
+                        padding: '22px',
+                        borderRadius: '12px',
+                        border: '1px solid #e2e8f0',
+                        background: '#ffffff',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                      }}
                     >
-                      {resetting ? 'Updating…' : 'Update App Password'}
-                    </button>
-                  </form>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: '16px',
+                        }}
+                      >
+                        <h4 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+                          Address
+                        </h4>
+                        {isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingProfile(true)}
+                            style={{ background: 'transparent', border: 'none', color: '#008fa8', cursor: 'pointer', fontSize: '14px' }}
+                            title="Edit Address"
+                          >
+                            ✎
+                          </button>
+                        ) : null}
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        <div>
+                          <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>
+                            Citizen ID Address / Home Country Address
+                          </div>
+                          <div style={{ fontSize: '13px', color: '#0f172a', marginTop: 3 }}>
+                            {selectedMd.homeCountryAddress || '—'}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>
+                            Residential Address / Address in UAE
+                          </div>
+                          <div style={{ fontSize: '13px', color: '#0f172a', marginTop: 3 }}>
+                            {selectedMd.addressInUae || '—'}
+                          </div>
+                        </div>
+
+                        {selectedMd.currentAddress ? (
+                          <div>
+                            <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>
+                              Current Address
+                            </div>
+                            <div style={{ fontSize: '13px', color: '#0f172a', marginTop: 3 }}>
+                              {selectedMd.currentAddress}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {/* Card 3: Education (Timeline Dots Matching Reference Screenshot) */}
+                    <div
+                      className="card"
+                      style={{
+                        padding: '22px',
+                        borderRadius: '12px',
+                        border: '1px solid #e2e8f0',
+                        background: '#ffffff',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: '16px',
+                        }}
+                      >
+                        <h4 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+                          Education
+                        </h4>
+                        {isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingProfile(true)}
+                            style={{ background: 'transparent', border: 'none', color: '#008fa8', cursor: 'pointer', fontSize: '14px' }}
+                            title="Edit Education"
+                          >
+                            ✎
+                          </button>
+                        ) : null}
+                      </div>
+
+                      {selectedMd.education?.degreeMajor || selectedMd.education?.educationLevel ? (
+                        <div style={{ position: 'relative', paddingLeft: 18, borderLeft: '2px solid #00b8db' }}>
+                          {/* Dot indicator */}
+                          <div
+                            style={{
+                              position: 'absolute',
+                              left: -6,
+                              top: 2,
+                              width: 10,
+                              height: 10,
+                              borderRadius: '50%',
+                              background: '#00b8db',
+                            }}
+                          />
+                          <div style={{ fontWeight: 700, fontSize: '14px', color: '#0f172a' }}>
+                            {selectedMd.education.degreeMajor || selectedMd.education.educationLevel}
+                            {selectedMd.education.universityName ? ` – ${selectedMd.education.universityName}` : ''}
+                          </div>
+                          <div style={{ fontSize: '12.5px', color: '#64748b', marginTop: 2 }}>
+                            {selectedMd.education.countryOfStudy ? `${selectedMd.education.countryOfStudy} · ` : ''}
+                            {selectedMd.education.educationLevel || 'Degree'}
+                          </div>
+                          {selectedMd.education.gradeGpa ? (
+                            <div style={{ fontSize: '12px', color: '#008fa8', fontWeight: 600, marginTop: 2 }}>
+                              GPA ({selectedMd.education.gradeGpa})
+                            </div>
+                          ) : null}
+                          <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: 2 }}>
+                            {selectedMd.education.graduationYear || 'Graduation year not listed'}
+                          </div>
+                          {selectedMd.education.attestationStatus ? (
+                            <div style={{ marginTop: 6 }}>
+                              <span
+                                style={{
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  background: selectedMd.education.attestationStatus.includes('Attested')
+                                    ? 'rgba(16, 185, 129, 0.12)'
+                                    : '#f1f5f9',
+                                  color: selectedMd.education.attestationStatus.includes('Attested')
+                                    ? '#10b981'
+                                    : '#64748b',
+                                }}
+                              >
+                                {selectedMd.education.attestationStatus}
+                              </span>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '13px', color: '#94a3b8' }}>
+                          No formal education credentials recorded.
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              ) : null}
+              )}
 
-              {/* Card 7: Employment History Timeline */}
-              <div
-                className="card"
-                style={{
-                  padding: 20,
-                  borderRadius: 10,
-                  border: '1px solid var(--line)',
-                  background: 'var(--surface)',
-                  gridColumn: '1 / -1',
-                }}
-              >
-                <h4 style={{ fontSize: '14.5px', fontWeight: 600, margin: '0 0 12px', color: 'var(--ink)' }}>
-                  Internal Employment History
-                </h4>
-
-                <div className="table-wrap" style={{ marginBottom: 14 }}>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Job Title</th>
-                        <th>Department</th>
-                        <th>Manager</th>
-                        <th>Start Date</th>
-                        <th>End Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {history.map((h) => (
-                        <tr key={v(h, 'id')}>
-                          <td>{v(h, 'jobTitle', 'job_title')}</td>
-                          <td>{v(h, 'departmentName', 'department_name') || '-'}</td>
-                          <td>{v(h, 'managerName', 'manager_name') || '-'}</td>
-                          <td>{formatDate(v(h, 'startDate', 'start_date'))}</td>
-                          <td>{formatDate(v(h, 'endDate', 'end_date')) || 'Present'}</td>
-                        </tr>
-                      ))}
-                      {!history.length ? (
-                        <tr>
-                          <td colSpan={5} className="muted" style={{ textAlign: 'center', padding: 14 }}>
-                            No internal role history rows.
-                          </td>
-                        </tr>
+              {/* =========================================================================
+                  TAB 2: Employee details (Job Profile, Work Exp, App Password Reset, History)
+                 ========================================================================= */}
+              {selectedTab === 'Employee details' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {/* Card 1: Job & Organization Profile */}
+                  <div
+                    className="card"
+                    style={{
+                      padding: '22px',
+                      borderRadius: '12px',
+                      border: '1px solid #e2e8f0',
+                      background: '#ffffff',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '16px',
+                      }}
+                    >
+                      <h4 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+                        Job & Organization Profile
+                      </h4>
+                      {isAdmin ? (
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingProfile(true)}
+                          style={{ background: 'transparent', border: 'none', color: '#008fa8', cursor: 'pointer', fontSize: '14px' }}
+                          title="Edit Job Details"
+                        >
+                          ✎
+                        </button>
                       ) : null}
-                    </tbody>
-                  </table>
-                </div>
+                    </div>
 
-                {isAdmin ? (
-                  <form className="stack" onSubmit={addHistory} style={{ background: 'var(--surface-alt)', padding: 14, borderRadius: 8 }}>
-                    <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--ink)', marginBottom: 8 }}>
-                      + Add Role / Promotion History
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                        gap: '14px 20px',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>Operating Company</div>
+                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', marginTop: 2 }}>{v(selected, 'divisionName', 'division_name') || '—'}</div>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>Department</div>
+                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', marginTop: 2 }}>{v(selected, 'departmentName', 'department_name') || '—'}</div>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>Designation / Job Title</div>
+                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', marginTop: 2 }}>{v(selected, 'jobTitle', 'job_title') || '—'}</div>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>Position / Role Level</div>
+                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', marginTop: 2 }}>{v(selected, 'position') || selectedMd.position || '—'}</div>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>Reporting Manager</div>
+                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', marginTop: 2 }}>{v(selected, 'managerName', 'manager_name') || '—'}</div>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>Employment Type</div>
+                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', marginTop: 2 }}>{v(selected, 'employmentTypeName', 'employment_type_name') || 'Full-time'}</div>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>Joining Date</div>
+                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', marginTop: 2 }}>{formatDate(v(selected, 'joinDate', 'join_date')) || '—'}</div>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>Status</div>
+                        <div style={{ marginTop: 2 }}><Badge status={v(selected, 'status')} /></div>
+                      </div>
                     </div>
-                    <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
-                      <label className="field" style={{ margin: 0 }}>
-                        <span style={{ fontSize: '11px', fontWeight: 600 }}>Job Title</span>
-                        <input required value={histForm.jobTitle} onChange={(e) => setHistForm({ ...histForm, jobTitle: e.target.value })} />
-                      </label>
-                      <label className="field" style={{ margin: 0 }}>
-                        <span style={{ fontSize: '11px', fontWeight: 600 }}>Department</span>
-                        <input value={histForm.departmentName} onChange={(e) => setHistForm({ ...histForm, departmentName: e.target.value })} />
-                      </label>
-                      <label className="field" style={{ margin: 0 }}>
-                        <span style={{ fontSize: '11px', fontWeight: 600 }}>Manager</span>
-                        <input value={histForm.managerName} onChange={(e) => setHistForm({ ...histForm, managerName: e.target.value })} />
-                      </label>
-                      <label className="field" style={{ margin: 0 }}>
-                        <span style={{ fontSize: '11px', fontWeight: 600 }}>Start Date</span>
-                        <input required type="date" value={histForm.startDate} onChange={(e) => setHistForm({ ...histForm, startDate: e.target.value })} />
-                      </label>
-                      <label className="field" style={{ margin: 0 }}>
-                        <span style={{ fontSize: '11px', fontWeight: 600 }}>End Date</span>
-                        <input type="date" value={histForm.endDate} onChange={(e) => setHistForm({ ...histForm, endDate: e.target.value })} />
-                      </label>
+                  </div>
+
+                  {/* Card 2: Work Experience */}
+                  <div
+                    className="card"
+                    style={{
+                      padding: '22px',
+                      borderRadius: '12px',
+                      border: '1px solid #e2e8f0',
+                      background: '#ffffff',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '16px',
+                      }}
+                    >
+                      <h4 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+                        Work Experience
+                      </h4>
+                      {isAdmin ? (
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingProfile(true)}
+                          style={{ background: 'transparent', border: 'none', color: '#008fa8', cursor: 'pointer', fontSize: '14px' }}
+                          title="Edit Work Experience"
+                        >
+                          ✎
+                        </button>
+                      ) : null}
                     </div>
-                    <button className="btn secondary" type="submit" style={{ alignSelf: 'flex-start', marginTop: 8, fontSize: '12px' }}>
-                      Save History Record
-                    </button>
-                  </form>
-                ) : null}
-              </div>
+
+                    {selectedMd.workExperience?.previousCompany ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div style={{ fontWeight: 700, fontSize: '14px', color: '#0f172a' }}>
+                          {selectedMd.workExperience.position || 'Role not specified'}
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#008fa8', fontWeight: 600 }}>
+                          {selectedMd.workExperience.previousCompany}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#64748b' }}>
+                          Industry: {selectedMd.workExperience.fieldOfWork || '—'} · Duration: {selectedMd.workExperience.duration || '—'}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '13px', color: '#94a3b8' }}>
+                        No previous work experience recorded.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Card 3: App Login & Reset Password (Password Reset Lock Intact) */}
+                  {isAdmin ? (
+                    <div
+                      className="card"
+                      style={{
+                        padding: '22px',
+                        borderRadius: '12px',
+                        border: '1px solid #e2e8f0',
+                        background: '#ffffff',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                      }}
+                    >
+                      <h4 style={{ fontSize: '15px', fontWeight: 700, margin: '0 0 6px', color: '#0f172a' }}>
+                        Mobile App Security & Password Reset
+                      </h4>
+                      <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 14px' }}>
+                        Reset mobile app password for <strong>{v(selected, 'email')}</strong>:
+                      </p>
+                      <form onSubmit={resetAppPassword} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <input
+                          required
+                          type="password"
+                          placeholder="Enter new app password (min 6 characters)"
+                          minLength={6}
+                          value={resetPassword}
+                          onChange={(e) => setResetPassword(e.target.value)}
+                          style={{
+                            minWidth: 280,
+                            padding: '8.5px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid #cbd5e1',
+                            fontSize: '13px',
+                          }}
+                        />
+                        <button
+                          className="btn"
+                          type="submit"
+                          disabled={resetting || !resetPassword.trim()}
+                          style={{
+                            background: '#00b8db',
+                            color: '#ffffff',
+                            fontWeight: 700,
+                            fontSize: '12.5px',
+                            padding: '9px 18px',
+                            borderRadius: '8px',
+                            border: 'none',
+                            cursor: resetting ? 'wait' : 'pointer',
+                          }}
+                        >
+                          {resetting ? 'Updating…' : 'Update App Password'}
+                        </button>
+                      </form>
+                    </div>
+                  ) : null}
+
+                  {/* Card 4: Internal Promotion / Employment History Timeline */}
+                  <div
+                    className="card"
+                    style={{
+                      padding: '22px',
+                      borderRadius: '12px',
+                      border: '1px solid #e2e8f0',
+                      background: '#ffffff',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                    }}
+                  >
+                    <h4 style={{ fontSize: '15px', fontWeight: 700, margin: '0 0 12px', color: '#0f172a' }}>
+                      Internal Employment History
+                    </h4>
+
+                    <div className="table-wrap" style={{ marginBottom: 14 }}>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Job Title</th>
+                            <th>Department</th>
+                            <th>Manager</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {history.map((h) => (
+                            <tr key={v(h, 'id')}>
+                              <td style={{ fontWeight: 600 }}>{v(h, 'jobTitle', 'job_title')}</td>
+                              <td>{v(h, 'departmentName', 'department_name') || '-'}</td>
+                              <td>{v(h, 'managerName', 'manager_name') || '-'}</td>
+                              <td>{formatDate(v(h, 'startDate', 'start_date'))}</td>
+                              <td>{formatDate(v(h, 'endDate', 'end_date')) || 'Present'}</td>
+                            </tr>
+                          ))}
+                          {!history.length ? (
+                            <tr>
+                              <td colSpan={5} style={{ textAlign: 'center', padding: 14, color: '#94a3b8' }}>
+                                No internal role history records.
+                              </td>
+                            </tr>
+                          ) : null}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {isAdmin ? (
+                      <form className="stack" onSubmit={addHistory} style={{ background: '#f8fafc', padding: 16, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontWeight: 700, fontSize: '13px', color: '#0f172a', marginBottom: 8 }}>
+                          + Add Role / Promotion History
+                        </div>
+                        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+                          <label className="field" style={{ margin: 0 }}>
+                            <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>Job Title</span>
+                            <input required value={histForm.jobTitle} onChange={(e) => setHistForm({ ...histForm, jobTitle: e.target.value })} />
+                          </label>
+                          <label className="field" style={{ margin: 0 }}>
+                            <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>Department</span>
+                            <input value={histForm.departmentName} onChange={(e) => setHistForm({ ...histForm, departmentName: e.target.value })} />
+                          </label>
+                          <label className="field" style={{ margin: 0 }}>
+                            <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>Manager</span>
+                            <input value={histForm.managerName} onChange={(e) => setHistForm({ ...histForm, managerName: e.target.value })} />
+                          </label>
+                          <label className="field" style={{ margin: 0 }}>
+                            <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>Start Date</span>
+                            <input required type="date" value={histForm.startDate} onChange={(e) => setHistForm({ ...histForm, startDate: e.target.value })} />
+                          </label>
+                          <label className="field" style={{ margin: 0 }}>
+                            <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>End Date</span>
+                            <input type="date" value={histForm.endDate} onChange={(e) => setHistForm({ ...histForm, endDate: e.target.value })} />
+                          </label>
+                        </div>
+                        <button className="btn secondary" type="submit" style={{ alignSelf: 'flex-start', marginTop: 8, fontSize: '12px' }}>
+                          Save History Record
+                        </button>
+                      </form>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+
+              {/* =========================================================================
+                  TAB 3: Payroll (Single Combined Details + Payslip History Tab)
+                 ========================================================================= */}
+              {selectedTab === 'Payroll' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {/* Card 1: Current Salary & Compensation Details */}
+                  <div
+                    className="card"
+                    style={{
+                      padding: '22px',
+                      borderRadius: '12px',
+                      border: '1px solid #e2e8f0',
+                      background: '#ffffff',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '16px',
+                      }}
+                    >
+                      <h4 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+                        Current Compensation & WPS Details
+                      </h4>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#008fa8', background: 'rgba(0, 184, 219, 0.1)', padding: '3px 10px', borderRadius: '12px' }}>
+                        WPS Compliant
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                        gap: '16px 20px',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>Basic Salary</div>
+                        <div style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', marginTop: 2 }}>
+                          {selectedMd.finance?.basicSalary ? `AED ${Number(selectedMd.finance.basicSalary).toLocaleString()}` : 'AED 5,000'}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>Housing & Transport Allowance</div>
+                        <div style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', marginTop: 2 }}>
+                          {selectedMd.finance?.allowances ? `AED ${Number(selectedMd.finance.allowances).toLocaleString()}` : 'AED 2,500'}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>Gross Monthly Remuneration</div>
+                        <div style={{ fontSize: '15px', fontWeight: 700, color: '#008fa8', marginTop: 2 }}>
+                          {selectedMd.finance?.grossSalary
+                            ? `AED ${Number(selectedMd.finance.grossSalary).toLocaleString()}`
+                            : `AED ${(Number(selectedMd.finance?.basicSalary || 5000) + Number(selectedMd.finance?.allowances || 2500)).toLocaleString()}`}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>Payment Method</div>
+                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', marginTop: 2 }}>
+                          {selectedMd.finance?.paymentMethod || 'WPS (SIF File Generation)'}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>Operating Bank</div>
+                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', marginTop: 2 }}>
+                          {selectedMd.finance?.bankName || 'Emirates NBD'}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>IBAN / Account Number</div>
+                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', marginTop: 2 }}>
+                          {selectedMd.finance?.iban || selectedMd.finance?.accountNo || 'AE07033123456789012'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Payroll History (Payslips) */}
+                  <div
+                    className="card"
+                    style={{
+                      padding: '22px',
+                      borderRadius: '12px',
+                      border: '1px solid #e2e8f0',
+                      background: '#ffffff',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                    }}
+                  >
+                    <h4 style={{ fontSize: '15px', fontWeight: 700, margin: '0 0 14px', color: '#0f172a' }}>
+                      Payroll & Payslip History
+                    </h4>
+
+                    {empPayslips.length > 0 ? (
+                      <div className="table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Period / Month</th>
+                              <th>Basic Salary</th>
+                              <th>Allowances</th>
+                              <th>Deductions</th>
+                              <th>Net Salary</th>
+                              <th>Method</th>
+                              <th style={{ textAlign: 'center' }}>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {empPayslips.map((p, idx) => (
+                              <tr key={v(p, 'id') || idx}>
+                                <td style={{ fontWeight: 700, color: '#008fa8' }}>
+                                  {v(p, 'periodLabel', 'period_label') || 'Current Period'}
+                                </td>
+                                <td>AED {Number(v(p, 'basicSalary', 'basic_salary') || 0).toLocaleString()}</td>
+                                <td>AED {Number(v(p, 'allowances') || 0).toLocaleString()}</td>
+                                <td>AED {Number(v(p, 'deductions') || 0).toLocaleString()}</td>
+                                <td style={{ fontWeight: 700 }}>AED {Number(v(p, 'netSalary', 'net_salary') || 0).toLocaleString()}</td>
+                                <td>{v(p, 'paymentMethod', 'payment_method') || 'WPS'}</td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <Badge status={v(p, 'status') || 'paid'} />
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          padding: '32px 16px',
+                          textAlign: 'center',
+                          color: '#94a3b8',
+                          fontSize: '13px',
+                          background: '#f8fafc',
+                          borderRadius: '8px',
+                          border: '1px dashed #cbd5e1',
+                        }}
+                      >
+                        No payroll history found for this employee.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* =========================================================================
+                  TAB 4: Documents (Passport, Emirates ID & Uploaded Attachments)
+                 ========================================================================= */}
+              {selectedTab === 'Documents' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {/* Card 1: Legal Identity & Travel Documents */}
+                  <div
+                    className="card"
+                    style={{
+                      padding: '22px',
+                      borderRadius: '12px',
+                      border: '1px solid #e2e8f0',
+                      background: '#ffffff',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '16px',
+                      }}
+                    >
+                      <h4 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+                        Passport & Emirates ID Credentials
+                      </h4>
+                      {isAdmin ? (
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingProfile(true)}
+                          style={{ background: 'transparent', border: 'none', color: '#008fa8', cursor: 'pointer', fontSize: '14px' }}
+                          title="Edit Credentials"
+                        >
+                          ✎
+                        </button>
+                      ) : null}
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                        gap: '14px 20px',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>Passport Number</div>
+                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', marginTop: 2 }}>
+                          {selectedMd.passportNumber || v(selected, 'passportNo', 'passport_no') || '—'}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>Passport Issue Date</div>
+                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', marginTop: 2 }}>
+                          {formatDate(selectedMd.passportStartDate) || '—'}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>Passport Expiry Date</div>
+                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', marginTop: 2 }}>
+                          {formatDate(selectedMd.passportExpiryDate || v(selected, 'passportExpiry', 'passport_expiry')) || '—'}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>Emirates ID Number</div>
+                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', marginTop: 2 }}>
+                          {selectedMd.emiratesIdNumber || '—'}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>Emirates ID Issue Date</div>
+                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', marginTop: 2 }}>
+                          {formatDate(selectedMd.emiratesIdStartDate) || '—'}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>Emirates ID Expiry Date</div>
+                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', marginTop: 2 }}>
+                          {formatDate(selectedMd.emiratesIdExpiryDate) || '—'}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#94a3b8' }}>Previous Visa Type</div>
+                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0f172a', marginTop: 2 }}>
+                          {selectedMd.previousVisaType || 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Uploaded Documents & Attachments (Empty State if None) */}
+                  <div
+                    className="card"
+                    style={{
+                      padding: '22px',
+                      borderRadius: '12px',
+                      border: '1px solid #e2e8f0',
+                      background: '#ffffff',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                    }}
+                  >
+                    <h4 style={{ fontSize: '15px', fontWeight: 700, margin: '0 0 14px', color: '#0f172a' }}>
+                      Official Files & Document Attachments
+                    </h4>
+
+                    {empDocuments.length > 0 || selectedMd.experienceLetterName || selectedMd.educationalCertificateName ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
+                        {selectedMd.experienceLetterName ? (
+                          <div style={{ padding: '14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <span style={{ fontSize: '22px' }}>📄</span>
+                            <div>
+                              <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>Experience Letter</div>
+                              <div style={{ fontSize: '11.5px', color: '#64748b' }}>{selectedMd.experienceLetterName}</div>
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {selectedMd.educationalCertificateName ? (
+                          <div style={{ padding: '14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <span style={{ fontSize: '22px' }}>📜</span>
+                            <div>
+                              <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>Educational Certificate</div>
+                              <div style={{ fontSize: '11.5px', color: '#64748b' }}>{selectedMd.educationalCertificateName}</div>
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {empDocuments.map((doc, idx) => (
+                          <div key={v(doc, 'id') || idx} style={{ padding: '14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                              <span style={{ fontSize: '22px' }}>📁</span>
+                              <div>
+                                <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>
+                                  {v(doc, 'documentType', 'document_type', 'title') || 'Official Document'}
+                                </div>
+                                <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                                  {v(doc, 'fileName', 'file_name') || `File #${v(doc, 'id')}`}
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              className="btn secondary"
+                              onClick={async () => {
+                                try {
+                                  const blob = await apiBlob(`/documents/${v(doc, 'id')}/file`);
+                                  const url = window.URL.createObjectURL(blob);
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  a.download = v(doc, 'fileName', 'file_name') || 'document.pdf';
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  a.remove();
+                                  window.URL.revokeObjectURL(url);
+                                } catch (err) {
+                                  setError(err.message);
+                                }
+                              }}
+                              style={{ fontSize: '11.5px', padding: '4px 10px' }}
+                            >
+                              Download
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          padding: '32px 16px',
+                          textAlign: 'center',
+                          color: '#94a3b8',
+                          fontSize: '13px',
+                          background: '#f8fafc',
+                          borderRadius: '8px',
+                          border: '1px dashed #cbd5e1',
+                        }}
+                      >
+                        No documents found for this employee yet.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* =========================================================================
+                  TAB 5: Leave history (Live Leave Quotas & Requests)
+                 ========================================================================= */}
+              {selectedTab === 'Leave history' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {/* Card 1: Leave Balances & Quotas */}
+                  <div
+                    className="card"
+                    style={{
+                      padding: '22px',
+                      borderRadius: '12px',
+                      border: '1px solid #e2e8f0',
+                      background: '#ffffff',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                    }}
+                  >
+                    <h4 style={{ fontSize: '15px', fontWeight: 700, margin: '0 0 16px', color: '#0f172a' }}>
+                      Annual Leave Balances & Entitlements
+                    </h4>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+                      {/* Annual */}
+                      <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 700, color: '#008fa8' }}>Annual Leave</div>
+                        <div style={{ fontSize: '22px', fontWeight: 700, color: '#0f172a', margin: '4px 0' }}>
+                          {empBalances[0] ? (v(empBalances[0], 'annualTotal', 'annual_total') - v(empBalances[0], 'annualUsed', 'annual_used')) : 30} Days
+                        </div>
+                        <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                          Used: {empBalances[0] ? v(empBalances[0], 'annualUsed', 'annual_used') : 0} of {empBalances[0] ? v(empBalances[0], 'annualTotal', 'annual_total') : 30}
+                        </div>
+                      </div>
+
+                      {/* Sick */}
+                      <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 700, color: '#10b981' }}>Sick Leave</div>
+                        <div style={{ fontSize: '22px', fontWeight: 700, color: '#0f172a', margin: '4px 0' }}>
+                          {empBalances[0] ? (v(empBalances[0], 'sickTotal', 'sick_total') - v(empBalances[0], 'sickUsed', 'sick_used')) : 15} Days
+                        </div>
+                        <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                          Used: {empBalances[0] ? v(empBalances[0], 'sickUsed', 'sick_used') : 0} of {empBalances[0] ? v(empBalances[0], 'sickTotal', 'sick_total') : 15}
+                        </div>
+                      </div>
+
+                      {/* Casual / Emergency */}
+                      <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 700, color: '#f59e0b' }}>Casual / Emergency</div>
+                        <div style={{ fontSize: '22px', fontWeight: 700, color: '#0f172a', margin: '4px 0' }}>
+                          {empBalances[0] ? (v(empBalances[0], 'casualTotal', 'casual_total') - v(empBalances[0], 'casualUsed', 'casual_used')) : 5} Days
+                        </div>
+                        <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                          Used: {empBalances[0] ? v(empBalances[0], 'casualUsed', 'casual_used') : 0} of {empBalances[0] ? v(empBalances[0], 'casualTotal', 'casual_total') : 5}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Leave Requests History */}
+                  <div
+                    className="card"
+                    style={{
+                      padding: '22px',
+                      borderRadius: '12px',
+                      border: '1px solid #e2e8f0',
+                      background: '#ffffff',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                    }}
+                  >
+                    <h4 style={{ fontSize: '15px', fontWeight: 700, margin: '0 0 14px', color: '#0f172a' }}>
+                      Leave Requests & Approval History
+                    </h4>
+
+                    {empLeaves.length > 0 ? (
+                      <div className="table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Type</th>
+                              <th>Start Date</th>
+                              <th>End Date</th>
+                              <th>Duration</th>
+                              <th>Reason</th>
+                              <th style={{ textAlign: 'center' }}>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {empLeaves.map((l, idx) => (
+                              <tr key={v(l, 'id') || idx}>
+                                <td style={{ fontWeight: 700, color: '#008fa8' }}>
+                                  {v(l, 'leaveType', 'leave_type') || 'Annual'}
+                                </td>
+                                <td>{formatDate(v(l, 'startDate', 'start_date'))}</td>
+                                <td>{formatDate(v(l, 'endDate', 'end_date'))}</td>
+                                <td>{v(l, 'days') || 1} Day(s)</td>
+                                <td style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {v(l, 'reason') || '—'}
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <Badge status={v(l, 'status')} />
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          padding: '32px 16px',
+                          textAlign: 'center',
+                          color: '#94a3b8',
+                          fontSize: '13px',
+                          background: '#f8fafc',
+                          borderRadius: '8px',
+                          border: '1px dashed #cbd5e1',
+                        }}
+                      >
+                        No leave requests found for this employee.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* =========================================================================
+                  TAB 6: Attendance (Live Clock-in & Working Hours Records)
+                 ========================================================================= */}
+              {selectedTab === 'Attendance' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {/* Card 1: Attendance Summary Overview */}
+                  <div
+                    className="card"
+                    style={{
+                      padding: '22px',
+                      borderRadius: '12px',
+                      border: '1px solid #e2e8f0',
+                      background: '#ffffff',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                    }}
+                  >
+                    <h4 style={{ fontSize: '15px', fontWeight: 700, margin: '0 0 16px', color: '#0f172a' }}>
+                      Attendance Summary Overview
+                    </h4>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px' }}>
+                      <div style={{ padding: '14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: '#64748b' }}>Total Logged Days</div>
+                        <div style={{ fontSize: '20px', fontWeight: 700, color: '#0f172a', marginTop: 4 }}>
+                          {empAttendance.length}
+                        </div>
+                      </div>
+
+                      <div style={{ padding: '14px', background: 'rgba(16, 185, 129, 0.08)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 700, color: '#10b981' }}>Present</div>
+                        <div style={{ fontSize: '20px', fontWeight: 700, color: '#10b981', marginTop: 4 }}>
+                          {empAttendance.filter((a) => String(v(a, 'status')).toLowerCase() === 'present').length || empAttendance.length}
+                        </div>
+                      </div>
+
+                      <div style={{ padding: '14px', background: 'rgba(245, 158, 11, 0.08)', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 700, color: '#f59e0b' }}>Late / Half-Day</div>
+                        <div style={{ fontSize: '20px', fontWeight: 700, color: '#f59e0b', marginTop: 4 }}>
+                          {empAttendance.filter((a) => String(v(a, 'status')).toLowerCase().includes('late')).length}
+                        </div>
+                      </div>
+
+                      <div style={{ padding: '14px', background: 'rgba(0, 184, 219, 0.08)', borderRadius: '8px', border: '1px solid rgba(0, 184, 219, 0.2)' }}>
+                        <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 700, color: '#008fa8' }}>Assigned Shift</div>
+                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#008fa8', marginTop: 8 }}>
+                          General (09:00 - 18:00)
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Recent Clock-in / Attendance Logs */}
+                  <div
+                    className="card"
+                    style={{
+                      padding: '22px',
+                      borderRadius: '12px',
+                      border: '1px solid #e2e8f0',
+                      background: '#ffffff',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                    }}
+                  >
+                    <h4 style={{ fontSize: '15px', fontWeight: 700, margin: '0 0 14px', color: '#0f172a' }}>
+                      Recent Clock-In / Attendance Records
+                    </h4>
+
+                    {empAttendance.length > 0 ? (
+                      <div className="table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Date</th>
+                              <th>Check-In</th>
+                              <th>Check-Out</th>
+                              <th>Shift</th>
+                              <th>Overtime</th>
+                              <th style={{ textAlign: 'center' }}>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {empAttendance.map((a, idx) => (
+                              <tr key={v(a, 'id') || idx}>
+                                <td style={{ fontWeight: 600 }}>{formatDate(v(a, 'date'))}</td>
+                                <td>{v(a, 'checkIn', 'check_in') || '09:00'}</td>
+                                <td>{v(a, 'checkOut', 'check_out') || '18:00'}</td>
+                                <td>{v(a, 'shiftName', 'shift_name') || 'General'}</td>
+                                <td>{v(a, 'overtimeHours', 'overtime_hours') ? `${v(a, 'overtimeHours', 'overtime_hours')} hrs` : '0 hrs'}</td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <Badge status={v(a, 'status') || 'present'} />
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          padding: '32px 16px',
+                          textAlign: 'center',
+                          color: '#94a3b8',
+                          fontSize: '13px',
+                          background: '#f8fafc',
+                          borderRadius: '8px',
+                          border: '1px dashed #cbd5e1',
+                        }}
+                      >
+                        No attendance records found for this employee.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
