@@ -27,19 +27,19 @@ const DUBAI_EDUCATION_LEVELS = [
 function FieldRow({ label, required = false, children, helper = '' }) {
   return (
     <div
+      className="emp-row-divider"
       style={{
         display: 'grid',
         gridTemplateColumns: '190px 1fr',
         gap: '16px',
         alignItems: 'center',
         padding: '10px 0',
-        borderBottom: '1px solid #f8fafc',
       }}
     >
-      <label style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', margin: 0 }}>
+      <label className="emp-row-label" style={{ margin: 0 }}>
         {label} {required ? <span style={{ color: '#ef4444' }}>*</span> : null}
         {helper ? (
-          <span style={{ display: 'block', fontSize: '11px', fontWeight: 400, color: '#94a3b8', marginTop: 2 }}>
+          <span style={{ display: 'block', fontSize: '11px', fontWeight: 400, color: 'var(--muted, #94a3b8)', marginTop: 2 }}>
             {helper}
           </span>
         ) : null}
@@ -51,30 +51,12 @@ function FieldRow({ label, required = false, children, helper = '' }) {
 
 function SectionCard({ title, children, style = {} }) {
   return (
-    <div
-      style={{
-        background: '#ffffff',
-        borderRadius: '14px',
-        border: '1px solid #e5e7eb',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-        padding: '22px 24px',
-        ...style,
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '14px',
-          paddingBottom: '10px',
-          borderBottom: '1px solid #f1f5f9',
-        }}
-      >
-        <h4 style={{ fontSize: '15.5px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+    <div className="emp-card" style={style}>
+      <div className="emp-card-header">
+        <h4 className="emp-card-title">
           {title}
         </h4>
-        <span style={{ color: '#94a3b8' }}>
+        <span style={{ color: 'var(--muted, #94a3b8)' }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
             <path d="m15 5 4 4" />
@@ -154,10 +136,10 @@ export default function EmployeeMasterForm({
     width: '100%',
     padding: '8px 12px',
     borderRadius: '8px',
-    border: '1px solid #cbd5e1',
+    border: '1px solid var(--line, #cbd5e1)',
     fontSize: '13px',
-    color: '#0f172a',
-    background: '#ffffff',
+    color: 'var(--ink, #0f172a)',
+    background: 'var(--input-bg, #ffffff)',
     outline: 'none',
     boxSizing: 'border-box',
   };
@@ -169,13 +151,10 @@ export default function EmployeeMasterForm({
          ========================================================================= */}
       {!companyConfirmed && !isEdit ? (
         <div
+          className="emp-card"
           style={{
             padding: '36px 28px',
             textAlign: 'center',
-            background: '#ffffff',
-            borderRadius: '14px',
-            border: '1px solid #e5e7eb',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
           }}
         >
           <div style={{ maxWidth: '520px', margin: '0 auto' }}>
@@ -192,15 +171,15 @@ export default function EmployeeMasterForm({
                 <path d="M3 21h18M3 7v14M21 7v14M6 11h4M6 15h4M14 11h4M14 15h4M9 3h6v4H9z" />
               </svg>
             </div>
-            <h3 style={{ fontSize: '19px', fontWeight: 700, margin: '0 0 6px', color: '#0f172a' }}>
+            <h3 style={{ fontSize: '19px', fontWeight: 700, margin: '0 0 6px', color: 'var(--ink, #0f172a)' }}>
               Step 1: Select Operating Company
             </h3>
-            <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 24px', lineHeight: 1.5 }}>
+            <p style={{ fontSize: '13px', color: 'var(--muted, #64748b)', margin: '0 0 24px', lineHeight: 1.5 }}>
               Please select the operating company this employee will work for.
             </p>
 
             <div style={{ marginBottom: '24px', textAlign: 'left' }}>
-              <label style={{ fontSize: '12.5px', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '6px' }}>
+              <label style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ink, #334155)', display: 'block', marginBottom: '6px' }}>
                 Select Operating Company <span style={{ color: '#ef4444' }}>*</span>
               </label>
               <select
@@ -350,7 +329,7 @@ export default function EmployeeMasterForm({
             style={{
               display: 'flex',
               gap: '24px',
-              borderBottom: '1px solid #e5e7eb',
+              borderBottom: '1px solid var(--line, #e5e7eb)',
               marginBottom: '20px',
               overflowX: 'auto',
             }}
@@ -366,18 +345,7 @@ export default function EmployeeMasterForm({
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    padding: '10px 4px 12px',
-                    fontSize: '13.5px',
-                    fontWeight: isActive ? 700 : 500,
-                    color: isActive ? '#0f172a' : '#64748b',
-                    borderBottom: isActive ? '2.5px solid #0f172a' : '2.5px solid transparent',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    whiteSpace: 'nowrap',
-                  }}
+                  className={`emp-tab-btn ${isActive ? 'active' : ''}`}
                 >
                   {tab.label}
                 </button>
@@ -387,7 +355,7 @@ export default function EmployeeMasterForm({
 
           {/* Subheader section name */}
           <div style={{ marginBottom: '16px' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: 'var(--ink, #0f172a)' }}>
               {activeTab}
             </h3>
           </div>
@@ -503,6 +471,22 @@ export default function EmployeeMasterForm({
                         <option value="Female">Female</option>
                         <option value="Other">Other</option>
                       </select>
+                    </FieldRow>
+
+                    <FieldRow label="Nationality">
+                      <input
+                        style={inputStyle}
+                        placeholder="e.g. Pakistani, Indian, Emirati"
+                        value={form.nationality || form.personal?.nationality || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          set('nationality', val);
+                          setForm((prev) => ({
+                            ...prev,
+                            personal: { ...(prev.personal || {}), nationality: val },
+                          }));
+                        }}
+                      />
                     </FieldRow>
 
                     <FieldRow label="App Login Email" required helper="Used for mobile app login">
@@ -907,7 +891,7 @@ export default function EmployeeMasterForm({
               gap: 12,
               marginTop: '24px',
               paddingTop: '16px',
-              borderTop: '1px solid #e5e7eb',
+              borderTop: '1px solid var(--line, #e5e7eb)',
             }}
           >
             <div style={{ display: 'flex', gap: 8 }}>
