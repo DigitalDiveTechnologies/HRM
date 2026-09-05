@@ -800,7 +800,7 @@ function EmployeesContent() {
       <div className="card" style={{ marginBottom: 18, padding: '24px 20px', overflowX: 'auto' }}>
         <div className="panel-title" style={{ marginBottom: 20 }}>
           <div>
-            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>Organization Chart</h3>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>Company Structure</h3>
             <p className="muted" style={{ fontSize: '12px', margin: '2px 0 0' }}>
               Hierarchical reporting tree structure
             </p>
