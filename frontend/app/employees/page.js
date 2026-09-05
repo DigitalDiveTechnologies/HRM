@@ -294,22 +294,22 @@ function EmployeesContent() {
 
     chart.forEach((node) => {
       const nodeId = v(node, 'id');
-      const pEl = document.getElementById(`org-node-${nodeId}`);
-      if (!pEl) return;
+      const textEl = document.getElementById(`org-text-${nodeId}`);
+      if (!textEl) return;
 
       const kids = childrenOf(nodeId);
       kids.forEach((child) => {
         const childId = v(child, 'id');
-        const cEl = document.getElementById(`org-node-${childId}`);
-        if (!cEl) return;
+        const childAvatarEl = document.getElementById(`org-avatar-${childId}`);
+        if (!childAvatarEl) return;
 
-        const pRect = pEl.getBoundingClientRect();
-        const cRect = cEl.getBoundingClientRect();
+        const pRect = textEl.getBoundingClientRect();
+        const cRect = childAvatarEl.getBoundingClientRect();
 
         const x1 = pRect.left + pRect.width / 2 - contRect.left;
-        const y1 = pRect.bottom - contRect.top;
+        const y1 = pRect.bottom - contRect.top + 4;
         const x2 = cRect.left + cRect.width / 2 - contRect.left;
-        const y2 = cRect.top - contRect.top - 4;
+        const y2 = cRect.top - contRect.top - 2;
 
         lines.push({ x1, y1, x2, y2, key: `${nodeId}-${childId}` });
       });
@@ -360,10 +360,10 @@ function EmployeesContent() {
         >
           {/* Outer Concentric Ring */}
           <div
-            id={`org-node-${v(node, 'id')}`}
+            id={`org-avatar-${v(node, 'id')}`}
             style={{
-              width: 58,
-              height: 58,
+              width: 56,
+              height: 56,
               borderRadius: '50%',
               border: '1.5px solid rgba(0, 184, 219, 0.45)',
               display: 'flex',
@@ -385,11 +385,11 @@ function EmployeesContent() {
               e.currentTarget.style.boxShadow = 'none';
             }}
           >
-            {/* Inner Circle with Persona Icon */}
+            {/* Inner Circle with Solid Silhouette Persona Icon (Matching Image 1) */}
             <div
               style={{
-                width: 46,
-                height: 46,
+                width: 44,
+                height: 44,
                 borderRadius: '50%',
                 background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
                 border: '2px solid #00b8db',
@@ -400,15 +400,14 @@ function EmployeesContent() {
                 color: '#ffffff',
               }}
             >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
               </svg>
             </div>
           </div>
 
-          {/* Role & Name beneath Circle */}
-          <div style={{ textAlign: 'center', marginTop: 8, maxWidth: 150 }}>
+          {/* Role & Name beneath Circle (Arrow starts under this container) */}
+          <div id={`org-text-${v(node, 'id')}`} style={{ textAlign: 'center', marginTop: 8, maxWidth: 140 }}>
             <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink, #0f172a)', lineHeight: 1.25 }}>
               {title}
             </div>
@@ -427,8 +426,8 @@ function EmployeesContent() {
             style={{
               display: 'flex',
               justifyContent: 'center',
-              gap: 40,
-              marginTop: 48,
+              gap: 48,
+              marginTop: 38,
               zIndex: 2,
               position: 'relative',
             }}
@@ -757,8 +756,8 @@ function EmployeesContent() {
                 viewBox="0 0 10 10"
                 refX="6"
                 refY="5"
-                markerWidth="6.5"
-                markerHeight="6.5"
+                markerWidth="5.5"
+                markerHeight="5.5"
                 orient="auto"
               >
                 <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#00b8db" />
@@ -772,8 +771,8 @@ function EmployeesContent() {
                 x2={line.x2}
                 y2={line.y2}
                 stroke="#00b8db"
-                strokeWidth="1.8"
-                strokeDasharray="4 3.5"
+                strokeWidth="1.6"
+                strokeDasharray="3 3"
                 markerEnd="url(#cyan-arrow)"
               />
             ))}
@@ -793,14 +792,14 @@ function EmployeesContent() {
         {/* Individual Contributors / Direct Staff */}
         {individualStaff.length ? (
           <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px dashed var(--line, #e2e8f0)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, justifyContent: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18, justifyContent: 'center' }}>
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#00b8db', display: 'inline-block' }}></span>
               <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)' }}>
                 Direct Staff / Individual Contributors ({individualStaff.length})
               </span>
             </div>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 20 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 36 }}>
               {individualStaff.map((staff) => {
                 const title = v(staff, 'jobTitle', 'job_title') || v(staff, 'fullName', 'full_name') || 'Staff';
                 const name = v(staff, 'fullName', 'full_name');
@@ -814,28 +813,16 @@ function EmployeesContent() {
                       flexDirection: 'column',
                       alignItems: 'center',
                       cursor: 'pointer',
-                      padding: '12px 16px',
-                      borderRadius: 8,
-                      background: 'var(--surface-alt, #f8fafc)',
-                      border: '1px solid var(--line, #e2e8f0)',
+                      padding: '8px 12px',
                       transition: 'all 0.15s ease',
-                      minWidth: 130,
-                      maxWidth: 170,
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = '#00b8db';
-                      e.currentTarget.style.background = 'rgba(0, 184, 219, 0.05)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--line, #e2e8f0)';
-                      e.currentTarget.style.background = 'var(--surface-alt, #f8fafc)';
+                      maxWidth: 140,
                     }}
                     title="Click to view employee profile"
                   >
                     <div
                       style={{
-                        width: 52,
-                        height: 52,
+                        width: 56,
+                        height: 56,
                         borderRadius: '50%',
                         border: '1.5px solid rgba(0, 184, 219, 0.45)',
                         display: 'flex',
@@ -843,34 +830,45 @@ function EmployeesContent() {
                         justifyContent: 'center',
                         padding: 3,
                         boxSizing: 'border-box',
-                        marginBottom: 8,
+                        marginBottom: 6,
+                        transition: 'all 0.2s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'scale(1.08)';
+                        e.currentTarget.style.borderColor = '#00b8db';
+                        e.currentTarget.style.boxShadow = '0 0 14px rgba(0, 184, 219, 0.45)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'scale(1)';
+                        e.currentTarget.style.borderColor = 'rgba(0, 184, 219, 0.45)';
+                        e.currentTarget.style.boxShadow = 'none';
                       }}
                     >
                       <div
                         style={{
-                          width: 42,
-                          height: 42,
+                          width: 44,
+                          height: 44,
                           borderRadius: '50%',
                           background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
                           border: '2px solid #00b8db',
+                          boxShadow: '0 4px 10px rgba(15, 23, 42, 0.3)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           color: '#ffffff',
                         }}
                       >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                          <circle cx="12" cy="7" r="4" />
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
                         </svg>
                       </div>
                     </div>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--ink, #0f172a)', lineHeight: 1.2 }}>
+                    <div style={{ textAlign: 'center', maxWidth: 130 }}>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink, #0f172a)', lineHeight: 1.25 }}>
                         {title}
                       </div>
                       {name && name !== title ? (
-                        <div style={{ fontSize: '10.5px', color: 'var(--muted, #64748b)', marginTop: 2 }}>{name}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)', marginTop: 2 }}>{name}</div>
                       ) : null}
                       {dept ? (
                         <div style={{ fontSize: '9.5px', color: '#008fa8', fontWeight: 600, marginTop: 2 }}>{dept}</div>
