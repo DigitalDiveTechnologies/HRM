@@ -529,7 +529,165 @@ function EmployeesContent() {
       ) : null}
 
       {/* =========================================================================
-          1. CREATE EMPLOYEE FORM (Clean 3-Section + Step 1 Company Selection)
+          1. ALL EMPLOYEES LIST TABLE (Ultra-Clean, Filters & Search - NO AVATARS)
+         ========================================================================= */}
+      <div id="all-employees" className="card" style={{ marginBottom: 20, padding: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+          <div>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>
+              All Employees ({filteredRows.length})
+            </h3>
+            <p className="muted" style={{ fontSize: '12px', margin: '2px 0 0' }}>
+              Click any employee row to open their profile details & edit credentials
+            </p>
+          </div>
+
+          {/* Quick Filters */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <input
+              type="text"
+              placeholder="Search code, name, email…"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                fontSize: '12.5px',
+                padding: '6px 12px',
+                borderRadius: 6,
+                minWidth: 220,
+                border: '1px solid var(--line-strong, #d0d5dd)',
+                background: 'var(--surface, #ffffff)',
+                color: 'var(--ink)',
+                outline: 'none',
+              }}
+            />
+
+            <select
+              value={filterCompany}
+              onChange={(e) => setFilterCompany(e.target.value)}
+              style={{
+                fontSize: '12px',
+                padding: '6px 10px',
+                borderRadius: 6,
+                border: '1px solid var(--line-strong, #d0d5dd)',
+                background: 'var(--surface, #ffffff)',
+                color: 'var(--ink)',
+                outline: 'none',
+              }}
+            >
+              <option value="">All Companies</option>
+              {divisions.map((d) => (
+                <option key={v(d, 'id')} value={v(d, 'id')}>
+                  {v(d, 'name')}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={filterDept}
+              onChange={(e) => setFilterDept(e.target.value)}
+              style={{
+                fontSize: '12px',
+                padding: '6px 10px',
+                borderRadius: 6,
+                border: '1px solid var(--line-strong, #d0d5dd)',
+                background: 'var(--surface, #ffffff)',
+                color: 'var(--ink)',
+                outline: 'none',
+              }}
+            >
+              <option value="">All Departments</option>
+              {departments.map((d) => (
+                <option key={v(d, 'id')} value={v(d, 'id')}>
+                  {v(d, 'name')}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              style={{
+                fontSize: '12px',
+                padding: '6px 10px',
+                borderRadius: 6,
+                border: '1px solid var(--line-strong, #d0d5dd)',
+                background: 'var(--surface, #ffffff)',
+                color: 'var(--ink)',
+                outline: 'none',
+              }}
+            >
+              <option value="">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="onboarding">Onboarding</option>
+              <option value="exited">Exited</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style={{ width: '85px' }}>Code</th>
+                <th>Employee Name</th>
+                <th>Company</th>
+                <th>Department</th>
+                <th>Job Title</th>
+                <th>Manager</th>
+                <th>Join Date</th>
+                <th>Passport Exp</th>
+                <th>Visa Exp</th>
+                <th style={{ textAlign: 'center' }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredRows.map((e) => {
+                const isSelected = selected && String(v(selected, 'id')) === String(v(e, 'id'));
+
+                return (
+                  <tr
+                    key={v(e, 'id')}
+                    style={{
+                      cursor: 'pointer',
+                      background: isSelected ? 'rgba(0, 184, 219, 0.08)' : 'transparent',
+                      transition: 'background 0.15s ease',
+                    }}
+                    onClick={() => openDetail(e)}
+                  >
+                    <td>
+                      <strong style={{ color: '#008fa8' }}>{v(e, 'empCode', 'emp_code')}</strong>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{v(e, 'fullName', 'full_name')}</div>
+                      <div className="muted" style={{ fontSize: '11.5px' }}>{v(e, 'email')}</div>
+                    </td>
+                    <td>{v(e, 'divisionName', 'division_name') || '-'}</td>
+                    <td>{v(e, 'departmentName', 'department_name') || '-'}</td>
+                    <td>{v(e, 'jobTitle', 'job_title') || '-'}</td>
+                    <td>{v(e, 'managerName', 'manager_name') || '—'}</td>
+                    <td>{formatDate(v(e, 'joinDate', 'join_date', 'hireDate', 'hire_date')) || '-'}</td>
+                    <td>{formatDate(v(e, 'passportExpiry', 'passport_expiry')) || '-'}</td>
+                    <td>{formatDate(v(e, 'visaExpiry', 'visa_expiry')) || '-'}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <Badge status={v(e, 'status')} />
+                    </td>
+                  </tr>
+                );
+              })}
+              {!filteredRows.length ? (
+                <tr>
+                  <td colSpan={10} style={{ textAlign: 'center', padding: '24px' }} className="muted">
+                    No employees matching current filter.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          2. CREATE EMPLOYEE FORM (Clean 3-Section + Step 1 Company Selection)
          ========================================================================= */}
       {isAdmin ? (
         <div className="card emp-master-card" style={{ marginBottom: 18, padding: '20px' }}>
@@ -558,7 +716,7 @@ function EmployeesContent() {
 
 
       {/* =========================================================================
-          3. ORG CHART (Circular Navy Avatars with Cyan Connector Arrows)
+          3. ORG CHART (Concentric Dual-Ring Avatars with Cyan Connector Arrows)
          ========================================================================= */}
       <div className="card" style={{ marginBottom: 18, padding: '24px 20px', overflowX: 'auto' }}>
         <div className="panel-title" style={{ marginBottom: 20 }}>
@@ -724,164 +882,6 @@ function EmployeesContent() {
             </div>
           </div>
         ) : null}
-      </div>
-
-      {/* =========================================================================
-          4. ALL EMPLOYEES LIST TABLE (Ultra-Clean, Filters & Search - NO AVATARS)
-         ========================================================================= */}
-      <div id="all-employees" className="card" style={{ marginBottom: 20, padding: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
-          <div>
-            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>
-              All Employees ({filteredRows.length})
-            </h3>
-            <p className="muted" style={{ fontSize: '12px', margin: '2px 0 0' }}>
-              Click any employee row to open their profile details & edit credentials
-            </p>
-          </div>
-
-          {/* Quick Filters */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <input
-              type="text"
-              placeholder="Search code, name, email…"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{
-                fontSize: '12.5px',
-                padding: '6px 12px',
-                borderRadius: 6,
-                minWidth: 220,
-                border: '1px solid var(--line-strong, #d0d5dd)',
-                background: 'var(--surface, #ffffff)',
-                color: 'var(--ink)',
-                outline: 'none',
-              }}
-            />
-
-            <select
-              value={filterCompany}
-              onChange={(e) => setFilterCompany(e.target.value)}
-              style={{
-                fontSize: '12px',
-                padding: '6px 10px',
-                borderRadius: 6,
-                border: '1px solid var(--line-strong, #d0d5dd)',
-                background: 'var(--surface, #ffffff)',
-                color: 'var(--ink)',
-                outline: 'none',
-              }}
-            >
-              <option value="">All Companies</option>
-              {divisions.map((d) => (
-                <option key={v(d, 'id')} value={v(d, 'id')}>
-                  {v(d, 'name')}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={filterDept}
-              onChange={(e) => setFilterDept(e.target.value)}
-              style={{
-                fontSize: '12px',
-                padding: '6px 10px',
-                borderRadius: 6,
-                border: '1px solid var(--line-strong, #d0d5dd)',
-                background: 'var(--surface, #ffffff)',
-                color: 'var(--ink)',
-                outline: 'none',
-              }}
-            >
-              <option value="">All Departments</option>
-              {departments.map((d) => (
-                <option key={v(d, 'id')} value={v(d, 'id')}>
-                  {v(d, 'name')}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              style={{
-                fontSize: '12px',
-                padding: '6px 10px',
-                borderRadius: 6,
-                border: '1px solid var(--line-strong, #d0d5dd)',
-                background: 'var(--surface, #ffffff)',
-                color: 'var(--ink)',
-                outline: 'none',
-              }}
-            >
-              <option value="">All Statuses</option>
-              <option value="active">Active</option>
-              <option value="onboarding">Onboarding</option>
-              <option value="exited">Exited</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th style={{ width: '85px' }}>Code</th>
-                <th>Employee Name</th>
-                <th>Company</th>
-                <th>Department</th>
-                <th>Job Title</th>
-                <th>Manager</th>
-                <th>Join Date</th>
-                <th>Passport Exp</th>
-                <th>Visa Exp</th>
-                <th style={{ textAlign: 'center' }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRows.map((e) => {
-                const isSelected = selected && String(v(selected, 'id')) === String(v(e, 'id'));
-
-                return (
-                  <tr
-                    key={v(e, 'id')}
-                    style={{
-                      cursor: 'pointer',
-                      background: isSelected ? 'rgba(0, 184, 219, 0.08)' : 'transparent',
-                      transition: 'background 0.15s ease',
-                    }}
-                    onClick={() => openDetail(e)}
-                  >
-                    <td>
-                      <strong style={{ color: '#008fa8' }}>{v(e, 'empCode', 'emp_code')}</strong>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 700, color: 'var(--ink)' }}>{v(e, 'fullName', 'full_name')}</div>
-                      <div className="muted" style={{ fontSize: '11.5px' }}>{v(e, 'email')}</div>
-                    </td>
-                    <td>{v(e, 'divisionName', 'division_name') || '-'}</td>
-                    <td>{v(e, 'departmentName', 'department_name') || '-'}</td>
-                    <td>{v(e, 'jobTitle', 'job_title') || '-'}</td>
-                    <td>{v(e, 'managerName', 'manager_name') || '—'}</td>
-                    <td>{formatDate(v(e, 'joinDate', 'join_date', 'hireDate', 'hire_date')) || '-'}</td>
-                    <td>{formatDate(v(e, 'passportExpiry', 'passport_expiry')) || '-'}</td>
-                    <td>{formatDate(v(e, 'visaExpiry', 'visa_expiry')) || '-'}</td>
-                    <td style={{ textAlign: 'center' }}>
-                      <Badge status={v(e, 'status')} />
-                    </td>
-                  </tr>
-                );
-              })}
-              {!filteredRows.length ? (
-                <tr>
-                  <td colSpan={10} style={{ textAlign: 'center', padding: '24px' }} className="muted">
-                    No employees matching current filter.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
       </div>
 
       {/* =========================================================================
