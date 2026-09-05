@@ -176,6 +176,11 @@ function EmployeesContent() {
     setMasterForm(masterFormFromEmployee(e));
     setLoadingTabDetails(true);
 
+    setTimeout(() => {
+      const el = document.getElementById('employee-profile-detail');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
+
     try {
       const [fullRes, histRes, payRes, docRes, leaveRes, balRes, attRes] = await Promise.allSettled([
         api(`/employees/${empId}`),
@@ -810,449 +815,246 @@ function EmployeesContent() {
       </div>
 
       {/* =========================================================================
-          2. CREATE EMPLOYEE FORM (Clean 3-Section + Step 1 Company Selection)
-         ========================================================================= */}
-      {isAdmin ? (
-        <div className="card emp-master-card" style={{ marginBottom: 18, padding: '20px' }}>
-          <div className="panel-title" style={{ marginBottom: 16 }}>
-            <div>
-              <h3 style={{ fontSize: '17px', fontWeight: 600, margin: 0 }}>Create New Employee</h3>
-              <p className="muted" style={{ fontSize: '12.5px', margin: '2px 0 0' }}>
-                Select operating company, assign official designation, and enter personal and UAE travel credentials
-              </p>
-            </div>
-          </div>
-          <EmployeeMasterForm
-            mode="create"
-            form={createForm}
-            setForm={setCreateForm}
-            departments={departments}
-            divisions={divisions}
-            designations={designations}
-            employmentTypes={employmentTypes}
-            managers={rows}
-            saving={creating}
-            onSubmit={createEmployee}
-          />
-        </div>
-      ) : null}
-
-
-      {/* =========================================================================
-          3. ORG CHART (Concentric Dual-Ring Avatars with Cyan Connector Arrows)
-         ========================================================================= */}
-      <div className="card" style={{ marginBottom: 18, padding: '24px 20px', overflowX: 'auto' }}>
-        <div className="panel-title" style={{ marginBottom: 20 }}>
-          <div>
-            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>Company Structure</h3>
-            <p className="muted" style={{ fontSize: '12px', margin: '2px 0 0' }}>
-              Hierarchical reporting tree structure
-            </p>
-          </div>
-        </div>
-
-        <div
-          ref={chartContainerRef}
-          style={{
-            position: 'relative',
-            display: 'flex',
-            justifyContent: 'center',
-            padding: '24px 16px',
-            minWidth: 'max-content',
-            margin: '0 auto',
-          }}
-        >
-          {/* Dynamic SVG Dotted Connector Arrows Overlay (Matching Client Screenshot) */}
-          <svg
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              pointerEvents: 'none',
-              zIndex: 1,
-            }}
-          >
-            <defs>
-              <marker
-                id="cyan-arrow"
-                viewBox="0 0 10 10"
-                refX="6"
-                refY="5"
-                markerWidth="5.5"
-                markerHeight="5.5"
-                orient="auto"
-              >
-                <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#00b8db" />
-              </marker>
-            </defs>
-            {connectorLines.map((line) => (
-              <line
-                key={line.key}
-                x1={line.x1}
-                y1={line.y1}
-                x2={line.x2}
-                y2={line.y2}
-                stroke="#00b8db"
-                strokeWidth="1.6"
-                strokeDasharray="3 3"
-                markerEnd="url(#cyan-arrow)"
-              />
-            ))}
-          </svg>
-
-          {leadershipRoots.length ? (
-            <div style={{ display: 'flex', gap: 56, justifyContent: 'center', zIndex: 2 }}>
-              {leadershipRoots.map((r) => (
-                <OrgNodeView key={v(r, 'id')} node={r} />
-              ))}
-            </div>
-          ) : (
-            <div className="muted" style={{ padding: '16px 0' }}>No hierarchy relationships configured yet.</div>
-          )}
-        </div>
-
-        {/* Individual Contributors / Direct Staff */}
-        {individualStaff.length ? (
-          <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px dashed var(--line, #e2e8f0)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18, justifyContent: 'center' }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#00b8db', display: 'inline-block' }}></span>
-              <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)' }}>
-                Direct Staff / Individual Contributors ({individualStaff.length})
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 36 }}>
-              {individualStaff.map((staff) => {
-                const title = v(staff, 'jobTitle', 'job_title') || v(staff, 'fullName', 'full_name') || 'Staff';
-                const name = v(staff, 'fullName', 'full_name');
-                const dept = v(staff, 'departmentName', 'department_name');
-                return (
-                  <div
-                    key={v(staff, 'id')}
-                    onClick={() => openDetail(staff)}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      cursor: 'pointer',
-                      padding: '8px 12px',
-                      transition: 'all 0.15s ease',
-                      maxWidth: 140,
-                    }}
-                    title="Click to view employee profile"
-                  >
-                    <div
-                      style={{
-                        width: 56,
-                        height: 56,
-                        borderRadius: '50%',
-                        border: '1.5px solid rgba(0, 184, 219, 0.45)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: 3,
-                        boxSizing: 'border-box',
-                        marginBottom: 6,
-                        transition: 'all 0.2s ease',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'scale(1.08)';
-                        e.currentTarget.style.borderColor = '#00b8db';
-                        e.currentTarget.style.boxShadow = '0 0 14px rgba(0, 184, 219, 0.45)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'scale(1)';
-                        e.currentTarget.style.borderColor = 'rgba(0, 184, 219, 0.45)';
-                        e.currentTarget.style.boxShadow = 'none';
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: 44,
-                          height: 44,
-                          borderRadius: '50%',
-                          background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
-                          border: '2px solid #00b8db',
-                          boxShadow: '0 4px 10px rgba(15, 23, 42, 0.3)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: '#ffffff',
-                        }}
-                      >
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                        </svg>
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'center', maxWidth: 130 }}>
-                      <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink, #0f172a)', lineHeight: 1.25 }}>
-                        {title}
-                      </div>
-                      {name && name !== title ? (
-                        <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)', marginTop: 2 }}>{name}</div>
-                      ) : null}
-                      {dept ? (
-                        <div style={{ fontSize: '9.5px', color: '#008fa8', fontWeight: 600, marginTop: 2 }}>{dept}</div>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-      </div>
-
-      {/* =========================================================================
           5. EMPLOYEE PROFILE DETAIL VIEW (Exact Image 3 Reference Matching Design)
          ========================================================================= */}
       {selected ? (
         <div id="employee-profile-detail" className="emp-profile-wrapper" style={{ marginTop: 28, width: '100%' }}>
-          {/* Top Header matching Image 3 with Employee Switcher Pill & Close button */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: 16,
-              borderBottom: '1px solid var(--line, #e5e7eb)',
-              paddingBottom: 16,
-              marginBottom: 20,
-            }}
-          >
-            <div>
-              <h2 style={{ fontSize: '24px', fontWeight: 700, margin: 0, color: 'var(--ink, #0f172a)' }}>
-                Employee
-              </h2>
-              <div style={{ fontSize: '13px', color: 'var(--muted, #64748b)', marginTop: 3 }}>
-                <span
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setSelected(null)}
-                  onKeyDown={(e) => e.key === 'Enter' && setSelected(null)}
-                  style={{ cursor: 'pointer', color: '#008fa8', fontWeight: 600 }}
-                  title="Back to Employee List"
-                >
+          {/* Top Header Card (White in light mode, Dark in dark mode) */}
+          <div className="emp-topbar-card">
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 16,
+                paddingBottom: 16,
+              }}
+            >
+              <div>
+                <h2 style={{ fontSize: '22px', fontWeight: 700, margin: 0, color: 'var(--ink, #0f172a)' }}>
                   Employee
-                </span>
-                <span style={{ color: 'var(--muted, #94a3b8)', margin: '0 6px' }}>/</span>
-                <span style={{ color: 'var(--muted, #475569)' }}>Employee Detail</span>
+                </h2>
+                <div style={{ fontSize: '13px', color: 'var(--muted, #64748b)', marginTop: 3 }}>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelected(null)}
+                    onKeyDown={(e) => e.key === 'Enter' && setSelected(null)}
+                    style={{ cursor: 'pointer', color: '#008fa8', fontWeight: 600 }}
+                    title="Back to Employee List"
+                  >
+                    Employee
+                  </span>
+                  <span style={{ color: 'var(--muted, #94a3b8)', margin: '0 6px' }}>/</span>
+                  <span style={{ color: 'var(--muted, #475569)' }}>Employee Detail</span>
+                </div>
               </div>
-            </div>
 
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-              {/* Employee Switcher Dropdown Pill */}
-              <div style={{ position: 'relative' }}>
-                <button
-                  type="button"
-                  className="emp-switcher-btn"
-                  onClick={() => setEmpSwitcherOpen(!empSwitcherOpen)}
-                  title="Click to switch employee"
-                >
-                  <div
-                    style={{
-                      width: 34,
-                      height: 34,
-                      borderRadius: '50%',
-                      background: selectedPhotoUrl
-                        ? `url(${selectedPhotoUrl}) center/cover no-repeat`
-                        : 'linear-gradient(135deg, #00b8db 0%, #008fa8 100%)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#ffffff',
-                      fontSize: '11.5px',
-                      fontWeight: 700,
-                      flexShrink: 0,
-                    }}
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                {/* Employee Switcher Dropdown Pill */}
+                <div style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    className="emp-switcher-btn"
+                    onClick={() => setEmpSwitcherOpen(!empSwitcherOpen)}
+                    title="Click to switch employee"
                   >
-                    {!selectedPhotoUrl
-                      ? String(v(selected, 'fullName', 'full_name') || 'E')
-                          .split(' ')
-                          .map((p) => p[0])
-                          .join('')
-                          .slice(0, 2)
-                      : null}
-                  </div>
-                  <div style={{ textAlign: 'left' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1.2 }}>
-                      {v(selected, 'fullName', 'full_name')}
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)' }}>
-                      {v(selected, 'jobTitle', 'job_title') || 'Employee'}
-                    </div>
-                  </div>
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    style={{
-                      color: 'var(--muted, #64748b)',
-                      transition: 'transform 0.15s ease',
-                      transform: empSwitcherOpen ? 'rotate(180deg)' : 'none',
-                      marginLeft: 4,
-                    }}
-                  >
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                </button>
-
-                {empSwitcherOpen ? (
-                  <>
                     <div
-                      onClick={() => setEmpSwitcherOpen(false)}
-                      style={{ position: 'fixed', inset: 0, zIndex: 90 }}
-                    />
-                    <div className="emp-switcher-dropdown">
-                      <div style={{ padding: '6px 12px 10px', borderBottom: '1px solid var(--line, #e2e8f0)' }}>
-                        <input
-                          type="text"
-                          placeholder="Search employee..."
-                          value={empSearch}
-                          onChange={(e) => setEmpSearch(e.target.value)}
-                          autoFocus
-                          style={{
-                            width: '100%',
-                            padding: '6px 10px',
-                            fontSize: '12.5px',
-                            borderRadius: '6px',
-                            border: '1px solid var(--line, #cbd5e1)',
-                            background: 'var(--input-bg, #ffffff)',
-                            color: 'var(--ink, #0f172a)',
-                            outline: 'none',
-                          }}
-                        />
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: '50%',
+                        background: selectedPhotoUrl
+                          ? `url(${selectedPhotoUrl}) center/cover no-repeat`
+                          : 'linear-gradient(135deg, #00b8db 0%, #008fa8 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#ffffff',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {!selectedPhotoUrl
+                        ? String(v(selected, 'fullName', 'full_name') || 'E')
+                            .split(' ')
+                            .map((p) => p[0])
+                            .join('')
+                            .slice(0, 2)
+                        : null}
+                    </div>
+                    <div style={{ textAlign: 'left' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1.2 }}>
+                        {v(selected, 'fullName', 'full_name')}
                       </div>
-                      <div style={{ maxHeight: '280px', overflowY: 'auto' }}>
-                        {rows
-                          .filter((r) => {
-                            if (!empSearch.trim()) return true;
-                            const q = empSearch.toLowerCase();
-                            return (
-                              String(v(r, 'fullName', 'full_name') || '').toLowerCase().includes(q) ||
-                              String(v(r, 'empCode', 'emp_code') || '').toLowerCase().includes(q) ||
-                              String(v(r, 'jobTitle', 'job_title') || '').toLowerCase().includes(q)
-                            );
-                          })
-                          .map((emp) => {
-                            const isCur = String(v(emp, 'id')) === String(v(selected, 'id'));
-                            const photo = getEmployeePhotoUrl(emp);
-                            return (
-                              <button
-                                key={v(emp, 'id')}
-                                type="button"
-                                className="emp-switcher-item"
-                                onClick={() => {
-                                  openDetail(emp);
-                                  setEmpSwitcherOpen(false);
-                                  setEmpSearch('');
-                                }}
-                                style={{
-                                  background: isCur ? 'rgba(0, 184, 219, 0.12)' : 'transparent',
-                                  fontWeight: isCur ? 700 : 500,
-                                }}
-                              >
-                                <div
+                      <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)' }}>
+                        {v(selected, 'jobTitle', 'job_title') || 'Employee'}
+                      </div>
+                    </div>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{
+                        color: 'var(--muted, #64748b)',
+                        transition: 'transform 0.15s ease',
+                        transform: empSwitcherOpen ? 'rotate(180deg)' : 'none',
+                        marginLeft: 4,
+                      }}
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
+
+                  {empSwitcherOpen ? (
+                    <>
+                      <div
+                        onClick={() => setEmpSwitcherOpen(false)}
+                        style={{ position: 'fixed', inset: 0, zIndex: 90 }}
+                      />
+                      <div className="emp-switcher-dropdown">
+                        <div style={{ padding: '6px 12px 10px', borderBottom: '1px solid var(--line, #e2e8f0)' }}>
+                          <input
+                            type="text"
+                            placeholder="Search employee..."
+                            value={empSearch}
+                            onChange={(e) => setEmpSearch(e.target.value)}
+                            autoFocus
+                            style={{
+                              width: '100%',
+                              padding: '6px 10px',
+                              fontSize: '12.5px',
+                              borderRadius: '6px',
+                              border: '1px solid var(--line, #cbd5e1)',
+                              background: 'var(--input-bg, #ffffff)',
+                              color: 'var(--ink, #0f172a)',
+                              outline: 'none',
+                            }}
+                          />
+                        </div>
+                        <div style={{ maxHeight: '280px', overflowY: 'auto' }}>
+                          {rows
+                            .filter((r) => {
+                              if (!empSearch.trim()) return true;
+                              const q = empSearch.toLowerCase();
+                              return (
+                                String(v(r, 'fullName', 'full_name') || '').toLowerCase().includes(q) ||
+                                String(v(r, 'empCode', 'emp_code') || '').toLowerCase().includes(q) ||
+                                String(v(r, 'jobTitle', 'job_title') || '').toLowerCase().includes(q)
+                              );
+                            })
+                            .map((emp) => {
+                              const isCur = String(v(emp, 'id')) === String(v(selected, 'id'));
+                              const photo = getEmployeePhotoUrl(emp);
+                              return (
+                                <button
+                                  key={v(emp, 'id')}
+                                  type="button"
+                                  className="emp-switcher-item"
+                                  onClick={() => {
+                                    openDetail(emp);
+                                    setEmpSwitcherOpen(false);
+                                    setEmpSearch('');
+                                  }}
                                   style={{
-                                    width: 28,
-                                    height: 28,
-                                    borderRadius: '50%',
-                                    background: photo
-                                      ? `url(${photo}) center/cover no-repeat`
-                                      : 'linear-gradient(135deg, #00b8db 0%, #008fa8 100%)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: '#ffffff',
-                                    fontSize: '10.5px',
-                                    fontWeight: 700,
-                                    flexShrink: 0,
+                                    background: isCur ? 'rgba(0, 184, 219, 0.12)' : 'transparent',
+                                    fontWeight: isCur ? 700 : 500,
                                   }}
                                 >
-                                  {!photo
-                                    ? String(v(emp, 'fullName', 'full_name') || 'E')
-                                        .split(' ')
-                                        .map((p) => p[0])
-                                        .join('')
-                                        .slice(0, 2)
-                                    : null}
-                                </div>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ fontSize: '12.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    {v(emp, 'fullName', 'full_name')}
+                                  <div
+                                    style={{
+                                      width: 28,
+                                      height: 28,
+                                      borderRadius: '50%',
+                                      background: photo
+                                        ? `url(${photo}) center/cover no-repeat`
+                                        : 'linear-gradient(135deg, #00b8db 0%, #008fa8 100%)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      color: '#ffffff',
+                                      fontSize: '10.5px',
+                                      fontWeight: 700,
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    {!photo
+                                      ? String(v(emp, 'fullName', 'full_name') || 'E')
+                                          .split(' ')
+                                          .map((p) => p[0])
+                                          .join('')
+                                          .slice(0, 2)
+                                      : null}
                                   </div>
-                                  <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    {v(emp, 'jobTitle', 'job_title') || v(emp, 'empCode', 'emp_code') || 'Employee'}
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: '12.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {v(emp, 'fullName', 'full_name')}
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {v(emp, 'jobTitle', 'job_title') || v(emp, 'empCode', 'emp_code') || 'Employee'}
+                                    </div>
                                   </div>
-                                </div>
-                              </button>
-                            );
-                          })}
+                                </button>
+                              );
+                            })}
+                        </div>
                       </div>
-                    </div>
-                  </>
-                ) : null}
-              </div>
+                    </>
+                  ) : null}
+                </div>
 
-              {/* Close / Back to List button */}
-              <button
-                type="button"
-                className="btn secondary"
-                onClick={() => setSelected(null)}
-                style={{
-                  padding: '7px 18px',
-                  fontSize: '12.5px',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-
-          {/* Horizontal Tabs Navigation Bar matching Image 3 */}
-          <div
-            style={{
-              display: 'flex',
-              gap: '26px',
-              borderBottom: '1px solid var(--line, #e5e7eb)',
-              marginBottom: '20px',
-              overflowX: 'auto',
-            }}
-          >
-            {[
-              { id: 'Personal info', label: 'Personal info' },
-              { id: 'Employee details', label: 'Employee details' },
-              { id: 'Payroll', label: 'Payroll' },
-              { id: 'Documents', label: 'Documents' },
-              { id: 'Leave history', label: 'Leave history' },
-              { id: 'Attendance', label: 'Attendance' },
-            ].map((tab) => {
-              const isActive = selectedTab === tab.id;
-              return (
+                {/* Close Button matching Reference */}
                 <button
-                  key={tab.id}
                   type="button"
-                  onClick={() => {
-                    setSelectedTab(tab.id);
-                    setIsEditingProfile(false);
-                  }}
-                  className={`emp-tab-btn ${isActive ? 'active' : ''}`}
+                  className="emp-close-btn"
+                  onClick={() => setSelected(null)}
+                  title="Close Profile"
                 >
-                  {tab.label}
+                  Close
                 </button>
-              );
-            })}
+              </div>
+            </div>
+
+            {/* Horizontal Tabs Navigation Bar inside Topbar Card */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '26px',
+                borderTop: '1px solid var(--line, #f1f5f9)',
+                overflowX: 'auto',
+              }}
+            >
+              {[
+                { id: 'Personal info', label: 'Personal info' },
+                { id: 'Employee details', label: 'Employee details' },
+                { id: 'Payroll', label: 'Payroll' },
+                { id: 'Documents', label: 'Documents' },
+                { id: 'Leave history', label: 'Leave history' },
+                { id: 'Attendance', label: 'Attendance' },
+              ].map((tab) => {
+                const isActive = selectedTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedTab(tab.id);
+                      setIsEditingProfile(false);
+                    }}
+                    className={`emp-tab-btn ${isActive ? 'active' : ''}`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Subheader section title matching Image 3 */}
@@ -1391,28 +1193,28 @@ function EmployeesContent() {
                       <div
                         className="emp-v-divider"
                         style={{
-                          borderLeft: '1px solid var(--line, #e5e7eb)',
-                          paddingLeft: '24px',
+                          borderLeft: '2px solid var(--line, #cbd5e1)',
+                          paddingLeft: '36px',
                           display: 'flex',
                           flexDirection: 'column',
                           justifyContent: 'center',
                         }}
                       >
-                        <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', padding: '9px 0', borderBottom: '1px solid var(--line, #f8fafc)', alignItems: 'center' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', padding: '9px 0', alignItems: 'center' }}>
                           <div className="emp-row-label">Nationality</div>
                           <div className="emp-row-val" style={{ fontWeight: 600 }}>
                             {selectedMd.nationality || selectedMd.personal?.nationality || 'Not specified'}
                           </div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', padding: '9px 0', borderBottom: '1px solid var(--line, #f8fafc)', alignItems: 'center' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', padding: '9px 0', alignItems: 'center' }}>
                           <div className="emp-row-label">App Login Email</div>
                           <div className="emp-row-val" style={{ color: '#008fa8', fontWeight: 600 }}>
                             {v(selected, 'email') || '—'}
                           </div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', padding: '9px 0', borderBottom: '1px solid var(--line, #f8fafc)', alignItems: 'center' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', padding: '9px 0', alignItems: 'center' }}>
                           <div className="emp-row-label">Designation</div>
                           <div className="emp-row-val">
                             {v(selected, 'jobTitle', 'job_title') || '—'}
@@ -1451,12 +1253,12 @@ function EmployeesContent() {
                       </div>
 
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '14px', padding: '10px 0', borderBottom: '1px solid var(--line, #f8fafc)', alignItems: 'flex-start' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '14px', padding: '10px 0', alignItems: 'flex-start' }}>
                           <div className="emp-row-label">Citizen ID address</div>
                           <div className="emp-row-val" style={{ lineHeight: 1.5 }}>{selectedMd.homeCountryAddress || '—'}</div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '14px', padding: '10px 0', borderBottom: '1px solid var(--line, #f8fafc)', alignItems: 'flex-start' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '14px', padding: '10px 0', alignItems: 'flex-start' }}>
                           <div className="emp-row-label">Residential address</div>
                           <div className="emp-row-val" style={{ lineHeight: 1.5 }}>{selectedMd.addressInUae || '—'}</div>
                         </div>
@@ -1490,17 +1292,17 @@ function EmployeesContent() {
                       </div>
 
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '14px', padding: '10px 0', borderBottom: '1px solid var(--line, #f8fafc)', alignItems: 'flex-start' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '14px', padding: '10px 0', alignItems: 'flex-start' }}>
                           <div className="emp-row-label">Previous company</div>
                           <div className="emp-row-val" style={{ lineHeight: 1.5 }}>{selectedMd.workExperience?.previousCompany || '—'}</div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '14px', padding: '10px 0', borderBottom: '1px solid var(--line, #f8fafc)', alignItems: 'flex-start' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '14px', padding: '10px 0', alignItems: 'flex-start' }}>
                           <div className="emp-row-label">Position / Role</div>
                           <div className="emp-row-val" style={{ lineHeight: 1.5 }}>{selectedMd.workExperience?.position || '—'}</div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '14px', padding: '10px 0', borderBottom: '1px solid var(--line, #f8fafc)', alignItems: 'flex-start' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '14px', padding: '10px 0', alignItems: 'flex-start' }}>
                           <div className="emp-row-label">Field of work</div>
                           <div className="emp-row-val" style={{ lineHeight: 1.5 }}>{selectedMd.workExperience?.fieldOfWork || '—'}</div>
                         </div>
@@ -1615,37 +1417,37 @@ function EmployeesContent() {
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', borderBottom: '1px solid var(--line, #f8fafc)', alignItems: 'center' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Operating Company</div>
                         <div className="emp-row-val">{v(selected, 'divisionName', 'division_name') || '—'}</div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', borderBottom: '1px solid var(--line, #f8fafc)', alignItems: 'center' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Department</div>
                         <div className="emp-row-val">{v(selected, 'departmentName', 'department_name') || '—'}</div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', borderBottom: '1px solid var(--line, #f8fafc)', alignItems: 'center' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Designation / Job Title</div>
                         <div className="emp-row-val">{v(selected, 'jobTitle', 'job_title') || '—'}</div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', borderBottom: '1px solid var(--line, #f8fafc)', alignItems: 'center' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Position / Role Level</div>
                         <div className="emp-row-val">{v(selected, 'position') || selectedMd.position || '—'}</div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', borderBottom: '1px solid var(--line, #f8fafc)', alignItems: 'center' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Reporting Manager</div>
                         <div className="emp-row-val">{v(selected, 'managerName', 'manager_name') || '—'}</div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', borderBottom: '1px solid var(--line, #f8fafc)', alignItems: 'center' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Employment Type</div>
                         <div className="emp-row-val">{v(selected, 'employmentTypeName', 'employment_type_name') || 'Full-time'}</div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', borderBottom: '1px solid var(--line, #f8fafc)', alignItems: 'center' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Joining Date</div>
                         <div className="emp-row-val">{formatDate(v(selected, 'joinDate', 'join_date')) || '—'}</div>
                       </div>
@@ -1724,21 +1526,21 @@ function EmployeesContent() {
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', borderBottom: '1px solid var(--line, #f8fafc)', alignItems: 'center' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Basic Salary</div>
                         <div className="emp-row-val" style={{ fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
                           {selectedMd.finance?.basicSalary ? `AED ${Number(selectedMd.finance.basicSalary).toLocaleString()}` : 'AED 5,000'}
                         </div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', borderBottom: '1px solid var(--line, #f8fafc)', alignItems: 'center' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Housing & Transport Allowance</div>
                         <div className="emp-row-val" style={{ fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
                           {selectedMd.finance?.allowances ? `AED ${Number(selectedMd.finance.allowances).toLocaleString()}` : 'AED 2,500'}
                         </div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', borderBottom: '1px solid var(--line, #f8fafc)', alignItems: 'center' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Gross Monthly Remuneration</div>
                         <div className="emp-row-val" style={{ fontWeight: 700, color: '#008fa8' }}>
                           {selectedMd.finance?.grossSalary
@@ -1747,14 +1549,14 @@ function EmployeesContent() {
                         </div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', borderBottom: '1px solid var(--line, #f8fafc)', alignItems: 'center' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Payment Method</div>
                         <div className="emp-row-val">
                           {selectedMd.finance?.paymentMethod || 'WPS (SIF File Generation)'}
                         </div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', borderBottom: '1px solid var(--line, #f8fafc)', alignItems: 'center' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Operating Bank</div>
                         <div className="emp-row-val">
                           {selectedMd.finance?.bankName || 'Emirates NBD'}
@@ -1855,32 +1657,32 @@ function EmployeesContent() {
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <div className="emp-row-divider" style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
+                      <div  style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Passport Number</div>
                         <div className="emp-row-val">{selectedMd.passportNumber || v(selected, 'passportNo', 'passport_no') || '—'}</div>
                       </div>
 
-                      <div className="emp-row-divider" style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
+                      <div  style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Passport Issue Date</div>
                         <div className="emp-row-val">{formatDate(selectedMd.passportStartDate) || '—'}</div>
                       </div>
 
-                      <div className="emp-row-divider" style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
+                      <div  style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Passport Expiry Date</div>
                         <div className="emp-row-val">{formatDate(selectedMd.passportExpiryDate || v(selected, 'passportExpiry', 'passport_expiry')) || '—'}</div>
                       </div>
 
-                      <div className="emp-row-divider" style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
+                      <div  style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Emirates ID Number</div>
                         <div className="emp-row-val">{selectedMd.emiratesIdNumber || '—'}</div>
                       </div>
 
-                      <div className="emp-row-divider" style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
+                      <div  style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Emirates ID Issue Date</div>
                         <div className="emp-row-val">{formatDate(selectedMd.emiratesIdStartDate) || '—'}</div>
                       </div>
 
-                      <div className="emp-row-divider" style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
+                      <div  style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Emirates ID Expiry Date</div>
                         <div className="emp-row-val">{formatDate(selectedMd.emiratesIdExpiryDate) || '—'}</div>
                       </div>
@@ -2144,7 +1946,206 @@ function EmployeesContent() {
           )}
         </div>
       ) : null}
-    </AppShell>
+
+
+      {/* =========================================================================
+          2. CREATE EMPLOYEE FORM (Clean 3-Section + Step 1 Company Selection)
+         ========================================================================= */}
+      {isAdmin ? (
+        <div className="card emp-master-card" style={{ marginBottom: 18, padding: '20px' }}>
+          <div className="panel-title" style={{ marginBottom: 16 }}>
+            <div>
+              <h3 style={{ fontSize: '17px', fontWeight: 600, margin: 0 }}>Create New Employee</h3>
+              <p className="muted" style={{ fontSize: '12.5px', margin: '2px 0 0' }}>
+                Select operating company, assign official designation, and enter personal and UAE travel credentials
+              </p>
+            </div>
+          </div>
+          <EmployeeMasterForm
+            mode="create"
+            form={createForm}
+            setForm={setCreateForm}
+            departments={departments}
+            divisions={divisions}
+            designations={designations}
+            employmentTypes={employmentTypes}
+            managers={rows}
+            saving={creating}
+            onSubmit={createEmployee}
+          />
+        </div>
+      ) : null}
+
+
+      {/* =========================================================================
+          3. ORG CHART (Concentric Dual-Ring Avatars with Cyan Connector Arrows)
+         ========================================================================= */}
+      <div className="card" style={{ marginBottom: 18, padding: '24px 20px', overflowX: 'auto' }}>
+        <div className="panel-title" style={{ marginBottom: 20 }}>
+          <div>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>Company Structure</h3>
+            <p className="muted" style={{ fontSize: '12px', margin: '2px 0 0' }}>
+              Hierarchical reporting tree structure
+            </p>
+          </div>
+        </div>
+
+        <div
+          ref={chartContainerRef}
+          style={{
+            position: 'relative',
+            display: 'flex',
+            justifyContent: 'center',
+            padding: '24px 16px',
+            minWidth: 'max-content',
+            margin: '0 auto',
+          }}
+        >
+          {/* Dynamic SVG Dotted Connector Arrows Overlay (Matching Client Screenshot) */}
+          <svg
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              pointerEvents: 'none',
+              zIndex: 1,
+            }}
+          >
+            <defs>
+              <marker
+                id="cyan-arrow"
+                viewBox="0 0 10 10"
+                refX="6"
+                refY="5"
+                markerWidth="5.5"
+                markerHeight="5.5"
+                orient="auto"
+              >
+                <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#00b8db" />
+              </marker>
+            </defs>
+            {connectorLines.map((line) => (
+              <line
+                key={line.key}
+                x1={line.x1}
+                y1={line.y1}
+                x2={line.x2}
+                y2={line.y2}
+                stroke="#00b8db"
+                strokeWidth="1.6"
+                strokeDasharray="3 3"
+                markerEnd="url(#cyan-arrow)"
+              />
+            ))}
+          </svg>
+
+          {leadershipRoots.length ? (
+            <div style={{ display: 'flex', gap: 56, justifyContent: 'center', zIndex: 2 }}>
+              {leadershipRoots.map((r) => (
+                <OrgNodeView key={v(r, 'id')} node={r} />
+              ))}
+            </div>
+          ) : (
+            <div className="muted" style={{ padding: '16px 0' }}>No hierarchy relationships configured yet.</div>
+          )}
+        </div>
+
+        {/* Individual Contributors / Direct Staff */}
+        {individualStaff.length ? (
+          <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px dashed var(--line, #e2e8f0)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18, justifyContent: 'center' }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#00b8db', display: 'inline-block' }}></span>
+              <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ink)' }}>
+                Direct Staff / Individual Contributors ({individualStaff.length})
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 36 }}>
+              {individualStaff.map((staff) => {
+                const title = v(staff, 'jobTitle', 'job_title') || v(staff, 'fullName', 'full_name') || 'Staff';
+                const name = v(staff, 'fullName', 'full_name');
+                const dept = v(staff, 'departmentName', 'department_name');
+                return (
+                  <div
+                    key={v(staff, 'id')}
+                    onClick={() => openDetail(staff)}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      padding: '8px 12px',
+                      transition: 'all 0.15s ease',
+                      maxWidth: 140,
+                    }}
+                    title="Click to view employee profile"
+                  >
+                    <div
+                      style={{
+                        width: 56,
+                        height: 56,
+                        borderRadius: '50%',
+                        border: '1.5px solid rgba(0, 184, 219, 0.45)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 3,
+                        boxSizing: 'border-box',
+                        marginBottom: 6,
+                        transition: 'all 0.2s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'scale(1.08)';
+                        e.currentTarget.style.borderColor = '#00b8db';
+                        e.currentTarget.style.boxShadow = '0 0 14px rgba(0, 184, 219, 0.45)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'scale(1)';
+                        e.currentTarget.style.borderColor = 'rgba(0, 184, 219, 0.45)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: '50%',
+                          background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
+                          border: '2px solid #00b8db',
+                          boxShadow: '0 4px 10px rgba(15, 23, 42, 0.3)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#ffffff',
+                        }}
+                      >
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                        </svg>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'center', maxWidth: 130 }}>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink, #0f172a)', lineHeight: 1.25 }}>
+                        {title}
+                      </div>
+                      {name && name !== title ? (
+                        <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)', marginTop: 2 }}>{name}</div>
+                      ) : null}
+                      {dept ? (
+                        <div style={{ fontSize: '9.5px', color: '#008fa8', fontWeight: 600, marginTop: 2 }}>{dept}</div>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+          </AppShell>
   );
 }
 
