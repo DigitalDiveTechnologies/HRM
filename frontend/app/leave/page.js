@@ -118,6 +118,90 @@ export default function LeavePage() {
     reason: '',
   });
 
+  const [empSwitcherOpen, setEmpSwitcherOpen] = useState(false);
+  const [empSearch, setEmpSearch] = useState('');
+  const [selectedBalanceEmpId, setSelectedBalanceEmpId] = useState('');
+
+  // Group unique employees for Master-Detail Leave Balances
+  const balanceEmployees = useMemo(() => {
+    const map = new Map();
+    (employees || []).forEach((emp) => {
+      const id = String(v(emp, 'id'));
+      if (!id || id === 'undefined') return;
+      map.set(id, {
+        id,
+        name: v(emp, 'fullName', 'full_name') || 'Employee',
+        code: v(emp, 'empCode', 'emp_code') || 'DD-1000',
+        dept: v(emp, 'departmentName', 'department_name') || 'General',
+        jobTitle: v(emp, 'jobTitle', 'job_title') || 'Staff',
+      });
+    });
+
+    (balances || []).forEach((b) => {
+      const id = String(v(b, 'employeeId', 'employee_id'));
+      if (id && !map.has(id)) {
+        map.set(id, {
+          id,
+          name: v(b, 'fullName', 'full_name') || 'Employee',
+          code: v(b, 'empCode', 'emp_code') || 'DD-1000',
+          dept: 'General',
+          jobTitle: 'Staff',
+        });
+      }
+    });
+
+    return Array.from(map.values());
+  }, [employees, balances]);
+
+  const activeBalanceEmpId = selectedBalanceEmpId || (balanceEmployees[0]?.id ? String(balanceEmployees[0].id) : '');
+
+  const selectedEmpBalances = useMemo(() => {
+    if (!activeBalanceEmpId) return [];
+    return balances.filter((b) => String(v(b, 'employeeId', 'employee_id')) === String(activeBalanceEmpId));
+  }, [balances, activeBalanceEmpId]);
+
+  const activeBalanceEmp = useMemo(() => {
+    return balanceEmployees.find((e) => String(e.id) === String(activeBalanceEmpId)) || null;
+  }, [balanceEmployees, activeBalanceEmpId]);
+
+  const currentEmpName = selectedLeave
+    ? (v(selectedLeave, 'fullName', 'full_name') || 'Select Employee')
+    : (employees[0] ? v(employees[0], 'fullName', 'full_name') : 'Select Employee');
+
+  const currentEmpCode = selectedLeave
+    ? (v(selectedLeave, 'empCode', 'emp_code') || (leaveEmp ? v(leaveEmp, 'jobTitle', 'job_title') : ''))
+    : (employees[0] ? (v(employees[0], 'empCode', 'emp_code') || v(employees[0], 'jobTitle', 'job_title') || '') : '');
+
+  const currentEmpId = selectedLeave
+    ? v(selectedLeave, 'employeeId', 'employee_id')
+    : (employees[0] ? v(employees[0], 'id') : '');
+
+  function handleSelectEmployee(emp) {
+    if (!emp) return;
+    const empId = String(v(emp, 'id'));
+    setSelectedBalanceEmpId(empId);
+
+    const empLeaves = rows.filter((r) => String(v(r, 'employeeId', 'employee_id')) === empId);
+    if (empLeaves.length > 0) {
+      const pending = empLeaves.find((r) => String(v(r, 'status')).toLowerCase() === 'pending');
+      setSelectedLeave(pending || empLeaves[0]);
+    } else {
+      setSelectedLeave({
+        id: `preview-${empId}`,
+        employeeId: empId,
+        fullName: v(emp, 'fullName', 'full_name'),
+        empCode: v(emp, 'empCode', 'emp_code'),
+        leaveType: 'Annual',
+        days: 0,
+        startDate: todayISO(),
+        endDate: todayISO(),
+        reason: 'No leave requests submitted yet',
+        status: 'No Leave',
+        isSynthetic: true,
+      });
+    }
+  }
+
   useEffect(() => {
     const u = getUser();
     if (u) setUser(u);
@@ -387,7 +471,154 @@ export default function LeavePage() {
               </p>
             </div>
 
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Employee Switcher Pill Button (Name, Code/Title, Dropdown Arrow - No Avatar) */}
+              <div style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setEmpSwitcherOpen(!empSwitcherOpen)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '5px 14px',
+                    borderRadius: 9999,
+                    border: '1px solid var(--line-strong, #cbd5e1)',
+                    background: 'var(--surface, #ffffff)',
+                    color: 'var(--ink, #0f172a)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                  }}
+                  title="Switch employee to view leave summary"
+                >
+                  <div style={{ textAlign: 'left' }}>
+                    <div style={{ fontSize: '12.5px', fontWeight: 700, lineHeight: 1.2 }}>
+                      {currentEmpName}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)' }}>
+                      {currentEmpCode}
+                    </div>
+                  </div>
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{
+                      color: 'var(--muted, #64748b)',
+                      transition: 'transform 0.15s ease',
+                      transform: empSwitcherOpen ? 'rotate(180deg)' : 'none',
+                      marginLeft: 2,
+                    }}
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+
+                {empSwitcherOpen ? (
+                  <>
+                    <div
+                      onClick={() => setEmpSwitcherOpen(false)}
+                      style={{ position: 'fixed', inset: 0, zIndex: 90 }}
+                    />
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 'calc(100% + 6px)',
+                        right: 0,
+                        zIndex: 95,
+                        width: 260,
+                        background: 'var(--surface, #ffffff)',
+                        border: '1px solid var(--line, #cbd5e1)',
+                        borderRadius: 10,
+                        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.15)',
+                        padding: '6px 0',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div style={{ padding: '6px 12px 10px', borderBottom: '1px solid var(--line, #e2e8f0)' }}>
+                        <input
+                          type="text"
+                          placeholder="Search employee..."
+                          value={empSearch}
+                          onChange={(e) => setEmpSearch(e.target.value)}
+                          autoFocus
+                          style={{
+                            width: '100%',
+                            padding: '6px 10px',
+                            fontSize: '12.5px',
+                            borderRadius: '6px',
+                            border: '1px solid var(--line, #cbd5e1)',
+                            background: 'var(--input-bg, #ffffff)',
+                            color: 'var(--ink, #0f172a)',
+                            outline: 'none',
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                      </div>
+                      <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
+                        {employees
+                          .filter((emp) => {
+                            if (!empSearch.trim()) return true;
+                            const q = empSearch.toLowerCase();
+                            return (
+                              String(v(emp, 'fullName', 'full_name') || '').toLowerCase().includes(q) ||
+                              String(v(emp, 'empCode', 'emp_code') || '').toLowerCase().includes(q) ||
+                              String(v(emp, 'jobTitle', 'job_title') || '').toLowerCase().includes(q)
+                            );
+                          })
+                          .map((emp) => {
+                            const empId = String(v(emp, 'id'));
+                            const isCur = String(currentEmpId) === empId;
+                            return (
+                              <button
+                                key={empId}
+                                type="button"
+                                onClick={() => {
+                                  handleSelectEmployee(emp);
+                                  setEmpSwitcherOpen(false);
+                                  setEmpSearch('');
+                                }}
+                                style={{
+                                  width: '100%',
+                                  padding: '8px 14px',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'flex-start',
+                                  border: 'none',
+                                  background: isCur ? 'rgba(0, 184, 219, 0.12)' : 'transparent',
+                                  color: 'var(--ink, #0f172a)',
+                                  textAlign: 'left',
+                                  cursor: 'pointer',
+                                  transition: 'background 0.12s ease',
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (!isCur) e.currentTarget.style.background = 'var(--surface-alt, #f8fafc)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (!isCur) e.currentTarget.style.background = 'transparent';
+                                }}
+                              >
+                                <div style={{ fontSize: '13px', fontWeight: isCur ? 700 : 600 }}>
+                                  {v(emp, 'fullName', 'full_name')}
+                                </div>
+                                <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)' }}>
+                                  {v(emp, 'empCode', 'emp_code')} {v(emp, 'jobTitle', 'job_title') ? `• ${v(emp, 'jobTitle', 'job_title')}` : ''}
+                                </div>
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+
               {canApprove ? (
                 <button
                   type="button"
@@ -1156,59 +1387,301 @@ export default function LeavePage() {
         </div>
 
         {/* =========================================================================
-            4. LEAVE BALANCES TABLE
+            4. LEAVE BALANCES (2-Column Master-Detail Layout)
            ========================================================================= */}
         <div className="card" style={{ padding: '20px', borderRadius: 14 }}>
-          <div className="panel-title" style={{ marginBottom: 14 }}>
+          <div className="panel-title" style={{ marginBottom: 16 }}>
             <div>
               <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>Leave Balances</h3>
               <p className="muted" style={{ margin: '2px 0 0', fontSize: '12px' }}>
                 Annual entitlement, consumed days, and remaining quotas per employee
               </p>
             </div>
+            {activeBalanceEmp ? (
+              <div
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  padding: '4px 12px',
+                  borderRadius: 9999,
+                  background: 'rgba(0, 184, 219, 0.10)',
+                  color: '#008fa8',
+                  border: '1px solid rgba(0, 184, 219, 0.25)',
+                }}
+              >
+                Viewing: {activeBalanceEmp.name} ({activeBalanceEmp.code})
+              </div>
+            ) : null}
           </div>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Employee</th>
-                  <th>Leave Type</th>
-                  <th>Entitlement</th>
-                  <th>Used</th>
-                  <th>Remaining</th>
-                </tr>
-              </thead>
-              <tbody>
-                {balances.map((b, i) => (
-                  <tr key={`${v(b, 'employeeId', 'employee_id')}-${v(b, 'leaveType', 'leave_type')}-${i}`}>
-                    <td>
-                      <div style={{ fontWeight: 600 }}>{v(b, 'fullName', 'full_name')}</div>
-                      <div className="muted" style={{ fontSize: '11px' }}>{v(b, 'empCode', 'emp_code')}</div>
-                    </td>
-                    <td>{v(b, 'leaveType', 'leave_type')}</td>
-                    <td>{v(b, 'entitlementDays', 'entitlement_days')}</td>
-                    <td>{v(b, 'usedDays', 'used_days')}</td>
-                    <td>
-                      <strong style={{ color: '#008fa8' }}>{v(b, 'remainingDays', 'remaining_days')}</strong>
-                    </td>
-                  </tr>
-                ))}
-                {loading && balances.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="muted" style={{ textAlign: 'center', padding: '24px 0' }}>
-                      <div style={{ display: 'inline-block', width: 18, height: 18, border: '2.5px solid #00b8db', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite', verticalAlign: 'middle', marginRight: 8 }} />
-                      Loading leave balances…
-                    </td>
-                  </tr>
-                ) : !balances.length ? (
-                  <tr>
-                    <td colSpan={5} className="muted" style={{ textAlign: 'center', padding: '20px 0' }}>
-                      No balance records found.
-                    </td>
-                  </tr>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(220px, 280px) 1fr',
+              gap: 18,
+              alignItems: 'start',
+            }}
+          >
+            {/* Left Column: Compact Employee List with Fixed Height & Vertical Scroll */}
+            <div
+              style={{
+                border: '1px solid var(--line, #e2e8f0)',
+                borderRadius: 10,
+                background: 'var(--surface-alt, #f8fafc)',
+                padding: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                  color: 'var(--muted, #64748b)',
+                  marginBottom: 10,
+                  paddingBottom: 6,
+                  borderBottom: '1px solid var(--line, #e2e8f0)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <span>Employees</span>
+                <span
+                  style={{
+                    background: 'var(--surface, #ffffff)',
+                    padding: '2px 7px',
+                    borderRadius: 9999,
+                    fontSize: '11px',
+                    border: '1px solid var(--line, #cbd5e1)',
+                  }}
+                >
+                  {balanceEmployees.length}
+                </span>
+              </div>
+
+              <div
+                style={{
+                  maxHeight: '340px',
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                  paddingRight: 4,
+                }}
+              >
+                {balanceEmployees.map((emp) => {
+                  const isSelected = String(emp.id) === String(activeBalanceEmpId);
+                  return (
+                    <button
+                      key={emp.id}
+                      type="button"
+                      onClick={() => handleSelectEmployee(emp)}
+                      style={{
+                        textAlign: 'left',
+                        padding: '9px 12px',
+                        borderRadius: 8,
+                        border: isSelected ? '1.5px solid #00b8db' : '1px solid var(--line, #e2e8f0)',
+                        background: isSelected ? 'rgba(0, 184, 219, 0.12)' : 'var(--surface, #ffffff)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: '13px',
+                            fontWeight: isSelected ? 700 : 600,
+                            color: isSelected ? '#008fa8' : 'var(--ink, #0f172a)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {emp.name}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: '11px',
+                            color: isSelected ? '#008fa8' : 'var(--muted, #64748b)',
+                            marginTop: 1,
+                          }}
+                        >
+                          {emp.code}
+                        </div>
+                      </div>
+                      {isSelected ? (
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#00b8db"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                      ) : null}
+                    </button>
+                  );
+                })}
+
+                {balanceEmployees.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '24px 8px', fontSize: '12px', color: 'var(--muted)' }}>
+                    No employees found.
+                  </div>
                 ) : null}
-              </tbody>
-            </table>
+              </div>
+            </div>
+
+            {/* Right Column: Selected Employee Balances Table with Vertical Scroll */}
+            <div
+              style={{
+                border: '1px solid var(--line, #e2e8f0)',
+                borderRadius: 10,
+                background: 'var(--surface, #ffffff)',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
+              <div
+                style={{
+                  padding: '12px 16px',
+                  background: 'var(--surface-alt, #f8fafc)',
+                  borderBottom: '1px solid var(--line, #e2e8f0)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <div>
+                  <strong style={{ fontSize: '13.5px', color: 'var(--ink)' }}>
+                    {activeBalanceEmp ? activeBalanceEmp.name : 'Employee'} Balances
+                  </strong>
+                  <span className="muted" style={{ fontSize: '12px', marginLeft: 8 }}>
+                    ({activeBalanceEmp ? activeBalanceEmp.code : '—'})
+                  </span>
+                </div>
+                <span
+                  style={{
+                    fontSize: '11.5px',
+                    color: 'var(--muted)',
+                  }}
+                >
+                  {selectedEmpBalances.length} leave quota {selectedEmpBalances.length === 1 ? 'type' : 'types'}
+                </span>
+              </div>
+
+              <div
+                className="table-wrap"
+                style={{
+                  maxHeight: '340px',
+                  overflowY: 'auto',
+                  margin: 0,
+                  border: 'none',
+                }}
+              >
+                <table style={{ margin: 0 }}>
+                  <thead style={{ position: 'sticky', top: 0, background: 'var(--surface-alt, #f8fafc)', zIndex: 2 }}>
+                    <tr>
+                      <th style={{ padding: '10px 16px' }}>Leave Type</th>
+                      <th style={{ padding: '10px 16px', textAlign: 'center' }}>Entitlement</th>
+                      <th style={{ padding: '10px 16px', textAlign: 'center' }}>Used</th>
+                      <th style={{ padding: '10px 16px', textAlign: 'center' }}>Remaining</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedEmpBalances.map((b, i) => (
+                      <tr key={`${v(b, 'employeeId', 'employee_id')}-${v(b, 'leaveType', 'leave_type')}-${i}`}>
+                        <td style={{ padding: '12px 16px' }}>
+                          <span
+                            style={{
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              padding: '3px 10px',
+                              borderRadius: 6,
+                              background:
+                                String(v(b, 'leaveType', 'leave_type')).toLowerCase() === 'annual'
+                                  ? 'rgba(0, 184, 219, 0.12)'
+                                  : String(v(b, 'leaveType', 'leave_type')).toLowerCase() === 'sick'
+                                  ? 'rgba(234, 179, 8, 0.15)'
+                                  : String(v(b, 'leaveType', 'leave_type')).toLowerCase() === 'maternity'
+                                  ? 'rgba(236, 72, 153, 0.15)'
+                                  : 'var(--surface-alt)',
+                              color:
+                                String(v(b, 'leaveType', 'leave_type')).toLowerCase() === 'annual'
+                                  ? '#008fa8'
+                                  : String(v(b, 'leaveType', 'leave_type')).toLowerCase() === 'sick'
+                                  ? '#b45309'
+                                  : String(v(b, 'leaveType', 'leave_type')).toLowerCase() === 'maternity'
+                                  ? '#be185d'
+                                  : 'var(--ink)',
+                            }}
+                          >
+                            {v(b, 'leaveType', 'leave_type')}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600 }}>
+                          {v(b, 'entitlementDays', 'entitlement_days')} <span className="muted" style={{ fontSize: '11px' }}>days</span>
+                        </td>
+                        <td style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600, color: '#f59e0b' }}>
+                          {v(b, 'usedDays', 'used_days')} <span className="muted" style={{ fontSize: '11px' }}>days</span>
+                        </td>
+                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                          <span
+                            style={{
+                              fontSize: '13.5px',
+                              fontWeight: 800,
+                              color: '#008fa8',
+                              background: 'rgba(0, 184, 219, 0.08)',
+                              padding: '3px 10px',
+                              borderRadius: 6,
+                              display: 'inline-block',
+                            }}
+                          >
+                            {v(b, 'remainingDays', 'remaining_days')} days
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    {loading && balances.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="muted" style={{ textAlign: 'center', padding: '28px 0' }}>
+                          <div
+                            style={{
+                              display: 'inline-block',
+                              width: 18,
+                              height: 18,
+                              border: '2.5px solid #00b8db',
+                              borderTopColor: 'transparent',
+                              borderRadius: '50%',
+                              animation: 'spin 0.8s linear infinite',
+                              verticalAlign: 'middle',
+                              marginRight: 8,
+                            }}
+                          />
+                          Loading leave balances…
+                        </td>
+                      </tr>
+                    ) : !selectedEmpBalances.length ? (
+                      <tr>
+                        <td colSpan={4} className="muted" style={{ textAlign: 'center', padding: '28px 0' }}>
+                          No leave balance records found for {activeBalanceEmp ? activeBalanceEmp.name : 'this employee'}.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
 
