@@ -185,6 +185,11 @@ export default function EmployeeMasterForm({
       setSectionSuccessMsg('');
       setSavedSectionName((curr) => (curr === sectionName ? '' : curr));
     }, 3500);
+    if (onSubmit) {
+      try {
+        onSubmit();
+      } catch {}
+    }
   };
 
   // Custom Documents state for Tab 3
@@ -438,6 +443,7 @@ export default function EmployeeMasterForm({
             { id: 'Personal info', label: 'Personal info' },
             { id: 'Employee details', label: 'Employee details' },
             { id: 'Documents', label: 'Documents' },
+            { id: 'Payroll', label: 'Payroll' },
           ].map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -1126,92 +1132,6 @@ export default function EmployeeMasterForm({
                   </select>
                 </FieldRow>
               </SectionCard>
-
-              {/* Card 2: Compensation & WPS Details */}
-              <SectionCard
-                title="Compensation & WPS Details"
-                onSectionSave={() => triggerSectionSuccess('Compensation & WPS details')}
-                isSaved={savedSectionName === 'Compensation & WPS details'}
-              >
-                <FieldRow label="Basic Salary (AED)">
-                  <input
-                    style={inputStyle}
-                    type="number"
-                    min="0"
-                    step="any"
-                    placeholder="e.g. 5000"
-                    value={form.finance?.basicSalary || ''}
-                    onChange={(e) => {
-                      const basic = e.target.value;
-                      setFinance('basicSalary', basic);
-                      setFinance('grossSalary', String((Number(basic) || 0) + (Number(form.finance?.allowances) || 0)));
-                    }}
-                  />
-                </FieldRow>
-
-                <FieldRow label="Housing & Transport Allowance (AED)">
-                  <input
-                    style={inputStyle}
-                    type="number"
-                    min="0"
-                    step="any"
-                    placeholder="e.g. 2500"
-                    value={form.finance?.allowances || ''}
-                    onChange={(e) => {
-                      const allow = e.target.value;
-                      setFinance('allowances', allow);
-                      setFinance('grossSalary', String((Number(form.finance?.basicSalary) || 0) + (Number(allow) || 0)));
-                    }}
-                  />
-                </FieldRow>
-
-                <FieldRow label="Gross Monthly Remuneration (AED)">
-                  <input
-                    style={inputStyle}
-                    type="number"
-                    min="0"
-                    step="any"
-                    placeholder="e.g. 7500"
-                    value={form.finance?.grossSalary || ''}
-                    onChange={(e) => setFinance('grossSalary', e.target.value)}
-                  />
-                </FieldRow>
-
-                <FieldRow label="Payment Method">
-                  <select
-                    style={inputStyle}
-                    value={form.finance?.paymentMethod || 'WPS (SIF File Generation)'}
-                    onChange={(e) => setFinance('paymentMethod', e.target.value)}
-                  >
-                    <option value="WPS (SIF File Generation)">WPS (SIF File Generation)</option>
-                    <option value="Direct Bank Transfer">Direct Bank Transfer</option>
-                    <option value="Cheque">Cheque</option>
-                    <option value="Cash">Cash</option>
-                  </select>
-                </FieldRow>
-
-                <FieldRow label="Operating Bank">
-                  <input
-                    style={inputStyle}
-                    placeholder="e.g. Emirates NBD / ADCB / FAB"
-                    value={form.finance?.bankName || ''}
-                    onChange={(e) => setFinance('bankName', e.target.value)}
-                  />
-                </FieldRow>
-
-                <FieldRow label="IBAN / Account Number">
-                  <input
-                    style={inputStyle}
-                    placeholder="e.g. AE07033123456789012"
-                    value={form.finance?.iban || form.finance?.accountNo || ''}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setFinance('iban', val);
-                      setFinance('accountNo', val);
-                    }}
-                  />
-                </FieldRow>
-              </SectionCard>
             </div>
           )}
 
@@ -1552,6 +1472,98 @@ export default function EmployeeMasterForm({
                     </div>
                   )}
                 </div>
+              </SectionCard>
+            </div>
+          )}
+
+          {/* =========================================================================
+              TAB 4: Payroll (Compensation & WPS Details)
+             ========================================================================= */}
+          {activeTab === 'Payroll' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <SectionCard
+                title="Compensation & WPS Details"
+                onSectionSave={() => triggerSectionSuccess('Compensation & WPS details')}
+                isSaved={savedSectionName === 'Compensation & WPS details'}
+              >
+                <FieldRow label="Basic Salary (AED)">
+                  <input
+                    style={inputStyle}
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="e.g. 5000"
+                    value={form.finance?.basicSalary || ''}
+                    onChange={(e) => {
+                      const basic = e.target.value;
+                      setFinance('basicSalary', basic);
+                      setFinance('grossSalary', String((Number(basic) || 0) + (Number(form.finance?.allowances) || 0)));
+                    }}
+                  />
+                </FieldRow>
+
+                <FieldRow label="Housing & Transport Allowance (AED)">
+                  <input
+                    style={inputStyle}
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="e.g. 2500"
+                    value={form.finance?.allowances || ''}
+                    onChange={(e) => {
+                      const allow = e.target.value;
+                      setFinance('allowances', allow);
+                      setFinance('grossSalary', String((Number(form.finance?.basicSalary) || 0) + (Number(allow) || 0)));
+                    }}
+                  />
+                </FieldRow>
+
+                <FieldRow label="Gross Monthly Remuneration (AED)">
+                  <input
+                    style={inputStyle}
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="e.g. 7500"
+                    value={form.finance?.grossSalary || ''}
+                    onChange={(e) => setFinance('grossSalary', e.target.value)}
+                  />
+                </FieldRow>
+
+                <FieldRow label="Payment Method">
+                  <select
+                    style={inputStyle}
+                    value={form.finance?.paymentMethod || 'WPS (SIF File Generation)'}
+                    onChange={(e) => setFinance('paymentMethod', e.target.value)}
+                  >
+                    <option value="WPS (SIF File Generation)">WPS (SIF File Generation)</option>
+                    <option value="Direct Bank Transfer">Direct Bank Transfer</option>
+                    <option value="Cheque">Cheque</option>
+                    <option value="Cash">Cash</option>
+                  </select>
+                </FieldRow>
+
+                <FieldRow label="Operating Bank">
+                  <input
+                    style={inputStyle}
+                    placeholder="e.g. Emirates NBD / ADCB / FAB"
+                    value={form.finance?.bankName || ''}
+                    onChange={(e) => setFinance('bankName', e.target.value)}
+                  />
+                </FieldRow>
+
+                <FieldRow label="IBAN / Account Number">
+                  <input
+                    style={inputStyle}
+                    placeholder="e.g. AE07033123456789012"
+                    value={form.finance?.iban || form.finance?.accountNo || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFinance('iban', val);
+                      setFinance('accountNo', val);
+                    }}
+                  />
+                </FieldRow>
               </SectionCard>
             </div>
           )}

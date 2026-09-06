@@ -192,6 +192,15 @@ public sealed class EmployeesController : ControllerBase
         return Ok(new { employee, photoPath = relativeRef, message = "Profile photo saved." });
     }
 
+    [HttpDelete("{id:int}/photo")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> DeletePhoto(int id, CancellationToken ct)
+    {
+        var (employee, error) = await _hr.SetEmployeePhotoPathAsync(id, null, ct);
+        if (error is not null) return BadRequest(new { error });
+        return Ok(new { employee, photoPath = (string?)null, message = "Profile photo removed." });
+    }
+
     [HttpGet("{id:int}/photo")]
     [Authorize(Roles = "admin,manager,employee")]
     public async Task<IActionResult> GetPhoto(int id, CancellationToken ct)

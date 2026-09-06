@@ -439,21 +439,17 @@ public sealed class HrQueryService
     }
 
     public async Task<(Dictionary<string, object?>? Employee, string? Error)> SetEmployeePhotoPathAsync(
-        int id, string photoPath, CancellationToken ct)
+        int id, string? photoPath, CancellationToken ct)
     {
         var existing = await EmployeeByIdAsync(id, ct);
         if (existing is null) return (null, "Employee not found.");
 
-        photoPath = photoPath.Trim();
-        if (string.IsNullOrWhiteSpace(photoPath))
-        {
-            return (null, "Photo path is required.");
-        }
+        var cleanPath = string.IsNullOrWhiteSpace(photoPath) ? null : photoPath.Trim();
 
         await using var conn = await OpenAsync(ct);
         await using var cmd = new NpgsqlCommand(
             "UPDATE employees SET photo_path = @path WHERE id = @id", conn);
-        cmd.Parameters.AddWithValue("path", photoPath);
+        cmd.Parameters.AddWithValue("path", (object?)cleanPath ?? DBNull.Value);
         cmd.Parameters.AddWithValue("id", id);
         await cmd.ExecuteNonQueryAsync(ct);
 

@@ -312,7 +312,7 @@ function EmployeesContent() {
   }
 
   async function saveEmployeeEdit(ev) {
-    ev.preventDefault();
+    if (ev && ev.preventDefault) ev.preventDefault();
     if (!selected) return;
     setError('');
     setMsg('');
@@ -327,12 +327,13 @@ function EmployeesContent() {
         const fd = new FormData();
         fd.append('file', masterForm.photoFile);
         await apiUpload(`/employees/${v(selected, 'id')}/photo`, fd);
+      } else if (!masterForm.photoPath && !masterForm.photoPreview && (v(selected, 'photoPath', 'photo_path') || selectedMd?.photoPath)) {
+        await api(`/employees/${v(selected, 'id')}/photo`, { method: 'DELETE' });
       }
       setMsg(res.message || 'Employee updated.');
       const updated = await api(`/employees/${v(selected, 'id')}`);
       setSelected(updated);
       setMasterForm(masterFormFromEmployee(updated));
-      setIsEditingProfile(false);
       load();
     } catch (err) {
       setError(err.message);
