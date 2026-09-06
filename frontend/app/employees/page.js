@@ -40,6 +40,7 @@ function EmployeesContent() {
       } catch {}
     }
     return [];
+  });
   const [loadingEmps, setLoadingEmps] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
