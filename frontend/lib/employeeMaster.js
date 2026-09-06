@@ -93,6 +93,14 @@ export function emptyMasterForm() {
     previousVisaType: 'N/A',
     experienceLetterName: '',
     educationalCertificateName: '',
+    workExperiences: [
+      {
+        previousCompany: '',
+        fieldOfWork: '',
+        position: '',
+        duration: '',
+      },
+    ],
     workExperience: {
       previousCompany: '',
       fieldOfWork: '',
@@ -203,6 +211,18 @@ export function masterFormFromEmployee(employee) {
     previousVisaType: md.previousVisaType || 'N/A',
     experienceLetterName: md.experienceLetterName || '',
     educationalCertificateName: md.educationalCertificateName || '',
+    workExperiences: (Array.isArray(md.workExperiences) && md.workExperiences.length)
+      ? md.workExperiences
+      : (md.workExperience && (md.workExperience.previousCompany || md.workExperience.position))
+        ? [md.workExperience]
+        : [
+            {
+              previousCompany: '',
+              fieldOfWork: '',
+              position: '',
+              duration: '',
+            },
+          ],
     workExperience: md.workExperience || {
       previousCompany: '',
       fieldOfWork: '',
@@ -240,6 +260,15 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
   const fullName = buildFullName(form);
   const status = form.activeEmployee ? form.status || 'active' : 'exited';
   const phone = form.mobilePhone?.trim() || form.officePhone?.trim() || null;
+
+  const cleanExperiences = (form.workExperiences || [])
+    .filter((w) => w.previousCompany?.trim() || w.position?.trim() || w.fieldOfWork?.trim() || w.duration?.trim())
+    .map((w) => ({
+      previousCompany: w.previousCompany?.trim() || '',
+      position: w.position?.trim() || '',
+      fieldOfWork: w.fieldOfWork?.trim() || '',
+      duration: w.duration?.trim() || '',
+    }));
 
   const masterData = {
     firstName: form.firstName?.trim() || '',
@@ -286,7 +315,8 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
     previousVisaType: form.previousVisaType || 'N/A',
     experienceLetterName: form.experienceLetterName || '',
     educationalCertificateName: form.educationalCertificateName || '',
-    workExperience: form.workExperience || {},
+    workExperiences: cleanExperiences,
+    workExperience: cleanExperiences[0] || form.workExperience || {},
     education: form.education || {},
     companyIds: form.companyIds || (form.divisionId ? [String(form.divisionId)] : []),
     finance: form.finance,

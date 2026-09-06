@@ -92,7 +92,7 @@ function FieldRow({ label, required = false, children, helper = '' }) {
   );
 }
 
-function SectionCard({ title, children, style = {} }) {
+function SectionCard({ title, children, style = {}, disabled = false }) {
   return (
     <div className="emp-card" style={style}>
       <div className="emp-card-header">
@@ -110,20 +110,23 @@ function SectionCard({ title, children, style = {} }) {
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--line, #e2e8f0)' }}>
         <button
           type="submit"
+          disabled={disabled}
           className="btn"
           style={{
-            background: '#00b8db',
+            background: disabled ? '#94a3b8' : '#00b8db',
             color: '#ffffff',
             fontWeight: 600,
             fontSize: '12px',
             padding: '6px 16px',
             borderRadius: '6px',
             border: 'none',
-            cursor: 'pointer',
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            opacity: disabled ? 0.6 : 1,
             display: 'inline-flex',
             alignItems: 'center',
             gap: 6,
-            boxShadow: '0 2px 6px rgba(0, 184, 219, 0.25)',
+            boxShadow: disabled ? 'none' : '0 2px 6px rgba(0, 184, 219, 0.25)',
+            transition: 'all 0.15s ease',
           }}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -160,11 +163,62 @@ export default function EmployeeMasterForm({
 
   const set = (key, val) => setForm((prev) => ({ ...prev, [key]: val }));
 
-  const setWorkExp = (key, val) =>
+  const experiences = Array.isArray(form.workExperiences) && form.workExperiences.length > 0
+    ? form.workExperiences
+    : (form.workExperience?.previousCompany || form.workExperience?.position)
+      ? [form.workExperience]
+      : [{ previousCompany: '', position: '', fieldOfWork: '', duration: '' }];
+
+  const updateExperience = (index, field, value) => {
+    const updated = [...experiences];
+    updated[index] = { ...updated[index], [field]: value };
     setForm((prev) => ({
       ...prev,
-      workExperience: { ...(prev.workExperience || {}), [key]: val },
+      workExperiences: updated,
+      workExperience: updated[0] || {},
     }));
+  };
+
+  const addExperience = () => {
+    const newExp = { previousCompany: '', position: '', fieldOfWork: '', duration: '' };
+    const updated = [newExp, ...experiences];
+    setForm((prev) => ({
+      ...prev,
+      workExperiences: updated,
+      workExperience: updated[0] || {},
+    }));
+  };
+
+  const removeExperience = (index) => {
+    if (experiences.length <= 1) {
+      const updated = [{ previousCompany: '', position: '', fieldOfWork: '', duration: '' }];
+      setForm((prev) => ({
+        ...prev,
+        workExperiences: updated,
+        workExperience: updated[0] || {},
+      }));
+      return;
+    }
+    const updated = experiences.filter((_, i) => i !== index);
+    setForm((prev) => ({
+      ...prev,
+      workExperiences: updated,
+      workExperience: updated[0] || {},
+    }));
+  };
+
+  // Section disabled validation states
+  const isBasicInfoDisabled = !form.divisionId || !form.firstName?.trim() || !form.lastName?.trim() || !form.email?.trim();
+  const isAddressDisabled = !form.homeCountryAddress?.trim() && !form.addressInUae?.trim();
+  const isEduDisabled = !form.education?.educationLevel && !form.education?.degreeMajor?.trim() && !form.education?.universityName?.trim();
+  const isWorkExpDisabled = !experiences.some((e) => e.previousCompany?.trim() || e.position?.trim() || e.duration?.trim());
+  const isJobProfileDisabled = !form.divisionId && !form.departmentId && !form.jobTitle;
+  const isPassportDisabled = !form.passportNumber?.trim() && !form.emiratesIdNumber?.trim();
+  const isDocsDisabled = !form.experienceLetterName && !form.educationalCertificateName;
+
+  const setWorkExp = (key, val) => {
+    updateExperience(0, key, val);
+  };
 
   const setEdu = (key, val) =>
     setForm((prev) => ({
@@ -283,7 +337,7 @@ export default function EmployeeMasterForm({
         {activeTab === 'Personal info' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {/* Card 1: Basic Information */}
-            <SectionCard title="Basic information">
+            <SectionCard title="Basic information" disabled={isBasicInfoDisabled}>
               <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
                 {/* Left: Avatar Upload Circle */}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, minWidth: 120 }}>
@@ -510,7 +564,7 @@ export default function EmployeeMasterForm({
             {/* 2-Column Grid: Address & Education details */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
               {/* Card 2: Address */}
-              <SectionCard title="Address">
+              <SectionCard title="Address" disabled={isAddressDisabled}>
                 <FieldRow label="Citizen ID address">
                   <input
                     style={inputStyle}
@@ -531,7 +585,7 @@ export default function EmployeeMasterForm({
               </SectionCard>
 
               {/* Card 3: Education (Swapped above Work Experience) */}
-              <SectionCard title="Education details">
+              <SectionCard title="Education details" disabled={isEduDisabled}>
                 <FieldRow label="Education Level">
                   <select
                     style={inputStyle}
@@ -595,43 +649,140 @@ export default function EmployeeMasterForm({
               </SectionCard>
             </div>
 
-            {/* Card 4: Work Experience (Swapped below Education) */}
-            <SectionCard title="Work experience">
-              <FieldRow label="Previous company">
-                <input
-                  style={inputStyle}
-                  placeholder="e.g. Emirates Tech Solutions LLC"
-                  value={form.workExperience?.previousCompany || ''}
-                  onChange={(e) => setWorkExp('previousCompany', e.target.value)}
-                />
-              </FieldRow>
+            {/* Card 4: Work Experience (Multiple Experiences Support, Latest on Top) */}
+            <SectionCard title="Work experience" disabled={isWorkExpDisabled}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+                <span style={{ fontSize: '12.5px', color: 'var(--muted, #64748b)', fontWeight: 500 }}>
+                  Add multiple previous companies (Latest experience is always on top)
+                </span>
+                <button
+                  type="button"
+                  onClick={addExperience}
+                  className="btn secondary"
+                  style={{
+                    padding: '5px 12px',
+                    fontSize: '11.5px',
+                    borderRadius: '6px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    color: '#008fa8',
+                    fontWeight: 600,
+                    borderColor: '#00b8db',
+                    background: 'rgba(0, 184, 219, 0.06)',
+                  }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  + Add Another Experience
+                </button>
+              </div>
 
-              <FieldRow label="Position / Role">
-                <input
-                  style={inputStyle}
-                  placeholder="e.g. Software Engineer"
-                  value={form.workExperience?.position || ''}
-                  onChange={(e) => setWorkExp('position', e.target.value)}
-                />
-              </FieldRow>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {experiences.map((exp, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      background: 'var(--surface-alt, #f8fafc)',
+                      border: '1px solid var(--line, #e2e8f0)',
+                      borderRadius: '8px',
+                      padding: '14px 16px',
+                      position: 'relative',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingBottom: 8, borderBottom: '1px dashed var(--line, #cbd5e1)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: 22,
+                            height: 22,
+                            borderRadius: '50%',
+                            background: idx === 0 ? 'rgba(0, 184, 219, 0.15)' : 'var(--line, #e2e8f0)',
+                            color: idx === 0 ? '#008fa8' : '#64748b',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {idx + 1}
+                        </span>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                          {idx === 0 ? 'Latest Work Experience' : `Previous Experience #${idx + 1}`}
+                        </span>
+                        {idx === 0 ? (
+                          <span style={{ fontSize: '10.5px', background: 'rgba(0, 184, 219, 0.12)', color: '#008fa8', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>
+                            Current / Most Recent
+                          </span>
+                        ) : null}
+                      </div>
 
-              <FieldRow label="Field of work">
-                <input
-                  style={inputStyle}
-                  placeholder="e.g. Information Technology"
-                  value={form.workExperience?.fieldOfWork || ''}
-                  onChange={(e) => setWorkExp('fieldOfWork', e.target.value)}
-                />
-              </FieldRow>
+                      {experiences.length > 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => removeExperience(idx)}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#ef4444',
+                            fontSize: '11.5px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                          }}
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                          </svg>
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
 
-              <FieldRow label="Duration">
-                <input
-                  style={inputStyle}
-                  placeholder="e.g. 2 Years (Jan 2022 – Dec 2023)"
-                  value={form.workExperience?.duration || ''}
-                  onChange={(e) => setWorkExp('duration', e.target.value)}
-                />
-              </FieldRow>
+                    <FieldRow label="Previous company">
+                      <input
+                        style={inputStyle}
+                        placeholder="e.g. Emirates Tech Solutions LLC"
+                        value={exp.previousCompany || ''}
+                        onChange={(e) => updateExperience(idx, 'previousCompany', e.target.value)}
+                      />
+                    </FieldRow>
+
+                    <FieldRow label="Position / Role">
+                      <input
+                        style={inputStyle}
+                        placeholder="e.g. Software Engineer"
+                        value={exp.position || ''}
+                        onChange={(e) => updateExperience(idx, 'position', e.target.value)}
+                      />
+                    </FieldRow>
+
+                    <FieldRow label="Field of work">
+                      <input
+                        style={inputStyle}
+                        placeholder="e.g. Information Technology"
+                        value={exp.fieldOfWork || ''}
+                        onChange={(e) => updateExperience(idx, 'fieldOfWork', e.target.value)}
+                      />
+                    </FieldRow>
+
+                    <FieldRow label="Duration in years" helper="Total duration in years">
+                      <input
+                        style={inputStyle}
+                        placeholder="e.g. 1 year, 2 years, 3.5 years"
+                        value={exp.duration || ''}
+                        onChange={(e) => updateExperience(idx, 'duration', e.target.value)}
+                      />
+                    </FieldRow>
+                  </div>
+                ))}
+              </div>
             </SectionCard>
           </div>
         )}
@@ -641,7 +792,7 @@ export default function EmployeeMasterForm({
              ========================================================================= */}
           {activeTab === 'Employee details' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <SectionCard title="Job & Organization Profile">
+              <SectionCard title="Job & Organization Profile" disabled={isJobProfileDisabled}>
                 <FieldRow label="Operating Company">
                   <select
                     style={inputStyle}
@@ -760,7 +911,7 @@ export default function EmployeeMasterForm({
              ========================================================================= */}
           {activeTab === 'Documents' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <SectionCard title="Passport & Emirates ID Credentials">
+              <SectionCard title="Passport & Emirates ID Credentials" disabled={isPassportDisabled}>
                 <FieldRow label="Passport Number">
                   <input
                     style={inputStyle}
@@ -828,7 +979,7 @@ export default function EmployeeMasterForm({
                 </FieldRow>
               </SectionCard>
 
-              <SectionCard title="Uploaded Documents & Attachments">
+              <SectionCard title="Uploaded Documents & Attachments" disabled={isDocsDisabled}>
                 <FieldRow label="Experience Letter">
                   <input
                     ref={expLetterRef}

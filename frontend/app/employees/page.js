@@ -1288,7 +1288,7 @@ function EmployeesContent() {
                       </div>
                     </div>
 
-                    {/* Card 3: Work Experience (Label on Left, Value on Right) */}
+                    {/* Card 3: Work Experience (Multiple support, Latest on Top) */}
                     <div className="emp-card">
                       <div className="emp-card-header">
                         <h4 className="emp-card-title">
@@ -1309,27 +1309,65 @@ function EmployeesContent() {
                         ) : null}
                       </div>
 
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '14px', padding: '10px 0', alignItems: 'flex-start' }}>
-                          <div className="emp-row-label">Previous company</div>
-                          <div className="emp-row-val" style={{ lineHeight: 1.5 }}>{selectedMd.workExperience?.previousCompany || '—'}</div>
-                        </div>
+                      {(() => {
+                        const profileExps = Array.isArray(selectedMd.workExperiences) && selectedMd.workExperiences.length > 0
+                          ? selectedMd.workExperiences
+                          : (selectedMd.workExperience && (selectedMd.workExperience.previousCompany || selectedMd.workExperience.position))
+                            ? [selectedMd.workExperience]
+                            : [];
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '14px', padding: '10px 0', alignItems: 'flex-start' }}>
-                          <div className="emp-row-label">Position / Role</div>
-                          <div className="emp-row-val" style={{ lineHeight: 1.5 }}>{selectedMd.workExperience?.position || '—'}</div>
-                        </div>
+                        if (!profileExps.length) {
+                          return (
+                            <div className="muted" style={{ padding: '12px 0', fontSize: '13px' }}>
+                              No previous work experience recorded.
+                            </div>
+                          );
+                        }
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '14px', padding: '10px 0', alignItems: 'flex-start' }}>
-                          <div className="emp-row-label">Field of work</div>
-                          <div className="emp-row-val" style={{ lineHeight: 1.5 }}>{selectedMd.workExperience?.fieldOfWork || '—'}</div>
-                        </div>
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            {profileExps.map((exp, expIdx) => (
+                              <div
+                                key={expIdx}
+                                style={{
+                                  padding: '10px 12px',
+                                  background: expIdx === 0 ? 'rgba(0, 184, 219, 0.04)' : 'transparent',
+                                  borderRadius: 8,
+                                  border: expIdx === 0 ? '1px solid rgba(0, 184, 219, 0.25)' : '1px solid var(--line, #e2e8f0)',
+                                }}
+                              >
+                                {profileExps.length > 1 ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                                    <span style={{ fontSize: '11px', fontWeight: 700, color: expIdx === 0 ? '#008fa8' : 'var(--muted, #64748b)', textTransform: 'uppercase' }}>
+                                      {expIdx === 0 ? 'Latest Experience' : `Previous Company #${expIdx + 1}`}
+                                    </span>
+                                  </div>
+                                ) : null}
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '14px', padding: '10px 0', alignItems: 'flex-start' }}>
-                          <div className="emp-row-label">Duration</div>
-                          <div className="emp-row-val" style={{ lineHeight: 1.5 }}>{selectedMd.workExperience?.duration || '—'}</div>
-                        </div>
-                      </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '10px', padding: '4px 0', alignItems: 'flex-start' }}>
+                                  <div className="emp-row-label">Previous company</div>
+                                  <div className="emp-row-val" style={{ lineHeight: 1.4, fontWeight: 600 }}>{exp.previousCompany || '—'}</div>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '10px', padding: '4px 0', alignItems: 'flex-start' }}>
+                                  <div className="emp-row-label">Position / Role</div>
+                                  <div className="emp-row-val" style={{ lineHeight: 1.4 }}>{exp.position || '—'}</div>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '10px', padding: '4px 0', alignItems: 'flex-start' }}>
+                                  <div className="emp-row-label">Field of work</div>
+                                  <div className="emp-row-val" style={{ lineHeight: 1.4 }}>{exp.fieldOfWork || '—'}</div>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '10px', padding: '4px 0', alignItems: 'flex-start' }}>
+                                  <div className="emp-row-label">Duration in years</div>
+                                  <div className="emp-row-val" style={{ lineHeight: 1.4 }}>{exp.duration || '—'}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
 
