@@ -93,6 +93,7 @@ export function emptyMasterForm() {
     previousVisaType: 'N/A',
     experienceLetterName: '',
     educationalCertificateName: '',
+    customDocuments: [],
     workExperiences: [
       {
         previousCompany: '',
@@ -211,6 +212,7 @@ export function masterFormFromEmployee(employee) {
     previousVisaType: md.previousVisaType || 'N/A',
     experienceLetterName: md.experienceLetterName || '',
     educationalCertificateName: md.educationalCertificateName || '',
+    customDocuments: Array.isArray(md.customDocuments) ? md.customDocuments : [],
     workExperiences: (Array.isArray(md.workExperiences) && md.workExperiences.length)
       ? md.workExperiences
       : (md.workExperience && (md.workExperience.previousCompany || md.workExperience.position))
@@ -270,6 +272,16 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
       duration: w.duration?.trim() || '',
     }));
 
+  const cleanDocuments = (form.customDocuments || []).map((d) => ({
+    id: d.id || `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    type: d.type || 'Other Document',
+    title: d.title || '',
+    fileName: d.fileName || d.name || '',
+    fileUrl: d.fileUrl || '',
+    fileType: d.fileType || '',
+    uploadDate: d.uploadDate || new Date().toISOString(),
+  }));
+
   const masterData = {
     firstName: form.firstName?.trim() || '',
     middleName: form.middleName?.trim() || '',
@@ -315,6 +327,7 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
     previousVisaType: form.previousVisaType || 'N/A',
     experienceLetterName: form.experienceLetterName || '',
     educationalCertificateName: form.educationalCertificateName || '',
+    customDocuments: cleanDocuments,
     workExperiences: cleanExperiences,
     workExperience: cleanExperiences[0] || form.workExperience || {},
     education: form.education || {},

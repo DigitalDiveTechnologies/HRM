@@ -1750,33 +1750,62 @@ function EmployeesContent() {
                     </div>
                   </div>
 
-                  {/* Card 2: Uploaded Documents & Attachments (Empty State if None) */}
+                  {/* Card 2: Uploaded Documents & Custom Attachments */}
                   <div className="emp-card">
-                    <h4 className="emp-card-title" style={{ margin: '0 0 14px' }}>
-                      Official Files & Document Attachments
-                    </h4>
+                    <div className="emp-card-header">
+                      <h4 className="emp-card-title">
+                        Uploaded Documents & Custom Attachments
+                      </h4>
+                      {isAdmin ? (
+                        <button
+                          type="button"
+                          className="card-edit-pencil"
+                          onClick={() => setIsEditingProfile(true)}
+                          title="Manage Documents"
+                        >
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                            <path d="m15 5 4 4" />
+                          </svg>
+                        </button>
+                      ) : null}
+                    </div>
 
-                    {empDocuments.length > 0 || selectedMd.experienceLetterName || selectedMd.educationalCertificateName ? (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
-                        {selectedMd.experienceLetterName ? (
-                          <div className="emp-doc-tile">
-                            <span style={{ fontSize: '22px' }}>📄</span>
-                            <div>
-                              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>Experience Letter</div>
-                              <div style={{ fontSize: '11.5px', color: 'var(--muted, #64748b)' }}>{selectedMd.experienceLetterName}</div>
+                    {((Array.isArray(selectedMd.customDocuments) && selectedMd.customDocuments.length > 0) || empDocuments.length > 0) ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
+                        {(Array.isArray(selectedMd.customDocuments) ? selectedMd.customDocuments : []).map((doc, idx) => (
+                          <div key={doc.id || idx} className="emp-doc-tile" style={{ justifyContent: 'space-between', padding: '12px 14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                              <span style={{ fontSize: '24px' }}>
+                                {doc.type === 'Passport' ? '📘' : doc.type === 'Visa' ? '🎫' : doc.type === 'Emirates ID' || doc.type?.includes('ID') ? '🪪' : '📄'}
+                              </span>
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span style={{ fontSize: '10.5px', fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: 'rgba(0, 184, 219, 0.12)', color: '#008fa8' }}>
+                                    {doc.type}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink, #0f172a)', marginTop: 2 }}>
+                                  {doc.title || doc.type}
+                                </div>
+                                <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)' }}>
+                                  {doc.fileName} {doc.fileSize ? `• ${doc.fileSize}` : ''}
+                                </div>
+                              </div>
                             </div>
+                            {doc.fileUrl ? (
+                              <a
+                                href={doc.fileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="btn secondary"
+                                style={{ fontSize: '11.5px', padding: '4px 10px', textDecoration: 'none' }}
+                              >
+                                View ↗
+                              </a>
+                            ) : null}
                           </div>
-                        ) : null}
-
-                        {selectedMd.educationalCertificateName ? (
-                          <div className="emp-doc-tile">
-                            <span style={{ fontSize: '22px' }}>📜</span>
-                            <div>
-                              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>Educational Certificate</div>
-                              <div style={{ fontSize: '11.5px', color: 'var(--muted, #64748b)' }}>{selectedMd.educationalCertificateName}</div>
-                            </div>
-                          </div>
-                        ) : null}
+                        ))}
 
                         {empDocuments.map((doc, idx) => (
                           <div key={v(doc, 'id') || idx} className="emp-doc-tile" style={{ justifyContent: 'space-between' }}>
@@ -1818,7 +1847,7 @@ function EmployeesContent() {
                       </div>
                     ) : (
                       <div className="emp-empty-box">
-                        No documents found for this employee yet.
+                        No official documents uploaded for this employee.
                       </div>
                     )}
                   </div>

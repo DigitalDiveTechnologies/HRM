@@ -24,6 +24,15 @@ const DUBAI_EDUCATION_LEVELS = [
   'Other',
 ];
 
+const DOCUMENT_CATEGORIES = [
+  'Passport',
+  'Visa',
+  'Emirates ID',
+  'CNIC / National ID',
+  'Offer Letter / Employment Contract',
+  'Other Document',
+];
+
 const NATIONALITIES = [
   'Emirati (UAE)',
   'Pakistani',
@@ -161,6 +170,59 @@ export default function EmployeeMasterForm({
   const [activeTab, setActiveTab] = useState('Personal info');
   const [showPassword, setShowPassword] = useState(false);
 
+  // Custom Documents state for Tab 3
+  const [selectedDocType, setSelectedDocType] = useState('Passport');
+  const [docTitle, setDocTitle] = useState('');
+  const [previewDoc, setPreviewDoc] = useState(null);
+  const docFileInputRef = useRef(null);
+
+  const customDocs = Array.isArray(form.customDocuments) ? form.customDocuments : [];
+
+  const handleDocFilesSelect = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    const newDocs = files.map((file) => {
+      const previewUrl = URL.createObjectURL(file);
+      const isImg = file.type.startsWith('image/');
+      return {
+        id: `${Date.now()}_${Math.random().toString(36).substr(2, 7)}`,
+        type: selectedDocType,
+        title: docTitle.trim() || selectedDocType,
+        fileName: file.name,
+        fileSize: (file.size / 1024).toFixed(1) + ' KB',
+        fileUrl: previewUrl,
+        fileType: file.type,
+        isImage: isImg,
+        uploadDate: new Date().toLocaleDateString(),
+        fileObject: file,
+      };
+    });
+
+    const updated = [...customDocs, ...newDocs];
+    setForm((prev) => ({
+      ...prev,
+      customDocuments: updated,
+    }));
+    setDocTitle('');
+    if (docFileInputRef.current) docFileInputRef.current.value = '';
+  };
+
+  const removeCustomDoc = (docId) => {
+    const docToRemove = customDocs.find((d) => d.id === docId);
+    if (docToRemove?.fileUrl && docToRemove.fileUrl.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(docToRemove.fileUrl);
+      } catch {}
+    }
+    const updated = customDocs.filter((d) => d.id !== docId);
+    setForm((prev) => ({
+      ...prev,
+      customDocuments: updated,
+    }));
+    if (previewDoc?.id === docId) setPreviewDoc(null);
+  };
+
   const set = (key, val) => setForm((prev) => ({ ...prev, [key]: val }));
 
   const experiences = Array.isArray(form.workExperiences) && form.workExperiences.length > 0
@@ -214,7 +276,7 @@ export default function EmployeeMasterForm({
   const isWorkExpDisabled = !experiences.some((e) => e.previousCompany?.trim() || e.position?.trim() || e.duration?.trim());
   const isJobProfileDisabled = !form.divisionId && !form.departmentId && !form.jobTitle;
   const isPassportDisabled = !form.passportNumber?.trim() && !form.emiratesIdNumber?.trim();
-  const isDocsDisabled = !form.experienceLetterName && !form.educationalCertificateName;
+  const isDocsDisabled = customDocs.length === 0;
 
   const setWorkExp = (key, val) => {
     updateExperience(0, key, val);
@@ -646,6 +708,23 @@ export default function EmployeeMasterForm({
                     <option value="In Process">In Process</option>
                   </select>
                 </FieldRow>
+
+                <FieldRow label="Educational Certificate" helper="Degree / diploma certificate document">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <input
+                      ref={eduCertRef}
+                      type="file"
+                      accept="image/*,.pdf,.doc,.docx"
+                      style={inputStyle}
+                      onChange={(e) => set('educationalCertificateName', e.target.files?.[0]?.name || '')}
+                    />
+                    {form.educationalCertificateName ? (
+                      <span style={{ fontSize: '11.5px', color: '#008fa8', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        ✓ {form.educationalCertificateName}
+                      </span>
+                    ) : null}
+                  </div>
+                </FieldRow>
               </SectionCard>
             </div>
 
@@ -676,7 +755,7 @@ export default function EmployeeMasterForm({
                     <line x1="12" y1="5" x2="12" y2="19" />
                     <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
-                  + Add Another Experience
+                  Add Another Experience
                 </button>
               </div>
 
@@ -779,6 +858,26 @@ export default function EmployeeMasterForm({
                         value={exp.duration || ''}
                         onChange={(e) => updateExperience(idx, 'duration', e.target.value)}
                       />
+                    </FieldRow>
+
+                    <FieldRow label="Experience Letter" helper="Service / experience certificate">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <input
+                          type="file"
+                          accept="image/*,.pdf,.doc,.docx"
+                          style={inputStyle}
+                          onChange={(e) => {
+                            const name = e.target.files?.[0]?.name || '';
+                            updateExperience(idx, 'experienceLetterName', name);
+                            if (idx === 0) set('experienceLetterName', name);
+                          }}
+                        />
+                        {(exp.experienceLetterName || (idx === 0 && form.experienceLetterName)) ? (
+                          <span style={{ fontSize: '11.5px', color: '#008fa8', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                            ✓ {exp.experienceLetterName || form.experienceLetterName}
+                          </span>
+                        ) : null}
+                      </div>
                     </FieldRow>
                   </div>
                 ))}
@@ -979,27 +1078,398 @@ export default function EmployeeMasterForm({
                 </FieldRow>
               </SectionCard>
 
-              <SectionCard title="Uploaded Documents & Attachments" disabled={isDocsDisabled}>
-                <FieldRow label="Experience Letter">
-                  <input
-                    ref={expLetterRef}
-                    type="file"
-                    style={inputStyle}
-                    onChange={(e) => set('experienceLetterName', e.target.files?.[0]?.name || '')}
-                  />
-                </FieldRow>
+              {/* Card 2: Custom Documents & Attachments (Multiple Uploads, Preview & Delete) */}
+              <SectionCard title="Custom Documents & Attachments" disabled={isDocsDisabled}>
+                {/* Upload Controls Bar */}
+                <div
+                  style={{
+                    background: 'var(--surface-alt, #f8fafc)',
+                    border: '1px solid var(--line, #e2e8f0)',
+                    borderRadius: '10px',
+                    padding: '16px',
+                    marginBottom: '16px',
+                  }}
+                >
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink, #0f172a)', marginBottom: 10 }}>
+                    Upload New Document / Images
+                  </div>
 
-                <FieldRow label="Educational Certificate">
-                  <input
-                    ref={eduCertRef}
-                    type="file"
-                    style={inputStyle}
-                    onChange={(e) => set('educationalCertificateName', e.target.files?.[0]?.name || '')}
-                  />
-                </FieldRow>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, alignItems: 'center' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, color: 'var(--muted, #64748b)', marginBottom: 4 }}>
+                        Document Type <span style={{ color: '#ef4444' }}>*</span>
+                      </label>
+                      <select
+                        value={selectedDocType}
+                        onChange={(e) => setSelectedDocType(e.target.value)}
+                        style={inputStyle}
+                      >
+                        {DOCUMENT_CATEGORIES.map((cat) => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, color: 'var(--muted, #64748b)', marginBottom: 4 }}>
+                        Label / Title (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Front & Back / Stamped Page"
+                        value={docTitle}
+                        onChange={(e) => setDocTitle(e.target.value)}
+                        style={inputStyle}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', paddingTop: 18 }}>
+                      <input
+                        ref={docFileInputRef}
+                        type="file"
+                        multiple
+                        accept="image/*,.pdf,.doc,.docx"
+                        style={{ display: 'none' }}
+                        onChange={handleDocFilesSelect}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => docFileInputRef.current?.click()}
+                        className="btn"
+                        style={{
+                          background: '#00b8db',
+                          color: '#ffffff',
+                          fontWeight: 600,
+                          fontSize: '12.5px',
+                          padding: '9px 16px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                          boxShadow: '0 2px 6px rgba(0, 184, 219, 0.25)',
+                        }}
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="17 8 12 3 7 8" />
+                          <line x1="12" y1="3" x2="12" y2="15" />
+                        </svg>
+                        Upload Document Files
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--muted, #94a3b8)', marginTop: 8 }}>
+                    Supported formats: PNG, JPG, JPEG, WEBP, PDF, DOCX (Select multiple files at once).
+                  </div>
+                </div>
+
+                {/* Uploaded Documents List */}
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <h5 style={{ margin: 0, fontSize: '13.5px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                      Uploaded Documents ({customDocs.length})
+                    </h5>
+                  </div>
+
+                  {customDocs.length === 0 ? (
+                    <div
+                      style={{
+                        padding: '24px',
+                        textAlign: 'center',
+                        background: 'var(--surface-alt, #f8fafc)',
+                        borderRadius: '8px',
+                        border: '1px dashed var(--line, #cbd5e1)',
+                        color: 'var(--muted, #64748b)',
+                        fontSize: '13px',
+                      }}
+                    >
+                      No custom documents uploaded yet. Select a document type above and click <strong>Upload Document Files</strong>.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {customDocs.map((doc) => {
+                        let badgeColor = '#008fa8';
+                        let badgeBg = 'rgba(0, 184, 219, 0.12)';
+                        if (doc.type === 'Visa') {
+                          badgeColor = '#6366f1';
+                          badgeBg = 'rgba(99, 102, 241, 0.12)';
+                        } else if (doc.type === 'Emirates ID') {
+                          badgeColor = '#d97706';
+                          badgeBg = 'rgba(245, 158, 11, 0.12)';
+                        } else if (doc.type === 'CNIC / National ID') {
+                          badgeColor = '#059669';
+                          badgeBg = 'rgba(16, 185, 129, 0.12)';
+                        } else if (doc.type === 'Offer Letter / Employment Contract') {
+                          badgeColor = '#0d9488';
+                          badgeBg = 'rgba(13, 148, 136, 0.12)';
+                        }
+
+                        return (
+                          <div
+                            key={doc.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              flexWrap: 'wrap',
+                              gap: 12,
+                              padding: '12px 16px',
+                              background: 'var(--surface, #ffffff)',
+                              border: '1px solid var(--line, #e2e8f0)',
+                              borderRadius: '8px',
+                              transition: 'box-shadow 0.15s ease',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 220 }}>
+                              {/* Document Icon / Thumbnail */}
+                              <div
+                                style={{
+                                  width: 38,
+                                  height: 38,
+                                  borderRadius: '6px',
+                                  background: badgeBg,
+                                  color: badgeColor,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                  <polyline points="14 2 14 8 20 8" />
+                                  <line x1="16" y1="13" x2="8" y2="13" />
+                                  <line x1="16" y1="17" x2="8" y2="17" />
+                                  <polyline points="10 9 9 9 8 9" />
+                                </svg>
+                              </div>
+
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                  <span
+                                    style={{
+                                      fontSize: '11px',
+                                      fontWeight: 700,
+                                      padding: '2px 8px',
+                                      borderRadius: '4px',
+                                      background: badgeBg,
+                                      color: badgeColor,
+                                      textTransform: 'uppercase',
+                                    }}
+                                  >
+                                    {doc.type}
+                                  </span>
+                                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                                    {doc.title || doc.type}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: '11.5px', color: 'var(--muted, #64748b)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {doc.fileName} {doc.fileSize ? `• ${doc.fileSize}` : ''} {doc.uploadDate ? `• Uploaded: ${doc.uploadDate}` : ''}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Actions: Preview & Delete */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              {doc.fileUrl ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewDoc(doc)}
+                                  className="btn secondary"
+                                  style={{
+                                    padding: '5px 12px',
+                                    fontSize: '11.5px',
+                                    borderRadius: '6px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 5,
+                                    color: '#008fa8',
+                                    fontWeight: 600,
+                                  }}
+                                  title="Preview Document"
+                                >
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                    <circle cx="12" cy="12" r="3" />
+                                  </svg>
+                                  Preview
+                                </button>
+                              ) : null}
+
+                              <button
+                                type="button"
+                                onClick={() => removeCustomDoc(doc.id)}
+                                style={{
+                                  background: 'rgba(239, 68, 68, 0.08)',
+                                  border: '1px solid rgba(239, 68, 68, 0.2)',
+                                  color: '#ef4444',
+                                  padding: '5px 10px',
+                                  fontSize: '11.5px',
+                                  fontWeight: 600,
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 5,
+                                }}
+                                title="Delete Document"
+                              >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="3 6 5 6 21 6" />
+                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                  <line x1="10" y1="11" x2="10" y2="17" />
+                                  <line x1="14" y1="11" x2="14" y2="17" />
+                                </svg>
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </SectionCard>
             </div>
           )}
+
+          {/* Document Preview Modal */}
+          {previewDoc ? (
+            <>
+              <div
+                className="backdrop show"
+                onClick={() => setPreviewDoc(null)}
+                aria-hidden="true"
+                style={{ zIndex: 999 }}
+              />
+              <div
+                role="dialog"
+                aria-modal="true"
+                style={{
+                  position: 'fixed',
+                  left: '50%',
+                  top: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  zIndex: 1000,
+                  width: 'min(780px, calc(100vw - 32px))',
+                  maxHeight: '85vh',
+                  background: 'var(--surface, #ffffff)',
+                  borderRadius: 12,
+                  boxShadow: '0 24px 60px rgba(0, 0, 0, 0.35)',
+                  border: '1px solid var(--line, #cbd5e1)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '14px 20px',
+                    borderBottom: '1px solid var(--line, #e2e8f0)',
+                    background: 'var(--surface-alt, #f8fafc)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: 'rgba(0, 184, 219, 0.15)', color: '#008fa8' }}>
+                      {previewDoc.type}
+                    </span>
+                    <strong style={{ fontSize: '14px', color: 'var(--ink, #0f172a)' }}>
+                      {previewDoc.title || previewDoc.fileName}
+                    </strong>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewDoc(null)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      fontSize: '20px',
+                      color: 'var(--muted, #64748b)',
+                      cursor: 'pointer',
+                      padding: '2px 6px',
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div
+                  style={{
+                    padding: '20px',
+                    overflowY: 'auto',
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: '#0b1120',
+                    minHeight: '300px',
+                  }}
+                >
+                  {previewDoc.isImage || (previewDoc.fileType && previewDoc.fileType.startsWith('image/')) || (previewDoc.fileName && /\.(png|jpe?g|webp|gif)$/i.test(previewDoc.fileName)) ? (
+                    <img
+                      src={previewDoc.fileUrl}
+                      alt={previewDoc.title || previewDoc.fileName}
+                      style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain', borderRadius: 6 }}
+                    />
+                  ) : (
+                    <div style={{ color: '#ffffff', textAlign: 'center', padding: '30px' }}>
+                      <div style={{ fontSize: '42px', marginBottom: 12 }}>📄</div>
+                      <div style={{ fontSize: '15px', fontWeight: 600 }}>{previewDoc.fileName}</div>
+                      <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: 4 }}>
+                        {previewDoc.fileSize || 'Document file'}
+                      </div>
+                      <a
+                        href={previewDoc.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          marginTop: 18,
+                          background: '#00b8db',
+                          color: '#ffffff',
+                          padding: '8px 18px',
+                          borderRadius: 6,
+                          textDecoration: 'none',
+                          fontSize: '12.5px',
+                          fontWeight: 600,
+                        }}
+                      >
+                        Open Document in New Tab ↗
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    padding: '12px 20px',
+                    borderTop: '1px solid var(--line, #e2e8f0)',
+                    background: 'var(--surface-alt, #f8fafc)',
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="btn secondary"
+                    onClick={() => setPreviewDoc(null)}
+                    style={{ padding: '6px 16px', fontSize: '12.5px', borderRadius: 6 }}
+                  >
+                    Close Preview
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : null}
 
           {/* Form Actions Footer */}
           <div
