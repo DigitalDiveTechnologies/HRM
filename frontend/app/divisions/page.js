@@ -68,12 +68,6 @@ export default function DivisionsPage() {
     }
   }
 
-  function payrollLabel(type) {
-    const t = String(type || '').toLowerCase();
-    if (t === 'bank_transfer') return 'Bank transfer';
-    return 'WPS (UAE)';
-  }
-
   return (
     <AppShell title="Company Master" subtitle="GOCs companies — Alkidma, Alqat, Overseas, Royal Oceans">
       {error ? <div className="error">{error}</div> : null}
@@ -87,7 +81,7 @@ export default function DivisionsPage() {
           Companies are never hard-deleted — use <strong>Deactivate</strong> to set inactive.
         </p>
         <form className="stack" onSubmit={createDivision}>
-          <div className="grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+          <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
             <label className="field">
               Code
               <input
@@ -106,13 +100,6 @@ export default function DivisionsPage() {
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
             </label>
-            <label className="field">
-              Payroll type
-              <select value={form.payrollType} onChange={(e) => setForm({ ...form, payrollType: e.target.value })}>
-                <option value="wps">WPS (UAE)</option>
-                <option value="bank_transfer">Bank transfer (Overseas)</option>
-              </select>
-            </label>
           </div>
           <button className="btn" type="submit" disabled={saving}>
             {saving ? 'Saving…' : 'Create company'}
@@ -130,7 +117,6 @@ export default function DivisionsPage() {
               <tr>
                 <th>Code</th>
                 <th>Name</th>
-                <th>Payroll</th>
                 <th>Employees</th>
                 <th>Status</th>
                 <th>Action</th>
@@ -141,7 +127,6 @@ export default function DivisionsPage() {
                 <tr key={v(d, 'id')}>
                   <td>{v(d, 'code')}</td>
                   <td>{v(d, 'name')}</td>
-                  <td>{payrollLabel(v(d, 'payrollType', 'payroll_type'))}</td>
                   <td>{v(d, 'employeeCount', 'employee_count') ?? 0}</td>
                   <td>
                     <Badge status={v(d, 'status')} />
@@ -161,7 +146,7 @@ export default function DivisionsPage() {
               ))}
               {!rows.length ? (
                 <tr>
-                  <td colSpan={6}>No companies yet.</td>
+                  <td colSpan={5}>No companies yet.</td>
                 </tr>
               ) : null}
             </tbody>

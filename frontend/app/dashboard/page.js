@@ -789,7 +789,7 @@ export default function DashboardPage() {
                 <div style={{ fontWeight: 700, fontSize: '13px', marginBottom: '10px', color: 'var(--ink)' }}>
                   Add New Company
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '12px' }}>
                   <label className="field" style={{ margin: 0 }}>
                     <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Company Code</span>
                     <input
@@ -809,17 +809,6 @@ export default function DashboardPage() {
                       onChange={(e) => setNewCompany({ ...newCompany, name: e.target.value })}
                       style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--line)', boxSizing: 'border-box' }}
                     />
-                  </label>
-                  <label className="field" style={{ margin: 0 }}>
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Payroll Type</span>
-                    <select
-                      value={newCompany.payrollType}
-                      onChange={(e) => setNewCompany({ ...newCompany, payrollType: e.target.value })}
-                      style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--surface)', boxSizing: 'border-box' }}
-                    >
-                      <option value="wps">WPS (UAE)</option>
-                      <option value="bank_transfer">Bank transfer (Overseas)</option>
-                    </select>
                   </label>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
@@ -864,10 +853,9 @@ export default function DashboardPage() {
               <table className="dash-table">
                 <thead>
                   <tr>
-                    <th style={{ width: '25%' }}>Code</th>
-                    <th style={{ width: '40%' }}>Company Name</th>
-                    <th style={{ width: '20%' }}>Payroll Type</th>
-                    <th style={{ width: '15%', textAlign: 'right' }}>Status</th>
+                    <th style={{ width: '30%' }}>Code</th>
+                    <th style={{ width: '50%' }}>Company Name</th>
+                    <th style={{ width: '20%', textAlign: 'right' }}>Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -875,9 +863,6 @@ export default function DashboardPage() {
                     companies.map((comp) => {
                       const code = v(comp, 'code') || '—';
                       const name = v(comp, 'name') || '—';
-                      const payroll = String(v(comp, 'payrollType', 'payroll_type') || '').toLowerCase() === 'bank_transfer'
-                        ? 'Bank transfer'
-                        : 'WPS (UAE)';
                       const status = v(comp, 'status') || 'active';
 
                       return (
@@ -886,7 +871,6 @@ export default function DashboardPage() {
                             <span className="code-pill">{code}</span>
                           </td>
                           <td style={{ fontWeight: 600 }}>{name}</td>
-                          <td style={{ color: 'var(--muted)' }}>{payroll}</td>
                           <td style={{ textAlign: 'right' }}>
                             <Badge status={status} />
                           </td>
@@ -895,7 +879,7 @@ export default function DashboardPage() {
                     })
                   ) : (
                     <tr>
-                      <td colSpan={4} className="muted" style={{ textAlign: 'center', padding: '24px 0' }}>
+                      <td colSpan={3} className="muted" style={{ textAlign: 'center', padding: '24px 0' }}>
                         No companies registered yet.
                       </td>
                     </tr>
