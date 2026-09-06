@@ -1839,7 +1839,22 @@ function EmployeesContent() {
 
                       <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Reporting Manager</div>
-                        <div className="emp-row-val">{v(selected, 'managerName', 'manager_name') || '—'}</div>
+                        <div className="emp-row-val">
+                          {(() => {
+                            const direct = v(selected, 'managerName', 'manager_name');
+                            if (direct && String(direct).trim()) return direct;
+                            const mgrId = v(selected, 'managerId', 'manager_id') || selectedMd?.managerId;
+                            if (mgrId) {
+                              const found = rows.find((r) => String(v(r, 'id')) === String(mgrId));
+                              if (found) {
+                                const name = v(found, 'fullName', 'full_name');
+                                const role = v(found, 'position') || (found.masterData && found.masterData.position) || v(found, 'jobTitle', 'job_title');
+                                return role ? `${name} (${role})` : name;
+                              }
+                            }
+                            return '—';
+                          })()}
+                        </div>
                       </div>
 
                       <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>

@@ -305,6 +305,12 @@ export default function EmployeeMasterForm({
       education: { ...(prev.education || {}), [key]: val },
     }));
 
+  const setFinance = (key, val) =>
+    setForm((prev) => ({
+      ...prev,
+      finance: { ...(prev.finance || {}), [key]: val },
+    }));
+
   const handlePhotoSelect = (e) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -504,22 +510,59 @@ export default function EmployeeMasterForm({
                     style={{ display: 'none' }}
                     onChange={handlePhotoSelect}
                   />
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    style={{
-                      background: '#f8fafc',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: '6px',
-                      padding: '4px 10px',
-                      fontSize: '11.5px',
-                      fontWeight: 600,
-                      color: '#334155',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {photoUrl ? 'Change Photo' : 'Upload Photo'}
-                  </button>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      style={{
+                        background: '#f8fafc',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '6px',
+                        padding: '4px 12px',
+                        fontSize: '11.5px',
+                        fontWeight: 600,
+                        color: '#334155',
+                        cursor: 'pointer',
+                        width: '100%',
+                        textAlign: 'center',
+                      }}
+                    >
+                      {photoUrl ? 'Change Photo' : 'Upload Photo'}
+                    </button>
+                    {photoUrl ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (form.photoPreview) {
+                            try {
+                              URL.revokeObjectURL(form.photoPreview);
+                            } catch {}
+                          }
+                          if (fileInputRef.current) fileInputRef.current.value = '';
+                          setForm((prev) => ({
+                            ...prev,
+                            photoFile: null,
+                            photoPreview: '',
+                            photoPath: '',
+                          }));
+                        }}
+                        style={{
+                          background: '#ffffff',
+                          border: '1px solid #fca5a5',
+                          borderRadius: '6px',
+                          padding: '3px 8px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          color: '#ef4444',
+                          cursor: 'pointer',
+                          width: '100%',
+                          textAlign: 'center',
+                        }}
+                      >
+                        Remove Photo
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
 
                 {/* Right: Key-Value Rows for Basic Info */}
@@ -1083,6 +1126,92 @@ export default function EmployeeMasterForm({
                   </select>
                 </FieldRow>
               </SectionCard>
+
+              {/* Card 2: Compensation & WPS Details */}
+              <SectionCard
+                title="Compensation & WPS Details"
+                onSectionSave={() => triggerSectionSuccess('Compensation & WPS details')}
+                isSaved={savedSectionName === 'Compensation & WPS details'}
+              >
+                <FieldRow label="Basic Salary (AED)">
+                  <input
+                    style={inputStyle}
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="e.g. 5000"
+                    value={form.finance?.basicSalary || ''}
+                    onChange={(e) => {
+                      const basic = e.target.value;
+                      setFinance('basicSalary', basic);
+                      setFinance('grossSalary', String((Number(basic) || 0) + (Number(form.finance?.allowances) || 0)));
+                    }}
+                  />
+                </FieldRow>
+
+                <FieldRow label="Housing & Transport Allowance (AED)">
+                  <input
+                    style={inputStyle}
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="e.g. 2500"
+                    value={form.finance?.allowances || ''}
+                    onChange={(e) => {
+                      const allow = e.target.value;
+                      setFinance('allowances', allow);
+                      setFinance('grossSalary', String((Number(form.finance?.basicSalary) || 0) + (Number(allow) || 0)));
+                    }}
+                  />
+                </FieldRow>
+
+                <FieldRow label="Gross Monthly Remuneration (AED)">
+                  <input
+                    style={inputStyle}
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="e.g. 7500"
+                    value={form.finance?.grossSalary || ''}
+                    onChange={(e) => setFinance('grossSalary', e.target.value)}
+                  />
+                </FieldRow>
+
+                <FieldRow label="Payment Method">
+                  <select
+                    style={inputStyle}
+                    value={form.finance?.paymentMethod || 'WPS (SIF File Generation)'}
+                    onChange={(e) => setFinance('paymentMethod', e.target.value)}
+                  >
+                    <option value="WPS (SIF File Generation)">WPS (SIF File Generation)</option>
+                    <option value="Direct Bank Transfer">Direct Bank Transfer</option>
+                    <option value="Cheque">Cheque</option>
+                    <option value="Cash">Cash</option>
+                  </select>
+                </FieldRow>
+
+                <FieldRow label="Operating Bank">
+                  <input
+                    style={inputStyle}
+                    placeholder="e.g. Emirates NBD / ADCB / FAB"
+                    value={form.finance?.bankName || ''}
+                    onChange={(e) => setFinance('bankName', e.target.value)}
+                  />
+                </FieldRow>
+
+                <FieldRow label="IBAN / Account Number">
+                  <input
+                    style={inputStyle}
+                    placeholder="e.g. AE07033123456789012"
+                    value={form.finance?.iban || form.finance?.accountNo || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFinance('iban', val);
+                      setFinance('accountNo', val);
+                    }}
+                  />
+                </FieldRow>
+              </SectionCard>
             </div>
           )}
 
@@ -1174,7 +1303,7 @@ export default function EmployeeMasterForm({
                 {/* Upload Controls Bar */}
                 <div
                   style={{
-                    background: 'var(--surface-alt, #f8fafc)',
+                    background: '#ffffff',
                     border: '1px solid var(--line, #e2e8f0)',
                     borderRadius: '10px',
                     padding: '16px',
@@ -1270,7 +1399,7 @@ export default function EmployeeMasterForm({
                       style={{
                         padding: '24px',
                         textAlign: 'center',
-                        background: 'var(--surface-alt, #f8fafc)',
+                        background: '#ffffff',
                         borderRadius: '8px',
                         border: '1px dashed var(--line, #cbd5e1)',
                         color: 'var(--muted, #64748b)',

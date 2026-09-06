@@ -79,12 +79,13 @@ public sealed class HrQueryService
     {
         var rows = await QueryConnAsync(
             """
-            SELECT e.*, d.name AS department_name,
+            SELECT e.*, d.name AS department_name, m.full_name AS manager_name,
                    dv.name AS division_name, dv.code AS division_code,
                    dg.name AS designation_name, dg.id AS designation_id,
                    et.name AS employment_type_name, et.id AS employment_type_id
             FROM employees e
             LEFT JOIN departments d ON d.id = e.department_id
+            LEFT JOIN employees m ON m.id = e.manager_id
             LEFT JOIN divisions dv ON dv.id = e.division_id
             LEFT JOIN designations dg ON dg.id = e.designation_id
             LEFT JOIN employment_types et ON et.id = e.employment_type_id
