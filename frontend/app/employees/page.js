@@ -64,6 +64,7 @@ function EmployeesContent() {
   const [createForm, setCreateForm] = useState(emptyMasterForm());
   const [creating, setCreating] = useState(false);
   const [createLoginPopup, setCreateLoginPopup] = useState(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [resetPassword, setResetPassword] = useState('');
   const [resetting, setResetting] = useState(false);
 
@@ -281,6 +282,7 @@ function EmployeesContent() {
         email: appEmail,
         password: appPassword,
       });
+      setShowCreateModal(false);
       setMsg(`Employee created: ${employeeName}`);
       if (createForm.photoPreview) {
         try {
@@ -401,9 +403,92 @@ function EmployeesContent() {
   }, [selected]);
 
   return (
-    <AppShell title="Employee Information">
+    <AppShell
+      title="Employee Information"
+      actions={
+        isAdmin ? (
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              setCreateForm({
+                ...emptyMasterForm(),
+                empCode: calculateNextCode(rows),
+              });
+              setShowCreateModal(true);
+            }}
+            style={{
+              background: '#00b8db',
+              color: '#ffffff',
+              fontWeight: 600,
+              fontSize: '12.5px',
+              padding: '6px 14px',
+              borderRadius: '8px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              border: 'none',
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(0, 184, 219, 0.25)',
+              marginRight: '4px',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            <span>Create Employee</span>
+          </button>
+        ) : null
+      }
+    >
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="success">{msg}</div> : null}
+
+      {/* Create Employee Modal */}
+      {showCreateModal ? (
+        <>
+          <div
+            className="backdrop show"
+            onClick={() => setShowCreateModal(false)}
+            aria-hidden="true"
+            style={{ zIndex: 40 }}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            style={{
+              position: 'fixed',
+              left: '50%',
+              top: '30px',
+              bottom: '30px',
+              transform: 'translateX(-50%)',
+              zIndex: 50,
+              width: 'min(1060px, calc(100vw - 32px))',
+              background: 'var(--surface, #ffffff)',
+              borderRadius: 14,
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+              padding: '24px 28px',
+              overflowY: 'auto',
+              border: '1px solid var(--line, #e2e8f0)',
+            }}
+          >
+            <EmployeeMasterForm
+              mode="create"
+              form={createForm}
+              setForm={setCreateForm}
+              departments={departments}
+              divisions={divisions}
+              designations={designations}
+              employmentTypes={employmentTypes}
+              managers={rows}
+              saving={creating}
+              onSubmit={createEmployee}
+              onCancel={() => setShowCreateModal(false)}
+            />
+          </div>
+        </>
+      ) : null}
 
       {/* Login Popup for newly created employee */}
       {createLoginPopup ? (
@@ -1876,35 +1961,6 @@ function EmployeesContent() {
               )}
             </div>
           )}
-        </div>
-      ) : null}
-
-
-      {/* =========================================================================
-          2. CREATE EMPLOYEE FORM (Clean 3-Section + Step 1 Company Selection)
-         ========================================================================= */}
-      {isAdmin ? (
-        <div className="card emp-master-card" style={{ marginBottom: 18, padding: '20px' }}>
-          <div className="panel-title" style={{ marginBottom: 16 }}>
-            <div>
-              <h3 style={{ fontSize: '17px', fontWeight: 600, margin: 0 }}>Create New Employee</h3>
-              <p className="muted" style={{ fontSize: '12.5px', margin: '2px 0 0' }}>
-                Select operating company, assign official designation, and enter personal and UAE travel credentials
-              </p>
-            </div>
-          </div>
-          <EmployeeMasterForm
-            mode="create"
-            form={createForm}
-            setForm={setCreateForm}
-            departments={departments}
-            divisions={divisions}
-            designations={designations}
-            employmentTypes={employmentTypes}
-            managers={rows}
-            saving={creating}
-            onSubmit={createEmployee}
-          />
         </div>
       ) : null}
 

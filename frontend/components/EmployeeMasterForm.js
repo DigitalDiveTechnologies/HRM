@@ -24,6 +24,49 @@ const DUBAI_EDUCATION_LEVELS = [
   'Other',
 ];
 
+const NATIONALITIES = [
+  'Emirati (UAE)',
+  'Pakistani',
+  'Indian',
+  'Filipino',
+  'Egyptian',
+  'British',
+  'American',
+  'Saudi',
+  'Omani',
+  'Qatari',
+  'Bahraini',
+  'Kuwaiti',
+  'Bangladeshi',
+  'Sri Lankan',
+  'Nepali',
+  'Jordanian',
+  'Lebanese',
+  'Syrian',
+  'Sudanese',
+  'Yemeni',
+  'Moroccan',
+  'Tunisian',
+  'Algerian',
+  'Canadian',
+  'Australian',
+  'South African',
+  'Russian',
+  'Ukrainian',
+  'Turkish',
+  'Iranian',
+  'Chinese',
+  'German',
+  'French',
+  'Italian',
+  'Spanish',
+  'Afghan',
+  'Nigerian',
+  'Kenyan',
+  'Ghanaian',
+  'Other',
+];
+
 function FieldRow({ label, required = false, children, helper = '' }) {
   return (
     <div
@@ -89,14 +132,6 @@ export default function EmployeeMasterForm({
 
   const [activeTab, setActiveTab] = useState('Personal info');
 
-  // Step 1: Gatekeeper Company Selection during create mode (Locked 100%)
-  const [selectedCompanies, setSelectedCompanies] = useState(() => {
-    if (form.companyIds?.length) return form.companyIds;
-    if (form.divisionId) return [String(form.divisionId)];
-    return [];
-  });
-  const [companyConfirmed, setCompanyConfirmed] = useState(isEdit);
-
   const set = (key, val) => setForm((prev) => ({ ...prev, [key]: val }));
 
   const setWorkExp = (key, val) =>
@@ -110,13 +145,6 @@ export default function EmployeeMasterForm({
       ...prev,
       education: { ...(prev.education || {}), [key]: val },
     }));
-
-  const handleConfirmCompany = () => {
-    if (!selectedCompanies.length) return;
-    set('companyIds', selectedCompanies);
-    set('divisionId', selectedCompanies[0] || '');
-    setCompanyConfirmed(true);
-  };
 
   const handlePhotoSelect = (e) => {
     const file = e.target.files?.[0];
@@ -146,403 +174,288 @@ export default function EmployeeMasterForm({
 
   return (
     <div style={{ width: '100%' }}>
-      {/* =========================================================================
-          STEP 1: Company Selection Gatekeeper (Only during create mode - Locked)
-         ========================================================================= */}
-      {!companyConfirmed && !isEdit ? (
+      <form onSubmit={onSubmit} style={{ width: '100%' }}>
+        {/* Top Bar */}
         <div
-          className="emp-card"
           style={{
-            padding: '36px 28px',
-            textAlign: 'center',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 12,
+            marginBottom: 16,
+            paddingBottom: 12,
+            borderBottom: '1px solid var(--line, #e5e7eb)',
           }}
         >
-          <div style={{ maxWidth: '520px', margin: '0 auto' }}>
-            <div
-              style={{
-                display: 'inline-flex',
-                padding: '14px',
-                borderRadius: '50%',
-                background: 'rgba(0, 184, 219, 0.12)',
-                marginBottom: '16px',
-              }}
-            >
-              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#00b8db" strokeWidth="2">
-                <path d="M3 21h18M3 7v14M21 7v14M6 11h4M6 15h4M14 11h4M14 15h4M9 3h6v4H9z" />
-              </svg>
+          <div>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: 'var(--ink, #0f172a)' }}>
+              {isEdit ? 'Edit Employee Details' : 'Create New Employee'}
+            </h2>
+            <div style={{ fontSize: '12px', color: 'var(--muted, #64748b)', marginTop: 2 }}>
+              Employee / {isEdit ? 'Edit Employee' : 'Registration'}
             </div>
-            <h3 style={{ fontSize: '19px', fontWeight: 700, margin: '0 0 6px', color: 'var(--ink, #0f172a)' }}>
-              Step 1: Select Operating Company
-            </h3>
-            <p style={{ fontSize: '13px', color: 'var(--muted, #64748b)', margin: '0 0 24px', lineHeight: 1.5 }}>
-              Please select the operating company this employee will work for.
-            </p>
+          </div>
 
-            <div style={{ marginBottom: '24px', textAlign: 'left' }}>
-              <label style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--ink, #334155)', display: 'block', marginBottom: '6px' }}>
-                Select Operating Company <span style={{ color: '#ef4444' }}>*</span>
-              </label>
-              <select
-                value={selectedCompanies[0] || ''}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val) {
-                    setSelectedCompanies([val]);
-                    set('companyIds', [val]);
-                    set('divisionId', val);
-                  } else {
-                    setSelectedCompanies([]);
-                    set('companyIds', []);
-                    set('divisionId', '');
-                  }
-                }}
-                style={{ ...inputStyle, padding: '10px 14px', fontSize: '13.5px', fontWeight: 500 }}
-              >
-                <option value="">-- Select Company --</option>
-                {divisions.map((div) => {
-                  const id = String(v(div, 'id'));
-                  const name = v(div, 'name');
-                  const code = v(div, 'code');
-                  return (
-                    <option key={id} value={id}>
-                      {name} {code ? `(Code: ${code})` : ''}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
-              {onCancel ? (
-                <button
-                  type="button"
-                  className="btn secondary"
-                  onClick={onCancel}
-                  style={{ padding: '9px 22px', fontSize: '13px', borderRadius: '8px' }}
-                >
-                  Cancel
-                </button>
-              ) : null}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {onCancel ? (
               <button
                 type="button"
-                className="btn"
-                disabled={!selectedCompanies.length}
-                onClick={handleConfirmCompany}
+                className="btn secondary"
+                onClick={onCancel}
                 style={{
-                  background: '#00b8db',
-                  color: '#ffffff',
-                  fontWeight: 600,
-                  fontSize: '13px',
-                  padding: '9px 26px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  cursor: selectedCompanies.length ? 'pointer' : 'not-allowed',
-                  opacity: selectedCompanies.length ? 1 : 0.6,
+                  fontSize: '12.5px',
+                  padding: '6px 14px',
+                  borderRadius: '6px',
                 }}
               >
-                Continue to Employee Details →
+                Close
               </button>
-            </div>
+            ) : null}
           </div>
         </div>
-      ) : (
-        /* =========================================================================
-            STEP 2: Exact Reference Screenshot Cards Layout
-           ========================================================================= */
-        <form onSubmit={onSubmit} style={{ width: '100%' }}>
-          {/* Top Bar matching screenshot */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: 12,
-              marginBottom: 16,
-              paddingBottom: 12,
-              borderBottom: '1px solid #e5e7eb',
-            }}
-          >
-            <div>
-              <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
-                Employee
-              </h2>
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: 2 }}>
-                Employee / {isEdit ? 'Edit Employee Details' : 'Create Employee'}
-              </div>
-            </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  background: 'rgba(0, 184, 219, 0.08)',
-                  border: '1px solid rgba(0, 184, 219, 0.25)',
-                  padding: '5px 12px',
-                  borderRadius: '20px',
-                }}
+        {/* Horizontal Tabs Navigation Bar */}
+        <div
+          style={{
+            display: 'flex',
+            gap: '24px',
+            borderBottom: '1px solid var(--line, #e5e7eb)',
+            marginBottom: '20px',
+            overflowX: 'auto',
+          }}
+        >
+          {[
+            { id: 'Personal info', label: 'Personal info' },
+            { id: 'Employee details', label: 'Employee details' },
+            { id: 'Documents', label: 'Documents' },
+          ].map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`emp-tab-btn ${isActive ? 'active' : ''}`}
               >
-                <span style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600 }}>Company:</span>
-                {(form.companyIds || selectedCompanies).map((id) => {
-                  const div = divisions.find((d) => String(v(d, 'id')) === String(id));
-                  return (
-                    <span
-                      key={id}
-                      style={{
-                        background: '#00b8db',
-                        color: '#ffffff',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        padding: '2px 8px',
-                        borderRadius: '12px',
-                      }}
-                    >
-                      {div ? v(div, 'name') : `Company #${id}`}
-                    </span>
-                  );
-                })}
-              </div>
-              {!isEdit ? (
-                <button
-                  type="button"
-                  onClick={() => setCompanyConfirmed(false)}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#008fa8',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    textDecoration: 'underline',
-                  }}
-                >
-                  Change Company
-                </button>
-              ) : null}
-            </div>
-          </div>
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
 
-          {/* Horizontal Tabs Navigation Bar */}
-          <div
-            style={{
-              display: 'flex',
-              gap: '24px',
-              borderBottom: '1px solid var(--line, #e5e7eb)',
-              marginBottom: '20px',
-              overflowX: 'auto',
-            }}
-          >
-            {[
-              { id: 'Personal info', label: 'Personal info' },
-              { id: 'Employee details', label: 'Employee details' },
-              { id: 'Documents', label: 'Documents' },
-            ].map((tab) => {
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`emp-tab-btn ${isActive ? 'active' : ''}`}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
+        {/* Subheader section name */}
+        <div style={{ marginBottom: '16px' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: 'var(--ink, #0f172a)' }}>
+            {activeTab}
+          </h3>
+        </div>
 
-          {/* Subheader section name */}
-          <div style={{ marginBottom: '16px' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: 'var(--ink, #0f172a)' }}>
-              {activeTab}
-            </h3>
-          </div>
-
-          {/* =========================================================================
-              TAB 1: Personal info (Basic info, Address, Work experience, Education)
-             ========================================================================= */}
-          {activeTab === 'Personal info' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {/* Card 1: Basic Information */}
-              <SectionCard title="Basic information">
-                <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                  {/* Left: Avatar Upload Circle */}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, minWidth: 120 }}>
-                    <div
-                      style={{
-                        width: 92,
-                        height: 92,
-                        borderRadius: '50%',
-                        background: photoUrl
-                          ? `url(${photoUrl}) center/cover no-repeat`
-                          : 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
-                        border: '3px solid #00b8db',
-                        boxShadow: '0 2px 8px rgba(0, 184, 219, 0.2)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#64748b',
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        overflow: 'hidden',
-                        cursor: 'pointer',
-                      }}
-                      onClick={() => fileInputRef.current?.click()}
-                      title="Click to change photo"
-                    >
-                      {!photoUrl ? (
-                        <svg width="36" height="36" viewBox="0 0 24 24" fill="#94a3b8">
-                          <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                        </svg>
-                      ) : null}
-                    </div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      style={{ display: 'none' }}
-                      onChange={handlePhotoSelect}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      style={{
-                        background: '#f8fafc',
-                        border: '1px solid #cbd5e1',
-                        borderRadius: '6px',
-                        padding: '4px 10px',
-                        fontSize: '11.5px',
-                        fontWeight: 600,
-                        color: '#334155',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {photoUrl ? 'Change Photo' : 'Upload Photo'}
-                    </button>
+        {/* =========================================================================
+            TAB 1: Personal info (Basic info, Address, Work experience, Education)
+           ========================================================================= */}
+        {activeTab === 'Personal info' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Card 1: Basic Information */}
+            <SectionCard title="Basic information">
+              <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                {/* Left: Avatar Upload Circle */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap 8, minWidth: 120 }}>
+                  <div
+                    style={{
+                      width: 92,
+                      height: 92,
+                      borderRadius: '50%',
+                      background: photoUrl
+                        ? `url(${photoUrl}) center/cover no-repeat`
+                        : 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
+                      border: '3px solid #00b8db',
+                      boxShadow: '0 2px 8px rgba(0, 184, 219, 0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#64748b',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      overflow: 'hidden',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Click to change photo"
+                  >
+                    {!photoUrl ? (
+                      <svg width="36" height="36" viewBox="0 0 24 24" fill="#94a3b8">
+                        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                      </svg>
+                    ) : null}
                   </div>
-
-                  {/* Right: Key-Value Rows for Basic Info */}
-                  <div style={{ flex: 1 }}>
-                    <FieldRow label="Employee Code" helper="Auto-generated serial">
-                      <input
-                        style={{ ...inputStyle, background: '#f8fafc', fontWeight: 700, color: '#008fa8' }}
-                        value={form.empCode || 'Auto-generated'}
-                        readOnly={!isEdit}
-                        onChange={(e) => set('empCode', e.target.value)}
-                      />
-                    </FieldRow>
-
-                    <FieldRow label="First Name" required>
-                      <input
-                        required
-                        style={inputStyle}
-                        placeholder="e.g. John"
-                        value={form.firstName || ''}
-                        onChange={(e) => set('firstName', e.target.value)}
-                      />
-                    </FieldRow>
-
-                    <FieldRow label="Last Name" required>
-                      <input
-                        required
-                        style={inputStyle}
-                        placeholder="e.g. Williams"
-                        value={form.lastName || ''}
-                        onChange={(e) => set('lastName', e.target.value)}
-                      />
-                    </FieldRow>
-
-                    <FieldRow label="Gender">
-                      <select
-                        style={inputStyle}
-                        value={form.gender || form.personal?.gender || ''}
-                        onChange={(e) => {
-                          set('gender', e.target.value);
-                          setForm((prev) => ({
-                            ...prev,
-                            personal: { ...(prev.personal || {}), gender: e.target.value },
-                          }));
-                        }}
-                      >
-                        <option value="">— Select Gender —</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    </FieldRow>
-
-                    <FieldRow label="Nationality">
-                      <input
-                        style={inputStyle}
-                        placeholder="e.g. Pakistani, Indian, Emirati"
-                        value={form.nationality || form.personal?.nationality || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          set('nationality', val);
-                          setForm((prev) => ({
-                            ...prev,
-                            personal: { ...(prev.personal || {}), nationality: val },
-                          }));
-                        }}
-                      />
-                    </FieldRow>
-
-                    <FieldRow label="App Login Email" required helper="Used for mobile app login">
-                      <input
-                        required
-                        type="email"
-                        style={inputStyle}
-                        placeholder="e.g. john@digitaldive.demo"
-                        value={form.email || ''}
-                        onChange={(e) => set('email', e.target.value)}
-                      />
-                    </FieldRow>
-
-                    <FieldRow label="Mobile Phone" helper="Official mobile contact">
-                      <input
-                        style={inputStyle}
-                        placeholder="e.g. +971 50 1234567"
-                        value={form.mobilePhone || ''}
-                        onChange={(e) => set('mobilePhone', e.target.value)}
-                      />
-                    </FieldRow>
-                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    style={{ display: 'none' }}
+                    onChange={handlePhotoSelect}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                      background: '#f8fafc',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      padding: '4px 10px',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      color: '#334155',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {photoUrl ? 'Change Photo' : 'Upload Photo'}
+                  </button>
                 </div>
+
+                {/* Right: Key-Value Rows for Basic Info */}
+                <div style={{ flex: 1 }}>
+                  <FieldRow label="Select Operating Company" required>
+                    <select
+                      required
+                      value={form.divisionId || form.companyIds?.[0] || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        set('divisionId', val);
+                        set('companyIds', val ? [val] : []);
+                      }}
+                      style={inputStyle}
+                    >
+                      <option value="">-- Select Company --</option>
+                      {divisions.map((div) => {
+                        const id = String(v(div, 'id'));
+                        const name = v(div, 'name');
+                        const code = v(div, 'code');
+                        return (
+                          <option key={id} value={id}>
+                            {name} {code ? `(Code: ${code})` : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </FieldRow>
+
+                  <FieldRow label="Employee Code" helper="Auto-generated serial">
+                    <input
+                      style={{ ...inputStyle, background: '#f8fafc', fontWeight: 700, color: '#008fa8' }}
+                      value={form.empCode || 'Auto-generated'}
+                      readOnly={!isEdit}
+                      onChange={(e) => set('empCode', e.target.value)}
+                    />
+                  </FieldRow>
+
+                  <FieldRow label="First Name" required>
+                    <input
+                      required
+                      style={inputStyle}
+                      placeholder="e.g. John"
+                      value={form.firstName || ''}
+                      onChange={(e) => set('firstName', e.target.value)}
+                    />
+                  </FieldRow>
+
+                  <FieldRow label="Last Name" required>
+                    <input
+                      required
+                      style={inputStyle}
+                      placeholder="e.g. Williams"
+                      value={form.lastName || ''}
+                      onChange={(e) => set('lastName', e.target.value)}
+                    />
+                  </FieldRow>
+
+                  <FieldRow label="Gender">
+                    <select
+                      style={inputStyle}
+                      value={form.gender || form.personal?.gender || ''}
+                      onChange={(e) => {
+                        set('gender', e.target.value);
+                        setForm((prev) => ({
+                          ...prev,
+                          personal: { ...(prev.personal || {}), gender: e.target.value },
+                        }));
+                      }}
+                    >
+                      <option value="">— Select Gender —</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </FieldRow>
+
+                  <FieldRow label="Nationality">
+                    <select
+                      style={inputStyle}
+                      value={form.nationality || form.personal?.nationality || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        set('nationality', val);
+                        setForm((prev) => ({
+                          ...prev,
+                          personal: { ...(prev.personal || {}), nationality: val },
+                        }));
+                      }}
+                    >
+                      <option value="">— Select Nationality —</option>
+                      {NATIONALITIES.map((nat) => (
+                        <option key={nat} value={nat}>
+                          {nat}
+                        </option>
+                      ))}
+                    </select>
+                  </FieldRow>
+
+                  <FieldRow label="App Login Email" required helper="Used for mobile app login">
+                    <input
+                      required
+                      type="email"
+                      style={inputStyle}
+                      placeholder="e.g. john@digitaldive.demo"
+                      value={form.email || ''}
+                      onChange={(e) => set('email', e.target.value)}
+                    />
+                  </FieldRow>
+
+                  <FieldRow label="Mobile Phone" helper="Official mobile contact">
+                    <input
+                      style={inputStyle}
+                      placeholder="e.g. +971 50 1234567"
+                      value={form.mobilePhone || ''}
+                      onChange={(e) => set('mobilePhone', e.target.value)}
+                    />
+                  </FieldRow>
+                </div>
+              </div>
+            </SectionCard>
+
+            {/* 2-Column Grid: Address & Work Experience */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
+              {/* Card 2: Address */}
+              <SectionCard title="Address">
+                <FieldRow label="Citizen ID address">
+                  <input
+                    style={inputStyle}
+                    placeholder="e.g. Street 12, Sector F-8/3, Islamabad"
+                    value={form.homeCountryAddress || ''}
+                    onChange={(e) => set('homeCountryAddress', e.target.value)}
+                  />
+                </FieldRow>
+
+                <FieldRow label="Residential address">
+                  <input
+                    style={inputStyle}
+                    placeholder="e.g. Apt 402, Marina Heights, Dubai, UAE"
+                    value={form.addressInUae || ''}
+                    onChange={(e) => set('addressInUae', e.target.value)}
+                  />
+                </FieldRow>
               </SectionCard>
-
-              {/* 2-Column Grid: Address & Work Experience */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
-                {/* Card 2: Address */}
-                <SectionCard title="Address">
-                  <FieldRow label="Citizen ID address">
-                    <input
-                      style={inputStyle}
-                      placeholder="e.g. Street 12, Sector F-8/3, Islamabad"
-                      value={form.homeCountryAddress || ''}
-                      onChange={(e) => set('homeCountryAddress', e.target.value)}
-                    />
-                  </FieldRow>
-
-                  <FieldRow label="Residential address">
-                    <input
-                      style={inputStyle}
-                      placeholder="e.g. Apt 402, Marina Heights, Dubai, UAE"
-                      value={form.addressInUae || ''}
-                      onChange={(e) => set('addressInUae', e.target.value)}
-                    />
-                  </FieldRow>
-
-                  <FieldRow label="Current address">
-                    <input
-                      style={inputStyle}
-                      placeholder="e.g. Al Barsha 1, Dubai"
-                      value={form.currentAddress || ''}
-                      onChange={(e) => set('currentAddress', e.target.value)}
-                    />
-                  </FieldRow>
-                </SectionCard>
 
                 {/* Card 3: Work Experience */}
                 <SectionCard title="Work experience">
@@ -958,7 +871,6 @@ export default function EmployeeMasterForm({
 
           {extraFooter}
         </form>
-      )}
     </div>
   );
 }

@@ -16,7 +16,7 @@ import { BRAND } from '../lib/brand';
 import ThemeToggle from './ThemeToggle';
 import { usePortalAlerts } from './usePortalAlerts';
 
-export default function AppShell({ title, subtitle, children }) {
+export default function AppShell({ title, subtitle, actions, children }) {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -185,6 +185,7 @@ export default function AppShell({ title, subtitle, children }) {
               </div>
             </div>
             <div className="topbar-right">
+              {actions}
               <ThemeToggle />
               <div className="user-chip">
                 {user.fullName || user.full_name || user.email} · {role}
