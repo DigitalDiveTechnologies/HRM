@@ -117,11 +117,6 @@ function SectionCard({ title, children, style = {}, disabled = false, onSectionS
       </div>
       {children}
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--line, #e2e8f0)' }}>
-        {isSaved ? (
-          <span style={{ fontSize: '12px', color: '#059669', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, background: '#ecfdf5', padding: '4px 10px', borderRadius: 6, border: '1px solid #a7f3d0' }}>
-            ✓ Saved successfully!
-          </span>
-        ) : null}
         <button
           type={onSectionSave ? "button" : "submit"}
           onClick={onSectionSave}
@@ -132,7 +127,7 @@ function SectionCard({ title, children, style = {}, disabled = false, onSectionS
             color: '#ffffff',
             fontWeight: 600,
             fontSize: '12px',
-            padding: '6px 16px',
+            padding: '7px 18px',
             borderRadius: '6px',
             border: 'none',
             cursor: disabled ? 'not-allowed' : 'pointer',
@@ -140,14 +135,14 @@ function SectionCard({ title, children, style = {}, disabled = false, onSectionS
             display: 'inline-flex',
             alignItems: 'center',
             gap: 6,
-            boxShadow: disabled ? 'none' : '0 2px 6px rgba(0, 184, 219, 0.25)',
-            transition: 'all 0.15s ease',
+            boxShadow: disabled ? 'none' : isSaved ? '0 2px 6px rgba(5, 150, 105, 0.3)' : '0 2px 6px rgba(0, 184, 219, 0.25)',
+            transition: 'all 0.2s ease',
           }}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12" />
           </svg>
-          {isSaved ? 'Saved' : `Save ${title}`}
+          {isSaved ? 'Saved ✓' : `Save ${title}`}
         </button>
       </div>
     </div>
@@ -175,20 +170,19 @@ export default function EmployeeMasterForm({
 
   const [activeTab, setActiveTab] = useState('Personal info');
   const [showPassword, setShowPassword] = useState(false);
-  const [sectionSuccessMsg, setSectionSuccessMsg] = useState('');
   const [savedSectionName, setSavedSectionName] = useState('');
 
   const triggerSectionSuccess = (sectionName) => {
     setSavedSectionName(sectionName);
-    setSectionSuccessMsg(`${sectionName} has been saved successfully!`);
     setTimeout(() => {
-      setSectionSuccessMsg('');
       setSavedSectionName((curr) => (curr === sectionName ? '' : curr));
-    }, 3500);
+    }, 3000);
     if (onSubmit) {
       try {
         onSubmit();
-      } catch {}
+      } catch (err) {
+        console.error('Section save error:', err);
+      }
     }
   };
 
@@ -385,50 +379,6 @@ export default function EmployeeMasterForm({
           </div>
         </div>
 
-        {/* Section Save Success Feedback Alert */}
-        {sectionSuccessMsg ? (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '10px 16px',
-              borderRadius: '8px',
-              background: '#ecfdf5',
-              border: '1px solid #a7f3d0',
-              color: '#065f46',
-              fontSize: '13px',
-              fontWeight: 600,
-              marginBottom: '16px',
-              animation: 'fadeIn 0.2s ease',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-              <span>{sectionSuccessMsg}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSectionSuccessMsg('')}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#065f46',
-                cursor: 'pointer',
-                fontSize: '15px',
-                fontWeight: 700,
-                padding: '0 4px',
-                lineHeight: 1,
-              }}
-            >
-              ×
-            </button>
-          </div>
-        ) : null}
-
         {/* Horizontal Tabs Navigation Bar */}
         <div
           style={{
@@ -550,6 +500,7 @@ export default function EmployeeMasterForm({
                             photoFile: null,
                             photoPreview: '',
                             photoPath: '',
+                            photoRemoved: true,
                           }));
                         }}
                         style={{
@@ -1722,7 +1673,8 @@ export default function EmployeeMasterForm({
                   type="button"
                   className="btn secondary"
                   onClick={() => {
-                    if (activeTab === 'Documents') setActiveTab('Employee details');
+                    if (activeTab === 'Payroll') setActiveTab('Documents');
+                    else if (activeTab === 'Documents') setActiveTab('Employee details');
                     else if (activeTab === 'Employee details') setActiveTab('Personal info');
                   }}
                   style={{ padding: '8px 16px', fontSize: '12.5px', borderRadius: '8px' }}
@@ -1731,13 +1683,14 @@ export default function EmployeeMasterForm({
                 </button>
               ) : null}
 
-              {activeTab !== 'Documents' ? (
+              {activeTab !== 'Payroll' ? (
                 <button
                   type="button"
                   className="btn secondary"
                   onClick={() => {
                     if (activeTab === 'Personal info') setActiveTab('Employee details');
                     else if (activeTab === 'Employee details') setActiveTab('Documents');
+                    else if (activeTab === 'Documents') setActiveTab('Payroll');
                   }}
                   style={{ padding: '8px 16px', fontSize: '12.5px', borderRadius: '8px', color: '#008fa8', fontWeight: 600 }}
                 >

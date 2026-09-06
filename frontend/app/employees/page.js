@@ -319,22 +319,27 @@ function EmployeesContent() {
     setSavingEdit(true);
     try {
       const payload = masterPayloadFromForm(masterForm);
-      const res = await api(`/employees/${v(selected, 'id')}`, {
+      const empId = v(selected, 'id');
+      const res = await api(`/employees/${empId}`, {
         method: 'PATCH',
         body: JSON.stringify(payload),
       });
       if (masterForm.photoFile) {
         const fd = new FormData();
         fd.append('file', masterForm.photoFile);
-        await apiUpload(`/employees/${v(selected, 'id')}/photo`, fd);
-      } else if (!masterForm.photoPath && !masterForm.photoPreview && (v(selected, 'photoPath', 'photo_path') || selectedMd?.photoPath)) {
-        await api(`/employees/${v(selected, 'id')}/photo`, { method: 'DELETE' });
+        await apiUpload(`/employees/${empId}/photo`, fd);
+      } else if (masterForm.photoRemoved || (!masterForm.photoPath && !masterForm.photoPreview && !masterForm.photoFile)) {
+        try {
+          await api(`/employees/${empId}/photo`, { method: 'DELETE' });
+        } catch (delErr) {
+          console.error('Delete photo error:', delErr);
+        }
       }
       setMsg(res.message || 'Employee updated.');
-      const updated = await api(`/employees/${v(selected, 'id')}`);
+      const updated = await api(`/employees/${empId}`);
       setSelected(updated);
       setMasterForm(masterFormFromEmployee(updated));
-      load();
+      await load();
     } catch (err) {
       setError(err.message);
     } finally {
