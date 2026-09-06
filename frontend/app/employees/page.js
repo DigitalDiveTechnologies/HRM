@@ -10,6 +10,7 @@ import {
   masterFormFromEmployee,
   masterPayloadFromForm,
 } from '../../lib/employeeMaster';
+import { clearEmployeePhotoInDb } from '../../lib/dbDirect';
 import { formatDate, v } from '../../lib/format';
 
 function getEmployeePhotoUrl(emp) {
@@ -332,11 +333,7 @@ function EmployeesContent() {
         fd.append('file', masterForm.photoFile);
         await apiUpload(`/employees/${empId}/photo`, fd);
       } else if (isRemovingPhoto) {
-        try {
-          await fetch(`/api/employees/${empId}/photo`, { method: 'DELETE' });
-        } catch (e) {
-          console.error('Direct DB photo delete error:', e);
-        }
+        await clearEmployeePhotoInDb(empId);
         try {
           await api(`/employees/${empId}/photo`, { method: 'DELETE' });
         } catch {
