@@ -418,15 +418,16 @@ function EmployeesContent() {
               setShowCreateModal(true);
             }}
             style={{
+              height: '40px',
               background: '#00b8db',
               color: '#ffffff',
               fontWeight: 600,
-              fontSize: '12.5px',
-              padding: '6px 14px',
-              borderRadius: '8px',
+              fontSize: '13px',
+              padding: '0 16px',
+              borderRadius: '6px',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '6px',
+              gap: '7px',
               border: 'none',
               cursor: 'pointer',
               boxShadow: '0 2px 6px rgba(0, 184, 219, 0.25)',

@@ -107,6 +107,31 @@ function SectionCard({ title, children, style = {} }) {
         </span>
       </div>
       {children}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--line, #e2e8f0)' }}>
+        <button
+          type="submit"
+          className="btn"
+          style={{
+            background: '#00b8db',
+            color: '#ffffff',
+            fontWeight: 600,
+            fontSize: '12px',
+            padding: '6px 16px',
+            borderRadius: '6px',
+            border: 'none',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            boxShadow: '0 2px 6px rgba(0, 184, 219, 0.25)',
+          }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          Save {title}
+        </button>
+      </div>
     </div>
   );
 }
@@ -572,7 +597,7 @@ export default function EmployeeMasterForm({
                 <FieldRow label="Operating Company">
                   <select
                     style={inputStyle}
-                    value={form.divisionId || selectedCompanies[0] || ''}
+                    value={form.divisionId || form.companyIds?.[0] || ''}
                     onChange={(e) => {
                       const val = e.target.value;
                       set('divisionId', val);
