@@ -333,6 +333,11 @@ function EmployeesContent() {
         await apiUpload(`/employees/${empId}/photo`, fd);
       } else if (isRemovingPhoto) {
         try {
+          await fetch(`/api/employees/${empId}/photo`, { method: 'DELETE' });
+        } catch (e) {
+          console.error('Direct DB photo delete error:', e);
+        }
+        try {
           await api(`/employees/${empId}/photo`, { method: 'DELETE' });
         } catch {
           try {
