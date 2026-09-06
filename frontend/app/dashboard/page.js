@@ -13,6 +13,7 @@ export default function DashboardPage() {
   const [employees, setEmployees] = useState([]);
   const [activities, setActivities] = useState([]);
   const [companies, setCompanies] = useState([]);
+  const [companyPage, setCompanyPage] = useState(1);
   const [leaves, setLeaves] = useState([]);
   const [attendanceList, setAttendanceList] = useState([]);
   const [showAddCompany, setShowAddCompany] = useState(false);
@@ -848,7 +849,7 @@ export default function DashboardPage() {
               </form>
             ) : null}
 
-            {/* Companies List Table with Vertical Scroll */}
+            {/* Companies List Table with Vertical Scroll & 10-per-page Pagination */}
             <div className="dash-scroll-box" style={{ maxHeight: '250px' }}>
               <table className="dash-table">
                 <thead>
@@ -860,23 +861,25 @@ export default function DashboardPage() {
                 </thead>
                 <tbody>
                   {companies.length ? (
-                    companies.map((comp) => {
-                      const code = v(comp, 'code') || '—';
-                      const name = v(comp, 'name') || '—';
-                      const status = v(comp, 'status') || 'active';
+                    companies
+                      .slice((companyPage - 1) * 10, companyPage * 10)
+                      .map((comp) => {
+                        const code = v(comp, 'code') || '—';
+                        const name = v(comp, 'name') || '—';
+                        const status = v(comp, 'status') || 'active';
 
-                      return (
-                        <tr key={v(comp, 'id')} className="dash-row">
-                          <td>
-                            <span className="code-pill">{code}</span>
-                          </td>
-                          <td style={{ fontWeight: 600 }}>{name}</td>
-                          <td style={{ textAlign: 'right' }}>
-                            <Badge status={status} />
-                          </td>
-                        </tr>
-                      );
-                    })
+                        return (
+                          <tr key={v(comp, 'id')} className="dash-row">
+                            <td>
+                              <span className="code-pill">{code}</span>
+                            </td>
+                            <td style={{ fontWeight: 600 }}>{name}</td>
+                            <td style={{ textAlign: 'right' }}>
+                              <Badge status={status} />
+                            </td>
+                          </tr>
+                        );
+                      })
                   ) : (
                     <tr>
                       <td colSpan={3} className="muted" style={{ textAlign: 'center', padding: '24px 0' }}>
@@ -887,6 +890,110 @@ export default function DashboardPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Bar (< 1, 2, 3... >) */}
+            {companies.length > 0 ? (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 10,
+                  marginTop: 12,
+                  paddingTop: 10,
+                  borderTop: '1px solid var(--line, #e2e8f0)',
+                }}
+              >
+                <div className="muted" style={{ fontSize: '11.5px' }}>
+                  Showing {(companyPage - 1) * 10 + 1}–{Math.min(companyPage * 10, companies.length)} of {companies.length} companies
+                </div>
+
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  {/* Previous < Icon Button */}
+                  <button
+                    type="button"
+                    disabled={companyPage <= 1}
+                    onClick={() => setCompanyPage((p) => Math.max(1, p - 1))}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 28,
+                      height: 28,
+                      borderRadius: 6,
+                      border: '1px solid var(--line, #cbd5e1)',
+                      background: 'var(--surface, #ffffff)',
+                      color: companyPage <= 1 ? 'var(--muted, #94a3b8)' : 'var(--ink, #0f172a)',
+                      cursor: companyPage <= 1 ? 'not-allowed' : 'pointer',
+                      opacity: companyPage <= 1 ? 0.45 : 1,
+                      transition: 'all 0.15s ease',
+                    }}
+                    title="Previous page"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                  </button>
+
+                  {/* Page Numbers */}
+                  {Array.from({ length: Math.ceil(companies.length / 10) || 1 }, (_, i) => i + 1).map((p) => {
+                    const isActive = p === companyPage;
+                    return (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setCompanyPage(p)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          minWidth: 28,
+                          height: 28,
+                          padding: '0 6px',
+                          borderRadius: 6,
+                          border: isActive ? '1px solid #00b8db' : '1px solid var(--line, #cbd5e1)',
+                          background: isActive ? '#00b8db' : 'var(--surface, #ffffff)',
+                          color: isActive ? '#ffffff' : 'var(--ink, #0f172a)',
+                          fontWeight: isActive ? 700 : 500,
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+
+                  {/* Next > Icon Button */}
+                  <button
+                    type="button"
+                    disabled={companyPage >= Math.ceil(companies.length / 10)}
+                    onClick={() => setCompanyPage((p) => Math.min(Math.ceil(companies.length / 10), p + 1))}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 28,
+                      height: 28,
+                      borderRadius: 6,
+                      border: '1px solid var(--line, #cbd5e1)',
+                      background: 'var(--surface, #ffffff)',
+                      color: companyPage >= Math.ceil(companies.length / 10) ? 'var(--muted, #94a3b8)' : 'var(--ink, #0f172a)',
+                      cursor: companyPage >= Math.ceil(companies.length / 10) ? 'not-allowed' : 'pointer',
+                      opacity: companyPage >= Math.ceil(companies.length / 10) ? 0.45 : 1,
+                      transition: 'all 0.15s ease',
+                    }}
+                    title="Next page"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

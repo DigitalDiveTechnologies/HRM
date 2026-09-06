@@ -13,6 +13,7 @@ const emptyForm = () => ({
 
 export default function DivisionsPage() {
   const [rows, setRows] = useState([]);
+  const [companyPage, setCompanyPage] = useState(1);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [form, setForm] = useState(emptyForm());
@@ -67,6 +68,9 @@ export default function DivisionsPage() {
       setError(err.message);
     }
   }
+
+  const totalPages = Math.ceil(rows.length / 10) || 1;
+  const paginatedRows = rows.slice((companyPage - 1) * 10, companyPage * 10);
 
   return (
     <AppShell title="Company Master" subtitle="GOCs companies — Alkidma, Alqat, Overseas, Royal Oceans">
@@ -123,7 +127,7 @@ export default function DivisionsPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((d) => (
+              {paginatedRows.map((d) => (
                 <tr key={v(d, 'id')}>
                   <td>{v(d, 'code')}</td>
                   <td>{v(d, 'name')}</td>
@@ -152,6 +156,110 @@ export default function DivisionsPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls (< 1, 2, 3... >) */}
+        {rows.length > 0 ? (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 10,
+              marginTop: 14,
+              paddingTop: 12,
+              borderTop: '1px solid var(--line, #e2e8f0)',
+            }}
+          >
+            <div className="muted" style={{ fontSize: '12px' }}>
+              Showing {(companyPage - 1) * 10 + 1}–{Math.min(companyPage * 10, rows.length)} of {rows.length} companies
+            </div>
+
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              {/* Previous < Chevron Button */}
+              <button
+                type="button"
+                disabled={companyPage <= 1}
+                onClick={() => setCompanyPage((p) => Math.max(1, p - 1))}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 28,
+                  height: 28,
+                  borderRadius: 6,
+                  border: '1px solid var(--line, #cbd5e1)',
+                  background: 'var(--surface, #ffffff)',
+                  color: companyPage <= 1 ? 'var(--muted, #94a3b8)' : 'var(--ink, #0f172a)',
+                  cursor: companyPage <= 1 ? 'not-allowed' : 'pointer',
+                  opacity: companyPage <= 1 ? 0.45 : 1,
+                  transition: 'all 0.15s ease',
+                }}
+                title="Previous page"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </button>
+
+              {/* Page Number Buttons */}
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
+                const isActive = p === companyPage;
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setCompanyPage(p)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minWidth: 28,
+                      height: 28,
+                      padding: '0 6px',
+                      borderRadius: 6,
+                      border: isActive ? '1px solid #00b8db' : '1px solid var(--line, #cbd5e1)',
+                      background: isActive ? '#00b8db' : 'var(--surface, #ffffff)',
+                      color: isActive ? '#ffffff' : 'var(--ink, #0f172a)',
+                      fontWeight: isActive ? 700 : 500,
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
+
+              {/* Next > Chevron Button */}
+              <button
+                type="button"
+                disabled={companyPage >= totalPages}
+                onClick={() => setCompanyPage((p) => Math.min(totalPages, p + 1))}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 28,
+                  height: 28,
+                  borderRadius: 6,
+                  border: '1px solid var(--line, #cbd5e1)',
+                  background: 'var(--surface, #ffffff)',
+                  color: companyPage >= totalPages ? 'var(--muted, #94a3b8)' : 'var(--ink, #0f172a)',
+                  cursor: companyPage >= totalPages ? 'not-allowed' : 'pointer',
+                  opacity: companyPage >= totalPages ? 0.45 : 1,
+                  transition: 'all 0.15s ease',
+                }}
+                title="Next page"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </AppShell>
   );

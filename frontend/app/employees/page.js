@@ -387,6 +387,20 @@ function EmployeesContent() {
     });
   }, [rows, searchTerm, filterCompany, filterDept, filterStatus]);
 
+  // 10-per-page Pagination State for Employees
+  const [empPage, setEmpPage] = useState(1);
+  const EMP_PAGE_SIZE = 10;
+
+  useEffect(() => {
+    setEmpPage(1);
+  }, [searchTerm, filterCompany, filterDept, filterStatus]);
+
+  const totalEmpPages = Math.ceil(filteredRows.length / EMP_PAGE_SIZE) || 1;
+  const paginatedEmployees = useMemo(() => {
+    const start = (empPage - 1) * EMP_PAGE_SIZE;
+    return filteredRows.slice(start, start + EMP_PAGE_SIZE);
+  }, [filteredRows, empPage]);
+
   // Hierarchical Org Chart (Modern Concentric Avatars with Dotted Directional Connectors)
   const childrenOf = useCallback((id) => chart.filter((c) => String(v(c, 'managerId', 'manager_id')) === String(id)), [chart]);
 
@@ -778,7 +792,7 @@ function EmployeesContent() {
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((e) => {
+              {paginatedEmployees.map((e) => {
                 const isSelected = selected && String(v(selected, 'id')) === String(v(e, 'id'));
 
                 return (
@@ -839,6 +853,110 @@ function EmployeesContent() {
             </tbody>
           </table>
         </div>
+
+        {/* Employees Pagination Bar (< 1, 2, 3... >) */}
+        {filteredRows.length > 0 ? (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 10,
+              marginTop: 14,
+              paddingTop: 12,
+              borderTop: '1px solid var(--line, #e2e8f0)',
+            }}
+          >
+            <div className="muted" style={{ fontSize: '12px' }}>
+              Showing {(empPage - 1) * EMP_PAGE_SIZE + 1}–{Math.min(empPage * EMP_PAGE_SIZE, filteredRows.length)} of {filteredRows.length} employees
+            </div>
+
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              {/* Previous < Chevron Button */}
+              <button
+                type="button"
+                disabled={empPage <= 1}
+                onClick={() => setEmpPage((p) => Math.max(1, p - 1))}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 28,
+                  height: 28,
+                  borderRadius: 6,
+                  border: '1px solid var(--line, #cbd5e1)',
+                  background: 'var(--surface, #ffffff)',
+                  color: empPage <= 1 ? 'var(--muted, #94a3b8)' : 'var(--ink, #0f172a)',
+                  cursor: empPage <= 1 ? 'not-allowed' : 'pointer',
+                  opacity: empPage <= 1 ? 0.45 : 1,
+                  transition: 'all 0.15s ease',
+                }}
+                title="Previous page"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </button>
+
+              {/* Page Numbers */}
+              {Array.from({ length: totalEmpPages }, (_, i) => i + 1).map((p) => {
+                const isActive = p === empPage;
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setEmpPage(p)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minWidth: 28,
+                      height: 28,
+                      padding: '0 6px',
+                      borderRadius: 6,
+                      border: isActive ? '1px solid #00b8db' : '1px solid var(--line, #cbd5e1)',
+                      background: isActive ? '#00b8db' : 'var(--surface, #ffffff)',
+                      color: isActive ? '#ffffff' : 'var(--ink, #0f172a)',
+                      fontWeight: isActive ? 700 : 500,
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
+
+              {/* Next > Chevron Button */}
+              <button
+                type="button"
+                disabled={empPage >= totalEmpPages}
+                onClick={() => setEmpPage((p) => Math.min(totalEmpPages, p + 1))}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 28,
+                  height: 28,
+                  borderRadius: 6,
+                  border: '1px solid var(--line, #cbd5e1)',
+                  background: 'var(--surface, #ffffff)',
+                  color: empPage >= totalEmpPages ? 'var(--muted, #94a3b8)' : 'var(--ink, #0f172a)',
+                  cursor: empPage >= totalEmpPages ? 'not-allowed' : 'pointer',
+                  opacity: empPage >= totalEmpPages ? 0.45 : 1,
+                  transition: 'all 0.15s ease',
+                }}
+                title="Next page"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {/* =========================================================================
