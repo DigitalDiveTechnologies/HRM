@@ -156,6 +156,7 @@ export default function EmployeeMasterForm({
   const eduCertRef = useRef(null);
 
   const [activeTab, setActiveTab] = useState('Personal info');
+  const [showPassword, setShowPassword] = useState(false);
 
   const set = (key, val) => setForm((prev) => ({ ...prev, [key]: val }));
 
@@ -436,6 +437,15 @@ export default function EmployeeMasterForm({
                     </select>
                   </FieldRow>
 
+                  <FieldRow label="Mobile Phone" helper="Official mobile contact">
+                    <input
+                      style={inputStyle}
+                      placeholder="e.g. +971 50 1234567"
+                      value={form.mobilePhone || ''}
+                      onChange={(e) => set('mobilePhone', e.target.value)}
+                    />
+                  </FieldRow>
+
                   <FieldRow label="App Login Email" required helper="Used for mobile app login">
                     <input
                       required
@@ -447,19 +457,57 @@ export default function EmployeeMasterForm({
                     />
                   </FieldRow>
 
-                  <FieldRow label="Mobile Phone" helper="Official mobile contact">
-                    <input
-                      style={inputStyle}
-                      placeholder="e.g. +971 50 1234567"
-                      value={form.mobilePhone || ''}
-                      onChange={(e) => set('mobilePhone', e.target.value)}
-                    />
-                  </FieldRow>
+                  {!isEdit ? (
+                    <FieldRow label="Initial App Password" helper="Default: demo123 (min 6 characters)">
+                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          style={{ ...inputStyle, paddingRight: '42px' }}
+                          placeholder="demo123"
+                          value={form.password || form.appPassword || 'demo123'}
+                          onChange={(e) => {
+                            set('password', e.target.value);
+                            set('appPassword', e.target.value);
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((prev) => !prev)}
+                          aria-label={showPassword ? 'Hide password' : 'Show password'}
+                          title={showPassword ? 'Hide password' : 'Show password'}
+                          style={{
+                            position: 'absolute',
+                            right: '8px',
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: '#64748b',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '6px',
+                          }}
+                        >
+                          {showPassword ? (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                              <line x1="1" y1="1" x2="23" y2="23" />
+                            </svg>
+                          ) : (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                              <circle cx="12" cy="12" r="3" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    </FieldRow>
+                  ) : null}
                 </div>
               </div>
             </SectionCard>
 
-            {/* 2-Column Grid: Address & Work Experience */}
+            {/* 2-Column Grid: Address & Education details */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
               {/* Card 2: Address */}
               <SectionCard title="Address">
@@ -482,48 +530,8 @@ export default function EmployeeMasterForm({
                 </FieldRow>
               </SectionCard>
 
-                {/* Card 3: Work Experience */}
-                <SectionCard title="Work experience">
-                  <FieldRow label="Previous company">
-                    <input
-                      style={inputStyle}
-                      placeholder="e.g. Emirates Tech Solutions LLC"
-                      value={form.workExperience?.previousCompany || ''}
-                      onChange={(e) => setWorkExp('previousCompany', e.target.value)}
-                    />
-                  </FieldRow>
-
-                  <FieldRow label="Position / Role">
-                    <input
-                      style={inputStyle}
-                      placeholder="e.g. Software Engineer"
-                      value={form.workExperience?.position || ''}
-                      onChange={(e) => setWorkExp('position', e.target.value)}
-                    />
-                  </FieldRow>
-
-                  <FieldRow label="Field of work">
-                    <input
-                      style={inputStyle}
-                      placeholder="e.g. Information Technology"
-                      value={form.workExperience?.fieldOfWork || ''}
-                      onChange={(e) => setWorkExp('fieldOfWork', e.target.value)}
-                    />
-                  </FieldRow>
-
-                  <FieldRow label="Duration">
-                    <input
-                      style={inputStyle}
-                      placeholder="e.g. 2 Years (Jan 2022 – Dec 2023)"
-                      value={form.workExperience?.duration || ''}
-                      onChange={(e) => setWorkExp('duration', e.target.value)}
-                    />
-                  </FieldRow>
-                </SectionCard>
-              </div>
-
-              {/* Card 4: Education (Full Width) */}
-              <SectionCard title="Education">
+              {/* Card 3: Education (Swapped above Work Experience) */}
+              <SectionCard title="Education details">
                 <FieldRow label="Education Level">
                   <select
                     style={inputStyle}
@@ -586,7 +594,47 @@ export default function EmployeeMasterForm({
                 </FieldRow>
               </SectionCard>
             </div>
-          )}
+
+            {/* Card 4: Work Experience (Swapped below Education) */}
+            <SectionCard title="Work experience">
+              <FieldRow label="Previous company">
+                <input
+                  style={inputStyle}
+                  placeholder="e.g. Emirates Tech Solutions LLC"
+                  value={form.workExperience?.previousCompany || ''}
+                  onChange={(e) => setWorkExp('previousCompany', e.target.value)}
+                />
+              </FieldRow>
+
+              <FieldRow label="Position / Role">
+                <input
+                  style={inputStyle}
+                  placeholder="e.g. Software Engineer"
+                  value={form.workExperience?.position || ''}
+                  onChange={(e) => setWorkExp('position', e.target.value)}
+                />
+              </FieldRow>
+
+              <FieldRow label="Field of work">
+                <input
+                  style={inputStyle}
+                  placeholder="e.g. Information Technology"
+                  value={form.workExperience?.fieldOfWork || ''}
+                  onChange={(e) => setWorkExp('fieldOfWork', e.target.value)}
+                />
+              </FieldRow>
+
+              <FieldRow label="Duration">
+                <input
+                  style={inputStyle}
+                  placeholder="e.g. 2 Years (Jan 2022 – Dec 2023)"
+                  value={form.workExperience?.duration || ''}
+                  onChange={(e) => setWorkExp('duration', e.target.value)}
+                />
+              </FieldRow>
+            </SectionCard>
+          </div>
+        )}
 
           {/* =========================================================================
               TAB 2: Employee details (Organization & App Credentials)
@@ -704,23 +752,6 @@ export default function EmployeeMasterForm({
                   </select>
                 </FieldRow>
               </SectionCard>
-
-              {!isEdit ? (
-                <SectionCard title="Mobile App Login Credentials">
-                  <FieldRow label="Initial App Password" helper="Default: demo123 (min 6 characters)">
-                    <input
-                      type="password"
-                      style={inputStyle}
-                      placeholder="demo123"
-                      value={form.password || form.appPassword || 'demo123'}
-                      onChange={(e) => {
-                        set('password', e.target.value);
-                        set('appPassword', e.target.value);
-                      }}
-                    />
-                  </FieldRow>
-                </SectionCard>
-              ) : null}
             </div>
           )}
 
