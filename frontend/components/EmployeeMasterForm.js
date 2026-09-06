@@ -260,7 +260,7 @@ export default function EmployeeMasterForm({
             <SectionCard title="Basic information">
               <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
                 {/* Left: Avatar Upload Circle */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap 8, minWidth: 120 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, minWidth: 120 }}>
                   <div
                     style={{
                       width: 92,
