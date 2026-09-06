@@ -101,7 +101,7 @@ function FieldRow({ label, required = false, children, helper = '' }) {
   );
 }
 
-function SectionCard({ title, children, style = {}, disabled = false }) {
+function SectionCard({ title, children, style = {}, disabled = false, onSectionSave }) {
   return (
     <div className="emp-card" style={style}>
       <div className="emp-card-header">
@@ -118,7 +118,8 @@ function SectionCard({ title, children, style = {}, disabled = false }) {
       {children}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--line, #e2e8f0)' }}>
         <button
-          type="submit"
+          type={onSectionSave ? "button" : "submit"}
+          onClick={onSectionSave}
           disabled={disabled}
           className="btn"
           style={{
@@ -169,6 +170,14 @@ export default function EmployeeMasterForm({
 
   const [activeTab, setActiveTab] = useState('Personal info');
   const [showPassword, setShowPassword] = useState(false);
+  const [sectionSuccessMsg, setSectionSuccessMsg] = useState('');
+
+  const triggerSectionSuccess = (sectionName) => {
+    setSectionSuccessMsg(`${sectionName} has been saved successfully!`);
+    setTimeout(() => {
+      setSectionSuccessMsg('');
+    }, 3500);
+  };
 
   // Custom Documents state for Tab 3
   const [selectedDocType, setSelectedDocType] = useState('Passport');
@@ -357,6 +366,50 @@ export default function EmployeeMasterForm({
           </div>
         </div>
 
+        {/* Section Save Success Feedback Alert */}
+        {sectionSuccessMsg ? (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '10px 16px',
+              borderRadius: '8px',
+              background: '#ecfdf5',
+              border: '1px solid #a7f3d0',
+              color: '#065f46',
+              fontSize: '13px',
+              fontWeight: 600,
+              marginBottom: '16px',
+              animation: 'fadeIn 0.2s ease',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
+              <span>{sectionSuccessMsg}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSectionSuccessMsg('')}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#065f46',
+                cursor: 'pointer',
+                fontSize: '15px',
+                fontWeight: 700,
+                padding: '0 4px',
+                lineHeight: 1,
+              }}
+            >
+              ×
+            </button>
+          </div>
+        ) : null}
+
         {/* Horizontal Tabs Navigation Bar */}
         <div
           style={{
@@ -399,7 +452,11 @@ export default function EmployeeMasterForm({
         {activeTab === 'Personal info' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {/* Card 1: Basic Information */}
-            <SectionCard title="Basic information" disabled={isBasicInfoDisabled}>
+            <SectionCard
+              title="Basic information"
+              disabled={isBasicInfoDisabled}
+              onSectionSave={() => triggerSectionSuccess('Basic information')}
+            >
               <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
                 {/* Left: Avatar Upload Circle */}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, minWidth: 120 }}>
@@ -626,7 +683,11 @@ export default function EmployeeMasterForm({
             {/* 2-Column Grid: Address & Education details */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
               {/* Card 2: Address */}
-              <SectionCard title="Address" disabled={isAddressDisabled}>
+              <SectionCard
+                title="Address"
+                disabled={isAddressDisabled}
+                onSectionSave={() => triggerSectionSuccess('Address details')}
+              >
                 <FieldRow label="Citizen ID address">
                   <input
                     style={inputStyle}
@@ -647,7 +708,11 @@ export default function EmployeeMasterForm({
               </SectionCard>
 
               {/* Card 3: Education (Swapped above Work Experience) */}
-              <SectionCard title="Education details" disabled={isEduDisabled}>
+              <SectionCard
+                title="Education details"
+                disabled={isEduDisabled}
+                onSectionSave={() => triggerSectionSuccess('Education details')}
+              >
                 <FieldRow label="Education Level">
                   <select
                     style={inputStyle}
@@ -729,7 +794,11 @@ export default function EmployeeMasterForm({
             </div>
 
             {/* Card 4: Work Experience (Multiple Experiences Support, Latest on Top) */}
-            <SectionCard title="Work experience" disabled={isWorkExpDisabled}>
+            <SectionCard
+              title="Work experience"
+              disabled={isWorkExpDisabled}
+              onSectionSave={() => triggerSectionSuccess('Work experience')}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
                 <span style={{ fontSize: '12.5px', color: 'var(--muted, #64748b)', fontWeight: 500 }}>
                   Add multiple previous companies (Latest experience is always on top)
@@ -745,10 +814,10 @@ export default function EmployeeMasterForm({
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 5,
-                    color: '#008fa8',
+                    color: 'var(--ink, #0f172a)',
                     fontWeight: 600,
-                    borderColor: '#00b8db',
-                    background: 'rgba(0, 184, 219, 0.06)',
+                    borderColor: 'var(--line-strong, #cbd5e1)',
+                    background: 'var(--surface, #ffffff)',
                   }}
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -764,7 +833,7 @@ export default function EmployeeMasterForm({
                   <div
                     key={idx}
                     style={{
-                      background: 'var(--surface-alt, #f8fafc)',
+                      background: 'var(--surface, #ffffff)',
                       border: '1px solid var(--line, #e2e8f0)',
                       borderRadius: '8px',
                       padding: '14px 16px',
@@ -781,8 +850,8 @@ export default function EmployeeMasterForm({
                             width: 22,
                             height: 22,
                             borderRadius: '50%',
-                            background: idx === 0 ? 'rgba(0, 184, 219, 0.15)' : 'var(--line, #e2e8f0)',
-                            color: idx === 0 ? '#008fa8' : '#64748b',
+                            background: 'var(--line, #e2e8f0)',
+                            color: '#64748b',
                             fontSize: '11px',
                             fontWeight: 700,
                           }}
@@ -792,11 +861,6 @@ export default function EmployeeMasterForm({
                         <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
                           {idx === 0 ? 'Latest Work Experience' : `Previous Experience #${idx + 1}`}
                         </span>
-                        {idx === 0 ? (
-                          <span style={{ fontSize: '10.5px', background: 'rgba(0, 184, 219, 0.12)', color: '#008fa8', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>
-                            Current / Most Recent
-                          </span>
-                        ) : null}
                       </div>
 
                       {experiences.length > 1 ? (
@@ -891,7 +955,11 @@ export default function EmployeeMasterForm({
              ========================================================================= */}
           {activeTab === 'Employee details' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <SectionCard title="Job & Organization Profile" disabled={isJobProfileDisabled}>
+              <SectionCard
+                title="Job & Organization Profile"
+                disabled={isJobProfileDisabled}
+                onSectionSave={() => triggerSectionSuccess('Job & Organization profile')}
+              >
                 <FieldRow label="Operating Company">
                   <select
                     style={inputStyle}
@@ -1010,7 +1078,11 @@ export default function EmployeeMasterForm({
              ========================================================================= */}
           {activeTab === 'Documents' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <SectionCard title="Passport & Emirates ID Credentials" disabled={isPassportDisabled}>
+              <SectionCard
+                title="Passport & Emirates ID Credentials"
+                disabled={isPassportDisabled}
+                onSectionSave={() => triggerSectionSuccess('Passport & Emirates ID credentials')}
+              >
                 <FieldRow label="Passport Number">
                   <input
                     style={inputStyle}
@@ -1079,7 +1151,11 @@ export default function EmployeeMasterForm({
               </SectionCard>
 
               {/* Card 2: Custom Documents & Attachments (Multiple Uploads, Preview & Delete) */}
-              <SectionCard title="Custom Documents & Attachments" disabled={isDocsDisabled}>
+              <SectionCard
+                title="Custom Documents & Attachments"
+                disabled={isDocsDisabled}
+                onSectionSave={() => triggerSectionSuccess('Custom Documents')}
+              >
                 {/* Upload Controls Bar */}
                 <div
                   style={{

@@ -1331,14 +1331,14 @@ function EmployeesContent() {
                                 key={expIdx}
                                 style={{
                                   padding: '10px 12px',
-                                  background: expIdx === 0 ? 'rgba(0, 184, 219, 0.04)' : 'transparent',
+                                  background: 'var(--surface, #ffffff)',
                                   borderRadius: 8,
-                                  border: expIdx === 0 ? '1px solid rgba(0, 184, 219, 0.25)' : '1px solid var(--line, #e2e8f0)',
+                                  border: '1px solid var(--line, #e2e8f0)',
                                 }}
                               >
                                 {profileExps.length > 1 ? (
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                                    <span style={{ fontSize: '11px', fontWeight: 700, color: expIdx === 0 ? '#008fa8' : 'var(--muted, #64748b)', textTransform: 'uppercase' }}>
+                                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted, #64748b)', textTransform: 'uppercase' }}>
                                       {expIdx === 0 ? 'Latest Experience' : `Previous Company #${expIdx + 1}`}
                                     </span>
                                   </div>
