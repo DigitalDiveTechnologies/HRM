@@ -97,6 +97,8 @@ export default function AppShell({ title, subtitle, children }) {
                 {group.links.map((l) => {
                   const badge = badgeFor(l.href);
                   const isParentActive = isNavActive(pathname, l.href);
+                  const isAnyChildActive = Boolean(l.children && l.children.some((c) => isNavActive(pathname, c.href)));
+                  const isExpanded = isParentActive || isAnyChildActive || (pathname && pathname.startsWith(l.href));
                   return (
                     <div key={l.href} style={{ display: 'flex', flexDirection: 'column' }}>
                       <Link
@@ -112,7 +114,7 @@ export default function AppShell({ title, subtitle, children }) {
                           </span>
                         ) : null}
                       </Link>
-                      {l.children && l.children.length > 0 ? (
+                      {l.children && l.children.length > 0 && isExpanded ? (
                         <div
                           style={{
                             display: 'flex',
@@ -132,10 +134,12 @@ export default function AppShell({ title, subtitle, children }) {
                                 className={isChildActive ? 'active' : ''}
                                 style={{
                                   fontSize: '12px',
-                                  padding: '5px 10px',
+                                  padding: '6px 10px',
                                   borderRadius: '6px',
-                                  color: isChildActive ? '#008fa8' : 'var(--muted)',
+                                  color: isChildActive ? '#ffffff' : 'var(--sidebar-text, #475569)',
+                                  background: isChildActive ? 'var(--sidebar-active-bg, #00b8db)' : 'transparent',
                                   fontWeight: isChildActive ? 700 : 500,
+                                  textDecoration: 'none',
                                 }}
                                 onClick={() => setMenuOpen(false)}
                               >

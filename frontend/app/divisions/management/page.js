@@ -40,7 +40,7 @@ export default function CompanyManagementPage() {
   }
 
   return (
-    <AppShell title="Company Management" subtitle="Register and configure GOCs companies">
+    <AppShell title="Company Management" subtitle="Register GOCs company">
       {error ? <div className="error" style={{ marginBottom: 16 }}>{error}</div> : null}
       {msg ? (
         <div
@@ -65,7 +65,7 @@ export default function CompanyManagementPage() {
         </div>
       ) : null}
 
-      <div className="card" style={{ maxWidth: 720 }}>
+      <div className="card">
         <div className="panel-title" style={{ marginBottom: 16 }}>
           <div>
             <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Add New Company</h3>

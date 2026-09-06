@@ -192,16 +192,13 @@ export default function CompanyStructurePage() {
             </div>
           </div>
 
-          {/* Role & Name beneath Circle */}
+          {/* Designation & Department beneath Circle */}
           <div id={`org-text-${v(node, 'id')}`} style={{ textAlign: 'center', marginTop: 8, maxWidth: 140 }}>
-            <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink, #0f172a)', lineHeight: 1.25 }}>
+            <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink, #0f172a)', lineHeight: 1.25 }}>
               {title}
             </div>
-            {name && name !== title ? (
-              <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)', marginTop: 2 }}>{name}</div>
-            ) : null}
             {dept ? (
-              <div style={{ fontSize: '9.5px', color: '#008fa8', fontWeight: 600, marginTop: 2 }}>{dept}</div>
+              <div style={{ fontSize: '10px', color: '#008fa8', fontWeight: 600, marginTop: 3 }}>{dept}</div>
             ) : null}
           </div>
         </div>
@@ -383,14 +380,11 @@ export default function CompanyStructurePage() {
                       </div>
                     </div>
                     <div style={{ textAlign: 'center', maxWidth: 130 }}>
-                      <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink, #0f172a)', lineHeight: 1.25 }}>
+                      <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink, #0f172a)', lineHeight: 1.25 }}>
                         {title}
                       </div>
-                      {name && name !== title ? (
-                        <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)', marginTop: 2 }}>{name}</div>
-                      ) : null}
                       {dept ? (
-                        <div style={{ fontSize: '9.5px', color: '#008fa8', fontWeight: 600, marginTop: 2 }}>{dept}</div>
+                        <div style={{ fontSize: '10px', color: '#008fa8', fontWeight: 600, marginTop: 3 }}>{dept}</div>
                       ) : null}
                     </div>
                   </div>
