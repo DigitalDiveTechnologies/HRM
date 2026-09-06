@@ -70,6 +70,17 @@ function EmployeesContent() {
 
   // Profile View multi-tab state (matching reference screenshot)
   const [selectedTab, setSelectedTab] = useState('Personal info');
+  const [showProfilePassword, setShowProfilePassword] = useState(false);
+  const [showPayrollModal, setShowPayrollModal] = useState(false);
+  const [payrollForm, setPayrollForm] = useState({
+    basicSalary: '',
+    allowances: '',
+    grossSalary: '',
+    paymentMethod: 'WPS (SIF File Generation)',
+    bankName: 'Emirates NBD',
+    iban: '',
+  });
+  const [savingPayroll, setSavingPayroll] = useState(false);
   const [empPayslips, setEmpPayslips] = useState([]);
   const [empDocuments, setEmpDocuments] = useState([]);
   const [empLeaves, setEmpLeaves] = useState([]);
@@ -351,6 +362,70 @@ function EmployeesContent() {
     }
   }
 
+  function openPayrollModal() {
+    const fin = selectedMd?.finance || {};
+    const basic = fin.basicSalary !== undefined ? String(fin.basicSalary) : '5000';
+    const allow = fin.allowances !== undefined ? String(fin.allowances) : '2500';
+    const gross = fin.grossSalary !== undefined ? String(fin.grossSalary) : String(Number(basic || 0) + Number(allow || 0));
+    setPayrollForm({
+      basicSalary: basic,
+      allowances: allow,
+      grossSalary: gross,
+      paymentMethod: fin.paymentMethod || 'WPS (SIF File Generation)',
+      bankName: fin.bankName || 'Emirates NBD',
+      iban: fin.iban || fin.accountNo || 'AE07033123456789012',
+    });
+    setShowPayrollModal(true);
+  }
+
+  async function savePayrollDetails(ev) {
+    ev.preventDefault();
+    if (!selected) return;
+    setError('');
+    setMsg('');
+    setSavingPayroll(true);
+    try {
+      const basicNum = Number(payrollForm.basicSalary) || 0;
+      const allowNum = Number(payrollForm.allowances) || 0;
+      const calcGross = payrollForm.grossSalary ? Number(payrollForm.grossSalary) : basicNum + allowNum;
+
+      const updatedFinance = {
+        ...(selectedMd?.finance || {}),
+        basicSalary: String(basicNum),
+        allowances: String(allowNum),
+        grossSalary: String(calcGross),
+        paymentMethod: payrollForm.paymentMethod || 'WPS (SIF File Generation)',
+        bankName: payrollForm.bankName || 'Emirates NBD',
+        iban: payrollForm.iban || '',
+        accountNo: payrollForm.iban || '',
+      };
+
+      const rawMd = v(selected, 'masterData', 'master_data') || {};
+      const parsedMd = typeof rawMd === 'string' ? JSON.parse(rawMd) : rawMd;
+      const newMasterData = {
+        ...parsedMd,
+        finance: updatedFinance,
+      };
+
+      await api(`/employees/${v(selected, 'id')}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          masterData: newMasterData,
+        }),
+      });
+
+      const updated = await api(`/employees/${v(selected, 'id')}`);
+      setSelected(updated);
+      setShowPayrollModal(false);
+      setMsg('Compensation & WPS details updated successfully.');
+      load();
+    } catch (err) {
+      setError(err?.message || 'Failed to update payroll details');
+    } finally {
+      setSavingPayroll(false);
+    }
+  }
+
   // Filtered employees list
   const filteredRows = useMemo(() => {
     return rows.filter((e) => {
@@ -546,6 +621,239 @@ function EmployeesContent() {
             >
               Done & Close
             </button>
+          </div>
+        </>
+      ) : null}
+
+      {/* Edit Payroll / Compensation Modal */}
+      {showPayrollModal ? (
+        <>
+          <div
+            className="backdrop show"
+            onClick={() => setShowPayrollModal(false)}
+            aria-hidden="true"
+            style={{ zIndex: 60 }}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="payroll-modal-title"
+            style={{
+              position: 'fixed',
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 70,
+              width: 'min(560px, calc(100vw - 32px))',
+              maxHeight: 'calc(100vh - 60px)',
+              overflowY: 'auto',
+              background: 'var(--surface, #ffffff)',
+              borderRadius: 12,
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.25)',
+              padding: '24px 28px',
+              border: '1px solid var(--line, #e2e8f0)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, paddingBottom: 12, borderBottom: '1px solid var(--line, #e2e8f0)' }}>
+              <div>
+                <h3 id="payroll-modal-title" style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                  Edit Compensation & WPS Details
+                </h3>
+                <div style={{ fontSize: '12px', color: 'var(--muted, #64748b)', marginTop: 2 }}>
+                  {v(selected, 'fullName', 'full_name')} ({v(selected, 'empCode', 'emp_code')})
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPayrollModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '20px',
+                  color: 'var(--muted, #94a3b8)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={savePayrollDetails} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted, #475569)' }}>
+                  Basic Salary (AED) <span style={{ color: '#ef4444' }}>*</span>
+                </span>
+                <input
+                  required
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="e.g. 5000"
+                  value={payrollForm.basicSalary}
+                  onChange={(e) => {
+                    const basic = e.target.value;
+                    setPayrollForm((prev) => ({
+                      ...prev,
+                      basicSalary: basic,
+                      grossSalary: String((Number(basic) || 0) + (Number(prev.allowances) || 0)),
+                    }));
+                  }}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--line, #cbd5e1)',
+                    fontSize: '13px',
+                    color: 'var(--ink, #0f172a)',
+                    background: 'var(--input-bg, #ffffff)',
+                  }}
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted, #475569)' }}>
+                  Housing & Transport Allowance (AED)
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="e.g. 2500"
+                  value={payrollForm.allowances}
+                  onChange={(e) => {
+                    const allow = e.target.value;
+                    setPayrollForm((prev) => ({
+                      ...prev,
+                      allowances: allow,
+                      grossSalary: String((Number(prev.basicSalary) || 0) + (Number(allow) || 0)),
+                    }));
+                  }}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--line, #cbd5e1)',
+                    fontSize: '13px',
+                    color: 'var(--ink, #0f172a)',
+                    background: 'var(--input-bg, #ffffff)',
+                  }}
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted, #475569)' }}>
+                  Gross Monthly Remuneration (AED)
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="e.g. 7500"
+                  value={payrollForm.grossSalary}
+                  onChange={(e) => setPayrollForm((prev) => ({ ...prev, grossSalary: e.target.value }))}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--line, #cbd5e1)',
+                    fontSize: '13px',
+                    color: '#008fa8',
+                    fontWeight: 700,
+                    background: 'var(--surface-alt, #f8fafc)',
+                  }}
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted, #475569)' }}>
+                  Payment Method
+                </span>
+                <select
+                  value={payrollForm.paymentMethod}
+                  onChange={(e) => setPayrollForm((prev) => ({ ...prev, paymentMethod: e.target.value }))}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--line, #cbd5e1)',
+                    fontSize: '13px',
+                    color: 'var(--ink, #0f172a)',
+                    background: 'var(--input-bg, #ffffff)',
+                  }}
+                >
+                  <option value="WPS (SIF File Generation)">WPS (SIF File Generation)</option>
+                  <option value="Direct Bank Transfer">Direct Bank Transfer</option>
+                  <option value="Cheque">Cheque</option>
+                  <option value="Cash">Cash</option>
+                </select>
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted, #475569)' }}>
+                  Operating Bank
+                </span>
+                <input
+                  type="text"
+                  placeholder="e.g. Emirates NBD / ADCB / FAB"
+                  value={payrollForm.bankName}
+                  onChange={(e) => setPayrollForm((prev) => ({ ...prev, bankName: e.target.value }))}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--line, #cbd5e1)',
+                    fontSize: '13px',
+                    color: 'var(--ink, #0f172a)',
+                    background: 'var(--input-bg, #ffffff)',
+                  }}
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted, #475569)' }}>
+                  IBAN / Account Number
+                </span>
+                <input
+                  type="text"
+                  placeholder="e.g. AE07033123456789012"
+                  value={payrollForm.iban}
+                  onChange={(e) => setPayrollForm((prev) => ({ ...prev, iban: e.target.value }))}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--line, #cbd5e1)',
+                    fontSize: '13px',
+                    color: 'var(--ink, #0f172a)',
+                    background: 'var(--input-bg, #ffffff)',
+                  }}
+                />
+              </label>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12, paddingTop: 14, borderTop: '1px solid var(--line, #e2e8f0)' }}>
+                <button
+                  type="button"
+                  className="btn secondary"
+                  onClick={() => setShowPayrollModal(false)}
+                  style={{ fontSize: '12.5px', padding: '7px 16px', borderRadius: '6px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingPayroll}
+                  className="btn"
+                  style={{
+                    background: '#00b8db',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    fontSize: '12.5px',
+                    padding: '7px 18px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    cursor: savingPayroll ? 'wait' : 'pointer',
+                  }}
+                >
+                  {savingPayroll ? 'Saving...' : 'Save Compensation Details'}
+                </button>
+              </div>
+            </form>
           </div>
         </>
       ) : null}
@@ -916,7 +1224,7 @@ function EmployeesContent() {
                         {v(selected, 'fullName', 'full_name')}
                       </div>
                       <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)' }}>
-                        {v(selected, 'jobTitle', 'job_title') || 'Employee'}
+                        {v(selected, 'position') || selectedMd?.position || v(selected, 'jobTitle', 'job_title') || 'Employee'}
                       </div>
                     </div>
                     <svg
@@ -1020,7 +1328,7 @@ function EmployeesContent() {
                                       {v(emp, 'fullName', 'full_name')}
                                     </div>
                                     <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                      {v(emp, 'jobTitle', 'job_title') || v(emp, 'empCode', 'emp_code') || 'Employee'}
+                                      {v(emp, 'position') || (emp.masterData && emp.masterData.position) || (emp.master_data && emp.master_data.position) || v(emp, 'jobTitle', 'job_title') || v(emp, 'empCode', 'emp_code') || 'Employee'}
                                     </div>
                                   </div>
                                 </button>
@@ -1229,6 +1537,42 @@ function EmployeesContent() {
                           <div className="emp-row-label">App Login Email</div>
                           <div className="emp-row-val" style={{ color: '#008fa8', fontWeight: 600 }}>
                             {v(selected, 'email') || '—'}
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', padding: '9px 0', alignItems: 'center' }}>
+                          <div className="emp-row-label">App Password</div>
+                          <div className="emp-row-val" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontFamily: showProfilePassword ? 'inherit' : 'monospace', fontSize: showProfilePassword ? '13px' : '15px', fontWeight: 600, color: 'var(--ink, #0f172a)', letterSpacing: showProfilePassword ? 'normal' : '2px' }}>
+                              {showProfilePassword ? (v(selected, 'password') || selectedMd.password || 'demo123') : '••••••••'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setShowProfilePassword(!showProfilePassword)}
+                              title={showProfilePassword ? 'Hide password' : 'Show password'}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '2px 4px',
+                                color: 'var(--muted, #64748b)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              {showProfilePassword ? (
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                                  <line x1="1" y1="1" x2="23" y2="23" />
+                                </svg>
+                              ) : (
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                  <circle cx="12" cy="12" r="3" />
+                                </svg>
+                              )}
+                            </button>
                           </div>
                         </div>
 
@@ -1573,9 +1917,35 @@ function EmployeesContent() {
                   {/* Card 1: Current Compensation & WPS Details */}
                   <div className="emp-card">
                     <div className="emp-card-header">
-                      <h4 className="emp-card-title">
-                        Current Compensation & WPS Details
-                      </h4>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <h4 className="emp-card-title" style={{ margin: 0 }}>
+                          Current Compensation & WPS Details
+                        </h4>
+                        {isAdmin ? (
+                          <button
+                            type="button"
+                            className="card-edit-pencil"
+                            onClick={openPayrollModal}
+                            title="Edit Compensation & WPS Details"
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: '2px 4px',
+                              color: 'var(--muted, #94a3b8)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              borderRadius: '4px',
+                            }}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                              <path d="m15 5 4 4" />
+                            </svg>
+                          </button>
+                        ) : null}
+                      </div>
                       <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#008fa8', background: 'rgba(0, 184, 219, 0.12)', padding: '3px 10px', borderRadius: '12px' }}>
                         WPS Compliant
                       </span>

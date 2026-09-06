@@ -34,45 +34,45 @@ const DOCUMENT_CATEGORIES = [
 ];
 
 const NATIONALITIES = [
-  'Emirati (UAE)',
-  'Pakistani',
-  'Indian',
-  'Filipino',
-  'Egyptian',
-  'British',
-  'American',
-  'Saudi',
-  'Omani',
-  'Qatari',
-  'Bahraini',
-  'Kuwaiti',
-  'Bangladeshi',
-  'Sri Lankan',
-  'Nepali',
-  'Jordanian',
-  'Lebanese',
-  'Syrian',
-  'Sudanese',
-  'Yemeni',
-  'Moroccan',
-  'Tunisian',
-  'Algerian',
-  'Canadian',
-  'Australian',
-  'South African',
-  'Russian',
-  'Ukrainian',
-  'Turkish',
-  'Iranian',
-  'Chinese',
-  'German',
-  'French',
-  'Italian',
-  'Spanish',
-  'Afghan',
-  'Nigerian',
-  'Kenyan',
-  'Ghanaian',
+  'United Arab Emirates (UAE)',
+  'Pakistan',
+  'India',
+  'Philippines',
+  'Egypt',
+  'United Kingdom',
+  'United States',
+  'Saudi Arabia',
+  'Oman',
+  'Qatar',
+  'Bahrain',
+  'Kuwait',
+  'Bangladesh',
+  'Sri Lanka',
+  'Nepal',
+  'Jordan',
+  'Lebanon',
+  'Syria',
+  'Sudan',
+  'Yemen',
+  'Morocco',
+  'Tunisia',
+  'Algeria',
+  'Canada',
+  'Australia',
+  'South Africa',
+  'Russia',
+  'Ukraine',
+  'Turkey',
+  'Iran',
+  'China',
+  'Germany',
+  'France',
+  'Italy',
+  'Spain',
+  'Afghanistan',
+  'Nigeria',
+  'Kenya',
+  'Ghana',
   'Other',
 ];
 
@@ -101,7 +101,7 @@ function FieldRow({ label, required = false, children, helper = '' }) {
   );
 }
 
-function SectionCard({ title, children, style = {}, disabled = false, onSectionSave }) {
+function SectionCard({ title, children, style = {}, disabled = false, onSectionSave, isSaved = false }) {
   return (
     <div className="emp-card" style={style}>
       <div className="emp-card-header">
@@ -116,14 +116,19 @@ function SectionCard({ title, children, style = {}, disabled = false, onSectionS
         </span>
       </div>
       {children}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--line, #e2e8f0)' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--line, #e2e8f0)' }}>
+        {isSaved ? (
+          <span style={{ fontSize: '12px', color: '#059669', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, background: '#ecfdf5', padding: '4px 10px', borderRadius: 6, border: '1px solid #a7f3d0' }}>
+            ✓ Saved successfully!
+          </span>
+        ) : null}
         <button
           type={onSectionSave ? "button" : "submit"}
           onClick={onSectionSave}
           disabled={disabled}
           className="btn"
           style={{
-            background: disabled ? '#94a3b8' : '#00b8db',
+            background: isSaved ? '#059669' : (disabled ? '#94a3b8' : '#00b8db'),
             color: '#ffffff',
             fontWeight: 600,
             fontSize: '12px',
@@ -142,7 +147,7 @@ function SectionCard({ title, children, style = {}, disabled = false, onSectionS
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12" />
           </svg>
-          Save {title}
+          {isSaved ? 'Saved' : `Save ${title}`}
         </button>
       </div>
     </div>
@@ -171,11 +176,14 @@ export default function EmployeeMasterForm({
   const [activeTab, setActiveTab] = useState('Personal info');
   const [showPassword, setShowPassword] = useState(false);
   const [sectionSuccessMsg, setSectionSuccessMsg] = useState('');
+  const [savedSectionName, setSavedSectionName] = useState('');
 
   const triggerSectionSuccess = (sectionName) => {
+    setSavedSectionName(sectionName);
     setSectionSuccessMsg(`${sectionName} has been saved successfully!`);
     setTimeout(() => {
       setSectionSuccessMsg('');
+      setSavedSectionName((curr) => (curr === sectionName ? '' : curr));
     }, 3500);
   };
 
@@ -456,6 +464,7 @@ export default function EmployeeMasterForm({
               title="Basic information"
               disabled={isBasicInfoDisabled}
               onSectionSave={() => triggerSectionSuccess('Basic information')}
+              isSaved={savedSectionName === 'Basic information'}
             >
               <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
                 {/* Left: Avatar Upload Circle */}
@@ -687,6 +696,7 @@ export default function EmployeeMasterForm({
                 title="Address"
                 disabled={isAddressDisabled}
                 onSectionSave={() => triggerSectionSuccess('Address details')}
+                isSaved={savedSectionName === 'Address details'}
               >
                 <FieldRow label="Citizen ID address">
                   <input
@@ -712,6 +722,7 @@ export default function EmployeeMasterForm({
                 title="Education details"
                 disabled={isEduDisabled}
                 onSectionSave={() => triggerSectionSuccess('Education details')}
+                isSaved={savedSectionName === 'Education details'}
               >
                 <FieldRow label="Education Level">
                   <select
@@ -726,10 +737,10 @@ export default function EmployeeMasterForm({
                   </select>
                 </FieldRow>
 
-                <FieldRow label="Degree / Major">
+                <FieldRow label="Degree / Major Title">
                   <input
                     style={inputStyle}
-                    placeholder="e.g. Master Degree in Business / Computer Science"
+                    placeholder="e.g. BS Computer Science"
                     value={form.education?.degreeMajor || ''}
                     onChange={(e) => setEdu('degreeMajor', e.target.value)}
                   />
@@ -798,6 +809,7 @@ export default function EmployeeMasterForm({
               title="Work experience"
               disabled={isWorkExpDisabled}
               onSectionSave={() => triggerSectionSuccess('Work experience')}
+              isSaved={savedSectionName === 'Work experience'}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
                 <span style={{ fontSize: '12.5px', color: 'var(--muted, #64748b)', fontWeight: 500 }}>
@@ -959,6 +971,7 @@ export default function EmployeeMasterForm({
                 title="Job & Organization Profile"
                 disabled={isJobProfileDisabled}
                 onSectionSave={() => triggerSectionSuccess('Job & Organization profile')}
+                isSaved={savedSectionName === 'Job & Organization profile'}
               >
                 <FieldRow label="Operating Company">
                   <select
@@ -1082,6 +1095,7 @@ export default function EmployeeMasterForm({
                 title="Passport & Emirates ID Credentials"
                 disabled={isPassportDisabled}
                 onSectionSave={() => triggerSectionSuccess('Passport & Emirates ID credentials')}
+                isSaved={savedSectionName === 'Passport & Emirates ID credentials'}
               >
                 <FieldRow label="Passport Number">
                   <input
@@ -1155,6 +1169,7 @@ export default function EmployeeMasterForm({
                 title="Custom Documents & Attachments"
                 disabled={isDocsDisabled}
                 onSectionSave={() => triggerSectionSuccess('Custom Documents')}
+                isSaved={savedSectionName === 'Custom Documents'}
               >
                 {/* Upload Controls Bar */}
                 <div
