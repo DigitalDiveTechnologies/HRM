@@ -5,19 +5,11 @@ import AppShell, { Badge } from '../../components/AppShell';
 import { api } from '../../lib/auth';
 import { v } from '../../lib/format';
 
-const emptyForm = () => ({
-  code: '',
-  name: '',
-  payrollType: 'wps',
-});
-
 export default function DivisionsPage() {
   const [rows, setRows] = useState([]);
   const [companyPage, setCompanyPage] = useState(1);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
-  const [form, setForm] = useState(emptyForm());
-  const [saving, setSaving] = useState(false);
 
   const load = useCallback(() => {
     setError('');
@@ -29,30 +21,6 @@ export default function DivisionsPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  async function createDivision(e) {
-    e.preventDefault();
-    setMsg('');
-    setError('');
-    setSaving(true);
-    try {
-      await api('/divisions', {
-        method: 'POST',
-        body: JSON.stringify({
-          code: form.code.trim(),
-          name: form.name.trim(),
-          payrollType: form.payrollType,
-        }),
-      });
-      setMsg('Company created.');
-      setForm(emptyForm());
-      load();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  }
 
   async function setStatus(id, status) {
     setMsg('');
@@ -73,43 +41,9 @@ export default function DivisionsPage() {
   const paginatedRows = rows.slice((companyPage - 1) * 10, companyPage * 10);
 
   return (
-    <AppShell title="Company Master" subtitle="GOCs companies — Alkidma, Alqat, Overseas, Royal Oceans">
+    <AppShell title="Company Master" subtitle="GOCs companies">
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
-
-      <div className="card" style={{ marginBottom: 14 }}>
-        <div className="panel-title">
-          <h3>Add company</h3>
-        </div>
-        <p className="muted" style={{ marginBottom: 12 }}>
-          Companies are never hard-deleted — use <strong>Deactivate</strong> to set inactive.
-        </p>
-        <form className="stack" onSubmit={createDivision}>
-          <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-            <label className="field">
-              Code
-              <input
-                required
-                placeholder="e.g. ALKIDMA"
-                value={form.code}
-                onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
-              />
-            </label>
-            <label className="field">
-              Name
-              <input
-                required
-                placeholder="e.g. Alkidma"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-              />
-            </label>
-          </div>
-          <button className="btn" type="submit" disabled={saving}>
-            {saving ? 'Saving…' : 'Create company'}
-          </button>
-        </form>
-      </div>
 
       <div className="card">
         <div className="panel-title">

@@ -10,7 +10,15 @@ export const NAV = [
   {
     title: 'Core HR',
     links: [
-      { href: '/divisions', label: 'Company', roles: ['admin'] },
+      {
+        href: '/divisions',
+        label: 'Company',
+        roles: ['admin'],
+        children: [
+          { href: '/divisions/management', label: 'Company Management', roles: ['admin'] },
+          { href: '/divisions/structure', label: 'Company Structure', roles: ['admin'] },
+        ],
+      },
       { href: '/employees', label: 'Employees', roles: ['admin'] },
       { href: '/masters', label: 'Designations & Types', roles: ['admin'] },
       { href: '/onboarding', label: 'Onboarding', roles: ['admin'] },
@@ -52,6 +60,11 @@ export function canAccessPath(pathname, role) {
   for (const group of NAV) {
     for (const link of group.links) {
       if (link.href === path) return (link.roles || ['admin']).includes(role);
+      if (link.children) {
+        for (const child of link.children) {
+          if (child.href === path) return (child.roles || ['admin']).includes(role);
+        }
+      }
     }
   }
   return role === 'admin';
@@ -60,6 +73,11 @@ export function canAccessPath(pathname, role) {
 export function navForRole(role) {
   return NAV.map((group) => ({
     ...group,
-    links: group.links.filter((l) => (l.roles || ['admin']).includes(role)),
+    links: group.links
+      .filter((l) => (l.roles || ['admin']).includes(role))
+      .map((l) => ({
+        ...l,
+        children: (l.children || []).filter((c) => (c.roles || ['admin']).includes(role)),
+      })),
   })).filter((group) => group.links.length > 0);
 }

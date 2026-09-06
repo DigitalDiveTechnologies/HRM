@@ -96,21 +96,56 @@ export default function AppShell({ title, subtitle, children }) {
               <div className="nav">
                 {group.links.map((l) => {
                   const badge = badgeFor(l.href);
+                  const isParentActive = isNavActive(pathname, l.href);
                   return (
-                  <Link
-                    key={l.href}
-                    href={l.href}
-                    className={isNavActive(pathname, l.href) ? 'active' : ''}
-                    aria-current={isNavActive(pathname, l.href) ? 'page' : undefined}
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    <span className="nav-link-label">{l.label}</span>
-                    {badge > 0 ? (
-                      <span className="nav-alert-badge" aria-label={`${badge} alerts`}>
-                        {badge > 99 ? '99+' : badge}
-                      </span>
-                    ) : null}
-                  </Link>
+                    <div key={l.href} style={{ display: 'flex', flexDirection: 'column' }}>
+                      <Link
+                        href={l.href}
+                        className={isParentActive ? 'active' : ''}
+                        aria-current={isParentActive ? 'page' : undefined}
+                        onClick={() => setMenuOpen(false)}
+                      >
+                        <span className="nav-link-label">{l.label}</span>
+                        {badge > 0 ? (
+                          <span className="nav-alert-badge" aria-label={`${badge} alerts`}>
+                            {badge > 99 ? '99+' : badge}
+                          </span>
+                        ) : null}
+                      </Link>
+                      {l.children && l.children.length > 0 ? (
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            paddingLeft: '12px',
+                            margin: '2px 0 4px 12px',
+                            borderLeft: '1.5px solid var(--line, #cbd5e1)',
+                            gap: '2px',
+                          }}
+                        >
+                          {l.children.map((c) => {
+                            const isChildActive = isNavActive(pathname, c.href);
+                            return (
+                              <Link
+                                key={c.href}
+                                href={c.href}
+                                className={isChildActive ? 'active' : ''}
+                                style={{
+                                  fontSize: '12px',
+                                  padding: '5px 10px',
+                                  borderRadius: '6px',
+                                  color: isChildActive ? '#008fa8' : 'var(--muted)',
+                                  fontWeight: isChildActive ? 700 : 500,
+                                }}
+                                onClick={() => setMenuOpen(false)}
+                              >
+                                {c.label}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
                   );
                 })}
               </div>
