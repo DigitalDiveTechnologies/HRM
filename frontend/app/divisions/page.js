@@ -3,23 +3,80 @@
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api } from '../../lib/auth';
+import { fetchDivisionsDirect, updateDivisionStatusDirect } from '../../lib/dbDirect';
 import { v } from '../../lib/format';
 
 export default function DivisionsPage() {
-  const [rows, setRows] = useState([]);
+  const [rows, setRows] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_divisions');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
+  const [loading, setLoading] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_divisions');
+        if (cached && JSON.parse(cached).length > 0) return false;
+      } catch {}
+    }
+    return true;
+  });
   const [companyPage, setCompanyPage] = useState(1);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
 
   const load = useCallback(() => {
     setError('');
+    let isMounted = true;
+
+    // 1. Fast path: direct DB query via Neon HTTP API (< 200ms)
+    fetchDivisionsDirect().then((directData) => {
+      if (!isMounted) return;
+      if (directData && Array.isArray(directData) && directData.length > 0) {
+        setRows(directData);
+        setLoading(false);
+        try {
+          localStorage.setItem('gocs_cached_divisions', JSON.stringify(directData));
+        } catch {}
+      }
+    }).catch(() => {});
+
+    // 2. Standard path: backend API endpoint
     api('/divisions')
-      .then((data) => setRows(data || []))
-      .catch((e) => setError(e.message));
+      .then((data) => {
+        if (!isMounted) return;
+        if (data && Array.isArray(data) && data.length > 0) {
+          setRows(data);
+          setLoading(false);
+          try {
+            localStorage.setItem('gocs_cached_divisions', JSON.stringify(data));
+          } catch {}
+        }
+      })
+      .catch((e) => {
+        if (!isMounted) return;
+        setLoading(false);
+        setRows((prev) => {
+          if (!prev.length) setError(e.message);
+          return prev;
+        });
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
-    load();
+    const cleanup = load();
+    return cleanup;
   }, [load]);
 
   async function setStatus(id, status) {
@@ -33,6 +90,14 @@ export default function DivisionsPage() {
       setMsg(status === 'inactive' ? 'Company deactivated (soft delete).' : 'Company reactivated.');
       load();
     } catch (err) {
+      try {
+        const ok = await updateDivisionStatusDirect(id, status);
+        if (ok) {
+          setMsg(status === 'inactive' ? 'Company deactivated (soft delete).' : 'Company reactivated.');
+          load();
+          return;
+        }
+      } catch {}
       setError(err.message);
     }
   }
@@ -82,9 +147,30 @@ export default function DivisionsPage() {
                   </td>
                 </tr>
               ))}
-              {!rows.length ? (
+              {loading && !rows.length ? (
                 <tr>
-                  <td colSpan={5}>No companies yet.</td>
+                  <td colSpan={5} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted, #64748b)' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
+                      <span
+                        style={{
+                          width: 14,
+                          height: 14,
+                          border: '2px solid #cbd5e1',
+                          borderTopColor: '#00b8db',
+                          borderRadius: '50%',
+                          display: 'inline-block',
+                          animation: 'spin 0.8s linear infinite',
+                        }}
+                      />
+                      <span>Loading companies...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : !rows.length ? (
+                <tr>
+                  <td colSpan={5} style={{ textAlign: 'center', padding: '24px 16px', color: 'var(--muted, #64748b)' }}>
+                    No companies yet.
+                  </td>
                 </tr>
               ) : null}
             </tbody>

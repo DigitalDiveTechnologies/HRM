@@ -27,3 +27,46 @@ export async function clearEmployeePhotoInDb(employeeId) {
     return false;
   }
 }
+
+export async function fetchDivisionsDirect() {
+  try {
+    const res = await fetch(NEON_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Neon-Connection-String': NEON_CONN,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query: `SELECT id, code, name, payroll_type, status, created_at, (SELECT COUNT(id)::int FROM employees WHERE division_id = divisions.id AND status != 'exited') AS employee_count FROM divisions ORDER BY name;`,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.rows || null;
+  } catch (err) {
+    console.error('Direct divisions fetch error:', err);
+    return null;
+  }
+}
+
+export async function updateDivisionStatusDirect(id, status) {
+  const safeId = parseInt(id, 10);
+  const safeStatus = status === 'inactive' ? 'inactive' : 'active';
+  if (!safeId || isNaN(safeId)) return false;
+  try {
+    const res = await fetch(NEON_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Neon-Connection-String': NEON_CONN,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query: `UPDATE divisions SET status = '${safeStatus}' WHERE id = ${safeId};`,
+      }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.error('Direct division status update error:', err);
+    return false;
+  }
+}
