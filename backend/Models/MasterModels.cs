@@ -25,6 +25,8 @@ public sealed class UpdateEmployeeRequest
     public int? ManagerId { get; set; }
     public string? JoinDate { get; set; }
     public string? Status { get; set; }
+    public bool? PhotoRemoved { get; set; }
+    public string? PhotoPath { get; set; }
     public Dictionary<string, object?>? MasterData { get; set; }
 }
 

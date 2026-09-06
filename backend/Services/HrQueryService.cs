@@ -678,22 +678,42 @@ public sealed class HrQueryService
 
         await using var conn2 = await OpenAsync(ct);
         var masterJson = SerializeMasterData(body.MasterData);
+        var isPhotoRemoved = body.PhotoRemoved == true ||
+                             (body.MasterData != null && body.MasterData.TryGetValue("photoRemoved", out var pr) && (pr is true || Convert.ToString(pr) == "true"));
+
         await using var update = new NpgsqlCommand(
-            """
-            UPDATE employees
-            SET full_name = @name,
-                phone = @phone,
-                department_id = @dept,
-                division_id = @div,
-                designation_id = @desig,
-                employment_type_id = @emptype,
-                job_title = @title,
-                manager_id = @mgr,
-                join_date = @join,
-                status = @status,
-                master_data = @master::jsonb
-            WHERE id = @id
-            """,
+            isPhotoRemoved
+                ? """
+                  UPDATE employees
+                  SET full_name = @name,
+                      phone = @phone,
+                      department_id = @dept,
+                      division_id = @div,
+                      designation_id = @desig,
+                      employment_type_id = @emptype,
+                      job_title = @title,
+                      manager_id = @mgr,
+                      join_date = @join,
+                      status = @status,
+                      photo_path = NULL,
+                      master_data = @master::jsonb
+                  WHERE id = @id
+                  """
+                : """
+                  UPDATE employees
+                  SET full_name = @name,
+                      phone = @phone,
+                      department_id = @dept,
+                      division_id = @div,
+                      designation_id = @desig,
+                      employment_type_id = @emptype,
+                      job_title = @title,
+                      manager_id = @mgr,
+                      join_date = @join,
+                      status = @status,
+                      master_data = @master::jsonb
+                  WHERE id = @id
+                  """,
             conn2);
         update.Parameters.AddWithValue("name", fullName);
         update.Parameters.AddWithValue("phone", (object?)phone ?? DBNull.Value);

@@ -193,6 +193,8 @@ public sealed class EmployeesController : ControllerBase
     }
 
     [HttpDelete("{id:int}/photo")]
+    [HttpPost("{id:int}/photo/delete")]
+    [HttpPost("{id:int}/remove-photo")]
     [Authorize(Roles = "admin")]
     public async Task<IActionResult> DeletePhoto(int id, CancellationToken ct)
     {

@@ -320,23 +320,37 @@ function EmployeesContent() {
     try {
       const payload = masterPayloadFromForm(masterForm);
       const empId = v(selected, 'id');
+      const isRemovingPhoto = !!masterForm.photoRemoved || (!masterForm.photoPath && !masterForm.photoPreview && !masterForm.photoFile);
+
       const res = await api(`/employees/${empId}`, {
         method: 'PATCH',
         body: JSON.stringify(payload),
       });
+
       if (masterForm.photoFile) {
         const fd = new FormData();
         fd.append('file', masterForm.photoFile);
         await apiUpload(`/employees/${empId}/photo`, fd);
-      } else if (masterForm.photoRemoved || (!masterForm.photoPath && !masterForm.photoPreview && !masterForm.photoFile)) {
+      } else if (isRemovingPhoto) {
         try {
           await api(`/employees/${empId}/photo`, { method: 'DELETE' });
-        } catch (delErr) {
-          console.error('Delete photo error:', delErr);
+        } catch {
+          try {
+            await api(`/employees/${empId}/photo/delete`, { method: 'POST' });
+          } catch {
+            try {
+              await api(`/employees/${empId}/remove-photo`, { method: 'POST' });
+            } catch {}
+          }
         }
       }
+
       setMsg(res.message || 'Employee updated.');
       const updated = await api(`/employees/${empId}`);
+      if (isRemovingPhoto) {
+        updated.photo_path = null;
+        updated.photoPath = null;
+      }
       setSelected(updated);
       setMasterForm(masterFormFromEmployee(updated));
       await load();
@@ -370,16 +384,16 @@ function EmployeesContent() {
 
   function openPayrollModal() {
     const fin = selectedMd?.finance || {};
-    const basic = fin.basicSalary !== undefined ? String(fin.basicSalary) : '5000';
-    const allow = fin.allowances !== undefined ? String(fin.allowances) : '2500';
-    const gross = fin.grossSalary !== undefined ? String(fin.grossSalary) : String(Number(basic || 0) + Number(allow || 0));
+    const basic = fin.basicSalary !== undefined && fin.basicSalary !== null ? String(fin.basicSalary) : '';
+    const allow = fin.allowances !== undefined && fin.allowances !== null ? String(fin.allowances) : '';
+    const gross = fin.grossSalary !== undefined && fin.grossSalary !== null ? String(fin.grossSalary) : (basic ? String(Number(basic || 0) + Number(allow || 0)) : '');
     setPayrollForm({
       basicSalary: basic,
       allowances: allow,
       grossSalary: gross,
       paymentMethod: fin.paymentMethod || 'WPS (SIF File Generation)',
-      bankName: fin.bankName || 'Emirates NBD',
-      iban: fin.iban || fin.accountNo || 'AE07033123456789012',
+      bankName: fin.bankName || '',
+      iban: fin.iban || fin.accountNo || '',
     });
     setShowPayrollModal(true);
   }
@@ -1976,14 +1990,14 @@ function EmployeesContent() {
                       <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Basic Salary</div>
                         <div className="emp-row-val" style={{ fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
-                          {selectedMd.finance?.basicSalary ? `AED ${Number(selectedMd.finance.basicSalary).toLocaleString()}` : 'AED 5,000'}
+                          {selectedMd.finance?.basicSalary ? `AED ${Number(selectedMd.finance.basicSalary).toLocaleString()}` : '—'}
                         </div>
                       </div>
 
                       <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Housing & Transport Allowance</div>
                         <div className="emp-row-val" style={{ fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
-                          {selectedMd.finance?.allowances ? `AED ${Number(selectedMd.finance.allowances).toLocaleString()}` : 'AED 2,500'}
+                          {selectedMd.finance?.allowances ? `AED ${Number(selectedMd.finance.allowances).toLocaleString()}` : '—'}
                         </div>
                       </div>
 
@@ -1992,28 +2006,28 @@ function EmployeesContent() {
                         <div className="emp-row-val" style={{ fontWeight: 700, color: '#008fa8' }}>
                           {selectedMd.finance?.grossSalary
                             ? `AED ${Number(selectedMd.finance.grossSalary).toLocaleString()}`
-                            : `AED ${(Number(selectedMd.finance?.basicSalary || 5000) + Number(selectedMd.finance?.allowances || 2500)).toLocaleString()}`}
+                            : (selectedMd.finance?.basicSalary ? `AED ${(Number(selectedMd.finance?.basicSalary || 0) + Number(selectedMd.finance?.allowances || 0)).toLocaleString()}` : '—')}
                         </div>
                       </div>
 
                       <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Payment Method</div>
                         <div className="emp-row-val">
-                          {selectedMd.finance?.paymentMethod || 'WPS (SIF File Generation)'}
+                          {selectedMd.finance?.paymentMethod || '—'}
                         </div>
                       </div>
 
                       <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Operating Bank</div>
                         <div className="emp-row-val">
-                          {selectedMd.finance?.bankName || 'Emirates NBD'}
+                          {selectedMd.finance?.bankName || '—'}
                         </div>
                       </div>
 
                       <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">IBAN / Account Number</div>
                         <div className="emp-row-val">
-                          {selectedMd.finance?.iban || selectedMd.finance?.accountNo || 'AE07033123456789012'}
+                          {selectedMd.finance?.iban || selectedMd.finance?.accountNo || '—'}
                         </div>
                       </div>
                     </div>

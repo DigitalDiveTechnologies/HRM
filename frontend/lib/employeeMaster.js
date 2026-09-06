@@ -341,6 +341,8 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
     attachmentsNote: form.attachmentsNote?.trim() || '',
     naturalPerson: !!form.naturalPerson,
     dataProtectionStatus: form.dataProtectionStatus || 'none',
+    photoRemoved: !!form.photoRemoved || (!form.photoPath && !form.photoPreview && !form.photoFile),
+    photoPath: form.photoPath || '',
   };
 
   const payload = {
@@ -360,6 +362,8 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
     passportNo: form.passportNumber?.trim() || null,
     passportExpiry: form.passportExpiryDate || null,
     status,
+    photoRemoved: !!form.photoRemoved || (!form.photoPath && !form.photoPreview && !form.photoFile),
+    photoPath: form.photoPath || null,
     masterData,
   };
 
