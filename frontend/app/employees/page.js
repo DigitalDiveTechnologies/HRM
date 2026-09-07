@@ -513,21 +513,58 @@ function EmployeesContent() {
 
   // Filtered employees list
   const filteredRows = useMemo(() => {
-    return rows.filter((e) => {
-      const search = searchTerm.toLowerCase();
-      const code = String(v(e, 'empCode', 'emp_code') || '').toLowerCase();
-      const name = String(v(e, 'fullName', 'full_name') || '').toLowerCase();
-      const email = String(v(e, 'email') || '').toLowerCase();
-      const title = String(v(e, 'jobTitle', 'job_title') || '').toLowerCase();
+    const rawSearch = searchTerm.trim().toLowerCase();
+    const searchTerms = rawSearch ? rawSearch.split(/\s+/).filter(Boolean) : [];
 
-      const matchesSearch = !search || code.includes(search) || name.includes(search) || email.includes(search) || title.includes(search);
-      const matchesCompany = !filterCompany || String(v(e, 'divisionId', 'division_id')) === String(filterCompany);
-      const matchesDept = !filterDept || String(v(e, 'departmentId', 'department_id')) === String(filterDept);
-      const matchesStatus = !filterStatus || String(v(e, 'status')).toLowerCase() === filterStatus.toLowerCase();
+    // Find selected division and department names for reliable matching
+    const selectedDivObj = filterCompany ? divisions.find((d) => String(v(d, 'id')) === String(filterCompany)) : null;
+    const selectedDivName = selectedDivObj ? String(v(selectedDivObj, 'name') || '').toLowerCase().trim() : '';
+
+    const selectedDeptObj = filterDept ? departments.find((d) => String(v(d, 'id')) === String(filterDept)) : null;
+    const selectedDeptName = selectedDeptObj ? String(v(selectedDeptObj, 'name') || '').toLowerCase().trim() : '';
+
+    return rows.filter((e) => {
+      const md = pickMaster(v(e, 'masterData', 'master_data'));
+      const code = String(v(e, 'empCode', 'emp_code') || '').toLowerCase();
+      const fullName = String(v(e, 'fullName', 'full_name') || '').toLowerCase();
+      const firstName = String(v(e, 'firstName', 'first_name') || md.firstName || '').toLowerCase();
+      const lastName = String(v(e, 'lastName', 'last_name') || md.lastName || '').toLowerCase();
+      const email = String(v(e, 'email') || '').toLowerCase();
+      const phone = String(v(e, 'phone') || md.mobilePhone || md.phone || '').toLowerCase();
+      const title = String(v(e, 'jobTitle', 'job_title') || v(e, 'designationName', 'designation_name') || md.position || '').toLowerCase();
+      const company = String(v(e, 'divisionName', 'division_name') || '').toLowerCase();
+      const dept = String(v(e, 'departmentName', 'department_name') || '').toLowerCase();
+      const manager = String(v(e, 'managerName', 'manager_name') || '').toLowerCase();
+      const passport = String(v(e, 'passportNo', 'passport_no') || md.passportNumber || '').toLowerCase();
+      const emiratesId = String(md.emiratesIdNumber || '').toLowerCase();
+
+      // Combined searchable text across all employee attributes
+      const searchableText = `${code} ${fullName} ${firstName} ${lastName} ${email} ${phone} ${title} ${company} ${dept} ${manager} ${passport} ${emiratesId}`;
+
+      // Search matches if all words in search query exist in searchableText
+      const matchesSearch = !searchTerms.length || searchTerms.every((term) => searchableText.includes(term));
+
+      // Company / Division matching: matches by ID, by division_name, or by masterData companyIds
+      const empDivId = String(v(e, 'divisionId', 'division_id') || (md.companyIds && md.companyIds[0]) || '');
+      const matchesCompany = !filterCompany ||
+        empDivId === String(filterCompany) ||
+        (selectedDivName && (company.includes(selectedDivName) || selectedDivName.includes(company)));
+
+      // Department matching: matches by ID or by department_name
+      const empDeptId = String(v(e, 'departmentId', 'department_id') || '');
+      const matchesDept = !filterDept ||
+        empDeptId === String(filterDept) ||
+        (selectedDeptName && (dept.includes(selectedDeptName) || selectedDeptName.includes(dept)));
+
+      // Status matching: case-insensitive, treats null/empty as 'active'
+      const rawStatus = v(e, 'status');
+      const empStatus = String(rawStatus || 'active').toLowerCase().trim();
+      const targetStatus = filterStatus.toLowerCase().trim();
+      const matchesStatus = !targetStatus || empStatus === targetStatus;
 
       return matchesSearch && matchesCompany && matchesDept && matchesStatus;
     });
-  }, [rows, searchTerm, filterCompany, filterDept, filterStatus]);
+  }, [rows, searchTerm, filterCompany, filterDept, filterStatus, divisions, departments]);
 
   // 10-per-page Pagination State for Employees
   const [empPage, setEmpPage] = useState(1);
@@ -538,10 +575,11 @@ function EmployeesContent() {
   }, [searchTerm, filterCompany, filterDept, filterStatus]);
 
   const totalEmpPages = Math.ceil(filteredRows.length / EMP_PAGE_SIZE) || 1;
+  const safePage = Math.min(Math.max(1, empPage), totalEmpPages);
   const paginatedEmployees = useMemo(() => {
-    const start = (empPage - 1) * EMP_PAGE_SIZE;
+    const start = (safePage - 1) * EMP_PAGE_SIZE;
     return filteredRows.slice(start, start + EMP_PAGE_SIZE);
-  }, [filteredRows, empPage]);
+  }, [filteredRows, safePage]);
 
   // Selected Employee Master Data helper
   const selectedMd = useMemo(() => {
@@ -927,7 +965,10 @@ function EmployeesContent() {
               type="text"
               placeholder="Search code, name, email…"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setEmpPage(1);
+              }}
               style={{
                 fontSize: '12.5px',
                 padding: '6px 12px',
@@ -942,7 +983,10 @@ function EmployeesContent() {
 
             <select
               value={filterCompany}
-              onChange={(e) => setFilterCompany(e.target.value)}
+              onChange={(e) => {
+                setFilterCompany(e.target.value);
+                setEmpPage(1);
+              }}
               style={{
                 fontSize: '12px',
                 padding: '6px 10px',
@@ -963,7 +1007,10 @@ function EmployeesContent() {
 
             <select
               value={filterDept}
-              onChange={(e) => setFilterDept(e.target.value)}
+              onChange={(e) => {
+                setFilterDept(e.target.value);
+                setEmpPage(1);
+              }}
               style={{
                 fontSize: '12px',
                 padding: '6px 10px',
@@ -984,7 +1031,10 @@ function EmployeesContent() {
 
             <select
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
+              onChange={(e) => {
+                setFilterStatus(e.target.value);
+                setEmpPage(1);
+              }}
               style={{
                 fontSize: '12px',
                 padding: '6px 10px',
@@ -1000,6 +1050,35 @@ function EmployeesContent() {
               <option value="onboarding">Onboarding</option>
               <option value="exited">Exited</option>
             </select>
+
+            {(searchTerm || filterCompany || filterDept || filterStatus) ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setFilterCompany('');
+                  setFilterDept('');
+                  setFilterStatus('');
+                  setEmpPage(1);
+                }}
+                style={{
+                  fontSize: '11.5px',
+                  padding: '5px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #cbd5e1',
+                  background: 'transparent',
+                  color: 'var(--muted, #64748b)',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  fontWeight: 500,
+                }}
+                title="Clear all filters"
+              >
+                ✕ Clear
+              </button>
+            ) : null}
           </div>
         </div>
 
