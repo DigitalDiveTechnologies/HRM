@@ -9,11 +9,19 @@ import { api, apiUpload } from '../../../lib/auth';
 import { emptyMasterForm, masterPayloadFromForm } from '../../../lib/employeeMaster';
 import { v } from '../../../lib/format';
 
+const DEFAULT_DEPARTMENTS = [
+  { id: 1, name: 'Human Resources' },
+  { id: 2, name: 'Engineering' },
+  { id: 3, name: 'Finance' },
+  { id: 4, name: 'Operations' },
+  { id: 5, name: 'Executive' },
+];
+
 export default function CreateEmployeePage() {
   const router = useRouter();
 
   const [form, setForm] = useState(emptyMasterForm());
-  const [departments, setDepartments] = useState([]);
+  const [departments, setDepartments] = useState(DEFAULT_DEPARTMENTS);
   const [divisions, setDivisions] = useState([]);
   const [designations, setDesignations] = useState([]);
   const [employmentTypes, setEmploymentTypes] = useState([]);

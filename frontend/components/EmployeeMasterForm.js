@@ -33,6 +33,14 @@ const DOCUMENT_CATEGORIES = [
   'Other Document',
 ];
 
+const DEFAULT_DEPARTMENTS = [
+  { id: 1, name: 'Human Resources' },
+  { id: 2, name: 'Engineering' },
+  { id: 3, name: 'Finance' },
+  { id: 4, name: 'Operations' },
+  { id: 5, name: 'Executive' },
+];
+
 const NATIONALITIES = [
   'United Arab Emirates (UAE)',
   'Pakistan',
@@ -1117,7 +1125,7 @@ export default function EmployeeMasterForm({
                     onChange={(e) => set('departmentId', e.target.value)}
                   >
                     <option value="">— Select Department —</option>
-                    {departments.map((d) => (
+                    {(departments && departments.length > 0 ? departments : DEFAULT_DEPARTMENTS).map((d) => (
                       <option key={v(d, 'id')} value={v(d, 'id')}>
                         {v(d, 'name')}
                       </option>

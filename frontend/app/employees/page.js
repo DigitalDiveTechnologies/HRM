@@ -10,8 +10,8 @@ import {
   emptyMasterForm,
   masterFormFromEmployee,
   masterPayloadFromForm,
+  pickMaster,
 } from '../../lib/employeeMaster';
-import { clearEmployeePhotoInDb } from '../../lib/dbDirect';
 import { formatDate, v } from '../../lib/format';
 
 function getEmployeePhotoUrl(emp) {
@@ -315,14 +315,14 @@ function EmployeesContent() {
 
   async function saveEmployeeEdit(ev) {
     if (ev && ev.preventDefault) ev.preventDefault();
-    if (!selected) return;
     setError('');
     setMsg('');
     setSavingEdit(true);
     try {
       const payload = masterPayloadFromForm(masterForm);
       const empId = v(selected, 'id');
-      const isRemovingPhoto = !!masterForm.photoRemoved || (!masterForm.photoPath && !masterForm.photoPreview && !masterForm.photoFile);
+      const hadPhoto = Boolean(v(selected, 'photoPath', 'photo_path'));
+      const isRemovingPhoto = Boolean(masterForm.photoRemoved && hadPhoto);
 
       const res = await api(`/employees/${empId}`, {
         method: 'PATCH',
@@ -332,33 +332,27 @@ function EmployeesContent() {
       if (masterForm.photoFile) {
         const fd = new FormData();
         fd.append('file', masterForm.photoFile);
-        await apiUpload(`/employees/${empId}/photo`, fd);
+        await apiUpload(`/employees/${empId}/photo`, fd).catch(() => {});
       } else if (isRemovingPhoto) {
-        await clearEmployeePhotoInDb(empId);
         try {
           await api(`/employees/${empId}/photo`, { method: 'DELETE' });
-        } catch {
-          try {
-            await api(`/employees/${empId}/photo/delete`, { method: 'POST' });
-          } catch {
-            try {
-              await api(`/employees/${empId}/remove-photo`, { method: 'POST' });
-            } catch {}
-          }
-        }
+        } catch {}
       }
 
       setMsg(res.message || 'Employee updated.');
-      const updated = await api(`/employees/${empId}`);
-      if (isRemovingPhoto) {
-        updated.photo_path = null;
-        updated.photoPath = null;
+      const updated = await api(`/employees/${empId}`).catch(() => null);
+      if (updated) {
+        if (isRemovingPhoto) {
+          updated.photo_path = null;
+          updated.photoPath = null;
+        }
+        setSelected(updated);
+        setMasterForm(masterFormFromEmployee(updated));
       }
-      setSelected(updated);
-      setMasterForm(masterFormFromEmployee(updated));
-      await load();
+      setIsEditingProfile(false);
+      await load().catch(() => {});
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Failed to save changes.');
     } finally {
       setSavingEdit(false);
     }
@@ -985,8 +979,20 @@ function EmployeesContent() {
                     <td>{v(e, 'jobTitle', 'job_title') || '-'}</td>
                     <td>{v(e, 'managerName', 'manager_name') || '—'}</td>
                     <td>{formatDate(v(e, 'joinDate', 'join_date', 'hireDate', 'hire_date')) || '-'}</td>
-                    <td>{formatDate(v(e, 'passportExpiry', 'passport_expiry')) || '-'}</td>
-                    <td>{formatDate(v(e, 'visaExpiry', 'visa_expiry')) || '-'}</td>
+                    <td>
+                      {(() => {
+                        const md = pickMaster(v(e, 'masterData', 'master_data'));
+                        const pExp = v(e, 'passportExpiry', 'passport_expiry') || md.passportExpiryDate || md.passportExpiry;
+                        return formatDate(pExp) || '-';
+                      })()}
+                    </td>
+                    <td>
+                      {(() => {
+                        const md = pickMaster(v(e, 'masterData', 'master_data'));
+                        const vExp = v(e, 'visaExpiry', 'visa_expiry') || md.emiratesIdExpiryDate || md.visaExpiryDate || md.visaExpiry;
+                        return formatDate(vExp) || '-';
+                      })()}
+                    </td>
                     <td style={{ textAlign: 'center' }}>
                       <Badge status={v(e, 'status')} />
                     </td>
@@ -1566,131 +1572,123 @@ function EmployeesContent() {
                     </div>
                   </div>
 
-                  {/* 2-Column Cards Grid: Address & Work Experience (Exact Image 3 Layout) */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
-                    {/* Card 2: Address (Label on Left, Value on Right) */}
-                    <div className="emp-card">
-                      <div className="emp-card-header">
-                        <h4 className="emp-card-title">
-                          Address
-                        </h4>
-                        {isAdmin ? (
-                          <button
-                            type="button"
-                            className="card-edit-pencil"
-                            onClick={() => setIsEditingProfile(true)}
-                            title="Edit Address"
-                          >
-                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                              <path d="m15 5 4 4" />
-                            </svg>
-                          </button>
-                        ) : null}
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '14px', padding: '10px 0', alignItems: 'flex-start' }}>
-                          <div className="emp-row-label">Citizen ID address</div>
-                          <div className="emp-row-val" style={{ lineHeight: 1.5 }}>{selectedMd.homeCountryAddress || '—'}</div>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '14px', padding: '10px 0', alignItems: 'flex-start' }}>
-                          <div className="emp-row-label">Residential address</div>
-                          <div className="emp-row-val" style={{ lineHeight: 1.5 }}>{selectedMd.addressInUae || '—'}</div>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '14px', padding: '10px 0', alignItems: 'flex-start' }}>
-                          <div className="emp-row-label">Current address</div>
-                          <div className="emp-row-val" style={{ lineHeight: 1.5 }}>{selectedMd.currentAddress || '—'}</div>
-                        </div>
-                      </div>
+                  {/* Card 2: Address (Full Width) */}
+                  <div className="emp-card">
+                    <div className="emp-card-header">
+                      <h4 className="emp-card-title">
+                        Address
+                      </h4>
+                      {isAdmin ? (
+                        <button
+                          type="button"
+                          className="card-edit-pencil"
+                          onClick={() => setIsEditingProfile(true)}
+                          title="Edit Address"
+                        >
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                            <path d="m15 5 4 4" />
+                          </svg>
+                        </button>
+                      ) : null}
                     </div>
 
-                    {/* Card 3: Work Experience (Multiple support, Latest on Top) */}
-                    <div className="emp-card">
-                      <div className="emp-card-header">
-                        <h4 className="emp-card-title">
-                          Work experience
-                        </h4>
-                        {isAdmin ? (
-                          <button
-                            type="button"
-                            className="card-edit-pencil"
-                            onClick={() => setIsEditingProfile(true)}
-                            title="Edit Work Experience"
-                          >
-                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                              <path d="m15 5 4 4" />
-                            </svg>
-                          </button>
-                        ) : null}
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '14px', padding: '10px 0', alignItems: 'flex-start' }}>
+                        <div className="emp-row-label">Citizen ID address</div>
+                        <div className="emp-row-val" style={{ lineHeight: 1.5 }}>{selectedMd.homeCountryAddress || '—'}</div>
                       </div>
 
-                      {(() => {
-                        const profileExps = Array.isArray(selectedMd.workExperiences) && selectedMd.workExperiences.length > 0
-                          ? selectedMd.workExperiences
-                          : (selectedMd.workExperience && (selectedMd.workExperience.previousCompany || selectedMd.workExperience.position))
-                            ? [selectedMd.workExperience]
-                            : [];
-
-                        if (!profileExps.length) {
-                          return (
-                            <div className="muted" style={{ padding: '12px 0', fontSize: '13px' }}>
-                              No previous work experience recorded.
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            {profileExps.map((exp, expIdx) => (
-                              <div
-                                key={expIdx}
-                                style={{
-                                  padding: '10px 12px',
-                                  background: 'var(--surface, #ffffff)',
-                                  borderRadius: 8,
-                                  border: '1px solid var(--line, #e2e8f0)',
-                                }}
-                              >
-                                {profileExps.length > 1 ? (
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted, #64748b)', textTransform: 'uppercase' }}>
-                                      {expIdx === 0 ? 'Latest Experience' : `Previous Company #${expIdx + 1}`}
-                                    </span>
-                                  </div>
-                                ) : null}
-
-                                <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '10px', padding: '4px 0', alignItems: 'flex-start' }}>
-                                  <div className="emp-row-label">Previous company</div>
-                                  <div className="emp-row-val" style={{ lineHeight: 1.4, fontWeight: 600 }}>{exp.previousCompany || '—'}</div>
-                                </div>
-
-                                <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '10px', padding: '4px 0', alignItems: 'flex-start' }}>
-                                  <div className="emp-row-label">Position / Role</div>
-                                  <div className="emp-row-val" style={{ lineHeight: 1.4 }}>{exp.position || '—'}</div>
-                                </div>
-
-                                <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '10px', padding: '4px 0', alignItems: 'flex-start' }}>
-                                  <div className="emp-row-label">Field of work</div>
-                                  <div className="emp-row-val" style={{ lineHeight: 1.4 }}>{exp.fieldOfWork || '—'}</div>
-                                </div>
-
-                                <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '10px', padding: '4px 0', alignItems: 'flex-start' }}>
-                                  <div className="emp-row-label">Duration in years</div>
-                                  <div className="emp-row-val" style={{ lineHeight: 1.4 }}>{exp.duration || '—'}</div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })()}
+                      <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '14px', padding: '10px 0', alignItems: 'flex-start' }}>
+                        <div className="emp-row-label">Residential address</div>
+                        <div className="emp-row-val" style={{ lineHeight: 1.5 }}>{selectedMd.addressInUae || '—'}</div>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Card 4: Education (Matching Timeline Dots from Image 3) */}
+                  {/* Card 3: Work Experience (Full Width) */}
+                  <div className="emp-card">
+                    <div className="emp-card-header">
+                      <h4 className="emp-card-title">
+                        Work experience
+                      </h4>
+                      {isAdmin ? (
+                        <button
+                          type="button"
+                          className="card-edit-pencil"
+                          onClick={() => setIsEditingProfile(true)}
+                          title="Edit Work Experience"
+                        >
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                            <path d="m15 5 4 4" />
+                          </svg>
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {(() => {
+                      const profileExps = Array.isArray(selectedMd.workExperiences) && selectedMd.workExperiences.length > 0
+                        ? selectedMd.workExperiences
+                        : (selectedMd.workExperience && (selectedMd.workExperience.previousCompany || selectedMd.workExperience.position))
+                          ? [selectedMd.workExperience]
+                          : [];
+
+                      if (!profileExps.length) {
+                        return (
+                          <div className="muted" style={{ padding: '12px 0', fontSize: '13px' }}>
+                            No previous work experience recorded.
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          {profileExps.map((exp, expIdx) => (
+                            <div
+                              key={expIdx}
+                              style={{
+                                padding: '10px 12px',
+                                background: 'var(--surface, #ffffff)',
+                                borderRadius: 8,
+                                border: '1px solid var(--line, #e2e8f0)',
+                              }}
+                            >
+                              {profileExps.length > 1 ? (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                                  <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted, #64748b)', textTransform: 'uppercase' }}>
+                                    {expIdx === 0 ? 'Latest Experience' : `Previous Company #${expIdx + 1}`}
+                                  </span>
+                                </div>
+                              ) : null}
+
+                              <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '10px', padding: '4px 0', alignItems: 'flex-start' }}>
+                                <div className="emp-row-label">Previous company</div>
+                                <div className="emp-row-val" style={{ lineHeight: 1.4, fontWeight: 600 }}>{exp.previousCompany || '—'}</div>
+                              </div>
+
+                              <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '10px', padding: '4px 0', alignItems: 'flex-start' }}>
+                                <div className="emp-row-label">Position / Role</div>
+                                <div className="emp-row-val" style={{ lineHeight: 1.4 }}>{exp.position || '—'}</div>
+                              </div>
+
+                              <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '10px', padding: '4px 0', alignItems: 'flex-start' }}>
+                                <div className="emp-row-label">Field of work</div>
+                                <div className="emp-row-val" style={{ lineHeight: 1.4 }}>{exp.fieldOfWork || '—'}</div>
+                              </div>
+
+                              <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '10px', padding: '4px 0', alignItems: 'flex-start' }}>
+                                <div className="emp-row-label">Duration in years</div>
+                                <div className="emp-row-val" style={{ lineHeight: 1.4 }}>{exp.duration || '—'}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Card 4: Education (Full Width & Multi-Degree Support) */}
                   <div className="emp-card">
                     <div className="emp-card-header">
                       <h4 className="emp-card-title">
@@ -1711,56 +1709,76 @@ function EmployeesContent() {
                       ) : null}
                     </div>
 
-                    {selectedMd.education && typeof selectedMd.education === 'object' && (selectedMd.education.degreeMajor || selectedMd.education.educationLevel) ? (
-                      <div style={{ position: 'relative', paddingLeft: 22, borderLeft: '2px solid var(--line, #e5e7eb)', marginLeft: 6 }}>
-                        <div
-                          style={{
-                            position: 'absolute',
-                            left: -6,
-                            top: 2,
-                            width: 10,
-                            height: 10,
-                            borderRadius: '50%',
-                            background: '#94a3b8',
-                          }}
-                        />
-                        <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--ink, #0f172a)' }}>
-                          {selectedMd.education.degreeMajor || selectedMd.education.educationLevel}
-                          {selectedMd.education.universityName ? ` – ${selectedMd.education.universityName}` : ''}
-                        </div>
-                        <div style={{ fontSize: '13px', color: 'var(--muted, #475569)', marginTop: 2 }}>
-                          {selectedMd.education.degreeMajor || 'Business'}
-                        </div>
-                        {selectedMd.education.gradeGpa ? (
-                          <div style={{ fontSize: '12.5px', color: 'var(--muted, #64748b)', marginTop: 2 }}>
-                            GPA ({selectedMd.education.gradeGpa})
+                    {(() => {
+                      const profileEdus = Array.isArray(selectedMd.educations) && selectedMd.educations.length > 0
+                        ? selectedMd.educations
+                        : (selectedMd.education && (selectedMd.education.degreeMajor || selectedMd.education.educationLevel || selectedMd.education.universityName))
+                          ? [selectedMd.education]
+                          : [];
+
+                      if (!profileEdus.length) {
+                        return (
+                          <div className="muted" style={{ padding: '12px 0', fontSize: '13px' }}>
+                            No formal education recorded.
                           </div>
-                        ) : null}
-                        <div style={{ fontSize: '12px', color: 'var(--muted, #94a3b8)', marginTop: 2 }}>
-                          {selectedMd.education.graduationYear || '2021'}
+                        );
+                      }
+
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                          {profileEdus.map((edu, eduIdx) => (
+                            <div key={edu.id || eduIdx} style={{ position: 'relative', paddingLeft: 22, borderLeft: '2px solid var(--line, #e5e7eb)', marginLeft: 6 }}>
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  left: -6,
+                                  top: 2,
+                                  width: 10,
+                                  height: 10,
+                                  borderRadius: '50%',
+                                  background: '#00b8db',
+                                }}
+                              />
+                              <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--ink, #0f172a)' }}>
+                                {edu.degreeMajor || edu.educationLevel || 'Degree'}
+                                {edu.universityName ? ` – ${edu.universityName}` : ''}
+                              </div>
+                              {edu.educationLevel && edu.educationLevel !== edu.degreeMajor ? (
+                                <div style={{ fontSize: '13px', color: 'var(--muted, #475569)', marginTop: 2 }}>
+                                  {edu.educationLevel}
+                                </div>
+                              ) : null}
+                              {edu.gradeGpa ? (
+                                <div style={{ fontSize: '12.5px', color: 'var(--muted, #64748b)', marginTop: 2 }}>
+                                  GPA ({edu.gradeGpa})
+                                </div>
+                              ) : null}
+                              {edu.graduationYear ? (
+                                <div style={{ fontSize: '12px', color: 'var(--muted, #94a3b8)', marginTop: 2 }}>
+                                  {edu.graduationYear}
+                                </div>
+                              ) : null}
+                              {edu.attestationStatus ? (
+                                <div style={{ marginTop: 6 }}>
+                                  <span
+                                    style={{
+                                      fontSize: '11px',
+                                      fontWeight: 600,
+                                      padding: '2px 8px',
+                                      borderRadius: '4px',
+                                      background: 'var(--chip-bg, #f1f5f9)',
+                                      color: 'var(--ink, #475569)',
+                                    }}
+                                  >
+                                    {edu.attestationStatus}
+                                  </span>
+                                </div>
+                              ) : null}
+                            </div>
+                          ))}
                         </div>
-                        {selectedMd.education.attestationStatus ? (
-                          <div style={{ marginTop: 6 }}>
-                            <span
-                              style={{
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                padding: '2px 8px',
-                                borderRadius: '4px',
-                                background: 'var(--chip-bg, #f1f5f9)',
-                                color: 'var(--ink, #475569)',
-                              }}
-                            >
-                              {selectedMd.education.attestationStatus}
-                            </span>
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: '13px', color: 'var(--muted, #94a3b8)', padding: '8px 0' }}>
-                        No formal education credentials recorded.
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 </div>
               )}

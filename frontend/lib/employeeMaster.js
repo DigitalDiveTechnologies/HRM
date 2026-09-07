@@ -139,7 +139,7 @@ export function emptyMasterForm() {
   };
 }
 
-function pickMaster(raw) {
+export function pickMaster(raw) {
   if (!raw) return {};
   if (typeof raw === 'string') {
     try {
