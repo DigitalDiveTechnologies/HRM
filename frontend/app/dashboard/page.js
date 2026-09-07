@@ -9,19 +9,111 @@ import { formatDate, formatLate, v } from '../../lib/format';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [data, setData] = useState(null);
-  const [employees, setEmployees] = useState([]);
-  const [activities, setActivities] = useState([]);
-  const [companies, setCompanies] = useState([]);
+  const [data, setData] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_dashboard');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && parsed.dash) return parsed.dash;
+        }
+      } catch {}
+    }
+    return null;
+  });
+  const [employees, setEmployees] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_dashboard');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && Array.isArray(parsed.employees) && parsed.employees.length) return parsed.employees;
+        }
+        const empCache = localStorage.getItem('gocs_cached_employees');
+        if (empCache) {
+          const parsedEmp = JSON.parse(empCache);
+          if (Array.isArray(parsedEmp)) return parsedEmp;
+        }
+      } catch {}
+    }
+    return [];
+  });
+  const [activities, setActivities] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_dashboard');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && Array.isArray(parsed.activities)) return parsed.activities;
+        }
+      } catch {}
+    }
+    return [];
+  });
+  const [companies, setCompanies] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_dashboard');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && Array.isArray(parsed.companies) && parsed.companies.length) return parsed.companies;
+        }
+        const divCache = localStorage.getItem('gocs_cached_divisions');
+        if (divCache) {
+          const parsedDiv = JSON.parse(divCache);
+          if (Array.isArray(parsedDiv)) return parsedDiv;
+        }
+      } catch {}
+    }
+    return [];
+  });
   const [companyPage, setCompanyPage] = useState(1);
-  const [leaves, setLeaves] = useState([]);
-  const [attendanceList, setAttendanceList] = useState([]);
+  const [leaves, setLeaves] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_dashboard');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && Array.isArray(parsed.leaves) && parsed.leaves.length) return parsed.leaves;
+        }
+        const leaveCache = localStorage.getItem('gocs_cached_leaves');
+        if (leaveCache) {
+          const parsedLeave = JSON.parse(leaveCache);
+          if (Array.isArray(parsedLeave)) return parsedLeave;
+        }
+      } catch {}
+    }
+    return [];
+  });
+  const [attendanceList, setAttendanceList] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_dashboard');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && Array.isArray(parsed.attendanceList)) return parsed.attendanceList;
+        }
+      } catch {}
+    }
+    return [];
+  });
   const [showAddCompany, setShowAddCompany] = useState(false);
   const [newCompany, setNewCompany] = useState({ code: '', name: '', payrollType: 'wps' });
   const [companySaving, setCompanySaving] = useState(false);
   const [companyMsg, setCompanyMsg] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_dashboard');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && parsed.dash) return false;
+        }
+      } catch {}
+    }
+    return true;
+  });
 
   const loadData = useCallback(() => {
     setError('');
@@ -34,11 +126,16 @@ export default function DashboardPage() {
       api('/attendance').catch(() => []),
     ])
       .then(([dash, emps, notifs, divs, leaveRows, attRows]) => {
+        const cleanEmps = Array.isArray(emps) ? emps : [];
+        const cleanDivs = Array.isArray(divs) ? divs : [];
+        const cleanLeaves = Array.isArray(leaveRows) ? leaveRows : [];
+        const cleanAtt = Array.isArray(attRows) && attRows.length ? attRows : (dash?.recentAttendance || []);
+
         setData(dash || {});
-        setEmployees(Array.isArray(emps) ? emps : []);
-        setCompanies(Array.isArray(divs) ? divs : []);
-        setLeaves(Array.isArray(leaveRows) ? leaveRows : []);
-        setAttendanceList(Array.isArray(attRows) && attRows.length ? attRows : (dash?.recentAttendance || []));
+        setEmployees(cleanEmps);
+        setCompanies(cleanDivs);
+        setLeaves(cleanLeaves);
+        setAttendanceList(cleanAtt);
 
         const feed = [];
         if (Array.isArray(notifs) && notifs.length) {
@@ -63,9 +160,30 @@ export default function DashboardPage() {
           });
         }
 
-        setActivities(feed.slice(0, 10));
+        const finalFeed = feed.slice(0, 10);
+        setActivities(finalFeed);
+
+        try {
+          localStorage.setItem(
+            'gocs_cached_dashboard',
+            JSON.stringify({
+              dash: dash || {},
+              employees: cleanEmps,
+              companies: cleanDivs,
+              leaves: cleanLeaves,
+              attendanceList: cleanAtt,
+              activities: finalFeed,
+              savedAt: Date.now(),
+            })
+          );
+        } catch {}
       })
-      .catch((e) => setError(e.message))
+      .catch((e) => {
+        setData((prev) => {
+          if (!prev) setError(e.message);
+          return prev;
+        });
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -262,9 +380,24 @@ export default function DashboardPage() {
   return (
     <AppShell title="Dashboard" subtitle="Workforce overview, live statistics and operational metrics">
       {error ? <div className="error" style={{ marginBottom: 14 }}>{error}</div> : null}
-      {loading ? <div className="muted" style={{ padding: '24px 0' }}>Loading live dashboard…</div> : null}
+      {loading && !data ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '36px 0', color: 'var(--muted, #64748b)' }}>
+          <span
+            style={{
+              width: 16,
+              height: 16,
+              border: '2px solid #cbd5e1',
+              borderTopColor: '#00b8db',
+              borderRadius: '50%',
+              display: 'inline-block',
+              animation: 'spin 0.8s linear infinite',
+            }}
+          />
+          <span>Loading live dashboard…</span>
+        </div>
+      ) : null}
 
-      {!loading && data ? (
+      {data ? (
         <div className="dash-container">
           {/* =========================================================================
               ZONE 1: 4 Vibrant Cards (Row Direction, Proper Height & Generous Padding)

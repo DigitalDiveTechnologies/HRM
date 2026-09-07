@@ -1,0 +1,15 @@
+name: Keep-Alive IIS Backend
+on:
+  schedule:
+    # Run every 10 minutes to prevent IIS App Pool idle timeout (20 min)
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping IIS Backend
+        run: |
+          curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" https://digitaldivetech-001-site4.gtempurl.com/HRMDevelopment/swagger

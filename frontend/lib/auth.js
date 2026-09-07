@@ -81,7 +81,30 @@ function statusMessage(status, data) {
   return `Request failed (${status})`;
 }
 
+const inflightGetRequests = new Map();
+
 export async function api(path, options = {}) {
+  const method = (options.method || 'GET').toUpperCase();
+  // Deduplicate identical concurrent in-flight GET requests without body
+  if (method === 'GET' && !options.body) {
+    const key = `${path}::${options.skipAuth ? 'noauth' : (getToken() || '')}`;
+    if (inflightGetRequests.has(key)) {
+      return inflightGetRequests.get(key);
+    }
+    const promise = (async () => {
+      try {
+        return await executeApi(path, options);
+      } finally {
+        inflightGetRequests.delete(key);
+      }
+    })();
+    inflightGetRequests.set(key, promise);
+    return promise;
+  }
+  return executeApi(path, options);
+}
+
+async function executeApi(path, options = {}) {
   const skipAuth = options.skipAuth === true || path.startsWith('/auth/login');
   const { skipAuth: _omit, ...fetchOptions } = options;
   const token = skipAuth ? null : getToken();
