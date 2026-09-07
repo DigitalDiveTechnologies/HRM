@@ -40,7 +40,7 @@ export default function CompanyManagementPage() {
   }
 
   return (
-    <AppShell title="Company Management" subtitle="Register GOCs company">
+    <AppShell title="Create Company" subtitle="Register GOCs company">
       {error ? <div className="error" style={{ marginBottom: 16 }}>{error}</div> : null}
       {msg ? (
         <div

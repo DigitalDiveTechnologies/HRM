@@ -478,10 +478,12 @@ export default function LeavePage() {
                   type="button"
                   onClick={() => setEmpSwitcherOpen(!empSwitcherOpen)}
                   style={{
+                    height: '42px',
+                    boxSizing: 'border-box',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 8,
-                    padding: '6px 14px',
+                    padding: '0 14px',
                     borderRadius: 8,
                     border: '1px solid var(--line-strong, #cbd5e1)',
                     background: 'var(--surface, #ffffff)',
@@ -625,12 +627,21 @@ export default function LeavePage() {
                   className="btn"
                   onClick={() => setShowApplyForm((prev) => !prev)}
                   style={{
+                    height: '42px',
+                    boxSizing: 'border-box',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     background: showApplyForm ? 'var(--surface-alt, #f1f5f9)' : '#00b8db',
                     color: showApplyForm ? 'var(--ink)' : '#ffffff',
                     fontWeight: 600,
-                    fontSize: '12.5px',
+                    fontSize: '13px',
                     borderRadius: 8,
-                    padding: '8px 14px',
+                    padding: '0 18px',
+                    border: showApplyForm ? '1px solid var(--line-strong, #cbd5e1)' : 'none',
+                    cursor: 'pointer',
+                    boxShadow: showApplyForm ? 'none' : '0 2px 6px rgba(0, 184, 219, 0.25)',
+                    transition: 'all 0.15s ease',
                   }}
                 >
                   {showApplyForm ? '✕ Close Form' : '+ New Leave Request'}

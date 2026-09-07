@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api } from '../../lib/auth';
 import { fetchDivisionsDirect, updateDivisionStatusDirect } from '../../lib/dbDirect';
@@ -106,7 +107,40 @@ export default function DivisionsPage() {
   const paginatedRows = rows.slice((companyPage - 1) * 10, companyPage * 10);
 
   return (
-    <AppShell title="Company Master" subtitle="GOCs companies">
+    <AppShell
+      title="Company Master"
+      subtitle="GOCs companies"
+      actions={
+        <Link
+          href="/divisions/management"
+          className="btn"
+          style={{
+            height: '40px',
+            boxSizing: 'border-box',
+            background: '#00b8db',
+            color: '#ffffff',
+            fontWeight: 600,
+            fontSize: '13px',
+            padding: '0 14px',
+            borderRadius: '6px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            border: 'none',
+            cursor: 'pointer',
+            boxShadow: '0 2px 6px rgba(0, 184, 219, 0.25)',
+            textDecoration: 'none',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          <span>Create Company</span>
+        </Link>
+      }
+    >
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
 
