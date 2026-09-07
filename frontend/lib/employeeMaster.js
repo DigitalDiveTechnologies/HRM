@@ -1,4 +1,4 @@
-import { todayISO, v } from './format';
+import { todayISO, v } from './format.js';
 
 const emptyAddress = () => ({
   street: '',
@@ -166,6 +166,11 @@ function splitFullName(fullName) {
   };
 }
 
+const cleanVal = (val) => {
+  if (val === '—' || val === '-' || val === 'null' || val === 'undefined') return '';
+  return typeof val === 'string' ? val : (val ?? '');
+};
+
 export function masterFormFromEmployee(employee) {
   const base = emptyMasterForm();
   if (!employee) return base;
@@ -177,19 +182,19 @@ export function masterFormFromEmployee(employee) {
   return {
     ...base,
     ...md,
-    firstName: md.firstName ?? names.firstName,
-    middleName: md.middleName ?? names.middleName,
-    lastName: md.lastName ?? names.lastName,
+    firstName: cleanVal(md.firstName ?? names.firstName),
+    middleName: cleanVal(md.middleName ?? names.middleName),
+    lastName: cleanVal(md.lastName ?? names.lastName),
     empCode: v(employee, 'empCode', 'emp_code') || '',
-    email: v(employee, 'email') || md.email || '',
-    mobilePhone: md.mobilePhone || v(employee, 'phone') || '',
+    email: cleanVal(v(employee, 'email') || md.email || ''),
+    mobilePhone: cleanVal(md.mobilePhone || v(employee, 'phone') || ''),
     jobTitle: (() => {
       const jt = md.jobTitle || v(employee, 'jobTitle', 'job_title') || '';
-      return jt === '—' || jt === '-' ? '' : jt;
+      return jt === '—' || jt === '-' ? '' : cleanVal(jt);
     })(),
     departmentId: String(v(employee, 'departmentId', 'department_id') || ''),
     divisionId: String(v(employee, 'divisionId', 'division_id') || ''),
-    branch: md.branch || v(employee, 'divisionName', 'division_name') || '',
+    branch: cleanVal(md.branch || v(employee, 'divisionName', 'division_name') || ''),
     designationId: String(v(employee, 'designationId', 'designation_id') || ''),
     employmentTypeId: String(v(employee, 'employmentTypeId', 'employment_type_id') || ''),
     managerId: String(v(employee, 'managerId', 'manager_id') || ''),
@@ -203,22 +208,22 @@ export function masterFormFromEmployee(employee) {
     membership: { ...base.membership, ...(md.membership || {}) },
     administration: { ...base.administration, ...(md.administration || {}) },
     personal: { ...base.personal, ...(md.personal || {}) },
-    gender: md.gender || md.personal?.gender || '',
-    dateOfBirth: md.dateOfBirth || md.personal?.dateOfBirth || '',
-    maritalStatus: md.maritalStatus || md.personal?.maritalStatus || '',
-    nationality: md.nationality || md.personal?.nationality || '',
-    currentAddress: md.currentAddress || '',
-    addressInUae: md.addressInUae || '',
-    homeCountryAddress: md.homeCountryAddress || '',
-    passportNumber: md.passportNumber || v(employee, 'passportNo', 'passport_no') || '',
-    passportStartDate: md.passportStartDate || '',
-    passportExpiryDate: md.passportExpiryDate || (v(employee, 'passportExpiry', 'passport_expiry') ? String(v(employee, 'passportExpiry', 'passport_expiry')).slice(0, 10) : ''),
-    emiratesIdNumber: md.emiratesIdNumber || '',
-    emiratesIdStartDate: md.emiratesIdStartDate || '',
-    emiratesIdExpiryDate: md.emiratesIdExpiryDate || '',
+    gender: cleanVal(md.gender || md.personal?.gender || ''),
+    dateOfBirth: cleanVal(md.dateOfBirth || md.personal?.dateOfBirth || ''),
+    maritalStatus: cleanVal(md.maritalStatus || md.personal?.maritalStatus || ''),
+    nationality: cleanVal(md.nationality || md.personal?.nationality || ''),
+    currentAddress: cleanVal(md.currentAddress || ''),
+    addressInUae: cleanVal(md.addressInUae || ''),
+    homeCountryAddress: cleanVal(md.homeCountryAddress || ''),
+    passportNumber: cleanVal(md.passportNumber || v(employee, 'passportNo', 'passport_no') || ''),
+    passportStartDate: cleanVal(md.passportStartDate || ''),
+    passportExpiryDate: cleanVal(md.passportExpiryDate || (v(employee, 'passportExpiry', 'passport_expiry') ? String(v(employee, 'passportExpiry', 'passport_expiry')).slice(0, 10) : '')),
+    emiratesIdNumber: cleanVal(md.emiratesIdNumber || ''),
+    emiratesIdStartDate: cleanVal(md.emiratesIdStartDate || ''),
+    emiratesIdExpiryDate: cleanVal(md.emiratesIdExpiryDate || ''),
     previousVisaType: md.previousVisaType || 'N/A',
-    experienceLetterName: md.experienceLetterName || '',
-    educationalCertificateName: md.educationalCertificateName || '',
+    experienceLetterName: cleanVal(md.experienceLetterName || ''),
+    educationalCertificateName: cleanVal(md.educationalCertificateName || ''),
     customDocuments: Array.isArray(md.customDocuments) ? md.customDocuments : [],
     workExperiences: (Array.isArray(md.workExperiences) && md.workExperiences.length)
       ? md.workExperiences
@@ -254,8 +259,8 @@ export function masterFormFromEmployee(employee) {
         : [],
     companyIds: md.companyIds || (v(employee, 'divisionId', 'division_id') ? [String(v(employee, 'divisionId', 'division_id'))] : []),
     finance: { ...base.finance, ...(md.finance || {}) },
-    remarks: md.remarks || '',
-    attachmentsNote: md.attachmentsNote || '',
+    remarks: cleanVal(md.remarks || ''),
+    attachmentsNote: cleanVal(md.attachmentsNote || ''),
     naturalPerson: md.naturalPerson !== false,
     dataProtectionStatus: md.dataProtectionStatus || 'none',
     password: '',
@@ -271,9 +276,17 @@ export function buildFullName(form) {
 }
 
 export function masterPayloadFromForm(form, { includePassword = false } = {}) {
-  const fullName = buildFullName(form);
+  const currentCode = String(form.empCode || '').trim();
+  const builtName = buildFullName(form);
+  const fullName = builtName || (currentCode ? `Employee ${currentCode}` : 'Employee');
+  const fallbackFirstName = builtName ? (form.firstName?.trim() || '') : (currentCode ? `Employee ${currentCode}` : 'Employee');
+
   const status = form.activeEmployee ? form.status || 'active' : 'exited';
   const phone = form.mobilePhone?.trim() || form.officePhone?.trim() || null;
+
+  const safeCode = currentCode.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const fallbackEmail = `emp.${safeCode || Date.now()}@gocs.hr`;
+  const email = form.email?.trim() || fallbackEmail;
 
   const cleanExperiences = (form.workExperiences || [])
     .filter((w) => w.previousCompany?.trim() || w.position?.trim() || w.fieldOfWork?.trim() || w.duration?.trim())
@@ -308,7 +321,7 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
   }));
 
   const masterData = {
-    firstName: form.firstName?.trim() || '',
+    firstName: fallbackFirstName,
     middleName: form.middleName?.trim() || '',
     lastName: form.lastName?.trim() || '',
     extEmployeeNo: form.extEmployeeNo?.trim() || '',
@@ -358,7 +371,7 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
     workExperience: cleanExperiences[0] || form.workExperience || {},
     educations: cleanEducations,
     education: cleanEducations[0] || form.education || {},
-    companyIds: form.companyIds || (form.divisionId ? [String(form.divisionId)] : []),
+    companyIds: form.companyIds?.length ? form.companyIds : (form.divisionId ? [String(form.divisionId)] : []),
     finance: form.finance,
     remarks: form.remarks?.trim() || '',
     attachmentsNote: form.attachmentsNote?.trim() || '',
@@ -369,11 +382,11 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
   };
 
   const payload = {
-    firstName: form.firstName?.trim() || '',
+    firstName: fallbackFirstName,
     middleName: form.middleName?.trim() || '',
     lastName: form.lastName?.trim() || '',
     fullName,
-    email: form.email?.trim() || `${(form.firstName || 'emp').toLowerCase().replace(/[^a-z0-9]/g, '')}.${(form.lastName || 'user').toLowerCase().replace(/[^a-z0-9]/g, '') || Date.now()}@gocs.hr`,
+    email,
     jobTitle: form.jobTitle?.trim() || (form.designationId ? '' : '—'),
     phone,
     departmentId: form.departmentId ? Number(form.departmentId) : null,

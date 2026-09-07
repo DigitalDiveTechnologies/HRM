@@ -43,10 +43,10 @@ export default function CreateEmployeePage() {
   useEffect(() => {
     // Load dropdown masters
     Promise.allSettled([
-      api('/departments'),
-      api('/divisions'),
-      api('/designations'),
-      api('/employment-types'),
+      api('/employees/departments'),
+      api('/divisions?activeOnly=true'),
+      api('/designations?activeOnly=true'),
+      api('/employment-types?activeOnly=true'),
       api('/employees'),
     ]).then(([deptRes, divRes, desRes, empTypeRes, empsRes]) => {
       if (deptRes.status === 'fulfilled' && Array.isArray(deptRes.value)) setDepartments(deptRes.value);
@@ -76,15 +76,16 @@ export default function CreateEmployeePage() {
       });
 
       const empId = v(res.employee, 'id');
-      const appEmail = String(res.login?.email || form.email || payload.email || '')
+      const appEmail = String(res.login?.email || payload.email || form.email || '')
         .trim()
         .toLowerCase();
-      const appPassword = String(form.password || 'demo123').trim();
+      const appPassword = String(form.password || payload.password || 'demo123').trim();
       const employeeName =
         v(res.employee, 'fullName', 'full_name') ||
+        payload.fullName ||
         form.fullName ||
         [form.firstName, form.lastName].filter(Boolean).join(' ') ||
-        'Employee';
+        `Employee ${form.empCode || ''}`;
 
       if (form.photoFile && empId) {
         const fd = new FormData();
@@ -92,8 +93,15 @@ export default function CreateEmployeePage() {
         await apiUpload('/employees/' + empId + '/photo', fd);
       }
 
-      // Check whether user filled out complete details across all sections
-      const hasAddress = Boolean(form.homeCountryAddress?.trim() || form.addressInUae?.trim());
+      // Check whether user filled details across form sections:
+      const hasJobInfo = Boolean(form.departmentId || form.designationId || (form.jobTitle && form.jobTitle !== '—'));
+      const hasContactOrAddress = Boolean(
+        form.mobilePhone?.trim() ||
+        form.officePhone?.trim() ||
+        form.homeCountryAddress?.trim() ||
+        form.addressInUae?.trim() ||
+        form.currentAddress?.trim()
+      );
       const hasEducation = Boolean(
         (Array.isArray(form.educations) && form.educations.length > 0) ||
         form.education?.degreeMajor?.trim() ||
@@ -103,24 +111,25 @@ export default function CreateEmployeePage() {
         (Array.isArray(form.workExperiences) && form.workExperiences.some((w) => w.previousCompany?.trim())) ||
         form.workExperience?.previousCompany?.trim()
       );
-      const hasJobProfile = Boolean(
-        form.departmentId && (form.designationId || (form.jobTitle && form.jobTitle !== '—'))
-      );
       const hasIdDocument = Boolean(
-        form.passportNumber?.trim() || form.emiratesIdNumber?.trim()
+        form.passportNumber?.trim() ||
+        form.emiratesIdNumber?.trim() ||
+        (Array.isArray(form.customDocuments) && form.customDocuments.length > 0)
       );
 
-      const isFullDetails = hasAddress && hasEducation && hasWorkExp && hasJobProfile && hasIdDocument;
+      // Total detail sections touched:
+      const sectionsFilled = [hasJobInfo, hasContactOrAddress, hasEducation, hasWorkExp, hasIdDocument].filter(Boolean).length;
+      const isDetailed = sectionsFilled >= 1 || Boolean((form.firstName?.trim() || form.lastName?.trim()) && (hasJobInfo || hasContactOrAddress));
 
-      if (isFullDetails) {
-        // Case A: Full details provided -> Show full credentials popup
+      if (isDetailed) {
+        // Case A: Details provided -> Show credentials popup
         setCreateLoginPopup({
           name: employeeName,
           email: appEmail,
           password: appPassword,
         });
       } else {
-        // Case B: Partial / Quick creation -> Show simple success popup
+        // Case B: Quick / Blank creation -> Show simple success popup
         setQuickSuccessPopup(true);
       }
 
