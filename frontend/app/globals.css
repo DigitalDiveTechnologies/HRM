@@ -1554,6 +1554,8 @@ th {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  box-sizing: border-box;
 }
 :root[data-theme='dark'] .emp-doc-tile {
   background: rgba(255, 255, 255, 0.03) !important;

@@ -2405,11 +2405,31 @@ function EmployeesContent() {
                       }
 
                       return (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 380px), 1fr))',
+                            gap: '14px',
+                            width: '100%',
+                            boxSizing: 'border-box',
+                          }}
+                        >
                           {allDocs.map((doc, idx) => (
-                            <div key={doc.id || idx} className="emp-doc-tile" style={{ justifyContent: 'space-between', padding: '12px 14px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                <span style={{ fontSize: '24px' }}>
+                            <div
+                              key={doc.id || idx}
+                              className="emp-doc-tile"
+                              style={{
+                                justifyContent: 'space-between',
+                                padding: '12px 14px',
+                                width: '100%',
+                                boxSizing: 'border-box',
+                                minWidth: 0,
+                                overflow: 'hidden',
+                                gap: '12px',
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1, overflow: 'hidden' }}>
+                                <span style={{ fontSize: '24px', flexShrink: 0 }}>
                                   {doc.type === 'Passport'
                                     ? '📘'
                                     : doc.type === 'Visa'
@@ -2422,26 +2442,57 @@ function EmployeesContent() {
                                     ? '💼'
                                     : '📄'}
                                 </span>
-                                <div>
+                                <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <span style={{ fontSize: '10.5px', fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: 'rgba(0, 184, 219, 0.12)', color: '#008fa8' }}>
+                                    <span
+                                      style={{
+                                        fontSize: '10.5px',
+                                        fontWeight: 700,
+                                        padding: '1px 6px',
+                                        borderRadius: 4,
+                                        background: 'rgba(0, 184, 219, 0.12)',
+                                        color: '#008fa8',
+                                        whiteSpace: 'nowrap',
+                                      }}
+                                    >
                                       {doc.type}
                                     </span>
                                   </div>
-                                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink, #0f172a)', marginTop: 2 }}>
+                                  <div
+                                    style={{
+                                      fontSize: '13px',
+                                      fontWeight: 700,
+                                      color: 'var(--ink, #0f172a)',
+                                      marginTop: 2,
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                    }}
+                                    title={doc.title || doc.type}
+                                  >
                                     {doc.title || doc.type}
                                   </div>
-                                  <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)' }}>
+                                  <div
+                                    style={{
+                                      fontSize: '11px',
+                                      color: 'var(--muted, #64748b)',
+                                      marginTop: 2,
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                    }}
+                                    title={doc.fileName}
+                                  >
                                     {doc.fileName} {doc.fileSize ? `• ${doc.fileSize}` : ''}
                                   </div>
                                 </div>
                               </div>
-                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                                 <button
                                   type="button"
                                   onClick={() => openDocPreview(doc)}
                                   className="btn secondary"
-                                  style={{ fontSize: '11.5px', padding: '4px 8px', cursor: 'pointer' }}
+                                  style={{ fontSize: '11.5px', padding: '4px 8px', cursor: 'pointer', whiteSpace: 'nowrap' }}
                                 >
                                   👁 Preview
                                 </button>
@@ -2449,7 +2500,7 @@ function EmployeesContent() {
                                   type="button"
                                   onClick={() => handleDownloadDoc(doc.fileUrl, doc.fileName || doc.title || 'document')}
                                   className="btn secondary"
-                                  style={{ fontSize: '11.5px', padding: '4px 8px', color: '#059669', cursor: 'pointer' }}
+                                  style={{ fontSize: '11.5px', padding: '4px 8px', color: '#059669', cursor: 'pointer', whiteSpace: 'nowrap' }}
                                 >
                                   ⤓ Download
                                 </button>
@@ -2458,19 +2509,51 @@ function EmployeesContent() {
                           ))}
 
                           {empDocuments.map((doc, idx) => (
-                            <div key={v(doc, 'id') || idx} className="emp-doc-tile" style={{ justifyContent: 'space-between' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                <span style={{ fontSize: '22px' }}>📁</span>
-                                <div>
-                                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                            <div
+                              key={v(doc, 'id') || idx}
+                              className="emp-doc-tile"
+                              style={{
+                                justifyContent: 'space-between',
+                                padding: '12px 14px',
+                                width: '100%',
+                                boxSizing: 'border-box',
+                                minWidth: 0,
+                                overflow: 'hidden',
+                                gap: '12px',
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1, overflow: 'hidden' }}>
+                                <span style={{ fontSize: '22px', flexShrink: 0 }}>📁</span>
+                                <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
+                                  <div
+                                    style={{
+                                      fontSize: '13px',
+                                      fontWeight: 700,
+                                      color: 'var(--ink, #0f172a)',
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                    }}
+                                    title={v(doc, 'documentType', 'document_type', 'title') || 'Official Document'}
+                                  >
                                     {v(doc, 'documentType', 'document_type', 'title') || 'Official Document'}
                                   </div>
-                                  <div style={{ fontSize: '11.5px', color: 'var(--muted, #64748b)' }}>
+                                  <div
+                                    style={{
+                                      fontSize: '11.5px',
+                                      color: 'var(--muted, #64748b)',
+                                      marginTop: 2,
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                    }}
+                                    title={v(doc, 'fileName', 'file_name') || `File #${v(doc, 'id')}`}
+                                  >
                                     {v(doc, 'fileName', 'file_name') || `File #${v(doc, 'id')}`}
                                   </div>
                                 </div>
                               </div>
-                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                                 <button
                                   type="button"
                                   onClick={() => openDocPreview({
@@ -2481,7 +2564,7 @@ function EmployeesContent() {
                                     fileUrl: null,
                                   })}
                                   className="btn secondary"
-                                  style={{ fontSize: '11.5px', padding: '4px 8px', cursor: 'pointer' }}
+                                  style={{ fontSize: '11.5px', padding: '4px 8px', cursor: 'pointer', whiteSpace: 'nowrap' }}
                                 >
                                   👁 Preview
                                 </button>
@@ -2503,7 +2586,7 @@ function EmployeesContent() {
                                       handleDownloadDoc(null, v(doc, 'fileName', 'file_name') || 'document.pdf');
                                     }
                                   }}
-                                  style={{ fontSize: '11.5px', padding: '4px 10px', color: '#059669', cursor: 'pointer' }}
+                                  style={{ fontSize: '11.5px', padding: '4px 10px', color: '#059669', cursor: 'pointer', whiteSpace: 'nowrap' }}
                                 >
                                   ⤓ Download
                                 </button>
