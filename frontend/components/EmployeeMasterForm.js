@@ -264,15 +264,6 @@ export default function EmployeeMasterForm({
     }));
   };
 
-  // Section disabled validation states (quick creation only requires Operating Company and First Name)
-  const isBasicInfoDisabled = !form.divisionId || !form.firstName?.trim();
-  const isAddressDisabled = !form.homeCountryAddress?.trim() && !form.addressInUae?.trim();
-  const isEduDisabled = !educations.some((e) => e.educationLevel?.trim() || e.degreeMajor?.trim() || e.universityName?.trim());
-  const isWorkExpDisabled = !experiences.some((e) => e.previousCompany?.trim() || e.position?.trim() || e.duration?.trim());
-  const isJobProfileDisabled = !form.divisionId && !form.departmentId && !form.jobTitle;
-  const isPassportDisabled = !form.passportNumber?.trim() && !form.emiratesIdNumber?.trim();
-  const isDocsDisabled = customDocs.length === 0;
-
   const defaultEdu = () => ({
     educationLevel: '',
     degreeMajor: '',
@@ -326,6 +317,15 @@ export default function EmployeeMasterForm({
       education: updated[0] || {},
     }));
   };
+
+  // Section disabled validation states (quick creation only requires Operating Company and First Name)
+  const isBasicInfoDisabled = !form.divisionId || !form.firstName?.trim();
+  const isAddressDisabled = !form.homeCountryAddress?.trim() && !form.addressInUae?.trim();
+  const isEduDisabled = !educations.some((e) => e.educationLevel?.trim() || e.degreeMajor?.trim() || e.universityName?.trim());
+  const isWorkExpDisabled = !experiences.some((e) => e.previousCompany?.trim() || e.position?.trim() || e.duration?.trim());
+  const isJobProfileDisabled = !form.divisionId && !form.departmentId && !form.jobTitle;
+  const isPassportDisabled = !form.passportNumber?.trim() && !form.emiratesIdNumber?.trim();
+  const isDocsDisabled = customDocs.length === 0;
 
   const setWorkExp = (key, val) => {
     updateExperience(0, key, val);
@@ -906,8 +906,9 @@ export default function EmployeeMasterForm({
                     </FieldRow>
 
                     <FieldRow label="Educational Certificate" helper="Degree / diploma certificate document">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                         <input
+                          id={`edu-file-${idx}`}
                           type="file"
                           accept="image/*,.pdf,.doc,.docx"
                           style={inputStyle}
@@ -918,9 +919,37 @@ export default function EmployeeMasterForm({
                           }}
                         />
                         {(edu.educationalCertificateName || (idx === 0 && form.educationalCertificateName)) ? (
-                          <span style={{ fontSize: '11.5px', color: '#008fa8', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                            ✓ {edu.educationalCertificateName || form.educationalCertificateName}
-                          </span>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: '11.5px', color: '#008fa8', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                              ✓ {edu.educationalCertificateName || form.educationalCertificateName}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateEducation(idx, 'educationalCertificateName', '');
+                                if (idx === 0) set('educationalCertificateName', '');
+                                const el = document.getElementById(`edu-file-${idx}`);
+                                if (el) el.value = '';
+                              }}
+                              style={{
+                                background: '#fee2e2',
+                                border: '1px solid #fca5a5',
+                                color: '#b91c1c',
+                                borderRadius: '4px',
+                                padding: '2px 8px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                whiteSpace: 'nowrap',
+                              }}
+                              title="Remove this certificate file"
+                            >
+                              ✕ Remove
+                            </button>
+                          </div>
                         ) : null}
                       </div>
                     </FieldRow>
@@ -1062,8 +1091,9 @@ export default function EmployeeMasterForm({
                     </FieldRow>
 
                     <FieldRow label="Experience Letter" helper="Service / experience certificate">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                         <input
+                          id={`exp-file-${idx}`}
                           type="file"
                           accept="image/*,.pdf,.doc,.docx"
                           style={inputStyle}
@@ -1074,9 +1104,37 @@ export default function EmployeeMasterForm({
                           }}
                         />
                         {(exp.experienceLetterName || (idx === 0 && form.experienceLetterName)) ? (
-                          <span style={{ fontSize: '11.5px', color: '#008fa8', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                            ✓ {exp.experienceLetterName || form.experienceLetterName}
-                          </span>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: '11.5px', color: '#008fa8', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                              ✓ {exp.experienceLetterName || form.experienceLetterName}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateExperience(idx, 'experienceLetterName', '');
+                                if (idx === 0) set('experienceLetterName', '');
+                                const el = document.getElementById(`exp-file-${idx}`);
+                                if (el) el.value = '';
+                              }}
+                              style={{
+                                background: '#fee2e2',
+                                border: '1px solid #fca5a5',
+                                color: '#b91c1c',
+                                borderRadius: '4px',
+                                padding: '2px 8px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                whiteSpace: 'nowrap',
+                              }}
+                              title="Remove this experience letter"
+                            >
+                              ✕ Remove
+                            </button>
+                          </div>
                         ) : null}
                       </div>
                     </FieldRow>
