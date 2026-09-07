@@ -267,51 +267,59 @@ export default function EmployeeMasterForm({
   // Section disabled validation states (quick creation only requires Operating Company and First Name)
   const isBasicInfoDisabled = !form.divisionId || !form.firstName?.trim();
   const isAddressDisabled = !form.homeCountryAddress?.trim() && !form.addressInUae?.trim();
-  const isEduDisabled = !form.education?.educationLevel && !form.education?.degreeMajor?.trim() && !form.education?.universityName?.trim();
+  const isEduDisabled = !educations.some((e) => e.educationLevel?.trim() || e.degreeMajor?.trim() || e.universityName?.trim());
   const isWorkExpDisabled = !experiences.some((e) => e.previousCompany?.trim() || e.position?.trim() || e.duration?.trim());
   const isJobProfileDisabled = !form.divisionId && !form.departmentId && !form.jobTitle;
   const isPassportDisabled = !form.passportNumber?.trim() && !form.emiratesIdNumber?.trim();
   const isDocsDisabled = customDocs.length === 0;
 
-  const educations = Array.isArray(form.educations) && form.educations.length > 0
-    ? form.educations
-    : (form.education?.degreeMajor || form.education?.universityName || form.education?.educationLevel)
-      ? [{ ...form.education, id: form.education.id || 'init_1' }]
-      : [];
-
-  const [currentEdu, setCurrentEdu] = useState({
+  const defaultEdu = () => ({
     educationLevel: '',
     degreeMajor: '',
     universityName: '',
     graduationYear: '',
     gradeGpa: '',
     attestationStatus: 'Not Attested',
+    educationalCertificateName: '',
   });
 
-  const addEducationRecord = () => {
-    if (!currentEdu.educationLevel && !currentEdu.degreeMajor && !currentEdu.universityName) return;
-    const newEntry = {
-      ...currentEdu,
-      id: `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-    };
-    const updated = [...educations, newEntry];
+  const educations = Array.isArray(form.educations) && form.educations.length > 0
+    ? form.educations
+    : (form.education?.degreeMajor || form.education?.universityName || form.education?.educationLevel)
+      ? [form.education]
+      : [defaultEdu()];
+
+  const updateEducation = (index, field, value) => {
+    const updated = [...educations];
+    updated[index] = { ...updated[index], [field]: value };
     setForm((prev) => ({
       ...prev,
       educations: updated,
       education: updated[0] || {},
     }));
-    setCurrentEdu({
-      educationLevel: '',
-      degreeMajor: '',
-      universityName: '',
-      graduationYear: '',
-      gradeGpa: '',
-      attestationStatus: 'Not Attested',
-    });
   };
 
-  const removeEducationRecord = (idToRemove) => {
-    const updated = educations.filter((e) => (e.id || e.degreeMajor) !== idToRemove);
+  const addEducation = () => {
+    const newEdu = defaultEdu();
+    const updated = [newEdu, ...educations];
+    setForm((prev) => ({
+      ...prev,
+      educations: updated,
+      education: updated[0] || {},
+    }));
+  };
+
+  const removeEducation = (index) => {
+    if (educations.length <= 1) {
+      const updated = [defaultEdu()];
+      setForm((prev) => ({
+        ...prev,
+        educations: updated,
+        education: updated[0] || {},
+      }));
+      return;
+    }
+    const updated = educations.filter((_, i) => i !== index);
     setForm((prev) => ({
       ...prev,
       educations: updated,
@@ -363,18 +371,6 @@ export default function EmployeeMasterForm({
 
   const handleFormSubmit = (e) => {
     if (e && e.preventDefault) e.preventDefault();
-    if (currentEdu.educationLevel || currentEdu.degreeMajor || currentEdu.universityName) {
-      const autoEntry = {
-        ...currentEdu,
-        id: `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-      };
-      const newEducations = [...educations, autoEntry];
-      setForm((prev) => ({
-        ...prev,
-        educations: newEducations,
-        education: newEducations[0] || {},
-      }));
-    }
     if (onSubmit) onSubmit(e);
   };
 
@@ -752,153 +748,92 @@ export default function EmployeeMasterForm({
               </FieldRow>
             </SectionCard>
 
-            {/* Card 3: Education Details (Full Width & Multi-Entry List) */}
-            <SectionCard title="Education details">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <FieldRow label="Education Level">
-                  <select
-                    style={inputStyle}
-                    value={currentEdu.educationLevel}
-                    onChange={(e) => setCurrentEdu({ ...currentEdu, educationLevel: e.target.value })}
-                  >
-                    <option value="">— Select Education Level —</option>
-                    {DUBAI_EDUCATION_LEVELS.map((lvl) => (
-                      <option key={lvl} value={lvl}>{lvl}</option>
-                    ))}
-                  </select>
-                </FieldRow>
+            {/* Card 3: Education Details (Multiple Qualifications Support, Latest on Top) */}
+            <SectionCard
+              title="Education details"
+              disabled={isEduDisabled}
+              onSectionSave={() => triggerSectionSuccess('Education details')}
+              isSaved={savedSectionName === 'Education details'}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+                <span style={{ fontSize: '12.5px', color: 'var(--muted, #64748b)', fontWeight: 500 }}>
+                  Add multiple qualifications (Latest qualification is always on top)
+                </span>
+                <button
+                  type="button"
+                  onClick={addEducation}
+                  className="btn secondary"
+                  style={{
+                    padding: '5px 12px',
+                    fontSize: '11.5px',
+                    borderRadius: '6px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    color: 'var(--ink, #0f172a)',
+                    fontWeight: 600,
+                    borderColor: 'var(--line-strong, #cbd5e1)',
+                    background: 'var(--surface, #ffffff)',
+                  }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  Add Another Qualification
+                </button>
+              </div>
 
-                <FieldRow label="Degree / Major Title">
-                  <input
-                    style={inputStyle}
-                    placeholder="e.g. BS Computer Science"
-                    value={currentEdu.degreeMajor}
-                    onChange={(e) => setCurrentEdu({ ...currentEdu, degreeMajor: e.target.value })}
-                  />
-                </FieldRow>
-
-                <FieldRow label="University / Institute">
-                  <input
-                    style={inputStyle}
-                    placeholder="e.g. Heriot-Watt Dubai"
-                    value={currentEdu.universityName}
-                    onChange={(e) => setCurrentEdu({ ...currentEdu, universityName: e.target.value })}
-                  />
-                </FieldRow>
-
-                <FieldRow label="Graduation Year">
-                  <input
-                    style={inputStyle}
-                    placeholder="e.g. 2021"
-                    value={currentEdu.graduationYear}
-                    onChange={(e) => setCurrentEdu({ ...currentEdu, graduationYear: e.target.value })}
-                  />
-                </FieldRow>
-
-                <FieldRow label="Grade / GPA">
-                  <input
-                    style={inputStyle}
-                    placeholder="e.g. GPA (3.8)"
-                    value={currentEdu.gradeGpa}
-                    onChange={(e) => setCurrentEdu({ ...currentEdu, gradeGpa: e.target.value })}
-                  />
-                </FieldRow>
-
-                <FieldRow label="MOFA / MOE Attestation">
-                  <select
-                    style={inputStyle}
-                    value={currentEdu.attestationStatus}
-                    onChange={(e) => setCurrentEdu({ ...currentEdu, attestationStatus: e.target.value })}
-                  >
-                    <option value="Not Attested">Not Attested</option>
-                    <option value="Attested (MOFA/MOE UAE)">Attested (MOFA / MOE UAE)</option>
-                    <option value="In Process">In Process</option>
-                  </select>
-                </FieldRow>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: 4, paddingLeft: '190px' }}>
-                  <button
-                    type="button"
-                    onClick={addEducationRecord}
-                    disabled={!currentEdu.educationLevel && !currentEdu.degreeMajor && !currentEdu.universityName}
-                    className="btn secondary"
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {educations.map((edu, idx) => (
+                  <div
+                    key={idx}
                     style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      padding: '7px 16px',
-                      borderRadius: '6px',
-                      fontSize: '12.5px',
-                      fontWeight: 600,
                       background: 'var(--surface, #ffffff)',
-                      borderColor: '#00b8db',
-                      color: '#008fa8',
-                      cursor: (!currentEdu.educationLevel && !currentEdu.degreeMajor && !currentEdu.universityName) ? 'not-allowed' : 'pointer',
-                      opacity: (!currentEdu.educationLevel && !currentEdu.degreeMajor && !currentEdu.universityName) ? 0.6 : 1,
+                      border: '1px solid var(--line, #e2e8f0)',
+                      borderRadius: '8px',
+                      padding: '14px 16px',
+                      position: 'relative',
                     }}
                   >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="12" y1="5" x2="12" y2="19" />
-                      <line x1="5" y1="12" x2="19" y2="12" />
-                    </svg>
-                    + Add Education Qualification
-                  </button>
-                </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingBottom: 8, borderBottom: '1px dashed var(--line, #cbd5e1)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: 22,
+                            height: 22,
+                            borderRadius: '50%',
+                            background: 'var(--line, #e2e8f0)',
+                            color: '#64748b',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                          }}
+                        >
+                          {idx + 1}
+                        </span>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                          {idx === 0 ? 'Latest Qualification' : `Previous Qualification #${idx + 1}`}
+                        </span>
+                      </div>
 
-                {educations.length > 0 ? (
-                  <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid var(--line, #e2e8f0)', paddingTop: 14 }}>
-                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--muted, #64748b)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Added Qualifications ({educations.length})
-                    </div>
-                    {educations.map((edu, idx) => (
-                      <div
-                        key={edu.id || idx}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          padding: '10px 14px',
-                          borderRadius: 8,
-                          border: '1px solid var(--line, #e2e8f0)',
-                          background: 'var(--surface-alt, #f8fafc)',
-                          gap: 12,
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#e0f2fe', color: '#0284c7', fontSize: '11px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            {idx + 1}
-                          </span>
-                          <div>
-                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
-                              {edu.degreeMajor || edu.educationLevel || 'Degree / Diploma'}
-                              {edu.educationLevel && edu.degreeMajor ? ` (${edu.educationLevel})` : ''}
-                            </div>
-                            <div style={{ fontSize: '11.5px', color: 'var(--muted, #64748b)', marginTop: 2 }}>
-                              {edu.universityName || 'Institute not specified'}
-                              {edu.graduationYear ? ` • Class of ${edu.graduationYear}` : ''}
-                              {edu.gradeGpa ? ` • Grade: ${edu.gradeGpa}` : ''}
-                              {edu.attestationStatus ? ` • ${edu.attestationStatus}` : ''}
-                            </div>
-                          </div>
-                        </div>
+                      {educations.length > 1 ? (
                         <button
                           type="button"
-                          onClick={() => removeEducationRecord(edu.id || edu.degreeMajor)}
+                          onClick={() => removeEducation(idx)}
                           style={{
                             background: 'transparent',
                             border: 'none',
                             color: '#ef4444',
+                            fontSize: '11.5px',
+                            fontWeight: 600,
                             cursor: 'pointer',
-                            padding: '4px 6px',
-                            borderRadius: 4,
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: 4,
-                            fontSize: '11.5px',
-                            fontWeight: 600,
-                            flexShrink: 0,
                           }}
-                          title="Remove this qualification"
                         >
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                             <line x1="18" y1="6" x2="6" y2="18" />
@@ -906,27 +841,91 @@ export default function EmployeeMasterForm({
                           </svg>
                           Remove
                         </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
+                      ) : null}
+                    </div>
 
-                <FieldRow label="Educational Certificate" helper="Degree / diploma certificate document">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <input
-                      ref={eduCertRef}
-                      type="file"
-                      accept="image/*,.pdf,.doc,.docx"
-                      style={inputStyle}
-                      onChange={(e) => set('educationalCertificateName', e.target.files?.[0]?.name || '')}
-                    />
-                    {form.educationalCertificateName ? (
-                      <span style={{ fontSize: '11.5px', color: '#008fa8', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                        ✓ {form.educationalCertificateName}
-                      </span>
-                    ) : null}
+                    <FieldRow label="Education Level">
+                      <select
+                        style={inputStyle}
+                        value={edu.educationLevel || ''}
+                        onChange={(e) => updateEducation(idx, 'educationLevel', e.target.value)}
+                      >
+                        <option value="">— Select Education Level —</option>
+                        {DUBAI_EDUCATION_LEVELS.map((lvl) => (
+                          <option key={lvl} value={lvl}>{lvl}</option>
+                        ))}
+                      </select>
+                    </FieldRow>
+
+                    <FieldRow label="Degree / Major Title">
+                      <input
+                        style={inputStyle}
+                        placeholder="e.g. BS Computer Science"
+                        value={edu.degreeMajor || ''}
+                        onChange={(e) => updateEducation(idx, 'degreeMajor', e.target.value)}
+                      />
+                    </FieldRow>
+
+                    <FieldRow label="University / Institute">
+                      <input
+                        style={inputStyle}
+                        placeholder="e.g. Heriot-Watt Dubai"
+                        value={edu.universityName || ''}
+                        onChange={(e) => updateEducation(idx, 'universityName', e.target.value)}
+                      />
+                    </FieldRow>
+
+                    <FieldRow label="Graduation Year">
+                      <input
+                        style={inputStyle}
+                        placeholder="e.g. 2021"
+                        value={edu.graduationYear || ''}
+                        onChange={(e) => updateEducation(idx, 'graduationYear', e.target.value)}
+                      />
+                    </FieldRow>
+
+                    <FieldRow label="Grade / GPA">
+                      <input
+                        style={inputStyle}
+                        placeholder="e.g. GPA (3.8)"
+                        value={edu.gradeGpa || ''}
+                        onChange={(e) => updateEducation(idx, 'gradeGpa', e.target.value)}
+                      />
+                    </FieldRow>
+
+                    <FieldRow label="MOFA / MOE Attestation">
+                      <select
+                        style={inputStyle}
+                        value={edu.attestationStatus || 'Not Attested'}
+                        onChange={(e) => updateEducation(idx, 'attestationStatus', e.target.value)}
+                      >
+                        <option value="Not Attested">Not Attested</option>
+                        <option value="Attested (MOFA/MOE UAE)">Attested (MOFA / MOE UAE)</option>
+                        <option value="In Process">In Process</option>
+                      </select>
+                    </FieldRow>
+
+                    <FieldRow label="Educational Certificate" helper="Degree / diploma certificate document">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <input
+                          type="file"
+                          accept="image/*,.pdf,.doc,.docx"
+                          style={inputStyle}
+                          onChange={(e) => {
+                            const name = e.target.files?.[0]?.name || '';
+                            updateEducation(idx, 'educationalCertificateName', name);
+                            if (idx === 0) set('educationalCertificateName', name);
+                          }}
+                        />
+                        {(edu.educationalCertificateName || (idx === 0 && form.educationalCertificateName)) ? (
+                          <span style={{ fontSize: '11.5px', color: '#008fa8', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                            ✓ {edu.educationalCertificateName || form.educationalCertificateName}
+                          </span>
+                        ) : null}
+                      </div>
+                    </FieldRow>
                   </div>
-                </FieldRow>
+                ))}
               </div>
             </SectionCard>
 

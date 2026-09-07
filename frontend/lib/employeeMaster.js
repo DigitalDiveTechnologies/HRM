@@ -308,6 +308,7 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
       graduationYear: String(e.graduationYear || '').trim(),
       attestationStatus: e.attestationStatus || 'Not Attested',
       gradeGpa: String(e.gradeGpa || '').trim(),
+      educationalCertificateName: e.educationalCertificateName?.trim() || '',
     }));
 
   const cleanDocuments = (form.customDocuments || []).map((d) => ({
