@@ -123,6 +123,22 @@ export default function AppShell({ title, subtitle, actions, children }) {
                   const isParentActive = isNavActive(pathname, l.href);
                   const isAnyChildActive = Boolean(l.children && l.children.some((c) => isNavActive(pathname, c.href)));
                   const isExpanded = isParentActive || isAnyChildActive || (pathname && pathname.startsWith(l.href));
+
+                  if (l.disabled) {
+                    return (
+                      <div key={l.href} style={{ display: 'flex', flexDirection: 'column', cursor: 'not-allowed' }} title="Temporarily disabled">
+                        <div className="nav-disabled-link">
+                          <span className="nav-link-label">{l.label}</span>
+                          {badge > 0 ? (
+                            <span className="nav-alert-badge" aria-label={`${badge} alerts`}>
+                              {badge > 99 ? '99+' : badge}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
                     <div key={l.href} style={{ display: 'flex', flexDirection: 'column' }}>
                       <Link
