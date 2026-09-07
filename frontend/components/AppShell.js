@@ -46,16 +46,11 @@ export default function AppShell({ title, subtitle, actions, children }) {
     setReady(true);
   }, [pathname, router]);
 
-  // Preserve sidebar scroll position and ensure active tab is visible
+  // Preserve sidebar scroll position and ensure active tab is vertically centered
   useEffect(() => {
     if (typeof window === 'undefined' || !ready) return;
     const sidebar = document.getElementById('sidebar');
     if (!sidebar) return;
-
-    const savedScroll = sessionStorage.getItem('gocs_sidebar_scroll');
-    if (savedScroll) {
-      sidebar.scrollTop = Number(savedScroll);
-    }
 
     const onScroll = () => {
       sessionStorage.setItem('gocs_sidebar_scroll', String(sidebar.scrollTop));
@@ -65,9 +60,9 @@ export default function AppShell({ title, subtitle, actions, children }) {
     const timer = setTimeout(() => {
       const activeLink = sidebar.querySelector('a.active');
       if (activeLink) {
-        activeLink.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+        activeLink.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
       }
-    }, 120);
+    }, 100);
 
     return () => {
       clearTimeout(timer);

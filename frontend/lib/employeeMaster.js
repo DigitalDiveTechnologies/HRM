@@ -47,7 +47,7 @@ export function emptyMasterForm() {
     fax: '',
     email: '',
     linkedVendor: '',
-    password: '',
+    password: 'demo123',
     designationId: '',
     employmentTypeId: '',
     joinDate: todayISO(),
@@ -371,7 +371,7 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
   };
 
   if (includePassword) {
-    payload.password = form.password?.trim() || '';
+    payload.password = form.password?.trim() || form.appPassword?.trim() || 'demo123';
   }
 
   return payload;

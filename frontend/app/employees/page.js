@@ -375,7 +375,9 @@ function EmployeesContent() {
         method: 'POST',
         body: JSON.stringify({ password: resetPassword.trim() }),
       });
+      const newPass = resetPassword.trim();
       setMsg(res.message || 'App login password updated successfully.');
+      setSelected((prev) => (prev ? { ...prev, password: newPass } : prev));
       setResetPassword('');
     } catch (err) {
       setError(err.message);

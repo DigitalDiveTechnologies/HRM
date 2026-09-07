@@ -646,7 +646,7 @@ export default function EmployeeMasterForm({
                           type={showPassword ? 'text' : 'password'}
                           style={{ ...inputStyle, paddingRight: '42px' }}
                           placeholder="demo123"
-                          value={form.password || form.appPassword || 'demo123'}
+                          value={form.password !== undefined && form.password !== null ? form.password : (form.appPassword || 'demo123')}
                           onChange={(e) => {
                             set('password', e.target.value);
                             set('appPassword', e.target.value);
