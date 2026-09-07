@@ -182,7 +182,10 @@ export function masterFormFromEmployee(employee) {
     empCode: v(employee, 'empCode', 'emp_code') || '',
     email: v(employee, 'email') || md.email || '',
     mobilePhone: md.mobilePhone || v(employee, 'phone') || '',
-    jobTitle: md.jobTitle || v(employee, 'jobTitle', 'job_title') || '',
+    jobTitle: (() => {
+      const jt = md.jobTitle || v(employee, 'jobTitle', 'job_title') || '';
+      return jt === '—' || jt === '-' ? '' : jt;
+    })(),
     departmentId: String(v(employee, 'departmentId', 'department_id') || ''),
     divisionId: String(v(employee, 'divisionId', 'division_id') || ''),
     branch: md.branch || v(employee, 'divisionName', 'division_name') || '',
@@ -350,8 +353,8 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
     middleName: form.middleName?.trim() || '',
     lastName: form.lastName?.trim() || '',
     fullName,
-    email: form.email?.trim() || '',
-    jobTitle: form.jobTitle?.trim() || '',
+    email: form.email?.trim() || `${(form.firstName || 'emp').toLowerCase().replace(/[^a-z0-9]/g, '')}.${(form.lastName || 'user').toLowerCase().replace(/[^a-z0-9]/g, '') || Date.now()}@gocs.hr`,
+    jobTitle: form.jobTitle?.trim() || (form.designationId ? '' : '—'),
     phone,
     departmentId: form.departmentId ? Number(form.departmentId) : null,
     divisionId: form.divisionId ? Number(form.divisionId) : (form.companyIds?.[0] ? Number(form.companyIds[0]) : null),

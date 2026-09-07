@@ -285,8 +285,8 @@ export default function EmployeeMasterForm({
     }));
   };
 
-  // Section disabled validation states
-  const isBasicInfoDisabled = !form.divisionId || !form.firstName?.trim() || !form.lastName?.trim() || !form.email?.trim();
+  // Section disabled validation states (quick creation only requires Operating Company and First Name)
+  const isBasicInfoDisabled = !form.divisionId || !form.firstName?.trim();
   const isAddressDisabled = !form.homeCountryAddress?.trim() && !form.addressInUae?.trim();
   const isEduDisabled = !form.education?.educationLevel && !form.education?.degreeMajor?.trim() && !form.education?.universityName?.trim();
   const isWorkExpDisabled = !experiences.some((e) => e.previousCompany?.trim() || e.position?.trim() || e.duration?.trim());
@@ -338,7 +338,7 @@ export default function EmployeeMasterForm({
 
   return (
     <div style={{ width: '100%' }}>
-      <form onSubmit={onSubmit} style={{ width: '100%' }}>
+      <form onSubmit={onSubmit} noValidate style={{ width: '100%' }}>
         {/* Top Bar */}
         <div
           style={{

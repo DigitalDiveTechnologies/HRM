@@ -46,6 +46,35 @@ export default function AppShell({ title, subtitle, actions, children }) {
     setReady(true);
   }, [pathname, router]);
 
+  // Preserve sidebar scroll position and ensure active tab is visible
+  useEffect(() => {
+    if (typeof window === 'undefined' || !ready) return;
+    const sidebar = document.getElementById('sidebar');
+    if (!sidebar) return;
+
+    const savedScroll = sessionStorage.getItem('gocs_sidebar_scroll');
+    if (savedScroll) {
+      sidebar.scrollTop = Number(savedScroll);
+    }
+
+    const onScroll = () => {
+      sessionStorage.setItem('gocs_sidebar_scroll', String(sidebar.scrollTop));
+    };
+    sidebar.addEventListener('scroll', onScroll, { passive: true });
+
+    const timer = setTimeout(() => {
+      const activeLink = sidebar.querySelector('a.active');
+      if (activeLink) {
+        activeLink.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+      }
+    }, 120);
+
+    return () => {
+      clearTimeout(timer);
+      sidebar.removeEventListener('scroll', onScroll);
+    };
+  }, [pathname, ready]);
+
   const { badgeFor, menuCategories, toast, dismissToast } = usePortalAlerts(pathname, ready && Boolean(user));
 
   if (!ready || !user) {

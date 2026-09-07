@@ -264,7 +264,7 @@ function EmployeesContent() {
   }
 
   async function createEmployee(ev) {
-    ev.preventDefault();
+    if (ev && ev.preventDefault) ev.preventDefault();
     setError('');
     setMsg('');
     setCreating(true);
@@ -275,7 +275,7 @@ function EmployeesContent() {
         body: JSON.stringify(payload),
       });
       const empId = v(res.employee, 'id');
-      const appEmail = String(res.login?.email || createForm.email || '')
+      const appEmail = String(res.login?.email || createForm.email || payload.email || '')
         .trim()
         .toLowerCase();
       const appPassword = String(createForm.password || 'demo123').trim();
