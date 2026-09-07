@@ -69,6 +69,17 @@ function EmployeesContent() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [resetPassword, setResetPassword] = useState('');
   const [resetting, setResetting] = useState(false);
+  const [previewDocModal, setPreviewDocModal] = useState(null);
+
+  const handleDownloadDoc = (url, fileName) => {
+    if (!url) return;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName || 'document';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
 
   // Profile View multi-tab state (matching reference screenshot)
   const [selectedTab, setSelectedTab] = useState('Personal info');
@@ -1681,6 +1692,76 @@ function EmployeesContent() {
                                 <div className="emp-row-label">Duration in years</div>
                                 <div className="emp-row-val" style={{ lineHeight: 1.4 }}>{exp.duration || '—'}</div>
                               </div>
+
+                              {(() => {
+                                const letterName = exp.experienceLetterName || (expIdx === 0 && selectedMd.experienceLetterName) || '';
+                                const letterUrl = exp.experienceLetterUrl || (expIdx === 0 && selectedMd.experienceLetterUrl) || '';
+                                return (
+                                  <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '10px', padding: '6px 0', alignItems: 'center' }}>
+                                    <div className="emp-row-label">Experience Letter</div>
+                                    <div className="emp-row-val" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                      {letterName ? (
+                                        <>
+                                          <span style={{ fontSize: '12px', fontWeight: 600, color: '#008fa8', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                            📄 {letterName}
+                                          </span>
+                                          {letterUrl ? (
+                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                              <button
+                                                type="button"
+                                                onClick={() => setPreviewDocModal({
+                                                  title: letterName,
+                                                  fileName: letterName,
+                                                  fileUrl: letterUrl,
+                                                  type: 'Experience Letter',
+                                                })}
+                                                style={{
+                                                  background: 'rgba(0, 184, 219, 0.12)',
+                                                  border: '1px solid rgba(0, 184, 219, 0.3)',
+                                                  color: '#008fa8',
+                                                  borderRadius: '4px',
+                                                  padding: '2px 8px',
+                                                  fontSize: '11px',
+                                                  fontWeight: 600,
+                                                  cursor: 'pointer',
+                                                  display: 'inline-flex',
+                                                  alignItems: 'center',
+                                                  gap: 4,
+                                                }}
+                                                title="Preview experience letter"
+                                              >
+                                                👁 Preview
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleDownloadDoc(letterUrl, letterName)}
+                                                style={{
+                                                  background: 'rgba(16, 185, 129, 0.12)',
+                                                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                                                  color: '#059669',
+                                                  borderRadius: '4px',
+                                                  padding: '2px 8px',
+                                                  fontSize: '11px',
+                                                  fontWeight: 600,
+                                                  cursor: 'pointer',
+                                                  display: 'inline-flex',
+                                                  alignItems: 'center',
+                                                  gap: 4,
+                                                }}
+                                                title="Download experience letter"
+                                              >
+                                                ⤓ Download
+                                              </button>
+                                            </div>
+                                          ) : null}
+                                        </>
+                                      ) : (
+                                        <span>—</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             </div>
                           ))}
                         </div>
@@ -1688,7 +1769,7 @@ function EmployeesContent() {
                     })()}
                   </div>
 
-                  {/* Card 4: Education (Full Width & Multi-Degree Support) */}
+                  {/* Card 4: Education (Full Width & Multi-Degree Support, Sorted by Year Descending) */}
                   <div className="emp-card">
                     <div className="emp-card-header">
                       <h4 className="emp-card-title">
@@ -1724,58 +1805,127 @@ function EmployeesContent() {
                         );
                       }
 
+                      // Sort by graduation year descending (latest year e.g. 2026 above 2022)
+                      const sortedEdus = [...profileEdus].sort((a, b) => {
+                        const yearA = parseInt(String(a.graduationYear || '').replace(/\D/g, ''), 10) || 0;
+                        const yearB = parseInt(String(b.graduationYear || '').replace(/\D/g, ''), 10) || 0;
+                        return yearB - yearA;
+                      });
+
                       return (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                          {profileEdus.map((edu, eduIdx) => (
-                            <div key={edu.id || eduIdx} style={{ position: 'relative', paddingLeft: 22, borderLeft: '2px solid var(--line, #e5e7eb)', marginLeft: 6 }}>
-                              <div
-                                style={{
-                                  position: 'absolute',
-                                  left: -6,
-                                  top: 2,
-                                  width: 10,
-                                  height: 10,
-                                  borderRadius: '50%',
-                                  background: '#00b8db',
-                                }}
-                              />
-                              <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--ink, #0f172a)' }}>
-                                {edu.degreeMajor || edu.educationLevel || 'Degree'}
-                                {edu.universityName ? ` – ${edu.universityName}` : ''}
+                          {sortedEdus.map((edu, eduIdx) => {
+                            const certName = edu.educationalCertificateName || (eduIdx === 0 && selectedMd.educationalCertificateName) || '';
+                            const certUrl = edu.educationalCertificateUrl || (eduIdx === 0 && selectedMd.educationalCertificateUrl) || '';
+
+                            return (
+                              <div key={edu.id || eduIdx} style={{ position: 'relative', paddingLeft: 22, borderLeft: '2px solid var(--line, #e5e7eb)', marginLeft: 6 }}>
+                                <div
+                                  style={{
+                                    position: 'absolute',
+                                    left: -6,
+                                    top: 2,
+                                    width: 10,
+                                    height: 10,
+                                    borderRadius: '50%',
+                                    background: '#00b8db',
+                                  }}
+                                />
+                                <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--ink, #0f172a)' }}>
+                                  {edu.degreeMajor || edu.educationLevel || 'Degree'}
+                                  {edu.universityName ? ` – ${edu.universityName}` : ''}
+                                </div>
+                                {edu.educationLevel && edu.educationLevel !== edu.degreeMajor ? (
+                                  <div style={{ fontSize: '13px', color: 'var(--muted, #475569)', marginTop: 2 }}>
+                                    {edu.educationLevel}
+                                  </div>
+                                ) : null}
+                                {edu.gradeGpa ? (
+                                  <div style={{ fontSize: '12.5px', color: 'var(--muted, #64748b)', marginTop: 2 }}>
+                                    GPA ({edu.gradeGpa})
+                                  </div>
+                                ) : null}
+                                {edu.graduationYear ? (
+                                  <div style={{ fontSize: '12px', color: 'var(--muted, #94a3b8)', marginTop: 2 }}>
+                                    {edu.graduationYear}
+                                  </div>
+                                ) : null}
+                                {edu.attestationStatus ? (
+                                  <div style={{ marginTop: 6 }}>
+                                    <span
+                                      style={{
+                                        fontSize: '11px',
+                                        fontWeight: 600,
+                                        padding: '2px 8px',
+                                        borderRadius: '4px',
+                                        background: 'var(--chip-bg, #f1f5f9)',
+                                        color: 'var(--ink, #475569)',
+                                      }}
+                                    >
+                                      {edu.attestationStatus}
+                                    </span>
+                                  </div>
+                                ) : null}
+
+                                {certName ? (
+                                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#008fa8', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                      📄 {certName}
+                                    </span>
+                                    {certUrl ? (
+                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                        <button
+                                          type="button"
+                                          onClick={() => setPreviewDocModal({
+                                            title: certName,
+                                            fileName: certName,
+                                            fileUrl: certUrl,
+                                            type: 'Educational Certificate',
+                                          })}
+                                          style={{
+                                            background: 'rgba(0, 184, 219, 0.12)',
+                                            border: '1px solid rgba(0, 184, 219, 0.3)',
+                                            color: '#008fa8',
+                                            borderRadius: '4px',
+                                            padding: '2px 8px',
+                                            fontSize: '11px',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 4,
+                                          }}
+                                          title="Preview certificate"
+                                        >
+                                          👁 Preview
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDownloadDoc(certUrl, certName)}
+                                          style={{
+                                            background: 'rgba(16, 185, 129, 0.12)',
+                                            border: '1px solid rgba(16, 185, 129, 0.3)',
+                                            color: '#059669',
+                                            borderRadius: '4px',
+                                            padding: '2px 8px',
+                                            fontSize: '11px',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 4,
+                                          }}
+                                          title="Download certificate"
+                                        >
+                                          ⤓ Download
+                                        </button>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                ) : null}
                               </div>
-                              {edu.educationLevel && edu.educationLevel !== edu.degreeMajor ? (
-                                <div style={{ fontSize: '13px', color: 'var(--muted, #475569)', marginTop: 2 }}>
-                                  {edu.educationLevel}
-                                </div>
-                              ) : null}
-                              {edu.gradeGpa ? (
-                                <div style={{ fontSize: '12.5px', color: 'var(--muted, #64748b)', marginTop: 2 }}>
-                                  GPA ({edu.gradeGpa})
-                                </div>
-                              ) : null}
-                              {edu.graduationYear ? (
-                                <div style={{ fontSize: '12px', color: 'var(--muted, #94a3b8)', marginTop: 2 }}>
-                                  {edu.graduationYear}
-                                </div>
-                              ) : null}
-                              {edu.attestationStatus ? (
-                                <div style={{ marginTop: 6 }}>
-                                  <span
-                                    style={{
-                                      fontSize: '11px',
-                                      fontWeight: 600,
-                                      padding: '2px 8px',
-                                      borderRadius: '4px',
-                                      background: 'var(--chip-bg, #f1f5f9)',
-                                      color: 'var(--ink, #475569)',
-                                    }}
-                                  >
-                                    {edu.attestationStatus}
-                                  </span>
-                                </div>
-                              ) : null}
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       );
                     })()}
@@ -2172,15 +2322,24 @@ function EmployeesContent() {
                               </div>
                             </div>
                             {doc.fileUrl ? (
-                              <a
-                                href={doc.fileUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="btn secondary"
-                                style={{ fontSize: '11.5px', padding: '4px 10px', textDecoration: 'none' }}
-                              >
-                                View ↗
-                              </a>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewDocModal(doc)}
+                                  className="btn secondary"
+                                  style={{ fontSize: '11.5px', padding: '4px 8px', cursor: 'pointer' }}
+                                >
+                                  👁 Preview
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadDoc(doc.fileUrl, doc.fileName || doc.title || 'document')}
+                                  className="btn secondary"
+                                  style={{ fontSize: '11.5px', padding: '4px 8px', color: '#059669', cursor: 'pointer' }}
+                                >
+                                  ⤓ Download
+                                </button>
+                              </div>
                             ) : null}
                           </div>
                         ))}
@@ -2410,6 +2569,169 @@ function EmployeesContent() {
         </div>
       ) : null}
 
+      {/* Document Preview Modal */}
+      {previewDocModal ? (
+        <>
+          <div
+            className="backdrop show"
+            onClick={() => setPreviewDocModal(null)}
+            aria-hidden="true"
+            style={{ zIndex: 999 }}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            style={{
+              position: 'fixed',
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 1000,
+              width: 'min(780px, calc(100vw - 32px))',
+              maxHeight: '85vh',
+              background: 'var(--surface, #ffffff)',
+              borderRadius: 12,
+              boxShadow: '0 24px 60px rgba(0, 0, 0, 0.35)',
+              border: '1px solid var(--line, #cbd5e1)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '14px 20px',
+                borderBottom: '1px solid var(--line, #e2e8f0)',
+                background: 'var(--surface-alt, #f8fafc)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: 'rgba(0, 184, 219, 0.15)', color: '#008fa8' }}>
+                  {previewDocModal.type || 'Document'}
+                </span>
+                <strong style={{ fontSize: '14px', color: 'var(--ink, #0f172a)' }}>
+                  {previewDocModal.title || previewDocModal.fileName}
+                </strong>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewDocModal(null)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '20px',
+                  color: 'var(--muted, #64748b)',
+                  cursor: 'pointer',
+                  padding: '2px 6px',
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div
+              style={{
+                padding: '20px',
+                overflowY: 'auto',
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: '#0b1120',
+                minHeight: '300px',
+              }}
+            >
+              {previewDocModal.isImage || (previewDocModal.fileType && previewDocModal.fileType.startsWith('image/')) || (previewDocModal.fileName && /\.(png|jpe?g|webp|gif)$/i.test(previewDocModal.fileName)) ? (
+                <img
+                  src={previewDocModal.fileUrl}
+                  alt={previewDocModal.title || previewDocModal.fileName}
+                  style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain', borderRadius: 6 }}
+                />
+              ) : (
+                <div style={{ color: '#ffffff', textAlign: 'center', padding: '30px' }}>
+                  <div style={{ fontSize: '42px', marginBottom: 12 }}>📄</div>
+                  <div style={{ fontSize: '15px', fontWeight: 600 }}>{previewDocModal.fileName}</div>
+                  <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: 4 }}>
+                    {previewDocModal.fileSize || 'Document file'}
+                  </div>
+                  <a
+                    href={previewDocModal.fileUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      marginTop: 18,
+                      background: '#00b8db',
+                      color: '#ffffff',
+                      padding: '8px 18px',
+                      borderRadius: 6,
+                      textDecoration: 'none',
+                      fontSize: '12.5px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Open Document in New Tab ↗
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                alignItems: 'center',
+                gap: 10,
+                padding: '12px 20px',
+                borderTop: '1px solid var(--line, #e2e8f0)',
+                background: 'var(--surface-alt, #f8fafc)',
+              }}
+            >
+              {previewDocModal.fileUrl ? (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => handleDownloadDoc(previewDocModal.fileUrl, previewDocModal.fileName || previewDocModal.title || 'document')}
+                  style={{
+                    background: '#059669',
+                    color: '#ffffff',
+                    padding: '6px 16px',
+                    fontSize: '12.5px',
+                    borderRadius: 6,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    border: 'none',
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Download Document
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => setPreviewDocModal(null)}
+                style={{ padding: '6px 16px', fontSize: '12.5px', borderRadius: 6 }}
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </>
+      ) : null}
 
     </AppShell>
   );

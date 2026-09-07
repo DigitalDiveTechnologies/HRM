@@ -92,7 +92,9 @@ export function emptyMasterForm() {
     emiratesIdExpiryDate: '',
     previousVisaType: 'N/A',
     experienceLetterName: '',
+    experienceLetterUrl: '',
     educationalCertificateName: '',
+    educationalCertificateUrl: '',
     customDocuments: [],
     workExperiences: [
       {
@@ -100,6 +102,8 @@ export function emptyMasterForm() {
         fieldOfWork: '',
         position: '',
         duration: '',
+        experienceLetterName: '',
+        experienceLetterUrl: '',
       },
     ],
     workExperience: {
@@ -107,6 +111,8 @@ export function emptyMasterForm() {
       fieldOfWork: '',
       position: '',
       duration: '',
+      experienceLetterName: '',
+      experienceLetterUrl: '',
     },
     education: {
       educationLevel: '',
@@ -116,6 +122,8 @@ export function emptyMasterForm() {
       graduationYear: '',
       attestationStatus: 'Not Attested',
       gradeGpa: '',
+      educationalCertificateName: '',
+      educationalCertificateUrl: '',
     },
     educations: [],
     companyIds: [],
@@ -223,18 +231,33 @@ export function masterFormFromEmployee(employee) {
     emiratesIdExpiryDate: cleanVal(md.emiratesIdExpiryDate || ''),
     previousVisaType: md.previousVisaType || 'N/A',
     experienceLetterName: cleanVal(md.experienceLetterName || ''),
+    experienceLetterUrl: md.experienceLetterUrl || '',
     educationalCertificateName: cleanVal(md.educationalCertificateName || ''),
+    educationalCertificateUrl: md.educationalCertificateUrl || '',
     customDocuments: Array.isArray(md.customDocuments) ? md.customDocuments : [],
     workExperiences: (Array.isArray(md.workExperiences) && md.workExperiences.length)
-      ? md.workExperiences
+      ? md.workExperiences.map((w) => ({
+          previousCompany: w.previousCompany || '',
+          fieldOfWork: w.fieldOfWork || '',
+          position: w.position || '',
+          duration: w.duration || '',
+          experienceLetterName: w.experienceLetterName || '',
+          experienceLetterUrl: w.experienceLetterUrl || '',
+        }))
       : (md.workExperience && (md.workExperience.previousCompany || md.workExperience.position))
-        ? [md.workExperience]
+        ? [{
+            ...md.workExperience,
+            experienceLetterName: md.workExperience.experienceLetterName || md.experienceLetterName || '',
+            experienceLetterUrl: md.workExperience.experienceLetterUrl || md.experienceLetterUrl || '',
+          }]
         : [
             {
               previousCompany: '',
               fieldOfWork: '',
               position: '',
               duration: '',
+              experienceLetterName: '',
+              experienceLetterUrl: '',
             },
           ],
     workExperience: md.workExperience || {
@@ -242,6 +265,8 @@ export function masterFormFromEmployee(employee) {
       fieldOfWork: '',
       position: '',
       duration: '',
+      experienceLetterName: '',
+      experienceLetterUrl: '',
     },
     education: md.education || {
       educationLevel: '',
@@ -251,11 +276,28 @@ export function masterFormFromEmployee(employee) {
       graduationYear: '',
       attestationStatus: 'Not Attested',
       gradeGpa: '',
+      educationalCertificateName: '',
+      educationalCertificateUrl: '',
     },
     educations: (Array.isArray(md.educations) && md.educations.length)
-      ? md.educations
+      ? md.educations.map((e) => ({
+          id: e.id || `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+          educationLevel: e.educationLevel || '',
+          degreeMajor: e.degreeMajor || '',
+          universityName: e.universityName || '',
+          countryOfStudy: e.countryOfStudy || '',
+          graduationYear: e.graduationYear || '',
+          attestationStatus: e.attestationStatus || 'Not Attested',
+          gradeGpa: e.gradeGpa || '',
+          educationalCertificateName: e.educationalCertificateName || '',
+          educationalCertificateUrl: e.educationalCertificateUrl || '',
+        }))
       : (md.education?.degreeMajor || md.education?.educationLevel || md.education?.universityName)
-        ? [md.education]
+        ? [{
+            ...md.education,
+            educationalCertificateName: md.education.educationalCertificateName || md.educationalCertificateName || '',
+            educationalCertificateUrl: md.education.educationalCertificateUrl || md.educationalCertificateUrl || '',
+          }]
         : [],
     companyIds: md.companyIds || (v(employee, 'divisionId', 'division_id') ? [String(v(employee, 'divisionId', 'division_id'))] : []),
     finance: { ...base.finance, ...(md.finance || {}) },
@@ -295,6 +337,8 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
       position: w.position?.trim() || '',
       fieldOfWork: w.fieldOfWork?.trim() || '',
       duration: w.duration?.trim() || '',
+      experienceLetterName: w.experienceLetterName?.trim() || '',
+      experienceLetterUrl: w.experienceLetterUrl || '',
     }));
 
   const cleanEducations = (form.educations || [])
@@ -309,6 +353,7 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
       attestationStatus: e.attestationStatus || 'Not Attested',
       gradeGpa: String(e.gradeGpa || '').trim(),
       educationalCertificateName: e.educationalCertificateName?.trim() || '',
+      educationalCertificateUrl: e.educationalCertificateUrl || '',
     }));
 
   const cleanDocuments = (form.customDocuments || []).map((d) => ({
@@ -365,8 +410,10 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
     emiratesIdStartDate: form.emiratesIdStartDate || '',
     emiratesIdExpiryDate: form.emiratesIdExpiryDate || '',
     previousVisaType: form.previousVisaType || 'N/A',
-    experienceLetterName: form.experienceLetterName || '',
-    educationalCertificateName: form.educationalCertificateName || '',
+    experienceLetterName: form.experienceLetterName || cleanExperiences[0]?.experienceLetterName || '',
+    experienceLetterUrl: form.experienceLetterUrl || cleanExperiences[0]?.experienceLetterUrl || '',
+    educationalCertificateName: form.educationalCertificateName || cleanEducations[0]?.educationalCertificateName || '',
+    educationalCertificateUrl: form.educationalCertificateUrl || cleanEducations[0]?.educationalCertificateUrl || '',
     customDocuments: cleanDocuments,
     workExperiences: cleanExperiences,
     workExperience: cleanExperiences[0] || form.workExperience || {},

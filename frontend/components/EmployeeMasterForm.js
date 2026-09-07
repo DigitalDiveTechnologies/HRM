@@ -171,35 +171,81 @@ export default function EmployeeMasterForm({
   const [previewDoc, setPreviewDoc] = useState(null);
   const docFileInputRef = useRef(null);
 
+  const ALLOWED_DOC_EXTS = ['.png', '.jpg', '.jpeg', '.pdf'];
+  const ALLOWED_DOC_TYPES = ['image/png', 'image/jpeg', 'application/pdf'];
+  const MAX_DOC_SIZE = 5 * 1024 * 1024; // 5 MB
+
+  const validateDocFile = (file) => {
+    if (!file) return { valid: false, error: 'No file selected.' };
+    const ext = '.' + (file.name.split('.').pop() || '').toLowerCase();
+    const isValidType = ALLOWED_DOC_TYPES.includes(file.type) || ALLOWED_DOC_EXTS.includes(ext);
+    if (!isValidType) {
+      return {
+        valid: false,
+        error: `File "${file.name}" is not supported. Only PNG, JPG, and PDF files are allowed.`,
+      };
+    }
+    if (file.size > MAX_DOC_SIZE) {
+      return {
+        valid: false,
+        error: `File "${file.name}" exceeds the maximum limit of 5 MB (${(file.size / (1024 * 1024)).toFixed(1)} MB).`,
+      };
+    }
+    return { valid: true };
+  };
+
+  const readFileAsDataUrl = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = (err) => reject(err);
+      reader.readAsDataURL(file);
+    });
+  };
+
   const customDocs = Array.isArray(form.customDocuments) ? form.customDocuments : [];
 
-  const handleDocFilesSelect = (e) => {
+  const handleDocFilesSelect = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
-    const newDocs = files.map((file) => {
-      const previewUrl = URL.createObjectURL(file);
-      const isImg = file.type.startsWith('image/');
-      return {
-        id: `${Date.now()}_${Math.random().toString(36).substr(2, 7)}`,
-        type: selectedDocType,
-        title: docTitle.trim() || selectedDocType,
-        fileName: file.name,
-        fileSize: (file.size / 1024).toFixed(1) + ' KB',
-        fileUrl: previewUrl,
-        fileType: file.type,
-        isImage: isImg,
-        uploadDate: new Date().toLocaleDateString(),
-        fileObject: file,
-      };
-    });
+    for (const file of files) {
+      const check = validateDocFile(file);
+      if (!check.valid) {
+        alert(check.error);
+        if (docFileInputRef.current) docFileInputRef.current.value = '';
+        return;
+      }
+    }
 
-    const updated = [...customDocs, ...newDocs];
-    setForm((prev) => ({
-      ...prev,
-      customDocuments: updated,
-    }));
-    setDocTitle('');
+    try {
+      const newDocs = await Promise.all(
+        files.map(async (file) => {
+          const dataUrl = await readFileAsDataUrl(file);
+          const isImg = file.type.startsWith('image/') || /\.(png|jpe?g)$/i.test(file.name);
+          return {
+            id: `${Date.now()}_${Math.random().toString(36).substr(2, 7)}`,
+            type: selectedDocType,
+            title: docTitle.trim() || selectedDocType,
+            fileName: file.name,
+            fileSize: (file.size / 1024).toFixed(1) + ' KB',
+            fileUrl: dataUrl,
+            fileType: file.type || (isImg ? 'image/jpeg' : 'application/pdf'),
+            isImage: isImg,
+            uploadDate: new Date().toLocaleDateString(),
+          };
+        })
+      );
+
+      const updated = [...customDocs, ...newDocs];
+      setForm((prev) => ({
+        ...prev,
+        customDocuments: updated,
+      }));
+      setDocTitle('');
+    } catch (err) {
+      console.error('Failed to read uploaded files:', err);
+    }
     if (docFileInputRef.current) docFileInputRef.current.value = '';
   };
 
@@ -272,6 +318,7 @@ export default function EmployeeMasterForm({
     gradeGpa: '',
     attestationStatus: 'Not Attested',
     educationalCertificateName: '',
+    educationalCertificateUrl: '',
   });
 
   const educations = Array.isArray(form.educations) && form.educations.length > 0
@@ -905,29 +952,123 @@ export default function EmployeeMasterForm({
                       </select>
                     </FieldRow>
 
-                    <FieldRow label="Educational Certificate" helper="Degree / diploma certificate document">
+                    <FieldRow label="Educational Certificate" helper="Degree / diploma certificate document (PNG, JPG, PDF - max 5MB)">
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                         <input
                           id={`edu-file-${idx}`}
                           type="file"
-                          accept="image/*,.pdf,.doc,.docx"
+                          accept=".pdf,.png,.jpg,.jpeg,image/png,image/jpeg,application/pdf"
                           style={inputStyle}
-                          onChange={(e) => {
-                            const name = e.target.files?.[0]?.name || '';
-                            updateEducation(idx, 'educationalCertificateName', name);
-                            if (idx === 0) set('educationalCertificateName', name);
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const check = validateDocFile(file);
+                            if (!check.valid) {
+                              alert(check.error);
+                              e.target.value = '';
+                              return;
+                            }
+                            try {
+                              const dataUrl = await readFileAsDataUrl(file);
+                              const updated = [...educations];
+                              updated[idx] = {
+                                ...updated[idx],
+                                educationalCertificateName: file.name,
+                                educationalCertificateUrl: dataUrl,
+                              };
+                              setForm((prev) => ({
+                                ...prev,
+                                educations: updated,
+                                education: updated[0] || {},
+                                ...(idx === 0 ? {
+                                  educationalCertificateName: file.name,
+                                  educationalCertificateUrl: dataUrl,
+                                } : {}),
+                              }));
+                            } catch (err) {
+                              console.error('Error reading educational certificate:', err);
+                            }
                           }}
                         />
                         {(edu.educationalCertificateName || (idx === 0 && form.educationalCertificateName)) ? (
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                             <span style={{ fontSize: '11.5px', color: '#008fa8', fontWeight: 600, whiteSpace: 'nowrap' }}>
                               ✓ {edu.educationalCertificateName || form.educationalCertificateName}
                             </span>
+                            {(edu.educationalCertificateUrl || form.educationalCertificateUrl) ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewDoc({
+                                    title: edu.educationalCertificateName || form.educationalCertificateName,
+                                    fileName: edu.educationalCertificateName || form.educationalCertificateName,
+                                    fileUrl: edu.educationalCertificateUrl || form.educationalCertificateUrl,
+                                    type: 'Educational Certificate',
+                                  })}
+                                  style={{
+                                    background: 'rgba(0, 184, 219, 0.12)',
+                                    border: '1px solid rgba(0, 184, 219, 0.3)',
+                                    color: '#008fa8',
+                                    borderRadius: '4px',
+                                    padding: '2px 7px',
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 3,
+                                  }}
+                                  title="Preview certificate"
+                                >
+                                  👁 Preview
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const a = document.createElement('a');
+                                    a.href = edu.educationalCertificateUrl || form.educationalCertificateUrl;
+                                    a.download = edu.educationalCertificateName || form.educationalCertificateName || 'educational-certificate';
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                  }}
+                                  style={{
+                                    background: 'rgba(16, 185, 129, 0.12)',
+                                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                                    color: '#059669',
+                                    borderRadius: '4px',
+                                    padding: '2px 7px',
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 3,
+                                  }}
+                                  title="Download certificate"
+                                >
+                                  ⤓ Download
+                                </button>
+                              </>
+                            ) : null}
                             <button
                               type="button"
                               onClick={() => {
-                                updateEducation(idx, 'educationalCertificateName', '');
-                                if (idx === 0) set('educationalCertificateName', '');
+                                const updated = [...educations];
+                                updated[idx] = {
+                                  ...updated[idx],
+                                  educationalCertificateName: '',
+                                  educationalCertificateUrl: '',
+                                };
+                                setForm((prev) => ({
+                                  ...prev,
+                                  educations: updated,
+                                  education: updated[0] || {},
+                                  ...(idx === 0 ? {
+                                    educationalCertificateName: '',
+                                    educationalCertificateUrl: '',
+                                  } : {}),
+                                }));
                                 const el = document.getElementById(`edu-file-${idx}`);
                                 if (el) el.value = '';
                               }}
@@ -1090,29 +1231,123 @@ export default function EmployeeMasterForm({
                       />
                     </FieldRow>
 
-                    <FieldRow label="Experience Letter" helper="Service / experience certificate">
+                    <FieldRow label="Experience Letter" helper="Service / experience certificate (PNG, JPG, PDF - max 5MB)">
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                         <input
                           id={`exp-file-${idx}`}
                           type="file"
-                          accept="image/*,.pdf,.doc,.docx"
+                          accept=".pdf,.png,.jpg,.jpeg,image/png,image/jpeg,application/pdf"
                           style={inputStyle}
-                          onChange={(e) => {
-                            const name = e.target.files?.[0]?.name || '';
-                            updateExperience(idx, 'experienceLetterName', name);
-                            if (idx === 0) set('experienceLetterName', name);
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const check = validateDocFile(file);
+                            if (!check.valid) {
+                              alert(check.error);
+                              e.target.value = '';
+                              return;
+                            }
+                            try {
+                              const dataUrl = await readFileAsDataUrl(file);
+                              const updated = [...experiences];
+                              updated[idx] = {
+                                ...updated[idx],
+                                experienceLetterName: file.name,
+                                experienceLetterUrl: dataUrl,
+                              };
+                              setForm((prev) => ({
+                                ...prev,
+                                workExperiences: updated,
+                                workExperience: updated[0] || {},
+                                ...(idx === 0 ? {
+                                  experienceLetterName: file.name,
+                                  experienceLetterUrl: dataUrl,
+                                } : {}),
+                              }));
+                            } catch (err) {
+                              console.error('Error reading experience letter:', err);
+                            }
                           }}
                         />
                         {(exp.experienceLetterName || (idx === 0 && form.experienceLetterName)) ? (
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                             <span style={{ fontSize: '11.5px', color: '#008fa8', fontWeight: 600, whiteSpace: 'nowrap' }}>
                               ✓ {exp.experienceLetterName || form.experienceLetterName}
                             </span>
+                            {(exp.experienceLetterUrl || form.experienceLetterUrl) ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewDoc({
+                                    title: exp.experienceLetterName || form.experienceLetterName,
+                                    fileName: exp.experienceLetterName || form.experienceLetterName,
+                                    fileUrl: exp.experienceLetterUrl || form.experienceLetterUrl,
+                                    type: 'Experience Letter',
+                                  })}
+                                  style={{
+                                    background: 'rgba(0, 184, 219, 0.12)',
+                                    border: '1px solid rgba(0, 184, 219, 0.3)',
+                                    color: '#008fa8',
+                                    borderRadius: '4px',
+                                    padding: '2px 7px',
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 3,
+                                  }}
+                                  title="Preview experience letter"
+                                >
+                                  👁 Preview
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const a = document.createElement('a');
+                                    a.href = exp.experienceLetterUrl || form.experienceLetterUrl;
+                                    a.download = exp.experienceLetterName || form.experienceLetterName || 'experience-letter';
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                  }}
+                                  style={{
+                                    background: 'rgba(16, 185, 129, 0.12)',
+                                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                                    color: '#059669',
+                                    borderRadius: '4px',
+                                    padding: '2px 7px',
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 3,
+                                  }}
+                                  title="Download experience letter"
+                                >
+                                  ⤓ Download
+                                </button>
+                              </>
+                            ) : null}
                             <button
                               type="button"
                               onClick={() => {
-                                updateExperience(idx, 'experienceLetterName', '');
-                                if (idx === 0) set('experienceLetterName', '');
+                                const updated = [...experiences];
+                                updated[idx] = {
+                                  ...updated[idx],
+                                  experienceLetterName: '',
+                                  experienceLetterUrl: '',
+                                };
+                                setForm((prev) => ({
+                                  ...prev,
+                                  workExperiences: updated,
+                                  workExperience: updated[0] || {},
+                                  ...(idx === 0 ? {
+                                    experienceLetterName: '',
+                                    experienceLetterUrl: '',
+                                  } : {}),
+                                }));
                                 const el = document.getElementById(`exp-file-${idx}`);
                                 if (el) el.value = '';
                               }}
@@ -1402,7 +1637,7 @@ export default function EmployeeMasterForm({
                         ref={docFileInputRef}
                         type="file"
                         multiple
-                        accept="image/*,.pdf,.doc,.docx"
+                        accept=".pdf,.png,.jpg,.jpeg,image/png,image/jpeg,application/pdf"
                         style={{ display: 'none' }}
                         onChange={handleDocFilesSelect}
                       />
@@ -1436,7 +1671,7 @@ export default function EmployeeMasterForm({
                     </div>
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--muted, #94a3b8)', marginTop: 8 }}>
-                    Supported formats: PNG, JPG, JPEG, WEBP, PDF, DOCX (Select multiple files at once).
+                    Supported formats: PNG, JPG, PDF (max 5MB each). Select multiple files at once.
                   </div>
                 </div>
 
@@ -1546,31 +1781,63 @@ export default function EmployeeMasterForm({
                               </div>
                             </div>
 
-                            {/* Actions: Preview & Delete */}
+                            {/* Actions: Preview, Download & Delete */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               {doc.fileUrl ? (
-                                <button
-                                  type="button"
-                                  onClick={() => setPreviewDoc(doc)}
-                                  className="btn secondary"
-                                  style={{
-                                    padding: '5px 12px',
-                                    fontSize: '11.5px',
-                                    borderRadius: '6px',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 5,
-                                    color: '#008fa8',
-                                    fontWeight: 600,
-                                  }}
-                                  title="Preview Document"
-                                >
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                                    <circle cx="12" cy="12" r="3" />
-                                  </svg>
-                                  Preview
-                                </button>
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewDoc(doc)}
+                                    className="btn secondary"
+                                    style={{
+                                      padding: '5px 12px',
+                                      fontSize: '11.5px',
+                                      borderRadius: '6px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 5,
+                                      color: '#008fa8',
+                                      fontWeight: 600,
+                                    }}
+                                    title="Preview Document"
+                                  >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                      <circle cx="12" cy="12" r="3" />
+                                    </svg>
+                                    Preview
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const a = document.createElement('a');
+                                      a.href = doc.fileUrl;
+                                      a.download = doc.fileName || doc.title || 'document';
+                                      document.body.appendChild(a);
+                                      a.click();
+                                      document.body.removeChild(a);
+                                    }}
+                                    className="btn secondary"
+                                    style={{
+                                      padding: '5px 12px',
+                                      fontSize: '11.5px',
+                                      borderRadius: '6px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 5,
+                                      color: '#059669',
+                                      fontWeight: 600,
+                                    }}
+                                    title="Download Document"
+                                  >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                      <polyline points="7 10 12 15 17 10" />
+                                      <line x1="12" y1="15" x2="12" y2="3" />
+                                    </svg>
+                                    Download
+                                  </button>
+                                </>
                               ) : null}
 
                               <button
@@ -1819,11 +2086,47 @@ export default function EmployeeMasterForm({
                   style={{
                     display: 'flex',
                     justifyContent: 'flex-end',
+                    alignItems: 'center',
+                    gap: 10,
                     padding: '12px 20px',
                     borderTop: '1px solid var(--line, #e2e8f0)',
                     background: 'var(--surface-alt, #f8fafc)',
                   }}
                 >
+                  {previewDoc.fileUrl ? (
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => {
+                        const a = document.createElement('a');
+                        a.href = previewDoc.fileUrl;
+                        a.download = previewDoc.fileName || previewDoc.title || 'document';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                      }}
+                      style={{
+                        background: '#059669',
+                        color: '#ffffff',
+                        padding: '6px 16px',
+                        fontSize: '12.5px',
+                        borderRadius: 6,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        border: 'none',
+                      }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg>
+                      Download Document
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className="btn secondary"
