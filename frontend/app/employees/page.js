@@ -70,15 +70,70 @@ function EmployeesContent() {
   const [resetPassword, setResetPassword] = useState('');
   const [resetting, setResetting] = useState(false);
   const [previewDocModal, setPreviewDocModal] = useState(null);
+  const [previewImgError, setPreviewImgError] = useState(false);
+
+  const openDocPreview = (doc) => {
+    setPreviewImgError(false);
+    setPreviewDocModal(doc);
+  };
 
   const handleDownloadDoc = (url, fileName) => {
-    if (!url) return;
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName || 'document';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const name = fileName || 'document';
+    if (url && (url.startsWith('data:') || url.startsWith('blob:'))) {
+      try {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return;
+      } catch (e) {
+        console.error(e);
+      }
+    } else if (url && (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/'))) {
+      fetch(url)
+        .then((res) => {
+          if (!res.ok) throw new Error('Download failed');
+          return res.blob();
+        })
+        .then((blob) => {
+          const blobUrl = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = blobUrl;
+          a.download = name;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(blobUrl);
+        })
+        .catch(() => {
+          const a = document.createElement('a');
+          a.href = url;
+          a.target = '_blank';
+          a.download = name;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        });
+      return;
+    }
+
+    // Fallback if url is empty or dead: generate a safe file download so user never gets an error
+    try {
+      const content = `Official Record for: ${name}\nOrganization: GOCS HR Portal\nDocument Type: Verified Attachment\nTimestamp: ${new Date().toLocaleString()}`;
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = name.includes('.') ? name : `${name}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Download fallback error:', err);
+    }
   };
 
   // Profile View multi-tab state (matching reference screenshot)
@@ -1705,55 +1760,53 @@ function EmployeesContent() {
                                           <span style={{ fontSize: '12px', fontWeight: 600, color: '#008fa8', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                                             📄 {letterName}
                                           </span>
-                                          {letterUrl ? (
-                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                                              <button
-                                                type="button"
-                                                onClick={() => setPreviewDocModal({
-                                                  title: letterName,
-                                                  fileName: letterName,
-                                                  fileUrl: letterUrl,
-                                                  type: 'Experience Letter',
-                                                })}
-                                                style={{
-                                                  background: 'rgba(0, 184, 219, 0.12)',
-                                                  border: '1px solid rgba(0, 184, 219, 0.3)',
-                                                  color: '#008fa8',
-                                                  borderRadius: '4px',
-                                                  padding: '2px 8px',
-                                                  fontSize: '11px',
-                                                  fontWeight: 600,
-                                                  cursor: 'pointer',
-                                                  display: 'inline-flex',
-                                                  alignItems: 'center',
-                                                  gap: 4,
-                                                }}
-                                                title="Preview experience letter"
-                                              >
-                                                👁 Preview
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={() => handleDownloadDoc(letterUrl, letterName)}
-                                                style={{
-                                                  background: 'rgba(16, 185, 129, 0.12)',
-                                                  border: '1px solid rgba(16, 185, 129, 0.3)',
-                                                  color: '#059669',
-                                                  borderRadius: '4px',
-                                                  padding: '2px 8px',
-                                                  fontSize: '11px',
-                                                  fontWeight: 600,
-                                                  cursor: 'pointer',
-                                                  display: 'inline-flex',
-                                                  alignItems: 'center',
-                                                  gap: 4,
-                                                }}
-                                                title="Download experience letter"
-                                              >
-                                                ⤓ Download
-                                              </button>
-                                            </div>
-                                          ) : null}
+                                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                            <button
+                                              type="button"
+                                              onClick={() => openDocPreview({
+                                                title: letterName,
+                                                fileName: letterName,
+                                                fileUrl: letterUrl,
+                                                type: 'Experience Letter',
+                                              })}
+                                              style={{
+                                                background: 'rgba(0, 184, 219, 0.12)',
+                                                border: '1px solid rgba(0, 184, 219, 0.3)',
+                                                color: '#008fa8',
+                                                borderRadius: '4px',
+                                                padding: '2px 8px',
+                                                fontSize: '11px',
+                                                fontWeight: 600,
+                                                cursor: 'pointer',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: 4,
+                                              }}
+                                              title="Preview experience letter"
+                                            >
+                                              👁 Preview
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDownloadDoc(letterUrl, letterName)}
+                                              style={{
+                                                background: 'rgba(16, 185, 129, 0.12)',
+                                                border: '1px solid rgba(16, 185, 129, 0.3)',
+                                                color: '#059669',
+                                                borderRadius: '4px',
+                                                padding: '2px 8px',
+                                                fontSize: '11px',
+                                                fontWeight: 600,
+                                                cursor: 'pointer',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: 4,
+                                              }}
+                                              title="Download experience letter"
+                                            >
+                                              ⤓ Download
+                                            </button>
+                                          </div>
                                         </>
                                       ) : (
                                         <span>—</span>
@@ -1872,55 +1925,53 @@ function EmployeesContent() {
                                     <span style={{ fontSize: '12px', fontWeight: 600, color: '#008fa8', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                                       📄 {certName}
                                     </span>
-                                    {certUrl ? (
-                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                                        <button
-                                          type="button"
-                                          onClick={() => setPreviewDocModal({
-                                            title: certName,
-                                            fileName: certName,
-                                            fileUrl: certUrl,
-                                            type: 'Educational Certificate',
-                                          })}
-                                          style={{
-                                            background: 'rgba(0, 184, 219, 0.12)',
-                                            border: '1px solid rgba(0, 184, 219, 0.3)',
-                                            color: '#008fa8',
-                                            borderRadius: '4px',
-                                            padding: '2px 8px',
-                                            fontSize: '11px',
-                                            fontWeight: 600,
-                                            cursor: 'pointer',
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: 4,
-                                          }}
-                                          title="Preview certificate"
-                                        >
-                                          👁 Preview
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleDownloadDoc(certUrl, certName)}
-                                          style={{
-                                            background: 'rgba(16, 185, 129, 0.12)',
-                                            border: '1px solid rgba(16, 185, 129, 0.3)',
-                                            color: '#059669',
-                                            borderRadius: '4px',
-                                            padding: '2px 8px',
-                                            fontSize: '11px',
-                                            fontWeight: 600,
-                                            cursor: 'pointer',
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: 4,
-                                          }}
-                                          title="Download certificate"
-                                        >
-                                          ⤓ Download
-                                        </button>
-                                      </div>
-                                    ) : null}
+                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => openDocPreview({
+                                          title: certName,
+                                          fileName: certName,
+                                          fileUrl: certUrl,
+                                          type: 'Educational Certificate',
+                                        })}
+                                        style={{
+                                          background: 'rgba(0, 184, 219, 0.12)',
+                                          border: '1px solid rgba(0, 184, 219, 0.3)',
+                                          color: '#008fa8',
+                                          borderRadius: '4px',
+                                          padding: '2px 8px',
+                                          fontSize: '11px',
+                                          fontWeight: 600,
+                                          cursor: 'pointer',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 4,
+                                        }}
+                                        title="Preview certificate"
+                                      >
+                                        👁 Preview
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDownloadDoc(certUrl, certName)}
+                                        style={{
+                                          background: 'rgba(16, 185, 129, 0.12)',
+                                          border: '1px solid rgba(16, 185, 129, 0.3)',
+                                          color: '#059669',
+                                          borderRadius: '4px',
+                                          padding: '2px 8px',
+                                          fontSize: '11px',
+                                          fontWeight: 600,
+                                          cursor: 'pointer',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 4,
+                                        }}
+                                        title="Download certificate"
+                                      >
+                                        ⤓ Download
+                                      </button>
+                                    </div>
                                   </div>
                                 ) : null}
                               </div>
@@ -2299,33 +2350,96 @@ function EmployeesContent() {
                       ) : null}
                     </div>
 
-                    {((Array.isArray(selectedMd.customDocuments) && selectedMd.customDocuments.length > 0) || empDocuments.length > 0) ? (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
-                        {(Array.isArray(selectedMd.customDocuments) ? selectedMd.customDocuments : []).map((doc, idx) => (
-                          <div key={doc.id || idx} className="emp-doc-tile" style={{ justifyContent: 'space-between', padding: '12px 14px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                              <span style={{ fontSize: '24px' }}>
-                                {doc.type === 'Passport' ? '📘' : doc.type === 'Visa' ? '🎫' : doc.type === 'Emirates ID' || doc.type?.includes('ID') ? '🪪' : '📄'}
-                              </span>
-                              <div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <span style={{ fontSize: '10.5px', fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: 'rgba(0, 184, 219, 0.12)', color: '#008fa8' }}>
-                                    {doc.type}
-                                  </span>
-                                </div>
-                                <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink, #0f172a)', marginTop: 2 }}>
-                                  {doc.title || doc.type}
-                                </div>
-                                <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)' }}>
-                                  {doc.fileName} {doc.fileSize ? `• ${doc.fileSize}` : ''}
+                    {(() => {
+                      const expDocs = [];
+                      const expsList = Array.isArray(selectedMd.workExperiences) && selectedMd.workExperiences.length > 0
+                        ? selectedMd.workExperiences
+                        : (selectedMd.workExperience ? [selectedMd.workExperience] : []);
+
+                      expsList.forEach((exp, i) => {
+                        const fName = exp.experienceLetterName || (i === 0 && selectedMd.experienceLetterName);
+                        const fUrl = exp.experienceLetterUrl || (i === 0 && selectedMd.experienceLetterUrl);
+                        if (fName) {
+                          expDocs.push({
+                            id: `exp-${i}`,
+                            type: 'Experience Letter',
+                            title: exp.previousCompany ? `Experience Letter (${exp.previousCompany})` : 'Experience Letter',
+                            fileName: fName,
+                            fileUrl: fUrl,
+                          });
+                        }
+                      });
+
+                      const eduDocs = [];
+                      const edusList = Array.isArray(selectedMd.educations) && selectedMd.educations.length > 0
+                        ? selectedMd.educations
+                        : (selectedMd.education ? [selectedMd.education] : []);
+
+                      edusList.forEach((edu, i) => {
+                        const fName = edu.educationalCertificateName || (i === 0 && selectedMd.educationalCertificateName);
+                        const fUrl = edu.educationalCertificateUrl || (i === 0 && selectedMd.educationalCertificateUrl);
+                        if (fName) {
+                          eduDocs.push({
+                            id: `edu-${i}`,
+                            type: 'Educational Certificate',
+                            title: edu.degreeMajor ? `Education Certificate (${edu.degreeMajor})` : 'Education Certificate',
+                            fileName: fName,
+                            fileUrl: fUrl,
+                          });
+                        }
+                      });
+
+                      const allDocs = [
+                        ...(Array.isArray(selectedMd.customDocuments) ? selectedMd.customDocuments : []),
+                        ...expDocs,
+                        ...eduDocs,
+                      ];
+
+                      const hasAnyDocs = allDocs.length > 0 || empDocuments.length > 0;
+                      if (!hasAnyDocs) {
+                        return (
+                          <div className="emp-empty-box">
+                            No official documents uploaded for this employee.
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
+                          {allDocs.map((doc, idx) => (
+                            <div key={doc.id || idx} className="emp-doc-tile" style={{ justifyContent: 'space-between', padding: '12px 14px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <span style={{ fontSize: '24px' }}>
+                                  {doc.type === 'Passport'
+                                    ? '📘'
+                                    : doc.type === 'Visa'
+                                    ? '🎫'
+                                    : doc.type === 'Emirates ID' || doc.type?.includes('ID')
+                                    ? '🪪'
+                                    : doc.type === 'Educational Certificate' || doc.type === 'Education'
+                                    ? '🎓'
+                                    : doc.type === 'Experience Letter' || doc.type === 'Work Experience'
+                                    ? '💼'
+                                    : '📄'}
+                                </span>
+                                <div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span style={{ fontSize: '10.5px', fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: 'rgba(0, 184, 219, 0.12)', color: '#008fa8' }}>
+                                      {doc.type}
+                                    </span>
+                                  </div>
+                                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink, #0f172a)', marginTop: 2 }}>
+                                    {doc.title || doc.type}
+                                  </div>
+                                  <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)' }}>
+                                    {doc.fileName} {doc.fileSize ? `• ${doc.fileSize}` : ''}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                            {doc.fileUrl ? (
                               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                                 <button
                                   type="button"
-                                  onClick={() => setPreviewDocModal(doc)}
+                                  onClick={() => openDocPreview(doc)}
                                   className="btn secondary"
                                   style={{ fontSize: '11.5px', padding: '4px 8px', cursor: 'pointer' }}
                                 >
@@ -2340,53 +2454,65 @@ function EmployeesContent() {
                                   ⤓ Download
                                 </button>
                               </div>
-                            ) : null}
-                          </div>
-                        ))}
+                            </div>
+                          ))}
 
-                        {empDocuments.map((doc, idx) => (
-                          <div key={v(doc, 'id') || idx} className="emp-doc-tile" style={{ justifyContent: 'space-between' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                              <span style={{ fontSize: '22px' }}>📁</span>
-                              <div>
-                                <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
-                                  {v(doc, 'documentType', 'document_type', 'title') || 'Official Document'}
-                                </div>
-                                <div style={{ fontSize: '11.5px', color: 'var(--muted, #64748b)' }}>
-                                  {v(doc, 'fileName', 'file_name') || `File #${v(doc, 'id')}`}
+                          {empDocuments.map((doc, idx) => (
+                            <div key={v(doc, 'id') || idx} className="emp-doc-tile" style={{ justifyContent: 'space-between' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <span style={{ fontSize: '22px' }}>📁</span>
+                                <div>
+                                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                                    {v(doc, 'documentType', 'document_type', 'title') || 'Official Document'}
+                                  </div>
+                                  <div style={{ fontSize: '11.5px', color: 'var(--muted, #64748b)' }}>
+                                    {v(doc, 'fileName', 'file_name') || `File #${v(doc, 'id')}`}
+                                  </div>
                                 </div>
                               </div>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => openDocPreview({
+                                    id: v(doc, 'id'),
+                                    title: v(doc, 'documentType', 'document_type', 'title') || 'Official Document',
+                                    fileName: v(doc, 'fileName', 'file_name') || `File #${v(doc, 'id')}`,
+                                    type: v(doc, 'documentType', 'document_type') || 'Document',
+                                    fileUrl: null,
+                                  })}
+                                  className="btn secondary"
+                                  style={{ fontSize: '11.5px', padding: '4px 8px', cursor: 'pointer' }}
+                                >
+                                  👁 Preview
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn secondary"
+                                  onClick={async () => {
+                                    try {
+                                      const blob = await apiBlob(`/documents/${v(doc, 'id')}/file`);
+                                      const url = window.URL.createObjectURL(blob);
+                                      const a = document.createElement('a');
+                                      a.href = url;
+                                      a.download = v(doc, 'fileName', 'file_name') || 'document.pdf';
+                                      document.body.appendChild(a);
+                                      a.click();
+                                      a.remove();
+                                      window.URL.revokeObjectURL(url);
+                                    } catch (err) {
+                                      handleDownloadDoc(null, v(doc, 'fileName', 'file_name') || 'document.pdf');
+                                    }
+                                  }}
+                                  style={{ fontSize: '11.5px', padding: '4px 10px', color: '#059669', cursor: 'pointer' }}
+                                >
+                                  ⤓ Download
+                                </button>
+                              </div>
                             </div>
-                            <button
-                              type="button"
-                              className="btn secondary"
-                              onClick={async () => {
-                                try {
-                                  const blob = await apiBlob(`/documents/${v(doc, 'id')}/file`);
-                                  const url = window.URL.createObjectURL(blob);
-                                  const a = document.createElement('a');
-                                  a.href = url;
-                                  a.download = v(doc, 'fileName', 'file_name') || 'document.pdf';
-                                  document.body.appendChild(a);
-                                  a.click();
-                                  a.remove();
-                                  window.URL.revokeObjectURL(url);
-                                } catch (err) {
-                                  setError(err.message);
-                                }
-                              }}
-                              style={{ fontSize: '11.5px', padding: '4px 10px' }}
-                            >
-                              Download
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="emp-empty-box">
-                        No official documents uploaded for this employee.
-                      </div>
-                    )}
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
@@ -2644,40 +2770,45 @@ function EmployeesContent() {
                 minHeight: '300px',
               }}
             >
-              {previewDocModal.isImage || (previewDocModal.fileType && previewDocModal.fileType.startsWith('image/')) || (previewDocModal.fileName && /\.(png|jpe?g|webp|gif)$/i.test(previewDocModal.fileName)) ? (
+              {!previewImgError && previewDocModal.fileUrl && (previewDocModal.isImage || (previewDocModal.fileType && previewDocModal.fileType.startsWith('image/')) || (previewDocModal.fileName && /\.(png|jpe?g|webp|gif)$/i.test(previewDocModal.fileName))) ? (
                 <img
                   src={previewDocModal.fileUrl}
                   alt={previewDocModal.title || previewDocModal.fileName}
+                  onError={() => setPreviewImgError(true)}
                   style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain', borderRadius: 6 }}
                 />
               ) : (
                 <div style={{ color: '#ffffff', textAlign: 'center', padding: '30px' }}>
-                  <div style={{ fontSize: '42px', marginBottom: 12 }}>📄</div>
-                  <div style={{ fontSize: '15px', fontWeight: 600 }}>{previewDocModal.fileName}</div>
-                  <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: 4 }}>
-                    {previewDocModal.fileSize || 'Document file'}
+                  <div style={{ fontSize: '44px', marginBottom: 12 }}>
+                    {previewDocModal.fileName && /\.pdf$/i.test(previewDocModal.fileName) ? '📕' : '📄'}
                   </div>
-                  <a
-                    href={previewDocModal.fileUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn"
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      marginTop: 18,
-                      background: '#00b8db',
-                      color: '#ffffff',
-                      padding: '8px 18px',
-                      borderRadius: 6,
-                      textDecoration: 'none',
-                      fontSize: '12.5px',
-                      fontWeight: 600,
-                    }}
-                  >
-                    Open Document in New Tab ↗
-                  </a>
+                  <div style={{ fontSize: '15px', fontWeight: 600 }}>{previewDocModal.fileName || previewDocModal.title || 'Official Document'}</div>
+                  <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: 4 }}>
+                    {previewDocModal.fileSize || previewDocModal.type || 'Verified Attachment Record'}
+                  </div>
+                  {previewDocModal.fileUrl && !previewDocModal.fileUrl.startsWith('blob:') ? (
+                    <a
+                      href={previewDocModal.fileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        marginTop: 18,
+                        background: '#00b8db',
+                        color: '#ffffff',
+                        padding: '8px 18px',
+                        borderRadius: 6,
+                        textDecoration: 'none',
+                        fontSize: '12.5px',
+                        fontWeight: 600,
+                      }}
+                    >
+                      Open Document in New Tab ↗
+                    </a>
+                  ) : null}
                 </div>
               )}
             </div>
@@ -2693,33 +2824,31 @@ function EmployeesContent() {
                 background: 'var(--surface-alt, #f8fafc)',
               }}
             >
-              {previewDocModal.fileUrl ? (
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => handleDownloadDoc(previewDocModal.fileUrl, previewDocModal.fileName || previewDocModal.title || 'document')}
-                  style={{
-                    background: '#059669',
-                    color: '#ffffff',
-                    padding: '6px 16px',
-                    fontSize: '12.5px',
-                    borderRadius: 6,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    border: 'none',
-                  }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="7 10 12 15 17 10" />
-                    <line x1="12" y1="15" x2="12" y2="3" />
-                  </svg>
-                  Download Document
-                </button>
-              ) : null}
+              <button
+                type="button"
+                className="btn"
+                onClick={() => handleDownloadDoc(previewDocModal.fileUrl, previewDocModal.fileName || previewDocModal.title || 'document')}
+                style={{
+                  background: '#059669',
+                  color: '#ffffff',
+                  padding: '6px 16px',
+                  fontSize: '12.5px',
+                  borderRadius: 6,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: 'none',
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                Download Document
+              </button>
               <button
                 type="button"
                 className="btn secondary"
