@@ -101,7 +101,7 @@ function FieldRow({ label, required = false, children, helper = '' }) {
   );
 }
 
-function SectionCard({ title, children, style = {}, disabled = false, onSectionSave, isSaved = false }) {
+function SectionCard({ title, children, style = {} }) {
   return (
     <div className="emp-card" style={style}>
       <div className="emp-card-header">
@@ -116,35 +116,6 @@ function SectionCard({ title, children, style = {}, disabled = false, onSectionS
         </span>
       </div>
       {children}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--line, #e2e8f0)' }}>
-        <button
-          type={onSectionSave ? "button" : "submit"}
-          onClick={onSectionSave}
-          disabled={disabled}
-          className="btn"
-          style={{
-            background: isSaved ? '#059669' : (disabled ? '#94a3b8' : '#00b8db'),
-            color: '#ffffff',
-            fontWeight: 600,
-            fontSize: '12px',
-            padding: '7px 18px',
-            borderRadius: '6px',
-            border: 'none',
-            cursor: disabled ? 'not-allowed' : 'pointer',
-            opacity: disabled ? 0.6 : 1,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            boxShadow: disabled ? 'none' : isSaved ? '0 2px 6px rgba(5, 150, 105, 0.3)' : '0 2px 6px rgba(0, 184, 219, 0.25)',
-            transition: 'all 0.2s ease',
-          }}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-          {isSaved ? 'Saved' : `Save ${title}`}
-        </button>
-      </div>
     </div>
   );
 }
@@ -294,6 +265,52 @@ export default function EmployeeMasterForm({
   const isPassportDisabled = !form.passportNumber?.trim() && !form.emiratesIdNumber?.trim();
   const isDocsDisabled = customDocs.length === 0;
 
+  const educations = Array.isArray(form.educations) && form.educations.length > 0
+    ? form.educations
+    : (form.education?.degreeMajor || form.education?.universityName || form.education?.educationLevel)
+      ? [{ ...form.education, id: form.education.id || 'init_1' }]
+      : [];
+
+  const [currentEdu, setCurrentEdu] = useState({
+    educationLevel: '',
+    degreeMajor: '',
+    universityName: '',
+    graduationYear: '',
+    gradeGpa: '',
+    attestationStatus: 'Not Attested',
+  });
+
+  const addEducationRecord = () => {
+    if (!currentEdu.educationLevel && !currentEdu.degreeMajor && !currentEdu.universityName) return;
+    const newEntry = {
+      ...currentEdu,
+      id: `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+    };
+    const updated = [...educations, newEntry];
+    setForm((prev) => ({
+      ...prev,
+      educations: updated,
+      education: updated[0] || {},
+    }));
+    setCurrentEdu({
+      educationLevel: '',
+      degreeMajor: '',
+      universityName: '',
+      graduationYear: '',
+      gradeGpa: '',
+      attestationStatus: 'Not Attested',
+    });
+  };
+
+  const removeEducationRecord = (idToRemove) => {
+    const updated = educations.filter((e) => (e.id || e.degreeMajor) !== idToRemove);
+    setForm((prev) => ({
+      ...prev,
+      educations: updated,
+      education: updated[0] || {},
+    }));
+  };
+
   const setWorkExp = (key, val) => {
     updateExperience(0, key, val);
   };
@@ -336,9 +353,26 @@ export default function EmployeeMasterForm({
     boxSizing: 'border-box',
   };
 
+  const handleFormSubmit = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (currentEdu.educationLevel || currentEdu.degreeMajor || currentEdu.universityName) {
+      const autoEntry = {
+        ...currentEdu,
+        id: `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      };
+      const newEducations = [...educations, autoEntry];
+      setForm((prev) => ({
+        ...prev,
+        educations: newEducations,
+        education: newEducations[0] || {},
+      }));
+    }
+    if (onSubmit) onSubmit(e);
+  };
+
   return (
     <div style={{ width: '100%' }}>
-      <form onSubmit={onSubmit} noValidate style={{ width: '100%' }}>
+      <form onSubmit={handleFormSubmit} noValidate style={{ width: '100%' }}>
         {/* Top Bar */}
         <div
           style={{
@@ -689,46 +723,35 @@ export default function EmployeeMasterForm({
               </div>
             </SectionCard>
 
-            {/* 2-Column Grid: Address & Education details */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
-              {/* Card 2: Address */}
-              <SectionCard
-                title="Address"
-                disabled={isAddressDisabled}
-                onSectionSave={() => triggerSectionSuccess('Address details')}
-                isSaved={savedSectionName === 'Address details'}
-              >
-                <FieldRow label="Citizen ID address">
-                  <input
-                    style={inputStyle}
-                    placeholder="e.g. Street 12, Sector F-8/3, Islamabad"
-                    value={form.homeCountryAddress || ''}
-                    onChange={(e) => set('homeCountryAddress', e.target.value)}
-                  />
-                </FieldRow>
+            {/* Card 2: Address (Full Width) */}
+            <SectionCard title="Address">
+              <FieldRow label="Citizen ID address">
+                <input
+                  style={inputStyle}
+                  placeholder="e.g. Street 12, Sector F-8/3, Islamabad"
+                  value={form.homeCountryAddress || ''}
+                  onChange={(e) => set('homeCountryAddress', e.target.value)}
+                />
+              </FieldRow>
 
-                <FieldRow label="Residential address">
-                  <input
-                    style={inputStyle}
-                    placeholder="e.g. Apt 402, Marina Heights, Dubai, UAE"
-                    value={form.addressInUae || ''}
-                    onChange={(e) => set('addressInUae', e.target.value)}
-                  />
-                </FieldRow>
-              </SectionCard>
+              <FieldRow label="Residential address">
+                <input
+                  style={inputStyle}
+                  placeholder="e.g. Apt 402, Marina Heights, Dubai, UAE"
+                  value={form.addressInUae || ''}
+                  onChange={(e) => set('addressInUae', e.target.value)}
+                />
+              </FieldRow>
+            </SectionCard>
 
-              {/* Card 3: Education (Swapped above Work Experience) */}
-              <SectionCard
-                title="Education details"
-                disabled={isEduDisabled}
-                onSectionSave={() => triggerSectionSuccess('Education details')}
-                isSaved={savedSectionName === 'Education details'}
-              >
+            {/* Card 3: Education Details (Full Width & Multi-Entry List) */}
+            <SectionCard title="Education details">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <FieldRow label="Education Level">
                   <select
                     style={inputStyle}
-                    value={form.education?.educationLevel || ''}
-                    onChange={(e) => setEdu('educationLevel', e.target.value)}
+                    value={currentEdu.educationLevel}
+                    onChange={(e) => setCurrentEdu({ ...currentEdu, educationLevel: e.target.value })}
                   >
                     <option value="">— Select Education Level —</option>
                     {DUBAI_EDUCATION_LEVELS.map((lvl) => (
@@ -741,8 +764,8 @@ export default function EmployeeMasterForm({
                   <input
                     style={inputStyle}
                     placeholder="e.g. BS Computer Science"
-                    value={form.education?.degreeMajor || ''}
-                    onChange={(e) => setEdu('degreeMajor', e.target.value)}
+                    value={currentEdu.degreeMajor}
+                    onChange={(e) => setCurrentEdu({ ...currentEdu, degreeMajor: e.target.value })}
                   />
                 </FieldRow>
 
@@ -750,8 +773,8 @@ export default function EmployeeMasterForm({
                   <input
                     style={inputStyle}
                     placeholder="e.g. Heriot-Watt Dubai"
-                    value={form.education?.universityName || ''}
-                    onChange={(e) => setEdu('universityName', e.target.value)}
+                    value={currentEdu.universityName}
+                    onChange={(e) => setCurrentEdu({ ...currentEdu, universityName: e.target.value })}
                   />
                 </FieldRow>
 
@@ -759,8 +782,8 @@ export default function EmployeeMasterForm({
                   <input
                     style={inputStyle}
                     placeholder="e.g. 2021"
-                    value={form.education?.graduationYear || ''}
-                    onChange={(e) => setEdu('graduationYear', e.target.value)}
+                    value={currentEdu.graduationYear}
+                    onChange={(e) => setCurrentEdu({ ...currentEdu, graduationYear: e.target.value })}
                   />
                 </FieldRow>
 
@@ -768,22 +791,117 @@ export default function EmployeeMasterForm({
                   <input
                     style={inputStyle}
                     placeholder="e.g. GPA (3.8)"
-                    value={form.education?.gradeGpa || ''}
-                    onChange={(e) => setEdu('gradeGpa', e.target.value)}
+                    value={currentEdu.gradeGpa}
+                    onChange={(e) => setCurrentEdu({ ...currentEdu, gradeGpa: e.target.value })}
                   />
                 </FieldRow>
 
                 <FieldRow label="MOFA / MOE Attestation">
                   <select
                     style={inputStyle}
-                    value={form.education?.attestationStatus || 'Not Attested'}
-                    onChange={(e) => setEdu('attestationStatus', e.target.value)}
+                    value={currentEdu.attestationStatus}
+                    onChange={(e) => setCurrentEdu({ ...currentEdu, attestationStatus: e.target.value })}
                   >
                     <option value="Not Attested">Not Attested</option>
                     <option value="Attested (MOFA/MOE UAE)">Attested (MOFA / MOE UAE)</option>
                     <option value="In Process">In Process</option>
                   </select>
                 </FieldRow>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: 4, paddingLeft: '190px' }}>
+                  <button
+                    type="button"
+                    onClick={addEducationRecord}
+                    disabled={!currentEdu.educationLevel && !currentEdu.degreeMajor && !currentEdu.universityName}
+                    className="btn secondary"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '7px 16px',
+                      borderRadius: '6px',
+                      fontSize: '12.5px',
+                      fontWeight: 600,
+                      background: 'var(--surface, #ffffff)',
+                      borderColor: '#00b8db',
+                      color: '#008fa8',
+                      cursor: (!currentEdu.educationLevel && !currentEdu.degreeMajor && !currentEdu.universityName) ? 'not-allowed' : 'pointer',
+                      opacity: (!currentEdu.educationLevel && !currentEdu.degreeMajor && !currentEdu.universityName) ? 0.6 : 1,
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    + Add Education Qualification
+                  </button>
+                </div>
+
+                {educations.length > 0 ? (
+                  <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid var(--line, #e2e8f0)', paddingTop: 14 }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--muted, #64748b)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Added Qualifications ({educations.length})
+                    </div>
+                    {educations.map((edu, idx) => (
+                      <div
+                        key={edu.id || idx}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '10px 14px',
+                          borderRadius: 8,
+                          border: '1px solid var(--line, #e2e8f0)',
+                          background: 'var(--surface-alt, #f8fafc)',
+                          gap: 12,
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#e0f2fe', color: '#0284c7', fontSize: '11px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {idx + 1}
+                          </span>
+                          <div>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                              {edu.degreeMajor || edu.educationLevel || 'Degree / Diploma'}
+                              {edu.educationLevel && edu.degreeMajor ? ` (${edu.educationLevel})` : ''}
+                            </div>
+                            <div style={{ fontSize: '11.5px', color: 'var(--muted, #64748b)', marginTop: 2 }}>
+                              {edu.universityName || 'Institute not specified'}
+                              {edu.graduationYear ? ` • Class of ${edu.graduationYear}` : ''}
+                              {edu.gradeGpa ? ` • Grade: ${edu.gradeGpa}` : ''}
+                              {edu.attestationStatus ? ` • ${edu.attestationStatus}` : ''}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeEducationRecord(edu.id || edu.degreeMajor)}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#ef4444',
+                            cursor: 'pointer',
+                            padding: '4px 6px',
+                            borderRadius: 4,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            fontSize: '11.5px',
+                            fontWeight: 600,
+                            flexShrink: 0,
+                          }}
+                          title="Remove this qualification"
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                          </svg>
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
 
                 <FieldRow label="Educational Certificate" helper="Degree / diploma certificate document">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -801,8 +919,8 @@ export default function EmployeeMasterForm({
                     ) : null}
                   </div>
                 </FieldRow>
-              </SectionCard>
-            </div>
+              </div>
+            </SectionCard>
 
             {/* Card 4: Work Experience (Multiple Experiences Support, Latest on Top) */}
             <SectionCard

@@ -19,7 +19,14 @@ export const NAV = [
           { href: '/divisions/structure', label: 'Company Structure', roles: ['admin'] },
         ],
       },
-      { href: '/employees', label: 'Employees', roles: ['admin'] },
+      {
+        href: '/employees',
+        label: 'Employees',
+        roles: ['admin'],
+        children: [
+          { href: '/employees/create', label: 'Create Employee', roles: ['admin'] },
+        ],
+      },
       { href: '/masters', label: 'Designations & Types', roles: ['admin'] },
       { href: '/onboarding', label: 'Onboarding', roles: ['admin'] },
       { href: '/recruitment', label: 'Recruitment & ATS', roles: ['admin'] },

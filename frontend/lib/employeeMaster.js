@@ -117,6 +117,7 @@ export function emptyMasterForm() {
       attestationStatus: 'Not Attested',
       gradeGpa: '',
     },
+    educations: [],
     companyIds: [],
     finance: {
       basicSalary: '',
@@ -246,6 +247,11 @@ export function masterFormFromEmployee(employee) {
       attestationStatus: 'Not Attested',
       gradeGpa: '',
     },
+    educations: (Array.isArray(md.educations) && md.educations.length)
+      ? md.educations
+      : (md.education?.degreeMajor || md.education?.educationLevel || md.education?.universityName)
+        ? [md.education]
+        : [],
     companyIds: md.companyIds || (v(employee, 'divisionId', 'division_id') ? [String(v(employee, 'divisionId', 'division_id'))] : []),
     finance: { ...base.finance, ...(md.finance || {}) },
     remarks: md.remarks || '',
@@ -276,6 +282,19 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
       position: w.position?.trim() || '',
       fieldOfWork: w.fieldOfWork?.trim() || '',
       duration: w.duration?.trim() || '',
+    }));
+
+  const cleanEducations = (form.educations || [])
+    .filter((e) => e.educationLevel?.trim() || e.degreeMajor?.trim() || e.universityName?.trim() || e.graduationYear)
+    .map((e) => ({
+      id: e.id || `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      educationLevel: e.educationLevel?.trim() || '',
+      degreeMajor: e.degreeMajor?.trim() || '',
+      universityName: e.universityName?.trim() || '',
+      countryOfStudy: e.countryOfStudy?.trim() || '',
+      graduationYear: String(e.graduationYear || '').trim(),
+      attestationStatus: e.attestationStatus || 'Not Attested',
+      gradeGpa: String(e.gradeGpa || '').trim(),
     }));
 
   const cleanDocuments = (form.customDocuments || []).map((d) => ({
@@ -337,7 +356,8 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
     customDocuments: cleanDocuments,
     workExperiences: cleanExperiences,
     workExperience: cleanExperiences[0] || form.workExperience || {},
-    education: form.education || {},
+    educations: cleanEducations,
+    education: cleanEducations[0] || form.education || {},
     companyIds: form.companyIds || (form.divisionId ? [String(form.divisionId)] : []),
     finance: form.finance,
     remarks: form.remarks?.trim() || '',

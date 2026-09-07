@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import AppShell, { Badge } from '../../components/AppShell';
 import EmployeeMasterForm from '../../components/EmployeeMasterForm';
@@ -506,18 +507,12 @@ function EmployeesContent() {
       title="Employee Information"
       actions={
         isAdmin ? (
-          <button
-            type="button"
+          <Link
+            href="/employees/create"
             className="btn"
-            onClick={() => {
-              setCreateForm({
-                ...emptyMasterForm(),
-                empCode: calculateNextCode(rows),
-              });
-              setShowCreateModal(true);
-            }}
             style={{
               height: '40px',
+              boxSizing: 'border-box',
               background: '#00b8db',
               color: '#ffffff',
               fontWeight: 600,
@@ -531,6 +526,7 @@ function EmployeesContent() {
               cursor: 'pointer',
               boxShadow: '0 2px 6px rgba(0, 184, 219, 0.25)',
               marginRight: '4px',
+              textDecoration: 'none',
             }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -538,57 +534,12 @@ function EmployeesContent() {
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
             <span>Create Employee</span>
-          </button>
+          </Link>
         ) : null
       }
     >
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="success">{msg}</div> : null}
-
-      {/* Create Employee Modal */}
-      {showCreateModal ? (
-        <>
-          <div
-            className="backdrop show"
-            onClick={() => setShowCreateModal(false)}
-            aria-hidden="true"
-            style={{ zIndex: 40 }}
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            style={{
-              position: 'fixed',
-              left: '50%',
-              top: '30px',
-              bottom: '30px',
-              transform: 'translateX(-50%)',
-              zIndex: 50,
-              width: 'min(1060px, calc(100vw - 32px))',
-              background: 'var(--surface, #ffffff)',
-              borderRadius: 14,
-              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
-              padding: '24px 28px',
-              overflowY: 'auto',
-              border: '1px solid var(--line, #e2e8f0)',
-            }}
-          >
-            <EmployeeMasterForm
-              mode="create"
-              form={createForm}
-              setForm={setCreateForm}
-              departments={departments}
-              divisions={divisions}
-              designations={designations}
-              employmentTypes={employmentTypes}
-              managers={rows}
-              saving={creating}
-              onSubmit={createEmployee}
-              onCancel={() => setShowCreateModal(false)}
-            />
-          </div>
-        </>
-      ) : null}
 
       {/* Login Popup for newly created employee */}
       {createLoginPopup ? (
