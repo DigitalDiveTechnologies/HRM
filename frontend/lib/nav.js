@@ -38,7 +38,7 @@ export const NAV = [
       { href: '/performance', label: 'Performance', roles: ['admin'] },
       { href: '/training', label: 'Training', roles: ['admin'] },
       { href: '/assets', label: 'Assets', roles: ['admin'] },
-      { href: '/travel', label: 'Travel & Expense', roles: ['admin'] },
+      { href: '/travel', label: 'Travel & Expense', roles: ['admin', 'manager', 'employee'] },
       { href: '/attendance', labelKey: 'nav_attendance', roles: ['admin', 'manager', 'employee'] },
       { href: '/leave', labelKey: 'nav_leave', roles: ['admin', 'manager', 'employee'] },
       { href: '/certificates', labelKey: 'nav_certificates', roles: ['admin', 'manager', 'employee'] },

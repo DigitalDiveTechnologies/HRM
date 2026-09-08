@@ -5,69 +5,6 @@ import AppShell, { Badge } from '../../components/AppShell';
 import { api, getUser, normalizeRole } from '../../lib/auth';
 import { formatDate, todayISO, v } from '../../lib/format';
 
-const DEFAULT_ONBOARDING_DEVICES = [
-  {
-    id: 'ob-1',
-    employeeId: '1',
-    fullName: 'Sara',
-    empCode: 'DD-1001',
-    title: 'MacBook Pro 14" (M3, 18GB/512GB)',
-    category: 'Laptop',
-    tagNo: 'DD-LT-001',
-    dueDate: '2026-03-10',
-    status: 'done',
-    signedAt: '2026-03-01T09:30:00Z',
-  },
-  {
-    id: 'ob-2',
-    employeeId: '1',
-    fullName: 'Sara',
-    empCode: 'DD-1001',
-    title: 'iPhone 15 Corporate SIM (Etisalat 5G)',
-    category: 'Phone',
-    tagNo: 'DD-PH-001',
-    dueDate: '2026-03-10',
-    status: 'done',
-    signedAt: '2026-03-01T09:35:00Z',
-  },
-  {
-    id: 'ob-3',
-    employeeId: '2',
-    fullName: 'Fatima Noor',
-    empCode: 'DD-1002',
-    title: 'Dell UltraSharp 27" 4K Monitor',
-    category: 'Display',
-    tagNo: 'DD-MN-102',
-    dueDate: '2026-03-12',
-    status: 'pending',
-    signedAt: null,
-  },
-  {
-    id: 'ob-4',
-    employeeId: '3',
-    fullName: 'Abdul Mutaal Tariq',
-    empCode: 'DD-1003',
-    title: 'MacBook Air 15" M3 (16GB/512GB)',
-    category: 'Laptop',
-    tagNo: 'DD-LT-103',
-    dueDate: '2026-03-15',
-    status: 'pending',
-    signedAt: null,
-  },
-  {
-    id: 'ob-5',
-    employeeId: '3',
-    fullName: 'Abdul Mutaal Tariq',
-    empCode: 'DD-1003',
-    title: 'Office Smart Access Keycard & Tag',
-    category: 'Access Card',
-    tagNo: 'DD-AC-103',
-    dueDate: '2026-03-15',
-    status: 'done',
-    signedAt: '2026-03-02T10:00:00Z',
-  },
-];
-
 export default function OnboardingPage() {
   const [user, setUser] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -81,18 +18,7 @@ export default function OnboardingPage() {
   const isAdmin = role === 'admin';
 
   const [employees, setEmployees] = useState([]);
-  const [rows, setRows] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem('gocs_cached_onboarding');
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch {}
-    }
-    return DEFAULT_ONBOARDING_DEVICES;
-  });
+  const [rows, setRows] = useState([]);
 
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -111,35 +37,14 @@ export default function OnboardingPage() {
   });
 
   const load = useCallback(async () => {
+    setError('');
     try {
-      const [onboardRes, empsRes] = await Promise.allSettled([
+      const [onboardRes, empsRes] = await Promise.all([
         api('/onboarding'),
         api('/employees'),
       ]);
-
-      if (empsRes.status === 'fulfilled' && Array.isArray(empsRes.value)) {
-        setEmployees(empsRes.value);
-      }
-
-      if (onboardRes.status === 'fulfilled' && Array.isArray(onboardRes.value) && onboardRes.value.length > 0) {
-        setRows(onboardRes.value);
-        try {
-          localStorage.setItem('gocs_cached_onboarding', JSON.stringify(onboardRes.value));
-        } catch {}
-      } else {
-        // Hydrate from localStorage or default
-        try {
-          const cached = localStorage.getItem('gocs_cached_onboarding');
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setRows(parsed);
-              return;
-            }
-          }
-        } catch {}
-        setRows(DEFAULT_ONBOARDING_DEVICES);
-      }
+      setEmployees(empsRes || []);
+      setRows(onboardRes || []);
     } catch (e) {
       setError(e.message);
     }
@@ -157,71 +62,41 @@ export default function OnboardingPage() {
 
     setError('');
     setMsg('');
-
-    const targetEmp = employees.find((emp) => String(v(emp, 'id')) === String(form.employeeId));
-    const newRecord = {
-      id: `dev-${Date.now()}`,
-      employeeId: String(form.employeeId),
-      fullName: targetEmp ? v(targetEmp, 'fullName', 'full_name') : 'Employee',
-      empCode: targetEmp ? (v(targetEmp, 'empCode', 'emp_code') || `DD-${1000 + Number(form.employeeId)}`) : 'DD-1000',
-      title: form.title.trim(),
-      category: form.category,
-      tagNo: form.tagNo.trim() || `TAG-${Math.floor(1000 + Math.random() * 9000)}`,
-      dueDate: form.dueDate || todayISO(),
-      status: 'pending',
-      signedAt: null,
-    };
-
-    const updated = [newRecord, ...rows];
-    setRows(updated);
-    try {
-      localStorage.setItem('gocs_cached_onboarding', JSON.stringify(updated));
-    } catch {}
-
-    // Attempt backend sync
     try {
       await api('/onboarding', {
         method: 'POST',
         body: JSON.stringify({
           employeeId: Number(form.employeeId),
-          title: newRecord.title,
-          category: newRecord.category,
-          dueDate: newRecord.dueDate,
-          tagNo: newRecord.tagNo,
+          title: form.title.trim(),
+          category: form.category,
+          dueDate: form.dueDate,
+          tagNo: form.tagNo.trim() || null,
         }),
       });
-    } catch {}
-
-    setMsg(`Assigned ${newRecord.category} (${newRecord.title}) to ${newRecord.fullName} successfully.`);
-    setForm({
-      employeeId: '',
-      category: 'Laptop',
-      title: '',
-      tagNo: '',
-      dueDate: todayISO(),
-    });
-    setShowAddForm(false);
+      setMsg('Device / checklist item assigned.');
+      setForm({
+        employeeId: '',
+        category: 'Laptop',
+        title: '',
+        tagNo: '',
+        dueDate: todayISO(),
+      });
+      setShowAddForm(false);
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   async function markDone(id) {
     setError('');
-    const nowISO = new Date().toISOString();
-    const updated = rows.map((r) => {
-      if (String(v(r, 'id')) === String(id)) {
-        return { ...r, status: 'done', signedAt: nowISO, signed_at: nowISO };
-      }
-      return r;
-    });
-
-    setRows(updated);
-    try {
-      localStorage.setItem('gocs_cached_onboarding', JSON.stringify(updated));
-    } catch {}
-
     try {
       await api(`/onboarding/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'done' }) });
-    } catch {}
-    setMsg('Device handover marked as received and acknowledged.');
+      setMsg('Marked received / done.');
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   // Filtered rows

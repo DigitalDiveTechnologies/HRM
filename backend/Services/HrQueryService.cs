@@ -869,6 +869,46 @@ public sealed class HrQueryService
         return await ReadOneAsync(cmd, ct);
     }
 
+    public async Task<(Dictionary<string, object?>? Row, string? Error)> CreateOnboardingAsync(
+        int employeeId, string title, string? category, string? tagNo, string? dueDate, CancellationToken ct)
+    {
+        if (employeeId <= 0) return (null, "employeeId required");
+        if (string.IsNullOrWhiteSpace(title)) return (null, "title required");
+
+        await using var conn = await OpenAsync(ct);
+        var empOk = await ScalarIntAsync(conn,
+            "SELECT COUNT(*)::int FROM employees WHERE id = @id AND in_hr_ops = TRUE", ct, ("id", employeeId));
+        if (empOk == 0) return (null, "Employee not found");
+
+        await using var cmd = new NpgsqlCommand(
+            """
+            INSERT INTO onboarding_tasks (employee_id, title, category, tag_no, due_date, status)
+            VALUES (@eid, @title, @cat, @tag, @due::date, 'pending')
+            RETURNING *
+            """, conn);
+        cmd.Parameters.AddWithValue("eid", employeeId);
+        cmd.Parameters.AddWithValue("title", title.Trim());
+        cmd.Parameters.AddWithValue("cat", string.IsNullOrWhiteSpace(category) ? "Laptop" : category.Trim());
+        cmd.Parameters.AddWithValue("tag", (object?)tagNo?.Trim() ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("due", (object?)dueDate ?? DBNull.Value);
+        var row = await ReadOneAsync(cmd, ct);
+        return (row, null);
+    }
+
+    public async Task<Dictionary<string, object?>?> UpdateAssetStatusAsync(int id, string status, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            UPDATE assets SET status = @status
+            WHERE id = @id
+            RETURNING *
+            """, conn);
+        cmd.Parameters.AddWithValue("status", status);
+        cmd.Parameters.AddWithValue("id", id);
+        return await ReadOneAsync(cmd, ct);
+    }
+
     public async Task<List<Dictionary<string, object?>>> AttendanceAsync(int? onlyEmployeeId, CancellationToken ct)
     {
         var sql =
@@ -2536,7 +2576,7 @@ public sealed class HrQueryService
         cmd.Parameters.AddWithValue("start", startDate);
         cmd.Parameters.AddWithValue("end", endDate);
         cmd.Parameters.AddWithValue("cost", estimatedCost);
-        cmd.Parameters.AddWithValue("currency", string.IsNullOrWhiteSpace(currency) ? "PKR" : currency);
+        cmd.Parameters.AddWithValue("currency", string.IsNullOrWhiteSpace(currency) ? "AED" : currency);
         var row = (await ReadOneAsync(cmd, ct))!;
         var travelId = Convert.ToInt32(row["id"]);
 
@@ -2616,7 +2656,7 @@ public sealed class HrQueryService
         cmd.Parameters.AddWithValue("title", title);
         cmd.Parameters.AddWithValue("cat", string.IsNullOrWhiteSpace(category) ? "general" : category);
         cmd.Parameters.AddWithValue("amount", amount);
-        cmd.Parameters.AddWithValue("currency", string.IsNullOrWhiteSpace(currency) ? "PKR" : currency);
+        cmd.Parameters.AddWithValue("currency", string.IsNullOrWhiteSpace(currency) ? "AED" : currency);
         cmd.Parameters.AddWithValue("edate", (object?)expenseDate ?? DBNull.Value);
         cmd.Parameters.AddWithValue("notes", (object?)notes ?? DBNull.Value);
         var row = (await ReadOneAsync(cmd, ct))!;

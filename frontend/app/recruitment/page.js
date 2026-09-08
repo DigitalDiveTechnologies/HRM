@@ -22,6 +22,21 @@ export default function RecruitmentPage() {
     interviewer: '',
     mode: 'Online',
   });
+  const [jobForm, setJobForm] = useState({
+    title: '',
+    department: '',
+    location: 'Dubai',
+    employmentType: 'Full-time',
+    description: '',
+  });
+  const [candidateForm, setCandidateForm] = useState({
+    jobId: '',
+    fullName: '',
+    email: '',
+    phone: '',
+    source: 'Portal',
+    resumeRef: '',
+  });
   const [offerForm, setOfferForm] = useState({
     candidateId: '',
     salary: '',
@@ -134,10 +149,101 @@ export default function RecruitmentPage() {
     }
   }
 
+  async function createJob(e) {
+    e.preventDefault();
+    setMsg('');
+    setError('');
+    try {
+      await api('/recruitment/jobs', {
+        method: 'POST',
+        body: JSON.stringify({ ...jobForm, status: 'open' }),
+      });
+      setMsg('Job posting created.');
+      setJobForm({ title: '', department: '', location: 'Dubai', employmentType: 'Full-time', description: '' });
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function createCandidate(e) {
+    e.preventDefault();
+    setMsg('');
+    setError('');
+    try {
+      await api('/recruitment/candidates', {
+        method: 'POST',
+        body: JSON.stringify({
+          jobId: Number(candidateForm.jobId) || null,
+          fullName: candidateForm.fullName,
+          email: candidateForm.email,
+          phone: candidateForm.phone || null,
+          source: candidateForm.source,
+          resumeRef: candidateForm.resumeRef || null,
+          stage: 'applied',
+        }),
+      });
+      setMsg('Candidate added.');
+      setCandidateForm({ jobId: '', fullName: '', email: '', phone: '', source: 'Portal', resumeRef: '' });
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function setOfferStatus(id, status) {
+    try {
+      await api(`/recruitment/offers/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+      setMsg(`Offer ${status}.`);
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   return (
     <AppShell title="Recruitment & ATS" subtitle="Job postings, candidates, interviews, offers">
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
+
+      {isAdmin ? (
+        <div className="card" style={{ marginBottom: 14 }}>
+          <div className="panel-title"><h3>Create job posting</h3></div>
+          <form className="stack" onSubmit={createJob}>
+            <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+              <label className="field">Title<input required value={jobForm.title} onChange={(e) => setJobForm({ ...jobForm, title: e.target.value })} /></label>
+              <label className="field">Department<input value={jobForm.department} onChange={(e) => setJobForm({ ...jobForm, department: e.target.value })} /></label>
+              <label className="field">Location<input value={jobForm.location} onChange={(e) => setJobForm({ ...jobForm, location: e.target.value })} /></label>
+              <label className="field">Employment type<input value={jobForm.employmentType} onChange={(e) => setJobForm({ ...jobForm, employmentType: e.target.value })} /></label>
+            </div>
+            <label className="field">Description<textarea rows={2} value={jobForm.description} onChange={(e) => setJobForm({ ...jobForm, description: e.target.value })} /></label>
+            <button className="btn" type="submit">Post job</button>
+          </form>
+        </div>
+      ) : null}
+
+      {isAdmin ? (
+        <div className="card" style={{ marginBottom: 14 }}>
+          <div className="panel-title"><h3>Add candidate</h3></div>
+          <form className="stack" onSubmit={createCandidate}>
+            <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+              <label className="field">
+                Job
+                <select value={candidateForm.jobId} onChange={(e) => setCandidateForm({ ...candidateForm, jobId: e.target.value })}>
+                  <option value="">Select…</option>
+                  {jobs.map((j) => (
+                    <option key={v(j, 'id')} value={v(j, 'id')}>{v(j, 'title')}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">Full name<input required value={candidateForm.fullName} onChange={(e) => setCandidateForm({ ...candidateForm, fullName: e.target.value })} /></label>
+              <label className="field">Email<input required type="email" value={candidateForm.email} onChange={(e) => setCandidateForm({ ...candidateForm, email: e.target.value })} /></label>
+              <label className="field">Phone<input value={candidateForm.phone} onChange={(e) => setCandidateForm({ ...candidateForm, phone: e.target.value })} /></label>
+            </div>
+            <button className="btn" type="submit">Add candidate</button>
+          </form>
+        </div>
+      ) : null}
 
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="panel-title">
@@ -374,22 +480,31 @@ export default function RecruitmentPage() {
                   <th>Salary</th>
                   <th>Join</th>
                   <th>Status</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {offers.map((o) => (
                   <tr key={v(o, 'id')}>
                     <td>{v(o, 'candidateName', 'candidate_name')}</td>
-                    <td>{money(v(o, 'salary'))}</td>
+                    <td>{money(v(o, 'salary'))} {v(o, 'currency') || 'AED'}</td>
                     <td>{formatDate(v(o, 'joinDate', 'join_date'))}</td>
                     <td>
                       <Badge status={v(o, 'status')} />
+                    </td>
+                    <td>
+                      {isAdmin && ['pending', 'sent'].includes(String(v(o, 'status')).toLowerCase()) ? (
+                        <div className="row-actions">
+                          <button type="button" className="btn ok" onClick={() => setOfferStatus(v(o, 'id'), 'accepted')}>Accept</button>
+                          <button type="button" className="btn danger" onClick={() => setOfferStatus(v(o, 'id'), 'declined')}>Decline</button>
+                        </div>
+                      ) : '-'}
                     </td>
                   </tr>
                 ))}
                 {!offers.length ? (
                   <tr>
-                    <td colSpan={4}>No offers yet.</td>
+                    <td colSpan={5}>No offers yet.</td>
                   </tr>
                 ) : null}
               </tbody>

@@ -48,18 +48,22 @@ export default function TravelPage() {
     load();
   }, [load]);
 
+  const canCreateTravel = role === 'admin' || role === 'manager' || role === 'employee';
+  const selfId = getUser()?.employeeId || getUser()?.employee_id;
+
   async function createTravel(e) {
     e.preventDefault();
     setMsg('');
     setError('');
     try {
+      const employeeId = role === 'employee' ? Number(selfId) : Number(travelForm.employeeId);
       await api('/travel/requests', {
         method: 'POST',
         body: JSON.stringify({
           ...travelForm,
-          employeeId: Number(travelForm.employeeId),
+          employeeId,
           estimatedCost: Number(travelForm.estimatedCost) || 0,
-          currency: currencyCode(),
+          currency: 'AED',
         }),
       });
       setMsg('Travel request created.');
@@ -149,24 +153,31 @@ export default function TravelPage() {
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
 
-      {isAdmin ? (
+      {canCreateTravel ? (
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="panel-title">
             <h3>New travel request</h3>
           </div>
           <form className="stack" onSubmit={createTravel}>
             <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-              <label className="field">
-                Employee
-                <select required value={travelForm.employeeId} onChange={(e) => setTravelForm({ ...travelForm, employeeId: e.target.value })}>
-                  <option value="">Select…</option>
-                  {employees.map((e) => (
-                    <option key={v(e, 'id')} value={v(e, 'id')}>
-                      {v(e, 'fullName', 'full_name')} ({v(e, 'empCode', 'emp_code')})
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {role !== 'employee' ? (
+                <label className="field">
+                  Employee
+                  <select required value={travelForm.employeeId} onChange={(e) => setTravelForm({ ...travelForm, employeeId: e.target.value })}>
+                    <option value="">Select…</option>
+                    {employees.map((e) => (
+                      <option key={v(e, 'id')} value={v(e, 'id')}>
+                        {v(e, 'fullName', 'full_name')} ({v(e, 'empCode', 'emp_code')})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <label className="field">
+                  Employee
+                  <input disabled value="Self" />
+                </label>
+              )}
               <label className="field">
                 Destination
                 <input required value={travelForm.destination} onChange={(e) => setTravelForm({ ...travelForm, destination: e.target.value })} />
@@ -180,7 +191,7 @@ export default function TravelPage() {
                 <input type="date" required value={travelForm.endDate} onChange={(e) => setTravelForm({ ...travelForm, endDate: e.target.value })} />
               </label>
               <label className="field">
-                Estimated cost
+                Estimated cost (AED)
                 <input type="number" min="0" step="0.01" value={travelForm.estimatedCost} onChange={(e) => setTravelForm({ ...travelForm, estimatedCost: e.target.value })} />
               </label>
               <label className="field">

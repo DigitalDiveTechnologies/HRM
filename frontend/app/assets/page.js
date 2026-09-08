@@ -10,6 +10,7 @@ export default function AssetsPage() {
   const isAdmin = role === 'admin';
 
   const [assets, setAssets] = useState([]);
+  const [assignments, setAssignments] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -23,9 +24,10 @@ export default function AssetsPage() {
 
   const load = useCallback(() => {
     setError('');
-    Promise.all([api('/assets'), api('/employees')])
-      .then(([a, e]) => {
+    Promise.all([api('/assets'), api('/assets/assignments'), api('/employees')])
+      .then(([a, asg, e]) => {
         setAssets(a || []);
+        setAssignments(asg || []);
         setEmployees(e || []);
       })
       .catch((err) => setError(err.message));
@@ -73,6 +75,16 @@ export default function AssetsPage() {
     try {
       await api(`/assets/assignments/${assignmentId}/return`, { method: 'PATCH', body: JSON.stringify({}) });
       setMsg('Asset returned.');
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function setAssetStatus(id, status) {
+    try {
+      await api(`/assets/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+      setMsg(`Asset marked ${status}.`);
       load();
     } catch (err) {
       setError(err.message);
@@ -196,10 +208,24 @@ export default function AssetsPage() {
                     <Badge status={v(a, 'status')} />
                   </td>
                   <td>
-                    {isAdmin && v(a, 'assignmentId', 'assignment_id') ? (
-                      <button type="button" className="btn secondary" onClick={() => returnAsset(v(a, 'assignmentId', 'assignment_id'))}>
-                        Return
-                      </button>
+                    {isAdmin ? (
+                      <div className="row-actions">
+                        {v(a, 'assignmentId', 'assignment_id') ? (
+                          <button type="button" className="btn secondary" onClick={() => returnAsset(v(a, 'assignmentId', 'assignment_id'))}>
+                            Return
+                          </button>
+                        ) : null}
+                        {String(v(a, 'status')) !== 'retired' ? (
+                          <button type="button" className="btn secondary" onClick={() => setAssetStatus(v(a, 'id'), 'retired')}>
+                            Retire
+                          </button>
+                        ) : null}
+                        {String(v(a, 'status')) !== 'lost' ? (
+                          <button type="button" className="btn danger" onClick={() => setAssetStatus(v(a, 'id'), 'lost')}>
+                            Lost
+                          </button>
+                        ) : null}
+                      </div>
                     ) : (
                       '-'
                     )}
@@ -209,6 +235,41 @@ export default function AssetsPage() {
               {!assets.length ? (
                 <tr>
                   <td colSpan={6}>No assets yet.</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 14 }}>
+        <div className="panel-title">
+          <h3>Assignment history</h3>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Asset</th>
+                <th>Employee</th>
+                <th>Assigned</th>
+                <th>Returned</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {assignments.map((x) => (
+                <tr key={v(x, 'id')}>
+                  <td>{v(x, 'assetTag', 'asset_tag') || v(x, 'name') || v(x, 'assetId', 'asset_id')}</td>
+                  <td>{v(x, 'fullName', 'full_name') || '—'}</td>
+                  <td>{formatDate(v(x, 'assignedAt', 'assigned_at') || v(x, 'createdAt', 'created_at'))}</td>
+                  <td>{formatDate(v(x, 'returnedAt', 'returned_at')) || '—'}</td>
+                  <td className="muted">{v(x, 'notes') || '—'}</td>
+                </tr>
+              ))}
+              {!assignments.length ? (
+                <tr>
+                  <td colSpan={5}>No assignment history yet.</td>
                 </tr>
               ) : null}
             </tbody>

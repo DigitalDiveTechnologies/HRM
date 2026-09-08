@@ -77,4 +77,14 @@ public sealed class AssetsController : ControllerBase
         var row = await _hr.ReturnAssetAssignmentAsync(id, ct);
         return row is null ? NotFound() : Ok(row);
     }
+
+    [HttpPatch("{id:int}/status")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> UpdateStatus(int id, [FromBody] StatusUpdateRequest body, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(body.Status) || !Statuses.Contains(body.Status.Trim()))
+            return BadRequest(new { error = "invalid status" });
+        var row = await _hr.UpdateAssetStatusAsync(id, body.Status.Trim(), ct);
+        return row is null ? NotFound() : Ok(row);
+    }
 }

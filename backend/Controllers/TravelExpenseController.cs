@@ -8,7 +8,7 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "TravelExpense")]
 [Route("api/travel")]
-[Authorize(Roles = "admin,manager")]
+[Authorize(Roles = "admin,manager,employee")]
 public sealed class TravelExpenseController : ControllerBase
 {
     private static readonly HashSet<string> TravelStatuses = new(StringComparer.OrdinalIgnoreCase)
@@ -30,10 +30,17 @@ public sealed class TravelExpenseController : ControllerBase
         Ok(await _hr.TravelRequestsAsync(ct));
 
     [HttpPost("requests")]
-    [Authorize(Roles = "admin")]
+    [Authorize(Roles = "admin,manager,employee")]
     public async Task<IActionResult> CreateTravel([FromBody] TravelRequestCreateRequest body, CancellationToken ct)
     {
-        if (body.EmployeeId <= 0)
+        var employeeId = body.EmployeeId;
+        if (User.IsInRole("employee"))
+        {
+            var self = DigitalDive.Hr.Api.Helpers.CurrentUser.EmployeeId(User);
+            if (self is null) return Forbid();
+            employeeId = self.Value;
+        }
+        if (employeeId <= 0)
             return BadRequest(new { error = "employeeId required" });
         if (string.IsNullOrWhiteSpace(body.Destination))
             return BadRequest(new { error = "destination required" });
@@ -41,8 +48,9 @@ public sealed class TravelExpenseController : ControllerBase
             return BadRequest(new { error = "startDate and endDate required" });
 
         var row = await _hr.CreateTravelRequestAsync(
-            body.EmployeeId, body.Destination.Trim(), body.Purpose,
-            body.StartDate, body.EndDate, body.EstimatedCost, body.Currency, ct);
+            employeeId, body.Destination.Trim(), body.Purpose,
+            body.StartDate, body.EndDate, body.EstimatedCost,
+            string.IsNullOrWhiteSpace(body.Currency) ? "AED" : body.Currency, ct);
         return StatusCode(StatusCodes.Status201Created, row);
     }
 
