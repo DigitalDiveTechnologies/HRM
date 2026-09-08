@@ -138,6 +138,7 @@ export default function EmployeeMasterForm({
   employmentTypes = [],
   managers = [],
   saving = false,
+  error = '',
   onSubmit,
   onCancel,
   extraFooter = null,
@@ -2185,7 +2186,18 @@ export default function EmployeeMasterForm({
               ) : null}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              {error ? (
+                <span style={{ color: '#ef4444', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  {error}
+                </span>
+              ) : null}
+
               {onCancel ? (
                 <button
                   type="button"

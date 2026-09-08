@@ -193,12 +193,6 @@ export default function CreateEmployeePage() {
         </Link>
       }
     >
-      {error ? (
-        <div className="error" style={{ marginBottom: 16 }}>
-          {error}
-        </div>
-      ) : null}
-
       {vacantPositions.length ? (
         <div className="card" style={{ marginBottom: 14, padding: '16px 20px' }}>
           <label className="field" style={{ margin: 0 }}>
@@ -229,6 +223,7 @@ export default function CreateEmployeePage() {
           employmentTypes={employmentTypes}
           managers={managers}
           saving={saving}
+          error={error}
           onSubmit={createEmployee}
           onCancel={() => router.push('/employees')}
         />
