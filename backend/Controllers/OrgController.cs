@@ -12,10 +12,21 @@ namespace DigitalDive.Hr.Api.Controllers;
 public sealed class OrgController : ControllerBase
 {
     private readonly HrQueryService _hr;
-    public OrgController(HrQueryService hr) => _hr = hr;
+    private readonly OrgFoundationService _org;
+    public OrgController(HrQueryService hr, OrgFoundationService org)
+    {
+        _hr = hr;
+        _org = org;
+    }
 
+    /// <summary>Position-based org chart (Blueprint v1.1). Falls back to employee manager_id chart if no positions.</summary>
     [HttpGet("chart")]
-    public async Task<IActionResult> Chart(CancellationToken ct) => Ok(await _hr.OrgChartAsync(ct));
+    public async Task<IActionResult> Chart(CancellationToken ct)
+    {
+        var positions = await _org.PositionChartAsync(ct);
+        if (positions.Count > 0) return Ok(positions);
+        return Ok(await _hr.OrgChartAsync(ct));
+    }
 
     [HttpGet("history/{employeeId:int}")]
     public async Task<IActionResult> History(int employeeId, CancellationToken ct) =>

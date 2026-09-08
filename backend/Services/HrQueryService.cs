@@ -484,8 +484,8 @@ public sealed class HrQueryService
     public Task<List<Dictionary<string, object?>>> DesignationsAsync(bool activeOnly, CancellationToken ct) =>
         QueryConnAsync(
             activeOnly
-                ? "SELECT id, name, status, created_at FROM designations WHERE status = 'active' ORDER BY name"
-                : "SELECT id, name, status, created_at FROM designations ORDER BY name",
+                ? "SELECT id, name, code, job_family, grade, skill_level, default_reporting_designation_id, status, created_at FROM designations WHERE status = 'active' ORDER BY name"
+                : "SELECT id, name, code, job_family, grade, skill_level, default_reporting_designation_id, status, created_at FROM designations ORDER BY name",
             ct);
 
     public Task<List<Dictionary<string, object?>>> EmploymentTypesAsync(bool activeOnly, CancellationToken ct) =>
@@ -967,7 +967,14 @@ public sealed class HrQueryService
         await approval.ExecuteNonQueryAsync(ct);
 
         var managerId = await ScalarIntNullableAsync(conn,
-            "SELECT manager_id FROM employees WHERE id = @id", ct, ("id", employeeId));
+            """
+            SELECT manager_employee_id FROM v_employee_reporting_manager WHERE employee_id = @id
+            """, ct, ("id", employeeId));
+        if (managerId is null or <= 0)
+        {
+            managerId = await ScalarIntNullableAsync(conn,
+                "SELECT manager_id FROM employees WHERE id = @id", ct, ("id", employeeId));
+        }
         if (managerId is > 0)
         {
             await InsertNotificationAsync(conn, (NpgsqlTransaction)tx, managerId,
@@ -989,8 +996,9 @@ public sealed class HrQueryService
         await using var conn = await OpenAsync(ct);
         return await ScalarIntAsync(conn,
             """
-            SELECT COUNT(*)::int FROM employees
-            WHERE manager_id = @mid AND status != 'exited' AND in_hr_ops = TRUE
+            SELECT COUNT(*)::int FROM employees e
+            INNER JOIN v_employee_reporting_manager rm ON rm.employee_id = e.id
+            WHERE rm.manager_employee_id = @mid AND e.status != 'exited' AND e.in_hr_ops = TRUE
             """, ct, ("mid", managerEmployeeId));
     }
 
@@ -1005,11 +1013,12 @@ public sealed class HrQueryService
             FROM approvals a
             JOIN employees e ON e.id = a.employee_id
             JOIN leave_requests l ON l.id = a.reference_id
+            JOIN v_employee_reporting_manager rm ON rm.employee_id = e.id
             WHERE a.request_type = 'leave'
               AND a.status = 'pending'
               AND a.level_no = 1
               AND lower(a.approver_role) = 'manager'
-              AND e.manager_id = @mid
+              AND rm.manager_employee_id = @mid
               AND e.in_hr_ops = TRUE
             ORDER BY a.created_at DESC
             """, ct, ("mid", managerEmployeeId));
@@ -1022,11 +1031,12 @@ public sealed class HrQueryService
             SELECT COUNT(*)::int
             FROM approvals a
             JOIN employees e ON e.id = a.employee_id
+            JOIN v_employee_reporting_manager rm ON rm.employee_id = e.id
             WHERE a.request_type = 'leave'
               AND a.status = 'pending'
               AND a.level_no = 1
               AND lower(a.approver_role) = 'manager'
-              AND e.manager_id = @mid
+              AND rm.manager_employee_id = @mid
             """, ct, ("mid", managerEmployeeId));
     }
 
@@ -2193,26 +2203,30 @@ public sealed class HrQueryService
         await using var conn = await OpenAsync(ct);
         var teamCount = await ScalarIntAsync(conn,
             """
-            SELECT COUNT(*)::int FROM employees
-            WHERE manager_id = @mid AND status != 'exited' AND in_hr_ops = TRUE
+            SELECT COUNT(*)::int FROM employees e
+            INNER JOIN v_employee_reporting_manager rm ON rm.employee_id = e.id
+            WHERE rm.manager_employee_id = @mid AND e.status != 'exited' AND e.in_hr_ops = TRUE
             """, ct, ("mid", managerId));
         var pendingLeave = await ScalarIntAsync(conn,
             """
             SELECT COUNT(*)::int FROM leave_requests l
             JOIN employees e ON e.id = l.employee_id
-            WHERE e.manager_id = @mid AND l.status = 'pending' AND e.in_hr_ops = TRUE
+            JOIN v_employee_reporting_manager rm ON rm.employee_id = e.id
+            WHERE rm.manager_employee_id = @mid AND l.status = 'pending' AND e.in_hr_ops = TRUE
             """, ct, ("mid", managerId));
         var pendingApprovals = await ScalarIntAsync(conn,
             """
             SELECT COUNT(*)::int FROM approvals a
             JOIN employees e ON e.id = a.employee_id
-            WHERE e.manager_id = @mid AND a.status = 'pending'
+            JOIN v_employee_reporting_manager rm ON rm.employee_id = e.id
+            WHERE rm.manager_employee_id = @mid AND a.status = 'pending'
             """, ct, ("mid", managerId));
         var onLeaveToday = await ScalarIntAsync(conn,
             """
             SELECT COUNT(*)::int FROM leave_requests l
             JOIN employees e ON e.id = l.employee_id
-            WHERE e.manager_id = @mid
+            JOIN v_employee_reporting_manager rm ON rm.employee_id = e.id
+            WHERE rm.manager_employee_id = @mid
               AND l.status = 'approved'
               AND CURRENT_DATE BETWEEN l.start_date AND l.end_date
             """, ct, ("mid", managerId));
@@ -2234,7 +2248,8 @@ public sealed class HrQueryService
                    d.name AS department_name
             FROM employees e
             LEFT JOIN departments d ON d.id = e.department_id
-            WHERE e.manager_id = @mid AND e.in_hr_ops = TRUE AND e.status != 'exited'
+            JOIN v_employee_reporting_manager rm ON rm.employee_id = e.id
+            WHERE rm.manager_employee_id = @mid AND e.in_hr_ops = TRUE AND e.status != 'exited'
             ORDER BY e.emp_code
             """, ct, ("mid", managerId));
 
@@ -2244,7 +2259,8 @@ public sealed class HrQueryService
             SELECT l.*, e.full_name, e.emp_code
             FROM leave_requests l
             JOIN employees e ON e.id = l.employee_id
-            WHERE e.manager_id = @mid AND e.in_hr_ops = TRUE
+            JOIN v_employee_reporting_manager rm ON rm.employee_id = e.id
+            WHERE rm.manager_employee_id = @mid AND e.in_hr_ops = TRUE
             ORDER BY CASE l.status WHEN 'pending' THEN 0 ELSE 1 END, l.start_date DESC
             """, ct, ("mid", managerId));
 
@@ -2254,7 +2270,8 @@ public sealed class HrQueryService
             SELECT a.*, e.full_name, e.emp_code
             FROM attendance a
             JOIN employees e ON e.id = a.employee_id
-            WHERE e.manager_id = @mid AND e.in_hr_ops = TRUE
+            JOIN v_employee_reporting_manager rm ON rm.employee_id = e.id
+            WHERE rm.manager_employee_id = @mid AND e.in_hr_ops = TRUE
             ORDER BY a.work_date DESC, a.id DESC
             LIMIT 40
             """, ct, ("mid", managerId));
@@ -2265,7 +2282,8 @@ public sealed class HrQueryService
             SELECT a.*, e.full_name, e.emp_code
             FROM approvals a
             JOIN employees e ON e.id = a.employee_id
-            WHERE e.manager_id = @mid
+            JOIN v_employee_reporting_manager rm ON rm.employee_id = e.id
+            WHERE rm.manager_employee_id = @mid
             ORDER BY CASE a.status WHEN 'pending' THEN 0 ELSE 1 END, a.created_at DESC
             """, ct, ("mid", managerId));
 
@@ -2277,7 +2295,8 @@ public sealed class HrQueryService
             SELECT 1
             FROM approvals a
             JOIN employees e ON e.id = a.employee_id
-            WHERE a.id = @id AND e.manager_id = @mid
+            JOIN v_employee_reporting_manager rm ON rm.employee_id = e.id
+            WHERE a.id = @id AND rm.manager_employee_id = @mid
             LIMIT 1
             """, conn);
         cmd.Parameters.AddWithValue("id", approvalId);
