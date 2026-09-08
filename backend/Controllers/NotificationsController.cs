@@ -12,8 +12,13 @@ namespace DigitalDive.Hr.Api.Controllers;
 public sealed class NotificationsController : ControllerBase
 {
     private readonly HrQueryService _hr;
+    private readonly OpsScaleService _ops;
 
-    public NotificationsController(HrQueryService hr) => _hr = hr;
+    public NotificationsController(HrQueryService hr, OpsScaleService ops)
+    {
+        _hr = hr;
+        _ops = ops;
+    }
 
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct)
@@ -39,6 +44,20 @@ public sealed class NotificationsController : ControllerBase
 
     [HttpPost("generate")]
     [Authorize(Roles = "admin")]
-    public async Task<IActionResult> Generate(CancellationToken ct) =>
-        Ok(await _hr.GenerateNotificationsAsync(ct));
+    public async Task<IActionResult> Generate(CancellationToken ct)
+    {
+        var jobId = await _ops.BeginJobAsync("notifications.generate", CurrentUser.Email(User), ct);
+        try
+        {
+            var result = await _hr.GenerateNotificationsAsync(ct);
+            var inserted = result.GetType().GetProperty("inserted")?.GetValue(result);
+            await _ops.FinishJobAsync(jobId, true, $"inserted={inserted}", ct);
+            return Ok(new { jobId, result });
+        }
+        catch (Exception ex)
+        {
+            await _ops.FinishJobAsync(jobId, false, ex.Message, ct);
+            throw;
+        }
+    }
 }

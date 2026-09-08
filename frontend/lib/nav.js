@@ -6,6 +6,7 @@ export const NAV = [
     links: [
       { href: '/dashboard', labelKey: 'nav_dashboard', roles: ['admin'] },
       { href: '/reports', labelKey: 'nav_reports', roles: ['admin'] },
+      { href: '/ops', label: 'Ops & Scale', roles: ['admin'] },
       { href: '/notifications', labelKey: 'nav_notifications', roles: ['admin', 'manager', 'employee'] },
     ],
   },
@@ -35,8 +36,8 @@ export const NAV = [
       { href: '/recruitment', label: 'Recruitment & ATS', roles: ['admin'] },
       { href: '/exit', label: 'Employee Exit', roles: ['admin'] },
       { href: '/compliance', label: 'Compliance', roles: ['admin'] },
-      { href: '/performance', label: 'Performance', roles: ['admin'] },
-      { href: '/training', label: 'Training', roles: ['admin'] },
+      { href: '/performance', label: 'Performance', roles: ['admin', 'manager', 'employee'] },
+      { href: '/training', label: 'Training', roles: ['admin', 'manager', 'employee'] },
       { href: '/assets', label: 'Assets', roles: ['admin'] },
       { href: '/travel', label: 'Travel & Expense', roles: ['admin', 'manager', 'employee'] },
       { href: '/attendance', labelKey: 'nav_attendance', roles: ['admin', 'manager', 'employee'] },

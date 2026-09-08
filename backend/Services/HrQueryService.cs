@@ -2106,16 +2106,27 @@ public sealed class HrQueryService
     }
 
     // —— Performance Management ——
-    public Task<List<Dictionary<string, object?>>> PerformanceGoalsAsync(CancellationToken ct) =>
-        QueryConnAsync(
-            """
+    public Task<List<Dictionary<string, object?>>> PerformanceGoalsAsync(int? onlyEmployeeId, CancellationToken ct)
+    {
+        var sql = """
             SELECT g.*, e.full_name, e.emp_code, e.job_title
             FROM performance_goals g
             JOIN employees e ON e.id = g.employee_id
+            WHERE (@eid IS NULL OR g.employee_id = @eid)
             ORDER BY
               CASE g.status WHEN 'active' THEN 0 WHEN 'completed' THEN 1 ELSE 2 END,
               g.id DESC
-            """, ct);
+            """;
+        return QueryConnAsync(sql, ct, ("eid", onlyEmployeeId is > 0 ? onlyEmployeeId.Value : DBNull.Value));
+    }
+
+    public async Task<bool> PerformanceGoalOwnedByAsync(int goalId, int employeeId, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        return await ScalarIntAsync(conn,
+            "SELECT COUNT(*)::int FROM performance_goals WHERE id = @id AND employee_id = @eid",
+            ct, ("id", goalId), ("eid", employeeId)) > 0;
+    }
 
     public async Task<Dictionary<string, object?>> CreatePerformanceGoalAsync(
         int employeeId, string title, string? kpi, string? targetValue,
@@ -2156,14 +2167,25 @@ public sealed class HrQueryService
         return await ReadOneAsync(cmd, ct);
     }
 
-    public Task<List<Dictionary<string, object?>>> PerformanceReviewsAsync(CancellationToken ct) =>
-        QueryConnAsync(
-            """
+    public Task<List<Dictionary<string, object?>>> PerformanceReviewsAsync(int? onlyEmployeeId, CancellationToken ct)
+    {
+        var sql = """
             SELECT r.*, e.full_name, e.emp_code, e.job_title
             FROM performance_reviews r
             JOIN employees e ON e.id = r.employee_id
+            WHERE (@eid IS NULL OR r.employee_id = @eid)
             ORDER BY r.review_date DESC NULLS LAST, r.id DESC
-            """, ct);
+            """;
+        return QueryConnAsync(sql, ct, ("eid", onlyEmployeeId is > 0 ? onlyEmployeeId.Value : DBNull.Value));
+    }
+
+    public async Task<bool> PerformanceReviewOwnedByAsync(int reviewId, int employeeId, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        return await ScalarIntAsync(conn,
+            "SELECT COUNT(*)::int FROM performance_reviews WHERE id = @id AND employee_id = @eid",
+            ct, ("id", reviewId), ("eid", employeeId)) > 0;
+    }
 
     public async Task<Dictionary<string, object?>> CreatePerformanceReviewAsync(
         int employeeId, string? reviewerName, string reviewType, decimal? rating,
@@ -2237,16 +2259,27 @@ public sealed class HrQueryService
         return await ReadOneAsync(cmd, ct);
     }
 
-    public Task<List<Dictionary<string, object?>>> CourseEnrollmentsAsync(CancellationToken ct) =>
-        QueryConnAsync(
-            """
+    public Task<List<Dictionary<string, object?>>> CourseEnrollmentsAsync(int? onlyEmployeeId, CancellationToken ct)
+    {
+        var sql = """
             SELECT en.*, c.title AS course_title, c.category AS course_category,
                    e.full_name, e.emp_code
             FROM course_enrollments en
             JOIN courses c ON c.id = en.course_id
             JOIN employees e ON e.id = en.employee_id
+            WHERE (@eid IS NULL OR en.employee_id = @eid)
             ORDER BY en.id DESC
-            """, ct);
+            """;
+        return QueryConnAsync(sql, ct, ("eid", onlyEmployeeId is > 0 ? onlyEmployeeId.Value : DBNull.Value));
+    }
+
+    public async Task<bool> EnrollmentOwnedByAsync(int enrollmentId, int employeeId, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        return await ScalarIntAsync(conn,
+            "SELECT COUNT(*)::int FROM course_enrollments WHERE id = @id AND employee_id = @eid",
+            ct, ("id", enrollmentId), ("eid", employeeId)) > 0;
+    }
 
     public async Task<Dictionary<string, object?>> CreateEnrollmentAsync(
         int courseId, int employeeId, string? dueDate, string status, CancellationToken ct)
@@ -2281,14 +2314,17 @@ public sealed class HrQueryService
         return await ReadOneAsync(cmd, ct);
     }
 
-    public Task<List<Dictionary<string, object?>>> CertificationsAsync(CancellationToken ct) =>
-        QueryConnAsync(
-            """
+    public Task<List<Dictionary<string, object?>>> CertificationsAsync(int? onlyEmployeeId, CancellationToken ct)
+    {
+        var sql = """
             SELECT cert.*, e.full_name, e.emp_code
             FROM certifications cert
             JOIN employees e ON e.id = cert.employee_id
+            WHERE (@eid IS NULL OR cert.employee_id = @eid)
             ORDER BY cert.expires_on NULLS LAST, cert.id DESC
-            """, ct);
+            """;
+        return QueryConnAsync(sql, ct, ("eid", onlyEmployeeId is > 0 ? onlyEmployeeId.Value : DBNull.Value));
+    }
 
     public async Task<Dictionary<string, object?>> CreateCertificationAsync(
         int employeeId, string name, string? issuer, string? issuedOn, string? expiresOn, string status, CancellationToken ct)
@@ -2984,7 +3020,8 @@ public sealed class HrQueryService
 
         await using (var empCmd = new NpgsqlCommand(
                          """
-                         SELECT id, full_name, dob, probation_end, contract_end, visa_expiry
+                         SELECT id, full_name, dob, probation_end, contract_end, visa_expiry,
+                                passport_expiry, emirates_id_expiry
                          FROM employees WHERE in_hr_ops = TRUE AND status != 'exited'
                          """, conn))
         await using (var reader = await empCmd.ExecuteReaderAsync(ct))
@@ -2997,6 +3034,8 @@ public sealed class HrQueryService
                 DateTime? probation = reader.IsDBNull(3) ? null : reader.GetDateTime(3);
                 DateTime? contract = reader.IsDBNull(4) ? null : reader.GetDateTime(4);
                 DateTime? visa = reader.IsDBNull(5) ? null : reader.GetDateTime(5);
+                DateTime? passport = reader.IsDBNull(6) ? null : reader.GetDateTime(6);
+                DateTime? emiratesId = reader.IsDBNull(7) ? null : reader.GetDateTime(7);
 
                 if (dob is not null)
                 {
@@ -3012,6 +3051,29 @@ public sealed class HrQueryService
                     pending.Add((id, "contract", $"Contract expiry · {name}", "Employment contract renews soon.", contract));
                 if (visa is not null && (visa.Value.Date - DateTime.UtcNow.Date).TotalDays is >= 0 and <= 60)
                     pending.Add((id, "visa", $"Visa renewal · {name}", "Residence visa renewal window.", visa));
+                if (passport is not null && (passport.Value.Date - DateTime.UtcNow.Date).TotalDays is >= 0 and <= 90)
+                    pending.Add((id, "passport", $"Passport expiry · {name}", "Passport renewal window.", passport));
+                if (emiratesId is not null && (emiratesId.Value.Date - DateTime.UtcNow.Date).TotalDays is >= 0 and <= 60)
+                    pending.Add((id, "emirates_id", $"Emirates ID renewal · {name}", "Emirates ID renewal window.", emiratesId));
+            }
+        }
+
+        await using (var certCmd = new NpgsqlCommand(
+                         """
+                         SELECT cert.employee_id, e.full_name, cert.name, cert.expires_on
+                         FROM certifications cert
+                         JOIN employees e ON e.id = cert.employee_id
+                         WHERE cert.status = 'valid' AND cert.expires_on IS NOT NULL
+                           AND cert.expires_on <= CURRENT_DATE + 60
+                         """, conn))
+        await using (var reader = await certCmd.ExecuteReaderAsync(ct))
+        {
+            while (await reader.ReadAsync(ct))
+            {
+                pending.Add((reader.GetInt32(0), "certification",
+                    $"Certification expiry · {reader.GetString(2)}",
+                    $"{reader.GetString(1)} — certificate expires soon.",
+                    reader.GetDateTime(3)));
             }
         }
 

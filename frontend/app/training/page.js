@@ -41,16 +41,21 @@ export default function TrainingPage() {
 
   const load = useCallback(() => {
     setError('');
-    Promise.all([
+    const roleNow = normalizeRole(getUser());
+    const reqs = [
       api('/training/courses'),
       api('/training/enrollments'),
       api('/training/certifications'),
       api('/training/calendar'),
-      api('/org/skills'),
-      api('/org/employee-skills'),
-      api('/employees'),
-    ])
-      .then(([c, e, cert, cal, sk, esk, emps]) => {
+    ];
+    if (roleNow === 'admin' || roleNow === 'manager') {
+      reqs.push(api('/org/skills').catch(() => []));
+      reqs.push(api('/org/employee-skills').catch(() => []));
+      reqs.push(api('/employees').catch(() => []));
+    }
+    Promise.all(reqs)
+      .then((results) => {
+        const [c, e, cert, cal, sk, esk, emps] = results;
         setCourses(c || []);
         setEnrollments(e || []);
         setCerts(cert || []);
@@ -414,7 +419,7 @@ export default function TrainingPage() {
                       <Badge status={status} />
                     </td>
                     <td>
-                      {isAdmin && status !== 'completed' && status !== 'cancelled' ? (
+                      {(isAdmin || role === 'employee') && status !== 'completed' && status !== 'cancelled' ? (
                         <div className="row-actions">
                           {status === 'assigned' ? (
                             <button type="button" className="btn secondary" onClick={() => setEnrollmentStatus(v(row, 'id'), 'in_progress')}>

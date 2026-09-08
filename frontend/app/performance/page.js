@@ -33,7 +33,10 @@ export default function PerformancePage() {
 
   const load = useCallback(() => {
     setError('');
-    Promise.all([api('/performance/goals'), api('/performance/reviews'), api('/employees')])
+    const roleNow = normalizeRole(getUser());
+    const reqs = [api('/performance/goals'), api('/performance/reviews')];
+    if (roleNow === 'admin' || roleNow === 'manager') reqs.push(api('/employees'));
+    Promise.all(reqs)
       .then(([g, r, emps]) => {
         setGoals(g || []);
         setReviews(r || []);
@@ -107,9 +110,12 @@ export default function PerformancePage() {
     setError('');
     const next = Math.min(100, Number(current || 0) + 10);
     try {
+      const body = role === 'employee'
+        ? { progressPct: next }
+        : { progressPct: next, status: next >= 100 ? 'completed' : 'active' };
       await api(`/performance/goals/${id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ progressPct: next, status: next >= 100 ? 'completed' : 'active' }),
+        body: JSON.stringify(body),
       });
       setMsg(`Progress updated to ${next}%.`);
       load();
@@ -129,7 +135,10 @@ export default function PerformancePage() {
   }
 
   return (
-    <AppShell title="Performance Management" subtitle="Goals, KPIs and performance reviews">
+    <AppShell
+      title="Performance Management"
+      subtitle={role === 'employee' ? 'My goals and reviews' : 'Goals, KPIs and performance reviews'}
+    >
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
 
@@ -214,7 +223,7 @@ export default function PerformancePage() {
                     <Badge status={v(g, 'status')} />
                   </td>
                   <td>
-                    {isAdmin && String(v(g, 'status')) === 'active' ? (
+                    {(isAdmin || role === 'employee') && String(v(g, 'status')) === 'active' ? (
                       <button type="button" className="btn secondary" onClick={() => bumpProgress(v(g, 'id'), v(g, 'progressPct', 'progress_pct'))}>
                         +10%
                       </button>
@@ -323,7 +332,7 @@ export default function PerformancePage() {
                         <button type="button" className="btn ok" onClick={() => setReviewStatus(v(r, 'id'), 'submitted')}>
                           Submit
                         </button>
-                      ) : isAdmin && status === 'submitted' ? (
+                      ) : (isAdmin || role === 'employee') && status === 'submitted' ? (
                         <button type="button" className="btn secondary" onClick={() => setReviewStatus(v(r, 'id'), 'acknowledged')}>
                           Acknowledge
                         </button>

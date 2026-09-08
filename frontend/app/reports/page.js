@@ -1,13 +1,39 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import AppShell from '../../components/AppShell';
-import { api } from '../../lib/auth';
+import { api, getToken, getApiBase, getUser, normalizeRole } from '../../lib/auth';
 import { money, v } from '../../lib/format';
 
+async function downloadReportCsv(reportKey) {
+  const token = getToken();
+  const res = await fetch(`${getApiBase()}/api/reports/export/${reportKey}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    let msg = `Export failed (${res.status})`;
+    try {
+      const j = await res.json();
+      if (j?.error) msg = j.error;
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${reportKey}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function ReportsPage() {
+  const role = normalizeRole(getUser());
   const [data, setData] = useState(null);
+  const [pack, setPack] = useState(null);
   const [error, setError] = useState('');
+  const [exportMsg, setExportMsg] = useState('');
   const [loading, setLoading] = useState(true);
 
   // Interactive filters for easy understanding
@@ -16,9 +42,12 @@ export default function ReportsPage() {
   const [payrollPeriod, setPayrollPeriod] = useState('all');
 
   useEffect(() => {
-    api('/reports')
-      .then((r) => {
-        setData(r || {});
+    const reqs = [api('/reports'), api('/reports/dashboard')];
+    if (normalizeRole(getUser()) === 'admin') reqs.push(api('/reports/pack').catch(() => null));
+    Promise.all(reqs)
+      .then(([r, dash, p]) => {
+        setData({ ...(r || {}), widgets: dash?.widgets || {} });
+        setPack(p);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -82,7 +111,43 @@ export default function ReportsPage() {
       subtitle="Workforce distribution, attendance trends, leave utilization and payroll summaries"
     >
       {error ? <div className="error" style={{ marginBottom: 16 }}>{error}</div> : null}
+      {exportMsg ? <div style={{ color: 'var(--ok)', marginBottom: 12 }}>{exportMsg}</div> : null}
       {loading ? <div className="muted" style={{ padding: '24px 0' }}>Loading analytical reports…</div> : null}
+
+      {!loading && data && role === 'admin' ? (
+        <div className="card" style={{ marginBottom: 14 }}>
+          <div className="panel-title">
+            <h3>Scale analytics pack</h3>
+            <Link className="btn secondary" href="/ops">Ops console</Link>
+          </div>
+          <div className="toolbar-metrics" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+            <div className="metric-chip"><span className="chip-label">Pending approvals</span><span className="chip-val">{data.widgets?.pendingApprovals ?? '—'}</span></div>
+            <div className="metric-chip"><span className="chip-label">Open jobs</span><span className="chip-val">{data.widgets?.openJobs ?? '—'}</span></div>
+            <div className="metric-chip"><span className="chip-label">Open exits</span><span className="chip-val">{data.widgets?.openExits ?? '—'}</span></div>
+            <div className="metric-chip"><span className="chip-label">Visa ≤60d</span><span className="chip-val">{data.widgets?.expiringVisa ?? '—'}</span></div>
+            <div className="metric-chip"><span className="chip-label">Emiratisation %</span><span className="chip-val">{pack?.emiratisation?.percent ?? '—'}*</span></div>
+          </div>
+          <div className="row-actions">
+            {['headcount', 'compliance', 'wps-gaps', 'audit', 'attrition'].map((k) => (
+              <button
+                key={k}
+                type="button"
+                className="btn secondary"
+                onClick={async () => {
+                  try {
+                    await downloadReportCsv(k);
+                    setExportMsg(`Downloaded ${k}.csv`);
+                  } catch (err) {
+                    setError(err.message);
+                  }
+                }}
+              >
+                Export {k}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {!loading && data ? (
         <div className="reports-container">

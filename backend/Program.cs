@@ -86,6 +86,7 @@ builder.Services.AddScoped<PayrollControlService>();
 builder.Services.AddScoped<ExitSettlementService>();
 builder.Services.AddScoped<DocumentRenewalService>();
 builder.Services.AddScoped<EmployeeBulkService>();
+builder.Services.AddScoped<OpsScaleService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
 

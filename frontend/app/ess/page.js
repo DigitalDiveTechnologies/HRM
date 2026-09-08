@@ -96,6 +96,12 @@ export default function EssPage() {
                 <Link className="btn secondary" href="/notifications">
                   {t('ess_quick_notifications')}
                 </Link>
+                <Link className="btn secondary" href="/performance">
+                  Performance
+                </Link>
+                <Link className="btn secondary" href="/training">
+                  Training
+                </Link>
                 {role === 'admin' ? (
                   <Link className="btn secondary" href="/employees">
                     Directory

@@ -1,3 +1,4 @@
+using DigitalDive.Hr.Api.Helpers;
 using DigitalDive.Hr.Api.Models;
 using DigitalDive.Hr.Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -8,7 +9,7 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "Training")]
 [Route("api/training")]
-[Authorize(Roles = "admin,manager")]
+[Authorize(Roles = "admin,manager,employee")]
 public sealed class TrainingController : ControllerBase
 {
     private static readonly HashSet<string> CourseStatuses = new(StringComparer.OrdinalIgnoreCase)
@@ -65,8 +66,13 @@ public sealed class TrainingController : ControllerBase
     }
 
     [HttpGet("enrollments")]
-    public async Task<IActionResult> Enrollments(CancellationToken ct) =>
-        Ok(await _hr.CourseEnrollmentsAsync(ct));
+    public async Task<IActionResult> Enrollments(CancellationToken ct)
+    {
+        int? only = CurrentUser.IsEmployee(User) ? CurrentUser.EmployeeId(User) : null;
+        if (CurrentUser.IsEmployee(User) && only is null or <= 0)
+            return BadRequest(new { error = "employee profile not linked" });
+        return Ok(await _hr.CourseEnrollmentsAsync(only, ct));
+    }
 
     [HttpPost("enrollments")]
     [Authorize(Roles = "admin")]
@@ -91,18 +97,35 @@ public sealed class TrainingController : ControllerBase
     }
 
     [HttpPatch("enrollments/{id:int}")]
-    [Authorize(Roles = "admin")]
+    [Authorize(Roles = "admin,employee")]
     public async Task<IActionResult> UpdateEnrollment(int id, [FromBody] StatusUpdateRequest body, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(body.Status) || !EnrollmentStatuses.Contains(body.Status.Trim()))
             return BadRequest(new { error = "invalid status" });
+
+        if (CurrentUser.IsEmployee(User))
+        {
+            var self = CurrentUser.EmployeeId(User);
+            if (self is null or <= 0) return BadRequest(new { error = "employee profile not linked" });
+            if (!await _hr.EnrollmentOwnedByAsync(id, self.Value, ct))
+                return Forbid();
+            var st = body.Status.Trim().ToLowerInvariant();
+            if (st is not ("in_progress" or "completed"))
+                return BadRequest(new { error = "employees may set in_progress or completed only" });
+        }
+
         var row = await _hr.UpdateEnrollmentStatusAsync(id, body.Status.Trim(), ct);
         return row is null ? NotFound() : Ok(row);
     }
 
     [HttpGet("certifications")]
-    public async Task<IActionResult> Certifications(CancellationToken ct) =>
-        Ok(await _hr.CertificationsAsync(ct));
+    public async Task<IActionResult> Certifications(CancellationToken ct)
+    {
+        int? only = CurrentUser.IsEmployee(User) ? CurrentUser.EmployeeId(User) : null;
+        if (CurrentUser.IsEmployee(User) && only is null or <= 0)
+            return BadRequest(new { error = "employee profile not linked" });
+        return Ok(await _hr.CertificationsAsync(only, ct));
+    }
 
     [HttpPost("certifications")]
     [Authorize(Roles = "admin")]

@@ -19,6 +19,7 @@ var files = args.Length > 0
         "schema-phase3-locale.sql",
         "schema-audit-ensure.sql",
         "schema-onboarding-tasks.sql",
+        "schema-phase5-scale.sql",
     };
 
 string? FindApiDir()
