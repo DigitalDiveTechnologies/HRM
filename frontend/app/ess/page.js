@@ -5,11 +5,12 @@ import { useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api, getUser, normalizeRole } from '../../lib/auth';
 import { downloadDocumentFile, formatDate, money, v } from '../../lib/format';
+import { useLocale } from '../../lib/i18n/LocaleContext';
 
 export default function EssPage() {
+  const { t } = useLocale();
   const [user, setUser] = useState(null);
   const role = normalizeRole(user);
-  const employeeId = user?.employeeId || user?.employee_id;
   const [data, setData] = useState(null);
   const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
@@ -23,7 +24,7 @@ export default function EssPage() {
     if (!user) return;
     const eid = user.employeeId || user.employee_id;
     if (!eid) {
-      setError('No employee profile linked to this user.');
+      setError(t('ess_no_link'));
       return;
     }
     api(`/ess/${eid}`)
@@ -32,7 +33,7 @@ export default function EssPage() {
         setPhone(v(d.profile || {}, 'phone') || '');
       })
       .catch((e) => setError(e.message));
-  }, [user]);
+  }, [user, t]);
 
   async function savePhone(e) {
     e.preventDefault();
@@ -43,7 +44,7 @@ export default function EssPage() {
         method: 'PATCH',
         body: JSON.stringify({ phone }),
       });
-      setMsg('Profile updated.');
+      setMsg(t('ess_updated'));
     } catch (err) {
       setError(err.message);
     }
@@ -52,15 +53,15 @@ export default function EssPage() {
   const p = data?.profile || {};
 
   return (
-    <AppShell title="Employee Self-Service" subtitle="Leave, payslips, profile, documents, attendance">
+    <AppShell title={t('ess_title')} subtitle={t('ess_subtitle')}>
       {error ? <div className="error">{error}</div> : null}
-      {!data && !error ? <div className="muted">Loading…</div> : null}
+      {!data && !error ? <div className="muted">{t('loading')}</div> : null}
       {data ? (
         <div className="stack">
-          <div className="grid-2" style={{ display: 'grid', gap: 14, gridTemplateColumns: '1fr 1fr' }}>
+          <div className="grid-2 ess-mss-grid" style={{ display: 'grid', gap: 14, gridTemplateColumns: '1fr 1fr' }}>
             <div className="card">
               <div className="panel-title">
-                <h3>My profile</h3>
+                <h3>{t('ess_profile')}</h3>
               </div>
               <p>
                 <strong>{v(p, 'fullName', 'full_name') || '-'}</strong>
@@ -73,27 +74,27 @@ export default function EssPage() {
               {msg ? <div style={{ color: 'var(--ok)', marginBottom: 8 }}>{msg}</div> : null}
               <form className="stack" onSubmit={savePhone}>
                 <div className="field">
-                  <label>Phone</label>
+                  <label>{t('ess_phone')}</label>
                   <input value={phone} onChange={(e) => setPhone(e.target.value)} />
                 </div>
                 <button className="btn" type="submit">
-                  Update personal info
+                  {t('ess_update')}
                 </button>
               </form>
             </div>
             <div className="card">
               <div className="panel-title">
-                <h3>Quick actions</h3>
+                <h3>{t('ess_quick_leave')}</h3>
               </div>
               <div className="row-actions">
                 <Link className="btn secondary" href="/leave">
-                  Apply leave
+                  {t('ess_quick_leave')}
                 </Link>
                 <Link className="btn secondary" href="/attendance">
-                  Attendance
+                  {t('ess_quick_attendance')}
                 </Link>
                 <Link className="btn secondary" href="/notifications">
-                  Notifications
+                  {t('ess_quick_notifications')}
                 </Link>
                 {role === 'admin' ? (
                   <Link className="btn secondary" href="/employees">
@@ -106,14 +107,14 @@ export default function EssPage() {
 
           <div className="card">
             <div className="panel-title">
-              <h3>My payslips</h3>
+              <h3>{t('ess_payslips')}</h3>
             </div>
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>Period</th>
-                    <th>Net pay</th>
+                    <th>{t('ess_period')}</th>
+                    <th>{t('ess_net')}</th>
                     <th>WPS</th>
                   </tr>
                 </thead>
@@ -132,16 +133,16 @@ export default function EssPage() {
 
           <div className="card">
             <div className="panel-title">
-              <h3>My leave</h3>
+              <h3>{t('ess_leave')}</h3>
             </div>
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>Type</th>
-                    <th>Dates</th>
-                    <th>Days</th>
-                    <th>Status</th>
+                    <th>{t('ess_type')}</th>
+                    <th>{t('ess_date')}</th>
+                    <th>{t('ess_days')}</th>
+                    <th>{t('ess_status')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -164,16 +165,16 @@ export default function EssPage() {
 
           <div className="card">
             <div className="panel-title">
-              <h3>Attendance history</h3>
+              <h3>{t('ess_attendance')}</h3>
             </div>
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>Date</th>
+                    <th>{t('ess_date')}</th>
                     <th>In</th>
                     <th>Out</th>
-                    <th>Status</th>
+                    <th>{t('ess_status')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -194,15 +195,15 @@ export default function EssPage() {
 
           <div className="card">
             <div className="panel-title">
-              <h3>My documents</h3>
+              <h3>{t('ess_documents')}</h3>
             </div>
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>Type</th>
-                    <th>Title</th>
-                    <th>Expiry</th>
+                    <th>{t('ess_type')}</th>
+                    <th>{t('ess_title_col')}</th>
+                    <th>{t('ess_expiry')}</th>
                     <th>File</th>
                   </tr>
                 </thead>

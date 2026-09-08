@@ -11,14 +11,17 @@ import {
   homeForRole,
   normalizeRole,
 } from '../lib/auth';
-import { canAccessPath, isNavActive, navForRole } from '../lib/nav';
+import { canAccessPath, isNavActive, navForRole, navGroupTitle, navLabel } from '../lib/nav';
 import { BRAND } from '../lib/brand';
 import ThemeToggle from './ThemeToggle';
+import LanguageToggle from './LanguageToggle';
 import { usePortalAlerts } from './usePortalAlerts';
+import { useLocale } from '../lib/i18n/LocaleContext';
 
 export default function AppShell({ title, subtitle, actions, children }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useLocale();
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -75,7 +78,7 @@ export default function AppShell({ title, subtitle, actions, children }) {
   if (!ready || !user) {
     return (
       <div className="app-shell" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
-        <div className="muted">Loading…</div>
+        <div className="muted">{t('loading')}</div>
       </div>
     );
   }
@@ -103,7 +106,7 @@ export default function AppShell({ title, subtitle, actions, children }) {
             <button
               type="button"
               className="sidebar-close"
-              aria-label="Close menu"
+              aria-label={t('closeMenu')}
               onClick={() => setMenuOpen(false)}
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
@@ -115,20 +118,21 @@ export default function AppShell({ title, subtitle, actions, children }) {
             </button>
           </div>
           {filteredNav.map((group) => (
-            <div className="nav-group" key={group.title}>
-              <h4>{group.title}</h4>
+            <div className="nav-group" key={group.titleKey || group.title}>
+              <h4>{navGroupTitle(group, t)}</h4>
               <div className="nav">
                 {group.links.map((l) => {
                   const badge = badgeFor(l.href);
                   const isParentActive = isNavActive(pathname, l.href);
                   const isAnyChildActive = Boolean(l.children && l.children.some((c) => isNavActive(pathname, c.href)));
                   const isExpanded = isParentActive || isAnyChildActive || (pathname && pathname.startsWith(l.href));
+                  const label = navLabel(l, t);
 
                   if (l.disabled) {
                     return (
                       <div key={l.href} style={{ display: 'flex', flexDirection: 'column', cursor: 'not-allowed' }} title="Temporarily disabled">
                         <div className="nav-disabled-link">
-                          <span className="nav-link-label">{l.label}</span>
+                          <span className="nav-link-label">{label}</span>
                           {badge > 0 ? (
                             <span className="nav-alert-badge" aria-label={`${badge} alerts`}>
                               {badge > 99 ? '99+' : badge}
@@ -147,7 +151,7 @@ export default function AppShell({ title, subtitle, actions, children }) {
                         aria-current={isParentActive ? 'page' : undefined}
                         onClick={() => setMenuOpen(false)}
                       >
-                        <span className="nav-link-label">{l.label}</span>
+                        <span className="nav-link-label">{label}</span>
                         {badge > 0 ? (
                           <span className="nav-alert-badge" aria-label={`${badge} alerts`}>
                             {badge > 99 ? '99+' : badge}
@@ -159,9 +163,9 @@ export default function AppShell({ title, subtitle, actions, children }) {
                           style={{
                             display: 'flex',
                             flexDirection: 'column',
-                            paddingLeft: '12px',
+                            paddingInlineStart: '12px',
                             margin: '2px 0 4px 12px',
-                            borderLeft: '1.5px solid var(--line, #cbd5e1)',
+                            borderInlineStart: '1.5px solid var(--line, #cbd5e1)',
                             gap: '2px',
                           }}
                         >
@@ -183,7 +187,7 @@ export default function AppShell({ title, subtitle, actions, children }) {
                                 }}
                                 onClick={() => setMenuOpen(false)}
                               >
-                                {c.label}
+                                {navLabel(c, t)}
                               </Link>
                             );
                           })}
@@ -196,7 +200,7 @@ export default function AppShell({ title, subtitle, actions, children }) {
             </div>
           ))}
           <button className="btn logout-btn block" type="button" onClick={logout} style={{ marginTop: 12 }}>
-            Logout
+            {t('logout')}
           </button>
         </aside>
         <main className="main">
@@ -206,7 +210,7 @@ export default function AppShell({ title, subtitle, actions, children }) {
                 <button
                   className="menu-btn"
                   type="button"
-                  aria-label="Open menu"
+                  aria-label={t('openMenu')}
                   onClick={() => setMenuOpen(true)}
                 >
                   <svg className="menu-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
@@ -226,6 +230,7 @@ export default function AppShell({ title, subtitle, actions, children }) {
             </div>
             <div className="topbar-right">
               {actions}
+              <LanguageToggle />
               <ThemeToggle />
               <div className="user-chip">
                 {user.fullName || user.full_name || user.email} · {role}

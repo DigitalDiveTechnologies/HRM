@@ -60,6 +60,7 @@ class AppState extends ChangeNotifier {
   final ApiClient api;
 
   ThemeMode themeMode = ThemeMode.light;
+  String locale = 'en';
   AuthUser? user;
   bool ready = false;
   bool isTeamLead = false;
@@ -100,6 +101,8 @@ class AppState extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final theme = prefs.getString('hr_theme') ?? 'light';
     themeMode = theme == 'dark' ? ThemeMode.dark : ThemeMode.light;
+    final loc = prefs.getString('hr_locale') ?? 'en';
+    locale = loc == 'ar' ? 'ar' : 'en';
 
     await api.loadToken();
     final raw = prefs.getString('hr_user');
@@ -141,6 +144,20 @@ class AppState extends ChangeNotifier {
     await prefs.setString('hr_theme', themeMode == ThemeMode.dark ? 'dark' : 'light');
   }
 
+  Future<void> setLocale(String next) async {
+    locale = next == 'ar' ? 'ar' : 'en';
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('hr_locale', locale);
+    try {
+      await api.request('/auth/locale', method: 'PATCH', body: {'locale': locale});
+    } catch (_) {
+      /* offline / preview ok */
+    }
+  }
+
+  Future<void> toggleLocale() => setLocale(locale == 'ar' ? 'en' : 'ar');
+
   Future<void> login(String email, String password) async {
     final data = await api.request(
       '/auth/login',
@@ -159,6 +176,12 @@ class AppState extends ChangeNotifier {
     }
 
     final u = AuthUser.fromJson(Map<String, dynamic>.from(rawUser));
+    final prefLoc = (rawUser['preferredLocale'] ?? rawUser['preferred_locale'])?.toString();
+    if (prefLoc == 'ar' || prefLoc == 'en') {
+      locale = prefLoc!;
+      final prefsLoc = await SharedPreferences.getInstance();
+      await prefsLoc.setString('hr_locale', locale);
+    }
     if (!canUseMobileApp(u.role)) {
       throw ApiException(
         'Administrator accounts use the HR web portal. Employees sign in here.',

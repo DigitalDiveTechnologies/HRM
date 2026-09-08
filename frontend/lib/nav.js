@@ -1,15 +1,16 @@
+/** Nav labels use i18n keys; AppShell translates via t(labelKey). */
+
 export const NAV = [
   {
-    title: 'Overview',
+    titleKey: 'nav_overview',
     links: [
-      { href: '/dashboard', label: 'Dashboard', roles: ['admin'] },
-      // Blueprint v1.1 — PDF modules re-enabled (UAE rules still deepen by phase)
-      { href: '/reports', label: 'Reports & Analytics', roles: ['admin'] },
-      { href: '/notifications', label: 'Notifications', roles: ['admin'] },
+      { href: '/dashboard', labelKey: 'nav_dashboard', roles: ['admin'] },
+      { href: '/reports', labelKey: 'nav_reports', roles: ['admin'] },
+      { href: '/notifications', labelKey: 'nav_notifications', roles: ['admin', 'manager', 'employee'] },
     ],
   },
   {
-    title: 'Core HR',
+    titleKey: 'nav_core_hr',
     links: [
       {
         href: '/divisions',
@@ -38,17 +39,19 @@ export const NAV = [
       { href: '/training', label: 'Training', roles: ['admin'] },
       { href: '/assets', label: 'Assets', roles: ['admin'] },
       { href: '/travel', label: 'Travel & Expense', roles: ['admin'] },
-      { href: '/attendance', label: 'Attendance', roles: ['admin'] },
-      { href: '/leave', label: 'Leave', roles: ['admin'] },
-      { href: '/certificates', label: 'Certificates', roles: ['admin'] },
+      { href: '/attendance', labelKey: 'nav_attendance', roles: ['admin', 'manager', 'employee'] },
+      { href: '/leave', labelKey: 'nav_leave', roles: ['admin', 'manager', 'employee'] },
+      { href: '/certificates', labelKey: 'nav_certificates', roles: ['admin', 'manager', 'employee'] },
       { href: '/payroll', label: 'Payroll', roles: ['admin'] },
+      { href: '/approvals', labelKey: 'nav_approvals', roles: ['admin', 'manager'] },
     ],
   },
   {
-    title: 'Self Service',
+    titleKey: 'nav_self_service',
     links: [
-      { href: '/ess', label: 'ESS Portal', roles: ['admin'] },
-      { href: '/documents', label: 'Documents', roles: ['admin'] },
+      { href: '/ess', labelKey: 'nav_ess', roles: ['admin', 'manager', 'employee'] },
+      { href: '/mss', labelKey: 'nav_mss', roles: ['admin', 'manager'] },
+      { href: '/documents', labelKey: 'nav_documents', roles: ['admin', 'manager', 'employee'] },
     ],
   },
 ];
@@ -64,18 +67,29 @@ export function isNavActive(pathname, href) {
   return norm(pathname) === norm(href);
 }
 
+function linkRoles(link) {
+  return link.roles || ['admin'];
+}
+
 export function canAccessPath(pathname, role) {
   const path = pathname.startsWith('/') ? pathname : `/${pathname}`;
+  const base = path.split('?')[0];
+  // Allow nested employee create etc.
   for (const group of NAV) {
     for (const link of group.links) {
-      if (link.href === path) return (link.roles || ['admin']).includes(role);
+      if (link.href === base || (base.startsWith(`${link.href}/`) && link.href !== '/')) {
+        if (linkRoles(link).includes(role)) return true;
+      }
       if (link.children) {
         for (const child of link.children) {
-          if (child.href === path) return (child.roles || ['admin']).includes(role);
+          if (child.href === base || base.startsWith(`${child.href}/`)) {
+            if (linkRoles(child).includes(role)) return true;
+          }
         }
       }
     }
   }
+  // Admin can open anything else in the portal
   return role === 'admin';
 }
 
@@ -83,10 +97,20 @@ export function navForRole(role) {
   return NAV.map((group) => ({
     ...group,
     links: group.links
-      .filter((l) => (l.roles || ['admin']).includes(role))
+      .filter((l) => linkRoles(l).includes(role))
       .map((l) => ({
         ...l,
-        children: (l.children || []).filter((c) => (c.roles || ['admin']).includes(role)),
+        children: (l.children || []).filter((c) => linkRoles(c).includes(role)),
       })),
   })).filter((group) => group.links.length > 0);
+}
+
+export function navLabel(link, t) {
+  if (link.labelKey && t) return t(link.labelKey);
+  return link.label || link.labelKey || link.href;
+}
+
+export function navGroupTitle(group, t) {
+  if (group.titleKey && t) return t(group.titleKey);
+  return group.title || group.titleKey || '';
 }

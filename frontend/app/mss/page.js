@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api } from '../../lib/auth';
 import { formatDate, v } from '../../lib/format';
+import { useLocale } from '../../lib/i18n/LocaleContext';
 
 export default function MssPage() {
+  const { t } = useLocale();
   const [summary, setSummary] = useState(null);
   const [team, setTeam] = useState([]);
   const [leave, setLeave] = useState([]);
@@ -23,9 +25,9 @@ export default function MssPage() {
       api('/mss/attendance'),
       api('/mss/approvals'),
     ])
-      .then(([s, t, l, a, ap]) => {
+      .then(([s, tRow, l, a, ap]) => {
         setSummary(s || null);
-        setTeam(t || []);
+        setTeam(tRow || []);
         setLeave(l || []);
         setAttendance(a || []);
         setApprovals(ap || []);
@@ -42,7 +44,7 @@ export default function MssPage() {
     setError('');
     try {
       await api(`/mss/approvals/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
-      setMsg(`Request ${status}.`);
+      setMsg(`${status}`);
       load();
     } catch (e) {
       setError(e.message);
@@ -50,16 +52,16 @@ export default function MssPage() {
   }
 
   return (
-    <AppShell title="Manager Self-Service" subtitle="Your team roster, leave, attendance and approvals">
+    <AppShell title={t('mss_title')} subtitle={t('mss_subtitle')}>
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
 
-      <div className="grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
+      <div className="grid ess-mss-stats" style={{ gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
         {[
-          ['Team', v(summary || {}, 'teamCount', 'team_count') || 0],
-          ['Pending leave', v(summary || {}, 'pendingLeave', 'pending_leave') || 0],
-          ['Pending approvals', v(summary || {}, 'pendingApprovals', 'pending_approvals') || 0],
-          ['On leave today', v(summary || {}, 'onLeaveToday', 'on_leave_today') || 0],
+          [t('mss_team'), v(summary || {}, 'teamCount', 'team_count') || 0],
+          [t('mss_pending_leave'), v(summary || {}, 'pendingLeave', 'pending_leave') || 0],
+          [t('mss_pending_approvals'), v(summary || {}, 'pendingApprovals', 'pending_approvals') || 0],
+          [t('mss_on_leave'), v(summary || {}, 'onLeaveToday', 'on_leave_today') || 0],
         ].map(([label, value]) => (
           <div className="card" key={label} style={{ padding: 14 }}>
             <div className="muted" style={{ fontSize: 12 }}>{label}</div>
@@ -70,16 +72,16 @@ export default function MssPage() {
 
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="panel-title">
-          <h3>My team</h3>
+          <h3>{t('mss_my_team')}</h3>
         </div>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Employee</th>
-                <th>Title</th>
-                <th>Department</th>
-                <th>Status</th>
+                <th>{t('mss_employee')}</th>
+                <th>{t('mss_title_col')}</th>
+                <th>{t('mss_department')}</th>
+                <th>{t('mss_status')}</th>
               </tr>
             </thead>
             <tbody>
@@ -98,7 +100,7 @@ export default function MssPage() {
               ))}
               {!team.length ? (
                 <tr>
-                  <td colSpan={4}>No direct reports linked to your profile.</td>
+                  <td colSpan={4}>{t('mss_none')}</td>
                 </tr>
               ) : null}
             </tbody>
@@ -108,17 +110,17 @@ export default function MssPage() {
 
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="panel-title">
-          <h3>Team approvals</h3>
+          <h3>{t('mss_approvals')}</h3>
         </div>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Title</th>
-                <th>Employee</th>
-                <th>Type</th>
-                <th>Status</th>
-                <th>Action</th>
+                <th>{t('ess_title_col')}</th>
+                <th>{t('mss_employee')}</th>
+                <th>{t('ess_type')}</th>
+                <th>{t('mss_status')}</th>
+                <th>{t('common_actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -136,10 +138,10 @@ export default function MssPage() {
                       {status === 'pending' ? (
                         <div className="row-actions">
                           <button type="button" className="btn ok" onClick={() => setApprovalStatus(v(a, 'id'), 'approved')}>
-                            Approve
+                            {t('mss_approve')}
                           </button>
                           <button type="button" className="btn danger" onClick={() => setApprovalStatus(v(a, 'id'), 'rejected')}>
-                            Reject
+                            {t('mss_reject')}
                           </button>
                         </div>
                       ) : (
@@ -151,7 +153,7 @@ export default function MssPage() {
               })}
               {!approvals.length ? (
                 <tr>
-                  <td colSpan={5}>No team approvals.</td>
+                  <td colSpan={5}>{t('mss_none')}</td>
                 </tr>
               ) : null}
             </tbody>
@@ -161,17 +163,17 @@ export default function MssPage() {
 
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="panel-title">
-          <h3>Team leave</h3>
+          <h3>{t('mss_leave_requests')}</h3>
         </div>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Employee</th>
-                <th>Type</th>
-                <th>Dates</th>
-                <th>Days</th>
-                <th>Status</th>
+                <th>{t('mss_employee')}</th>
+                <th>{t('ess_type')}</th>
+                <th>{t('ess_date')}</th>
+                <th>{t('ess_days')}</th>
+                <th>{t('mss_status')}</th>
               </tr>
             </thead>
             <tbody>
@@ -190,7 +192,7 @@ export default function MssPage() {
               ))}
               {!leave.length ? (
                 <tr>
-                  <td colSpan={5}>No team leave requests.</td>
+                  <td colSpan={5}>{t('mss_none')}</td>
                 </tr>
               ) : null}
             </tbody>
@@ -200,16 +202,16 @@ export default function MssPage() {
 
       <div className="card">
         <div className="panel-title">
-          <h3>Recent team attendance</h3>
+          <h3>{t('mss_attendance')}</h3>
         </div>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Employee</th>
-                <th>Date</th>
-                <th>Status</th>
-                <th>Late (min)</th>
+                <th>{t('mss_employee')}</th>
+                <th>{t('ess_date')}</th>
+                <th>{t('mss_status')}</th>
+                <th>Late</th>
               </tr>
             </thead>
             <tbody>
@@ -225,7 +227,7 @@ export default function MssPage() {
               ))}
               {!attendance.length ? (
                 <tr>
-                  <td colSpan={4}>No team attendance yet.</td>
+                  <td colSpan={4}>{t('mss_none')}</td>
                 </tr>
               ) : null}
             </tbody>

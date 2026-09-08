@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'brand.dart';
+import 'l10n/l10n.dart';
 import 'screens/app_shell.dart';
 import 'screens/login_screen.dart';
 import 'services/api_client.dart';
@@ -24,10 +25,11 @@ class DigitalDiveHrApp extends StatelessWidget {
         state.init();
         return state;
       },
-      // Only themeMode rebuilds MaterialApp chrome — screens stay mounted (no reload/spinner).
       child: Builder(
         builder: (context) {
           final themeMode = context.select<AppState, ThemeMode>((s) => s.themeMode);
+          final locale = context.select<AppState, String>((s) => s.locale);
+          final isAr = locale == 'ar';
           return MaterialApp(
             title: Brand.appTitle,
             debugShowCheckedModeBanner: false,
@@ -36,6 +38,13 @@ class DigitalDiveHrApp extends StatelessWidget {
             themeMode: themeMode,
             themeAnimationDuration: Duration.zero,
             themeAnimationStyle: AnimationStyle.noAnimation,
+            locale: Locale(locale),
+            builder: (context, child) {
+              return Directionality(
+                textDirection: isAr ? TextDirection.rtl : TextDirection.ltr,
+                child: child ?? const SizedBox.shrink(),
+              );
+            },
             home: const _RootGate(),
           );
         },
@@ -44,7 +53,6 @@ class DigitalDiveHrApp extends StatelessWidget {
   }
 }
 
-/// Auth/routing gate — does not rebuild on theme toggle.
 class _RootGate extends StatelessWidget {
   const _RootGate();
 
@@ -52,9 +60,10 @@ class _RootGate extends StatelessWidget {
   Widget build(BuildContext context) {
     final ready = context.select<AppState, bool>((s) => s.ready);
     final signedIn = context.select<AppState, bool>((s) => s.user != null);
+    final locale = context.select<AppState, String>((s) => s.locale);
 
     if (!ready) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(body: Center(child: Text(L10n(locale).t('loading'))));
     }
     if (!signedIn) {
       return const LoginScreen();

@@ -58,6 +58,7 @@ public sealed class AuthController : ControllerBase
                 EmployeeId = user.EmployeeId,
                 FullName = user.FullName,
                 JobTitle = user.JobTitle,
+                PreferredLocale = string.IsNullOrWhiteSpace(user.PreferredLocale) ? "en" : user.PreferredLocale,
             }
         });
     }
@@ -75,6 +76,20 @@ public sealed class AuthController : ControllerBase
             employeeId = CurrentUser.EmployeeId(User),
             fullName = CurrentUser.Name(User),
         });
+    }
+
+    /// <summary>Phase 3 — persist EN/AR preference.</summary>
+    [Authorize]
+    [HttpPatch("locale")]
+    public async Task<IActionResult> UpdateLocale([FromBody] LocaleUpdateRequest body, CancellationToken ct)
+    {
+        var idRaw = CurrentUser.UserId(User);
+        if (!int.TryParse(idRaw, out var userId))
+            return Unauthorized();
+        var (ok, error) = await _auth.UpdatePreferredLocaleAsync(userId, body.Locale ?? "en", ct);
+        if (!ok) return BadRequest(new { error });
+        var loc = string.Equals(body.Locale?.Trim(), "ar", StringComparison.OrdinalIgnoreCase) ? "ar" : "en";
+        return Ok(new { preferredLocale = loc });
     }
 
     /// <summary>Change password (stores BCrypt hash).</summary>

@@ -5,9 +5,12 @@ import { useRouter } from 'next/navigation';
 import { api, canUsePortal, clearSession, getUser, hasSession, homeForRole, setSession } from '../lib/auth';
 import { BRAND } from '../lib/brand';
 import ThemeToggle from '../components/ThemeToggle';
+import LanguageToggle from '../components/LanguageToggle';
+import { useLocale } from '../lib/i18n/LocaleContext';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { t, setLocale } = useLocale();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -37,11 +40,11 @@ export default function LoginPage() {
         throw new Error('Login succeeded but no token was returned.');
       }
       if (!canUsePortal(user)) {
-        throw new Error(
-          `This portal is for administrators only. ${BRAND.employeeAppHint}`,
-        );
+        throw new Error(t('login_portal_only_hint'));
       }
       setSession(data);
+      const pref = user?.preferredLocale || user?.preferred_locale;
+      if (pref === 'ar' || pref === 'en') setLocale(pref);
       router.replace(homeForRole(user));
     } catch (err) {
       setError(err.message || 'Unable to sign in');
@@ -54,7 +57,8 @@ export default function LoginPage() {
 
   return (
     <div className="login-page">
-      <div className="login-theme-wrap">
+      <div className="login-theme-wrap" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <LanguageToggle />
         <ThemeToggle />
       </div>
       <div className="login-card">
@@ -77,7 +81,7 @@ export default function LoginPage() {
         ) : null}
         <form onSubmit={onSubmit} autoComplete="on">
           <div className="field">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="email">{t('login_email')}</label>
             <input
               id="email"
               type="email"
@@ -89,7 +93,7 @@ export default function LoginPage() {
             />
           </div>
           <div className="field">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">{t('login_password')}</label>
             <div className="password-field">
               <input
                 id="password"
@@ -103,7 +107,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 className={`password-toggle${hasPassword ? '' : ' is-hidden'}`}
-                aria-label={showPass ? 'Hide password' : 'Show password'}
+                aria-label={showPass ? t('login_hide') : t('login_show')}
                 tabIndex={hasPassword ? 0 : -1}
                 onClick={() => setShowPass((s) => !s)}
               >
@@ -124,7 +128,7 @@ export default function LoginPage() {
             </div>
           </div>
           <button className="btn block login-submit" type="submit" disabled={loading}>
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? t('loading') : t('login_sign_in')}
           </button>
         </form>
       </div>

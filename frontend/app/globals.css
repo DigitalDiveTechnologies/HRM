@@ -976,9 +976,37 @@ th {
     height: 100%;
   }
   .sidebar.open { transform: translateX(0); }
+  html[dir='rtl'] .sidebar {
+    inset: 0 0 0 auto;
+    transform: translateX(105%);
+    border-right: none;
+    border-left: 1px solid var(--sidebar-border);
+  }
+  html[dir='rtl'] .sidebar.open { transform: translateX(0); }
   .menu-btn-wrap { display: inline-block; }
   .sidebar-close { display: inline-grid; }
   .grid-2 { grid-template-columns: 1fr; }
+  .ess-mss-stats { grid-template-columns: repeat(2, 1fr) !important; }
+}
+
+@media (max-width: 640px) {
+  .ess-mss-grid { grid-template-columns: 1fr !important; }
+  .ess-mss-stats { grid-template-columns: 1fr !important; }
+}
+
+/* Phase 3 RTL polish */
+html[dir='rtl'] body {
+  text-align: right;
+}
+html[dir='rtl'] .sidebar {
+  border-right: none;
+  border-left: 1px solid var(--sidebar-border);
+}
+html[dir='rtl'] .table-wrap table {
+  text-align: right;
+}
+html[dir='rtl'] .row-actions {
+  flex-direction: row-reverse;
 }
 
 @media (max-width: 640px) {

@@ -35,6 +35,7 @@ String homeRouteForRole(String? role) => 'ess';
 List<NavGroup> navForRole(String? role, {bool isTeamLead = false}) {
   final items = <NavItem>[
     const NavItem(id: 'ess', label: 'ESS / Home', icon: 'home'),
+    if (isTeamLead) const NavItem(id: 'mss', label: 'Manager hub', icon: 'approvals'),
     if (isTeamLead) const NavItem(id: 'team_approvals', label: 'Team approvals', icon: 'approvals'),
     const NavItem(id: 'leave', label: 'My Leaves', icon: 'leave'),
     const NavItem(id: 'certificates', label: 'Certificates', icon: 'certificates'),

@@ -47,9 +47,23 @@ public sealed class AuthService
             EmployeeId = reader.IsDBNull(4) ? null : reader.GetInt32(4),
             FullName = reader.IsDBNull(5) ? null : reader.GetString(5),
             JobTitle = reader.IsDBNull(6) ? null : reader.GetString(6),
+            PreferredLocale = "en",
         };
 
         await reader.CloseAsync();
+
+        try
+        {
+            await using var locCmd = new NpgsqlCommand(
+                "SELECT COALESCE(NULLIF(preferred_locale, ''), 'en') FROM users WHERE id = @id", conn);
+            locCmd.Parameters.AddWithValue("id", user.Id);
+            var loc = await locCmd.ExecuteScalarAsync(ct) as string;
+            if (!string.IsNullOrWhiteSpace(loc)) user.PreferredLocale = loc;
+        }
+        catch (PostgresException)
+        {
+            user.PreferredLocale = "en";
+        }
 
         if (!PasswordHasher.Verify(user.Password, password))
         {
@@ -96,6 +110,26 @@ public sealed class AuthService
         update.Parameters.AddWithValue("id", userId);
         await update.ExecuteNonQueryAsync(ct);
         return (true, null);
+    }
+
+    public async Task<(bool Ok, string? Error)> UpdatePreferredLocaleAsync(int userId, string locale, CancellationToken ct = default)
+    {
+        var loc = string.Equals(locale?.Trim(), "ar", StringComparison.OrdinalIgnoreCase) ? "ar" : "en";
+        await using var conn = _db.CreateConnection();
+        await conn.OpenAsync(ct);
+        try
+        {
+            await using var update = new NpgsqlCommand(
+                "UPDATE users SET preferred_locale = @loc WHERE id = @id", conn);
+            update.Parameters.AddWithValue("loc", loc);
+            update.Parameters.AddWithValue("id", userId);
+            var n = await update.ExecuteNonQueryAsync(ct);
+            return n > 0 ? (true, null) : (false, "User not found.");
+        }
+        catch (PostgresException ex) when (ex.SqlState == "42703")
+        {
+            return (false, "preferred_locale column missing — apply schema-phase3-locale.sql");
+        }
     }
 
     /// <summary>One-time / ops: hash every plaintext password in users table.</summary>

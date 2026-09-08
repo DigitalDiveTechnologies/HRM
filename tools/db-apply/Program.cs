@@ -16,6 +16,7 @@ var files = args.Length > 0
         "schema-payroll-control.sql",
         "seed-payroll-control.sql",
         "schema-payroll-phase2.sql",
+        "schema-phase3-locale.sql",
     };
 
 string? FindApiDir()

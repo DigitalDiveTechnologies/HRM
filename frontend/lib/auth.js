@@ -60,12 +60,16 @@ export function normalizeRole(user) {
   return 'employee';
 }
 
-/** HR web portal — administrators only. */
+/** HR web portal — admin full HR; manager/employee self-service (Phase 3). */
 export function canUsePortal(user) {
-  return normalizeRole(user) === 'admin';
+  const role = normalizeRole(user);
+  return role === 'admin' || role === 'manager' || role === 'employee';
 }
 
 export function homeForRole(user) {
+  const role = normalizeRole(user);
+  if (role === 'manager') return '/mss';
+  if (role === 'employee') return '/ess';
   return '/dashboard';
 }
 

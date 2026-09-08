@@ -22,6 +22,7 @@ public sealed class UserDto
     public int? EmployeeId { get; set; }
     public string? FullName { get; set; }
     public string? JobTitle { get; set; }
+    public string PreferredLocale { get; set; } = "en";
 }
 
 public sealed class UserRecord
@@ -33,6 +34,12 @@ public sealed class UserRecord
     public int? EmployeeId { get; set; }
     public string? FullName { get; set; }
     public string? JobTitle { get; set; }
+    public string PreferredLocale { get; set; } = "en";
+}
+
+public sealed class LocaleUpdateRequest
+{
+    public string Locale { get; set; } = "en";
 }
 
 public sealed class ChangePasswordRequest

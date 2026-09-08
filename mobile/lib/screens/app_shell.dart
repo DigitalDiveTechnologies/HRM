@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../brand.dart';
+import '../l10n/l10n.dart';
 import '../nav/app_nav.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
@@ -58,12 +59,8 @@ class _AppShellState extends State<AppShell> {
 
   String _titleFor(String id) {
     final app = context.read<AppState>();
-    for (final g in navForRole(app.user?.role, isTeamLead: app.isTeamLead)) {
-      for (final i in g.items) {
-        if (i.id == id) return i.label;
-      }
-    }
-    return Brand.shellTitle;
+    final l10n = L10n(app.locale);
+    return l10n.navLabel(id);
   }
 
   Widget _pageFor(String id) {
@@ -275,6 +272,8 @@ class _PortalDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final locale = context.watch<AppState>().locale;
+    final l10n = L10n(locale);
     return Drawer(
       backgroundColor: T.sidebarBg(context),
       child: SafeArea(
@@ -368,7 +367,7 @@ class _PortalDrawer extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
                       child: Text(
-                        group.title.toUpperCase(),
+                        l10n.t('self_service').toUpperCase(),
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -379,7 +378,7 @@ class _PortalDrawer extends StatelessWidget {
                     ),
                     for (final item in group.items)
                       _DrawerTile(
-                        label: item.label,
+                        label: l10n.navLabel(item.id),
                         icon: navIcon(item.icon),
                         active: item.id == activeId,
                         badgeCount: badgeForRoute(item.id),
@@ -394,7 +393,7 @@ class _PortalDrawer extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: FilledButton(
                 onPressed: onLogout,
-                child: const Text('Logout'),
+                child: Text(l10n.t('logout')),
               ),
             ),
           ],
