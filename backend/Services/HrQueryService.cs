@@ -2774,7 +2774,26 @@ public sealed class HrQueryService
                 otCmd.Parameters.AddWithValue("p", periodLabel);
                 var otHours = Convert.ToDecimal(await otCmd.ExecuteScalarAsync(ct) ?? 0m);
                 var otPay = Math.Round(otHours * otRatePerHour, 2);
-                var deductions = 0m;
+
+                // Phase 2 preview: approved unpaid leave in period → daily basic deduction
+                await using var unpaidCmd = new NpgsqlCommand(
+                    """
+                    SELECT COALESCE(SUM(days), 0)::numeric
+                    FROM leave_requests
+                    WHERE employee_id = @eid
+                      AND status = 'approved'
+                      AND lower(leave_type) LIKE '%unpaid%'
+                      AND to_char(start_date, 'YYYY-MM') <= left(@p, 7)
+                      AND to_char(end_date, 'YYYY-MM') >= left(@p, 7)
+                    """, conn, (NpgsqlTransaction)tx);
+                unpaidCmd.Parameters.AddWithValue("eid", emp.Id);
+                unpaidCmd.Parameters.AddWithValue("p", periodLabel);
+                var unpaidDays = Convert.ToDecimal(await unpaidCmd.ExecuteScalarAsync(ct) ?? 0m);
+                var unpaidDeduction = emp.Basic > 0 && unpaidDays > 0
+                    ? Math.Round((emp.Basic / 30m) * unpaidDays, 2)
+                    : 0m;
+
+                var deductions = unpaidDeduction;
                 var net = emp.Basic + emp.Allow + otPay - deductions;
 
                 var isBank = string.Equals(emp.PayrollType, "bank_transfer", StringComparison.OrdinalIgnoreCase);
@@ -2810,7 +2829,9 @@ public sealed class HrQueryService
                 bankTransferCount = bankCount,
                 wpsBatch,
                 bankBatch,
-                slips = created
+                slips = created,
+                isPreview = true,
+                previewNote = "Unpaid-leave deduction uses basic/30 × approved unpaid days (preview until golden cases signed).",
             };
         }
     }
