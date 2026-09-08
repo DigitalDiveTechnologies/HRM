@@ -80,6 +80,8 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<HrQueryService>();
 builder.Services.AddScoped<OrgFoundationService>();
+builder.Services.AddScoped<EosbCalculatorService>();
+builder.Services.AddScoped<WpsSifPreviewService>();
 builder.Services.AddScoped<EmployeeBulkService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));

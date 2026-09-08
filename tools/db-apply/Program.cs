@@ -13,6 +13,8 @@ var files = args.Length > 0
         "seed-deep-features.sql",
         "schema-org-foundation.sql",
         "migrate-org-positions.sql",
+        "schema-payroll-control.sql",
+        "seed-payroll-control.sql",
     };
 
 string? FindApiDir()

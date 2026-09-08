@@ -77,10 +77,48 @@ export default function PayrollPage() {
     }
   }
 
+  async function downloadSifPreview() {
+    setError('');
+    try {
+      const [y, m] = String(period).split('-').map((x) => parseInt(x, 10));
+      const blob = await apiBlob(`/payroll/sif/preview?year=${y}&month=${m}`);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `WPS_SIF_PREVIEW_${period}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setMsg('Downloaded SIF preview (TEST/PREVIEW — plug bank map later).');
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function runEosbPreview() {
+    setError('');
+    setMsg('');
+    try {
+      const res = await api('/payroll/eosb/preview', {
+        method: 'POST',
+        body: JSON.stringify({
+          basicSalary: 5000,
+          serviceYears: 6.5,
+          unpaidLeaveDays: 0,
+          jurisdictionProfile: 'uae_mainland',
+        }),
+      });
+      setMsg(
+        `EOSB preview: AED ${res.eosbAmount} · ${res.formulaVersion || ''} · ${res.previewLabel || 'PREVIEW'}`,
+      );
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
   const periodRows = rows.filter((p) => String(v(p, 'periodLabel', 'period_label')) === period);
 
   return (
-    <AppShell title="Payroll Management" subtitle="Company-wise salary run — WPS vs bank transfer">
+    <AppShell title="Payroll Management" subtitle="Company-wise salary run — WPS vs bank transfer (Phase 2 preview tools available)">
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
 
@@ -107,6 +145,24 @@ export default function PayrollPage() {
               Download Bank CSV
             </button>
           </div>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 14, borderColor: 'rgba(245, 158, 11, 0.45)' }}>
+        <div className="panel-title">
+          <h3>Phase 2 preview (sir config later)</h3>
+        </div>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Bank-validated SIF field map and golden cases can be plugged into <code>payroll_employer_config</code> later.
+          Until then exports stay labelled TEST/PREVIEW.
+        </p>
+        <div className="toolbar-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn secondary" type="button" onClick={downloadSifPreview}>
+            Download SIF preview
+          </button>
+          <button className="btn secondary" type="button" onClick={runEosbPreview}>
+            Run EOSB preview (sample)
+          </button>
         </div>
       </div>
 
