@@ -363,9 +363,11 @@ export default function CompanyStructurePage() {
 
             <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 36 }}>
               {individualStaff.map((staff) => {
+                const vacant = v(staff, 'isVacant', 'is_vacant') === true || String(v(staff, 'isVacant', 'is_vacant')) === 'true';
                 const title = v(staff, 'jobTitle', 'job_title') || v(staff, 'fullName', 'full_name') || 'Staff';
-                const name = v(staff, 'fullName', 'full_name');
+                const name = vacant ? 'Vacant' : v(staff, 'fullName', 'full_name');
                 const dept = v(staff, 'departmentName', 'department_name');
+                const code = v(staff, 'code');
                 return (
                   <div
                     key={v(staff, 'id')}
@@ -374,19 +376,20 @@ export default function CompanyStructurePage() {
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
-                      cursor: 'pointer',
+                      cursor: vacant ? 'default' : 'pointer',
                       padding: '8px 12px',
                       transition: 'all 0.15s ease',
                       maxWidth: 140,
+                      opacity: vacant ? 0.75 : 1,
                     }}
-                    title="Click to view employee profile"
+                    title={vacant ? 'Vacant Position' : 'Click to view employee profile'}
                   >
                     <div
                       style={{
                         width: 56,
                         height: 56,
                         borderRadius: '50%',
-                        border: '1.5px solid rgba(0, 184, 219, 0.45)',
+                        border: vacant ? '1.5px solid rgba(100, 116, 139, 0.55)' : '1.5px solid rgba(0, 184, 219, 0.45)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -396,13 +399,14 @@ export default function CompanyStructurePage() {
                         transition: 'all 0.2s ease',
                       }}
                       onMouseEnter={(e) => {
+                        if (vacant) return;
                         e.currentTarget.style.transform = 'scale(1.08)';
                         e.currentTarget.style.borderColor = '#00b8db';
                         e.currentTarget.style.boxShadow = '0 0 14px rgba(0, 184, 219, 0.45)';
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.transform = 'scale(1)';
-                        e.currentTarget.style.borderColor = 'rgba(0, 184, 219, 0.45)';
+                        e.currentTarget.style.borderColor = vacant ? 'rgba(100, 116, 139, 0.55)' : 'rgba(0, 184, 219, 0.45)';
                         e.currentTarget.style.boxShadow = 'none';
                       }}
                     >
@@ -411,8 +415,10 @@ export default function CompanyStructurePage() {
                           width: 44,
                           height: 44,
                           borderRadius: '50%',
-                          background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
-                          border: '2px solid #00b8db',
+                          background: vacant
+                            ? 'linear-gradient(145deg, #94a3b8 0%, #64748b 100%)'
+                            : 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
+                          border: vacant ? '2px solid #94a3b8' : '2px solid #00b8db',
                           boxShadow: '0 4px 10px rgba(15, 23, 42, 0.3)',
                           display: 'flex',
                           alignItems: 'center',
@@ -429,6 +435,14 @@ export default function CompanyStructurePage() {
                       <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink, #0f172a)', lineHeight: 1.25 }}>
                         {title}
                       </div>
+                      {code ? (
+                        <div style={{ fontSize: '9px', color: '#64748b', marginTop: 2 }}>{code}</div>
+                      ) : null}
+                      {vacant ? (
+                        <div style={{ fontSize: '10px', color: '#b45309', fontWeight: 700, marginTop: 3 }}>Vacant</div>
+                      ) : name && name !== title ? (
+                        <div style={{ fontSize: '10px', color: '#334155', marginTop: 3 }}>{name}</div>
+                      ) : null}
                       {dept ? (
                         <div style={{ fontSize: '10px', color: '#008fa8', fontWeight: 600, marginTop: 3 }}>{dept}</div>
                       ) : null}

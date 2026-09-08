@@ -355,7 +355,16 @@ export default function PayrollPage() {
                   <td>{money(v(p, 'basicSalary', 'basic_salary'))}</td>
                   <td>{money(v(p, 'overtimePay', 'overtime_pay'))}</td>
                   <td>{money(v(p, 'allowances'))}</td>
-                  <td>{money(v(p, 'deductions'))}</td>
+                  <td>
+                    <span style={{ color: Number(v(p, 'deductions')) > 0 ? '#dc2626' : 'inherit', fontWeight: Number(v(p, 'deductions')) > 0 ? 700 : 400 }}>
+                      {money(v(p, 'deductions'))}
+                    </span>
+                    {Number(v(p, 'deductions')) > 0 ? (
+                      <div style={{ fontSize: '10.5px', color: '#b45309', fontWeight: 600, marginTop: 2 }}>
+                        Unpaid leave (Basic/30)
+                      </div>
+                    ) : null}
+                  </td>
                   <td>
                     <strong>{money(v(p, 'netPay', 'net_pay'))}</strong>
                   </td>
