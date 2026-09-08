@@ -78,6 +78,14 @@ export default function CreateEmployeePage() {
   async function createEmployee(ev) {
     if (ev && ev.preventDefault) ev.preventDefault();
     setError('');
+
+    // Client-required: email must be provided (no auto-fallback on create)
+    if (!form?.email?.trim()) {
+      setError('Email address is required to create an employee.');
+      setSaving(false);
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = masterPayloadFromForm(form, { includePassword: true });
