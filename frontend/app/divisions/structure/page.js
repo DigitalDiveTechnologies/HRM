@@ -17,14 +17,19 @@ export default function CompanyStructurePage() {
     }
     return [];
   });
+  const [headcount, setHeadcount] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api('/org/chart')
-      .then((org) => {
+    Promise.all([
+      api('/org/chart'),
+      api('/org/headcount').catch(() => []),
+    ])
+      .then(([org, hc]) => {
         const o = org || [];
         setChart(o);
+        setHeadcount(hc || []);
         setLoading(false);
         try {
           localStorage.setItem('gocs_cached_org', JSON.stringify(o));
@@ -240,15 +245,41 @@ export default function CompanyStructurePage() {
   }
 
   return (
-    <AppShell title="Company Structure" subtitle="Hierarchical organization tree & reporting structure">
+    <AppShell title="Company Structure" subtitle="Position-based organization chart (occupied + vacant seats)">
       {error ? <div className="error" style={{ marginBottom: 16 }}>{error}</div> : null}
+
+      {headcount.length ? (
+        <div className="card" style={{ marginBottom: 14, padding: '12px 16px' }}>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13 }}>
+            {(() => {
+              const totals = headcount.reduce(
+                (acc, r) => ({
+                  approved: acc.approved + Number(v(r, 'approved') || 0),
+                  occupied: acc.occupied + Number(v(r, 'occupied') || 0),
+                  vacant: acc.vacant + Number(v(r, 'vacant') || 0),
+                  frozen: acc.frozen + Number(v(r, 'frozen') || 0),
+                }),
+                { approved: 0, occupied: 0, vacant: 0, frozen: 0 }
+              );
+              return (
+                <>
+                  <span><strong>Approved seats:</strong> {totals.approved}</span>
+                  <span><strong>Occupied:</strong> {totals.occupied}</span>
+                  <span><strong>Vacant:</strong> {totals.vacant}</span>
+                  <span><strong>Frozen:</strong> {totals.frozen}</span>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      ) : null}
 
       <div className="card" style={{ padding: '24px 20px', overflowX: 'auto' }}>
         <div className="panel-title" style={{ marginBottom: 20 }}>
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>Organization Chart</h3>
             <p className="muted" style={{ fontSize: '12px', margin: '2px 0 0' }}>
-              Hierarchical reporting tree structure across companies and divisions
+              Position reporting tree — vacant seats shown; click occupied nodes for employee profile
             </p>
           </div>
         </div>

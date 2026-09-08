@@ -495,14 +495,67 @@ public sealed class HrQueryService
                 : "SELECT id, name, status, created_at FROM employment_types ORDER BY name",
             ct);
 
-    public async Task<(Dictionary<string, object?>? Row, string? Error)> CreateDesignationAsync(string name, CancellationToken ct) =>
-        await CreateMasterRowAsync("designations", name, ct);
+    public async Task<(Dictionary<string, object?>? Row, string? Error)> CreateDesignationAsync(
+        string name, string? code, string? jobFamily, string? grade, string? skillLevel,
+        int? defaultReportingDesignationId, CancellationToken ct)
+    {
+        name = name.Trim();
+        if (string.IsNullOrWhiteSpace(name)) return (null, "Name is required.");
+        await using var conn = await OpenAsync(ct);
+        try
+        {
+            await using var cmd = new NpgsqlCommand(
+                """
+                INSERT INTO designations (name, status, code, job_family, grade, skill_level, default_reporting_designation_id)
+                VALUES (@name, 'active', @code, @family, @grade, @skill, @rep)
+                RETURNING id, name, code, job_family, grade, skill_level, default_reporting_designation_id, status, created_at
+                """, conn);
+            cmd.Parameters.AddWithValue("name", name);
+            cmd.Parameters.AddWithValue("code", string.IsNullOrWhiteSpace(code) ? DBNull.Value : code.Trim());
+            cmd.Parameters.AddWithValue("family", string.IsNullOrWhiteSpace(jobFamily) ? DBNull.Value : jobFamily.Trim());
+            cmd.Parameters.AddWithValue("grade", string.IsNullOrWhiteSpace(grade) ? DBNull.Value : grade.Trim());
+            cmd.Parameters.AddWithValue("skill", string.IsNullOrWhiteSpace(skillLevel) ? DBNull.Value : skillLevel.Trim());
+            cmd.Parameters.AddWithValue("rep", defaultReportingDesignationId is > 0 ? defaultReportingDesignationId.Value : DBNull.Value);
+            return (await ReadOneAsync(cmd, ct), null);
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
+        {
+            return (null, "Designation name or code already exists.");
+        }
+    }
 
     public async Task<(Dictionary<string, object?>? Row, string? Error)> CreateEmploymentTypeAsync(string name, CancellationToken ct) =>
         await CreateMasterRowAsync("employment_types", name, ct);
 
-    public Task<(Dictionary<string, object?>? Row, string? Error)> UpdateDesignationAsync(int id, string? name, string? status, CancellationToken ct) =>
-        UpdateMasterRowAsync("designations", id, name, status, ct);
+    public async Task<(Dictionary<string, object?>? Row, string? Error)> UpdateDesignationAsync(
+        int id, string? name, string? status, string? code, string? jobFamily, string? grade, string? skillLevel,
+        int? defaultReportingDesignationId, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            UPDATE designations SET
+              name = COALESCE(@name, name),
+              status = COALESCE(@status, status),
+              code = COALESCE(@code, code),
+              job_family = COALESCE(@family, job_family),
+              grade = COALESCE(@grade, grade),
+              skill_level = COALESCE(@skill, skill_level),
+              default_reporting_designation_id = COALESCE(@rep, default_reporting_designation_id)
+            WHERE id = @id
+            RETURNING id, name, code, job_family, grade, skill_level, default_reporting_designation_id, status, created_at
+            """, conn);
+        cmd.Parameters.AddWithValue("id", id);
+        cmd.Parameters.AddWithValue("name", string.IsNullOrWhiteSpace(name) ? DBNull.Value : name.Trim());
+        cmd.Parameters.AddWithValue("status", string.IsNullOrWhiteSpace(status) ? DBNull.Value : status.Trim());
+        cmd.Parameters.AddWithValue("code", code is null ? DBNull.Value : (object)code.Trim());
+        cmd.Parameters.AddWithValue("family", jobFamily is null ? DBNull.Value : (object)jobFamily.Trim());
+        cmd.Parameters.AddWithValue("grade", grade is null ? DBNull.Value : (object)grade.Trim());
+        cmd.Parameters.AddWithValue("skill", skillLevel is null ? DBNull.Value : (object)skillLevel.Trim());
+        cmd.Parameters.AddWithValue("rep", defaultReportingDesignationId is > 0 ? defaultReportingDesignationId.Value : DBNull.Value);
+        var row = await ReadOneAsync(cmd, ct);
+        return row is null ? (null, "Designation not found.") : (row, null);
+    }
 
     public Task<(Dictionary<string, object?>? Row, string? Error)> UpdateEmploymentTypeAsync(int id, string? name, string? status, CancellationToken ct) =>
         UpdateMasterRowAsync("employment_types", id, name, status, ct);

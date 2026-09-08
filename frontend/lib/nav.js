@@ -17,6 +17,7 @@ export const NAV = [
         roles: ['admin'],
         children: [
           { href: '/divisions/management', label: 'Create Company', roles: ['admin'] },
+          { href: '/divisions/organisation', label: 'Organisation', roles: ['admin'] },
           { href: '/divisions/structure', label: 'Company Structure', roles: ['admin'] },
         ],
       },

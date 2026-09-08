@@ -5,13 +5,14 @@ import AppShell, { Badge } from '../../components/AppShell';
 import { api } from '../../lib/auth';
 import { v } from '../../lib/format';
 
+const emptyDes = () => ({ name: '', code: '', jobFamily: '', grade: '', skillLevel: '' });
 const emptyMaster = () => ({ name: '' });
 
 export default function MastersPage() {
   const [tab, setTab] = useState('designations');
   const [designations, setDesignations] = useState([]);
   const [employmentTypes, setEmploymentTypes] = useState([]);
-  const [desForm, setDesForm] = useState(emptyMaster());
+  const [desForm, setDesForm] = useState(emptyDes());
   const [empForm, setEmpForm] = useState(emptyMaster());
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -35,9 +36,18 @@ export default function MastersPage() {
     setMsg('');
     setError('');
     try {
-      await api('/designations', { method: 'POST', body: JSON.stringify({ name: desForm.name.trim() }) });
+      await api('/designations', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: desForm.name.trim(),
+          code: desForm.code.trim() || null,
+          jobFamily: desForm.jobFamily.trim() || null,
+          grade: desForm.grade.trim() || null,
+          skillLevel: desForm.skillLevel.trim() || null,
+        }),
+      });
       setMsg('Designation added.');
-      setDesForm(emptyMaster());
+      setDesForm(emptyDes());
       load();
     } catch (err) {
       setError(err.message);
@@ -71,50 +81,8 @@ export default function MastersPage() {
     }
   }
 
-  function MasterTable({ rows, kind }) {
-    return (
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={v(r, 'id')}>
-                <td>{v(r, 'name')}</td>
-                <td>
-                  <Badge status={v(r, 'status')} />
-                </td>
-                <td>
-                  {String(v(r, 'status')).toLowerCase() === 'active' ? (
-                    <button type="button" className="btn secondary" onClick={() => setMasterStatus(kind, v(r, 'id'), 'inactive')}>
-                      Deactivate
-                    </button>
-                  ) : (
-                    <button type="button" className="btn secondary" onClick={() => setMasterStatus(kind, v(r, 'id'), 'active')}>
-                      Reactivate
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {!rows.length ? (
-              <tr>
-                <td colSpan={3}>No rows yet.</td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
-    );
-  }
-
   return (
-    <AppShell title="Designations & Employment Types" subtitle="Manage job designations and employee contract / employment types">
+    <AppShell title="Designations & Employment Types" subtitle="Manage job designations (with grade/family) and employment types">
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
 
@@ -136,10 +104,28 @@ export default function MastersPage() {
               <h3>Add designation</h3>
             </div>
             <form className="stack" onSubmit={createDesignation}>
-              <label className="field">
-                Name
-                <input required value={desForm.name} onChange={(e) => setDesForm({ name: e.target.value })} placeholder="e.g. Software Engineer" />
-              </label>
+              <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <label className="field">
+                  Name
+                  <input required value={desForm.name} onChange={(e) => setDesForm({ ...desForm, name: e.target.value })} placeholder="e.g. Software Engineer" />
+                </label>
+                <label className="field">
+                  Code
+                  <input value={desForm.code} onChange={(e) => setDesForm({ ...desForm, code: e.target.value.toUpperCase() })} placeholder="e.g. SE" />
+                </label>
+                <label className="field">
+                  Job family
+                  <input value={desForm.jobFamily} onChange={(e) => setDesForm({ ...desForm, jobFamily: e.target.value })} placeholder="e.g. Engineering" />
+                </label>
+                <label className="field">
+                  Grade
+                  <input value={desForm.grade} onChange={(e) => setDesForm({ ...desForm, grade: e.target.value })} placeholder="e.g. G5" />
+                </label>
+                <label className="field">
+                  Skill level
+                  <input value={desForm.skillLevel} onChange={(e) => setDesForm({ ...desForm, skillLevel: e.target.value })} placeholder="e.g. Mid" />
+                </label>
+              </div>
               <button className="btn" type="submit">
                 Add designation
               </button>
@@ -149,7 +135,49 @@ export default function MastersPage() {
             <div className="panel-title">
               <h3>All designations</h3>
             </div>
-            <MasterTable rows={designations} kind="des" />
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Code</th>
+                    <th>Family</th>
+                    <th>Grade</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {designations.map((r) => (
+                    <tr key={v(r, 'id')}>
+                      <td>{v(r, 'name')}</td>
+                      <td>{v(r, 'code') || '—'}</td>
+                      <td>{v(r, 'jobFamily', 'job_family') || '—'}</td>
+                      <td>{v(r, 'grade') || '—'}</td>
+                      <td>
+                        <Badge status={v(r, 'status')} />
+                      </td>
+                      <td>
+                        {String(v(r, 'status')).toLowerCase() === 'active' ? (
+                          <button type="button" className="btn secondary" onClick={() => setMasterStatus('des', v(r, 'id'), 'inactive')}>
+                            Deactivate
+                          </button>
+                        ) : (
+                          <button type="button" className="btn secondary" onClick={() => setMasterStatus('des', v(r, 'id'), 'active')}>
+                            Reactivate
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {!designations.length ? (
+                    <tr>
+                      <td colSpan={6}>No rows yet.</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       ) : (
@@ -172,7 +200,43 @@ export default function MastersPage() {
             <div className="panel-title">
               <h3>All employment types</h3>
             </div>
-            <MasterTable rows={employmentTypes} kind="emp" />
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employmentTypes.map((r) => (
+                    <tr key={v(r, 'id')}>
+                      <td>{v(r, 'name')}</td>
+                      <td>
+                        <Badge status={v(r, 'status')} />
+                      </td>
+                      <td>
+                        {String(v(r, 'status')).toLowerCase() === 'active' ? (
+                          <button type="button" className="btn secondary" onClick={() => setMasterStatus('emp', v(r, 'id'), 'inactive')}>
+                            Deactivate
+                          </button>
+                        ) : (
+                          <button type="button" className="btn secondary" onClick={() => setMasterStatus('emp', v(r, 'id'), 'active')}>
+                            Reactivate
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {!employmentTypes.length ? (
+                    <tr>
+                      <td colSpan={3}>No rows yet.</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       )}

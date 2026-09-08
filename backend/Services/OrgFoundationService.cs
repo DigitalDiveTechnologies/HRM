@@ -397,4 +397,210 @@ public sealed class OrgFoundationService
             GROUP BY le.id, le.name, d.id, d.name
             ORDER BY le.name NULLS LAST, d.name NULLS LAST
             """, ct);
+
+    public Task<List<Dictionary<string, object?>>> AssignmentsAsync(bool openOnly, CancellationToken ct) =>
+        QueryAsync(
+            openOnly
+                ? """
+                  SELECT pa.*, p.code AS position_code, p.title AS position_title,
+                         e.full_name, e.emp_code, e.email
+                  FROM position_assignments pa
+                  JOIN positions p ON p.id = pa.position_id
+                  JOIN employees e ON e.id = pa.employee_id
+                  WHERE pa.effective_to IS NULL
+                  ORDER BY pa.id DESC
+                  """
+                : """
+                  SELECT pa.*, p.code AS position_code, p.title AS position_title,
+                         e.full_name, e.emp_code, e.email
+                  FROM position_assignments pa
+                  JOIN positions p ON p.id = pa.position_id
+                  JOIN employees e ON e.id = pa.employee_id
+                  ORDER BY pa.id DESC
+                  LIMIT 500
+                  """,
+            ct);
+
+    public async Task<(Dictionary<string, object?>? Row, string? Error)> EndAssignmentAsync(int assignmentId, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            UPDATE position_assignments
+            SET effective_to = CURRENT_DATE
+            WHERE id = @id AND effective_to IS NULL
+            RETURNING *
+            """, conn);
+        cmd.Parameters.AddWithValue("id", assignmentId);
+        var row = await ReadOneAsync(cmd, ct);
+        if (row is null) return (null, "Open assignment not found");
+
+        var positionId = Convert.ToInt32(row["position_id"]);
+        await using var vacate = new NpgsqlCommand(
+            """
+            UPDATE positions SET status = 'vacant'
+            WHERE id = @pid
+              AND status <> 'frozen'
+              AND NOT EXISTS (
+                SELECT 1 FROM position_assignments
+                WHERE position_id = @pid AND effective_to IS NULL
+              )
+            """, conn);
+        vacate.Parameters.AddWithValue("pid", positionId);
+        await vacate.ExecuteNonQueryAsync(ct);
+        return (row, null);
+    }
+
+    /// <summary>
+    /// Ensures employee has an open primary position assignment.
+    /// Optional vacantPositionId assigns into an existing vacant seat; otherwise creates P-E{id}.
+    /// Does not change existing employee API response payloads.
+    /// </summary>
+    public async Task<(int? PositionId, string? Error)> EnsurePrimaryPositionForEmployeeAsync(
+        int employeeId,
+        int? vacantPositionId,
+        CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+
+        await using (var existing = new NpgsqlCommand(
+                         """
+                         SELECT position_id FROM position_assignments
+                         WHERE employee_id = @eid AND is_primary = TRUE AND effective_to IS NULL
+                         LIMIT 1
+                         """, conn))
+        {
+            existing.Parameters.AddWithValue("eid", employeeId);
+            var cur = await existing.ExecuteScalarAsync(ct);
+            if (cur is not null and not DBNull)
+            {
+                var posId = Convert.ToInt32(cur);
+                if (vacantPositionId is > 0 && vacantPositionId.Value != posId)
+                {
+                    var (row, err) = await CreateAssignmentAsync(new AssignmentCreateRequest
+                    {
+                        PositionId = vacantPositionId.Value,
+                        EmployeeId = employeeId,
+                        IsPrimary = true,
+                        AssignmentType = "primary",
+                    }, ct);
+                    if (err is not null) return (null, err);
+                    return (vacantPositionId, null);
+                }
+
+                // Sync reports_to from manager_id when possible
+                await using var syncReports = new NpgsqlCommand(
+                    """
+                    UPDATE positions child
+                    SET reports_to_position_id = mgr_pos.id
+                    FROM employees e
+                    INNER JOIN employees m ON m.id = e.manager_id
+                    INNER JOIN position_assignments pa_m
+                      ON pa_m.employee_id = m.id AND pa_m.is_primary AND pa_m.effective_to IS NULL
+                    INNER JOIN positions mgr_pos ON mgr_pos.id = pa_m.position_id
+                    WHERE e.id = @eid AND child.id = @pid
+                      AND mgr_pos.id <> child.id
+                    """, conn);
+                syncReports.Parameters.AddWithValue("eid", employeeId);
+                syncReports.Parameters.AddWithValue("pid", posId);
+                await syncReports.ExecuteNonQueryAsync(ct);
+                return (posId, null);
+            }
+        }
+
+        if (vacantPositionId is > 0)
+        {
+            var (row, err) = await CreateAssignmentAsync(new AssignmentCreateRequest
+            {
+                PositionId = vacantPositionId.Value,
+                EmployeeId = employeeId,
+                IsPrimary = true,
+            }, ct);
+            if (err is not null) return (null, err);
+            return (vacantPositionId, null);
+        }
+
+        // Create dedicated position from employee row
+        await using var empCmd = new NpgsqlCommand(
+            """
+            SELECT e.id, e.job_title, e.department_id, e.division_id, e.designation_id, e.manager_id, e.join_date,
+                   dg.name AS designation_name
+            FROM employees e
+            LEFT JOIN designations dg ON dg.id = e.designation_id
+            WHERE e.id = @id
+            """, conn);
+        empCmd.Parameters.AddWithValue("id", employeeId);
+        await using var reader = await empCmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct)) return (null, "Employee not found");
+        var title = reader["job_title"]?.ToString();
+        if (string.IsNullOrWhiteSpace(title)) title = reader["designation_name"]?.ToString() ?? "Position";
+        var departmentId = reader["department_id"] is DBNull ? (int?)null : Convert.ToInt32(reader["department_id"]);
+        var divisionId = reader["division_id"] is DBNull ? (int?)null : Convert.ToInt32(reader["division_id"]);
+        var designationId = reader["designation_id"] is DBNull ? (int?)null : Convert.ToInt32(reader["designation_id"]);
+        var managerId = reader["manager_id"] is DBNull ? (int?)null : Convert.ToInt32(reader["manager_id"]);
+        var joinDate = reader["join_date"] is DateTime jd ? jd.ToString("yyyy-MM-dd") : null;
+        await reader.CloseAsync();
+
+        await using var entCmd = new NpgsqlCommand("SELECT id FROM legal_entities WHERE status = 'active' ORDER BY id LIMIT 1", conn);
+        var entityObj = await entCmd.ExecuteScalarAsync(ct);
+        if (entityObj is null or DBNull) return (null, "No legal entity configured");
+        var entityId = Convert.ToInt32(entityObj);
+
+        int? branchId = null;
+        await using (var bCmd = new NpgsqlCommand(
+                         "SELECT id FROM branches WHERE legal_entity_id = @eid AND status = 'active' ORDER BY id LIMIT 1", conn))
+        {
+            bCmd.Parameters.AddWithValue("eid", entityId);
+            var b = await bCmd.ExecuteScalarAsync(ct);
+            if (b is not null and not DBNull) branchId = Convert.ToInt32(b);
+        }
+
+        int? reportsTo = null;
+        if (managerId is > 0)
+        {
+            await using var mCmd = new NpgsqlCommand(
+                """
+                SELECT position_id FROM position_assignments
+                WHERE employee_id = @mid AND is_primary AND effective_to IS NULL
+                LIMIT 1
+                """, conn);
+            mCmd.Parameters.AddWithValue("mid", managerId.Value);
+            var m = await mCmd.ExecuteScalarAsync(ct);
+            if (m is not null and not DBNull) reportsTo = Convert.ToInt32(m);
+        }
+
+        var (pos, perr) = await CreatePositionAsync(new PositionCreateRequest
+        {
+            Code = $"P-E{employeeId}",
+            LegalEntityId = entityId,
+            BranchId = branchId,
+            DepartmentId = departmentId,
+            DivisionId = divisionId,
+            DesignationId = designationId,
+            Title = title!,
+            ReportsToPositionId = reportsTo,
+            Status = "occupied",
+            EffectiveFrom = joinDate,
+        }, ct);
+        if (perr is not null)
+        {
+            // Code may already exist from partial run — reuse
+            await using var find = new NpgsqlCommand("SELECT id FROM positions WHERE code = @c", conn);
+            find.Parameters.AddWithValue("c", $"P-E{employeeId}");
+            var existingPos = await find.ExecuteScalarAsync(ct);
+            if (existingPos is null or DBNull) return (null, perr);
+            pos = new Dictionary<string, object?> { ["id"] = existingPos };
+        }
+
+        var positionId = Convert.ToInt32(pos!["id"]);
+        var (asg, aerr) = await CreateAssignmentAsync(new AssignmentCreateRequest
+        {
+            PositionId = positionId,
+            EmployeeId = employeeId,
+            IsPrimary = true,
+            EffectiveFrom = joinDate,
+        }, ct);
+        if (aerr is not null) return (null, aerr);
+        return (positionId, null);
+    }
 }

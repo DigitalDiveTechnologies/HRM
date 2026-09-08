@@ -77,6 +77,10 @@ public sealed class OrgFoundationController : ControllerBase
         return Ok(row);
     }
 
+    [HttpGet("assignments")]
+    public async Task<IActionResult> Assignments([FromQuery] bool openOnly = true, CancellationToken ct = default) =>
+        Ok(await _org.AssignmentsAsync(openOnly, ct));
+
     [HttpPost("assignments")]
     [Authorize(Roles = "admin")]
     public async Task<IActionResult> CreateAssignment([FromBody] AssignmentCreateRequest body, CancellationToken ct)
@@ -87,6 +91,17 @@ public sealed class OrgFoundationController : ControllerBase
             "assign", "position_assignment", Convert.ToInt32(row!["id"]),
             $"position={body.PositionId};employee={body.EmployeeId}", ct);
         return StatusCode(StatusCodes.Status201Created, row);
+    }
+
+    [HttpPost("assignments/{id:int}/end")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> EndAssignment(int id, CancellationToken ct)
+    {
+        var (row, error) = await _org.EndAssignmentAsync(id, ct);
+        if (error is not null) return BadRequest(new { error });
+        await _hr.WriteAuditAsync(User.FindFirst("email")?.Value, User.FindFirst("role")?.Value,
+            "end", "position_assignment", id, null, ct);
+        return Ok(row);
     }
 
     [HttpGet("headcount")]

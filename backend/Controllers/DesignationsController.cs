@@ -20,9 +20,10 @@ public sealed class DesignationsController : ControllerBase
         Ok(await _hr.DesignationsAsync(activeOnly, ct));
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateMasterRequest body, CancellationToken ct)
+    public async Task<IActionResult> Create([FromBody] CreateDesignationRequest body, CancellationToken ct)
     {
-        var (row, error) = await _hr.CreateDesignationAsync(body.Name, ct);
+        var (row, error) = await _hr.CreateDesignationAsync(
+            body.Name, body.Code, body.JobFamily, body.Grade, body.SkillLevel, body.DefaultReportingDesignationId, ct);
         if (error is not null) return BadRequest(new { error });
         return StatusCode(StatusCodes.Status201Created, row);
     }
@@ -30,7 +31,8 @@ public sealed class DesignationsController : ControllerBase
     [HttpPatch("{id:int}")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateMasterRequest body, CancellationToken ct)
     {
-        var (row, error) = await _hr.UpdateDesignationAsync(id, body.Name, body.Status, ct);
+        var (row, error) = await _hr.UpdateDesignationAsync(
+            id, body.Name, body.Status, body.Code, body.JobFamily, body.Grade, body.SkillLevel, body.DefaultReportingDesignationId, ct);
         if (error is not null)
         {
             return error.Contains("not found", StringComparison.OrdinalIgnoreCase)

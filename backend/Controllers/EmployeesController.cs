@@ -20,12 +20,14 @@ public sealed class EmployeesController : ControllerBase
 
     private readonly HrQueryService _hr;
     private readonly EmployeeBulkService _bulk;
+    private readonly OrgFoundationService _org;
     private readonly IWebHostEnvironment _env;
 
-    public EmployeesController(HrQueryService hr, EmployeeBulkService bulk, IWebHostEnvironment env)
+    public EmployeesController(HrQueryService hr, EmployeeBulkService bulk, OrgFoundationService org, IWebHostEnvironment env)
     {
         _hr = hr;
         _bulk = bulk;
+        _org = org;
         _env = env;
     }
 
@@ -116,6 +118,20 @@ public sealed class EmployeesController : ControllerBase
             return BadRequest(new { error });
         }
 
+        var employeeId = Convert.ToInt32(employee!["id"]);
+        var (_, posErr) = await _org.EnsurePrimaryPositionForEmployeeAsync(employeeId, body.PositionId, ct);
+        if (posErr is not null)
+        {
+            // Employee already created — surface warning but keep response shape stable
+            await _hr.WriteAuditAsync(User.FindFirst("email")?.Value ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Email)?.Value,
+                CurrentUser.Role(User), "create", "employee", employeeId, $"created; position warn: {posErr}", ct);
+        }
+        else
+        {
+            await _hr.WriteAuditAsync(User.FindFirst("email")?.Value ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Email)?.Value,
+                CurrentUser.Role(User), "create", "employee", employeeId, "created with primary position", ct);
+        }
+
         return Ok(new
         {
             employee,
@@ -140,6 +156,10 @@ public sealed class EmployeesController : ControllerBase
                 ? NotFound(new { error })
                 : BadRequest(new { error });
         }
+
+        await _org.EnsurePrimaryPositionForEmployeeAsync(id, body.PositionId, ct);
+        await _hr.WriteAuditAsync(User.FindFirst("email")?.Value ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Email)?.Value,
+            CurrentUser.Role(User), "update", "employee", id, body.Status ?? body.JobTitle ?? "updated", ct);
 
         return Ok(new { employee, message = "Employee updated." });
     }

@@ -2,9 +2,18 @@ using Microsoft.Extensions.Configuration;
 using Npgsql;
 using System.Text.RegularExpressions;
 
+// Versioned apply order — Blueprint Phase 1 org foundation included (safe IF NOT EXISTS).
 var files = args.Length > 0
     ? args
-    : new[] { "schema-extensions.sql", "seed-extensions.sql", "schema-deep-features.sql", "seed-deep-features.sql" };
+    : new[]
+    {
+        "schema-extensions.sql",
+        "seed-extensions.sql",
+        "schema-deep-features.sql",
+        "seed-deep-features.sql",
+        "schema-org-foundation.sql",
+        "migrate-org-positions.sql",
+    };
 
 string? FindApiDir()
 {

@@ -26,6 +26,7 @@ export default function CreateEmployeePage() {
   const [designations, setDesignations] = useState([]);
   const [employmentTypes, setEmploymentTypes] = useState([]);
   const [managers, setManagers] = useState([]);
+  const [vacantPositions, setVacantPositions] = useState([]);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -56,7 +57,8 @@ export default function CreateEmployeePage() {
       api('/designations?activeOnly=true'),
       api('/employment-types?activeOnly=true'),
       api('/employees'),
-    ]).then(([deptRes, divRes, desRes, empTypeRes, empsRes]) => {
+      api('/org/positions?status=vacant'),
+    ]).then(([deptRes, divRes, desRes, empTypeRes, empsRes, posRes]) => {
       if (deptRes.status === 'fulfilled' && Array.isArray(deptRes.value)) setDepartments(deptRes.value);
       if (divRes.status === 'fulfilled' && Array.isArray(divRes.value)) setDivisions(divRes.value);
       if (desRes.status === 'fulfilled' && Array.isArray(desRes.value)) setDesignations(desRes.value);
@@ -69,6 +71,7 @@ export default function CreateEmployeePage() {
           empCode: prev.empCode || calculateNextCode(list),
         }));
       }
+      if (posRes.status === 'fulfilled' && Array.isArray(posRes.value)) setVacantPositions(posRes.value);
     });
   }, []);
 
@@ -185,6 +188,25 @@ export default function CreateEmployeePage() {
       {error ? (
         <div className="error" style={{ marginBottom: 16 }}>
           {error}
+        </div>
+      ) : null}
+
+      {vacantPositions.length ? (
+        <div className="card" style={{ marginBottom: 14, padding: '16px 20px' }}>
+          <label className="field" style={{ margin: 0 }}>
+            <span>Assign vacant position (optional)</span>
+            <select
+              value={form.positionId || ''}
+              onChange={(e) => setForm({ ...form, positionId: e.target.value })}
+            >
+              <option value="">Auto-create seat from job title</option>
+              {vacantPositions.map((p) => (
+                <option key={v(p, 'id')} value={v(p, 'id')}>
+                  {v(p, 'code')} — {v(p, 'title')}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       ) : null}
 

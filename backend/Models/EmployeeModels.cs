@@ -32,6 +32,8 @@ public sealed class CreateEmployeeRequest
     public string? JoinDate { get; set; }
     public string? Status { get; set; }
     public Dictionary<string, object?>? MasterData { get; set; }
+    /// <summary>Optional vacant position seat to occupy (Phase 1 org). Additive — old clients omit it.</summary>
+    public int? PositionId { get; set; }
 }
 
 public sealed class ResetEmployeePasswordRequest
