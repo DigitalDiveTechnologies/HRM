@@ -79,6 +79,13 @@ export default function CreateEmployeePage() {
     if (ev && ev.preventDefault) ev.preventDefault();
     setError('');
 
+    const hasCompany = Boolean(form?.divisionId || form?.companyIds?.[0]);
+    if (!hasCompany) {
+      setError('Operating Company is required to create an employee.');
+      setSaving(false);
+      return;
+    }
+
     // Client-required: email must be provided (no auto-fallback on create)
     if (!form?.email?.trim()) {
       setError('Email address is required to create an employee.');

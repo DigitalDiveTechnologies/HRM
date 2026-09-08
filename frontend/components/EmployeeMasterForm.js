@@ -1392,8 +1392,9 @@ export default function EmployeeMasterForm({
                 onSectionSave={() => triggerSectionSuccess('Job & Organization profile')}
                 isSaved={savedSectionName === 'Job & Organization profile'}
               >
-                <FieldRow label="Operating Company">
+                <FieldRow label="Operating Company" required>
                   <select
+                    required
                     style={inputStyle}
                     value={form.divisionId || form.companyIds?.[0] || ''}
                     onChange={(e) => {
