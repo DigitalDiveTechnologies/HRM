@@ -100,6 +100,15 @@ public sealed class CertificatesController : ControllerBase
             : Ok(row);
     }
 
+    [HttpGet("verify")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Verify([FromQuery] int id, [FromQuery] string? emp, CancellationToken ct)
+    {
+        if (id <= 0) return BadRequest(new { valid = false, error = "id required" });
+        var result = await _hr.VerifyCertificateAsync(id, emp, ct);
+        return Ok(result);
+    }
+
     [HttpGet("{id:int}/file")]
     public async Task<IActionResult> DownloadFile(int id, CancellationToken ct)
     {

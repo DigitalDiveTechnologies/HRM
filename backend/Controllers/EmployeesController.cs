@@ -31,21 +31,23 @@ public sealed class EmployeesController : ControllerBase
         _env = env;
     }
 
-    /// <summary>Admin/manager: full ops list. Employee: self only (for forms).</summary>
+    /// <summary>Admin/manager: full ops list. Employee: self only (for forms). Salary ACL applied.</summary>
     [HttpGet]
     [Authorize(Roles = "admin,manager,employee")]
     public async Task<IActionResult> List(CancellationToken ct)
     {
         var role = CurrentUser.Role(User).ToLowerInvariant();
+        var viewerEid = CurrentUser.EmployeeId(User);
         var rows = await _hr.EmployeesAsync(ct);
         if (role == "employee")
         {
-            var id = CurrentUser.EmployeeId(User);
+            var id = viewerEid;
             if (!id.HasValue) return Ok(Array.Empty<object>());
-            return Ok(rows.Where(r => Convert.ToInt32(r["id"]) == id.Value).ToList());
+            var self = rows.Where(r => Convert.ToInt32(r["id"]) == id.Value).ToList();
+            return Ok(FieldAcl.ApplyAll(self, role, viewerEid));
         }
 
-        return Ok(rows);
+        return Ok(FieldAcl.ApplyAll(rows, role, viewerEid));
     }
 
     [HttpGet("departments")]
@@ -85,6 +87,11 @@ public sealed class EmployeesController : ControllerBase
     [Authorize(Roles = "admin")]
     public async Task<IActionResult> Create([FromBody] CreateEmployeeRequest body, CancellationToken ct)
     {
+        if (body.DivisionId is null or <= 0)
+        {
+            return BadRequest(new { error = "Operating Company (divisionId) is strictly required to create an employee." });
+        }
+
         var jobTitle = body.JobTitle?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(jobTitle) && !body.DesignationId.HasValue)
         {
@@ -158,8 +165,19 @@ public sealed class EmployeesController : ControllerBase
         }
 
         await _org.EnsurePrimaryPositionForEmployeeAsync(id, body.PositionId, ct);
+        var oldStatus = Convert.ToString(employee?.GetValueOrDefault("status"));
+        var detail = $"status={body.Status ?? oldStatus}; job={body.JobTitle}";
+        if (body.MasterData is not null)
+        {
+            var hasPay = body.MasterData.Keys.Any(k =>
+                k.Contains("salary", StringComparison.OrdinalIgnoreCase)
+                || k.Contains("iban", StringComparison.OrdinalIgnoreCase)
+                || k.Contains("allowance", StringComparison.OrdinalIgnoreCase)
+                || k.Contains("account", StringComparison.OrdinalIgnoreCase));
+            if (hasPay) detail += "; compensation/banking fields updated";
+        }
         await _hr.WriteAuditAsync(User.FindFirst("email")?.Value ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Email)?.Value,
-            CurrentUser.Role(User), "update", "employee", id, body.Status ?? body.JobTitle ?? "updated", ct);
+            CurrentUser.Role(User), "update", "employee", id, detail, ct);
 
         return Ok(new { employee, message = "Employee updated." });
     }
@@ -284,10 +302,16 @@ public sealed class EmployeesController : ControllerBase
     }
 
     [HttpGet("{id:int}")]
-    [Authorize(Roles = "admin,manager")]
+    [Authorize(Roles = "admin,manager,employee")]
     public async Task<IActionResult> Get(int id, CancellationToken ct)
     {
+        var role = CurrentUser.Role(User).ToLowerInvariant();
+        var viewerEid = CurrentUser.EmployeeId(User);
+        if (role == "employee" && (viewerEid is null || viewerEid.Value != id))
+            return Forbid();
+
         var row = await _hr.EmployeeByIdAsync(id, ct);
-        return row is null ? NotFound(new { error = "Not found" }) : Ok(row);
+        if (row is null) return NotFound(new { error = "Not found" });
+        return Ok(FieldAcl.Apply(row, role, viewerEid));
     }
 }

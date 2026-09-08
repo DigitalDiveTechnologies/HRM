@@ -266,6 +266,11 @@ public sealed class HrQueryService
             return (null, "Full name, email, and job title are required.");
         }
 
+        if (divisionId is null or <= 0)
+        {
+            return (null, "Operating Company (divisionId) is strictly required to create an employee.");
+        }
+
         password = password.Trim();
         if (string.IsNullOrWhiteSpace(password) || password.Length < 6)
         {
@@ -331,6 +336,10 @@ public sealed class HrQueryService
             {
                 return (null, "Selected division was not found or is inactive.");
             }
+        }
+        else
+        {
+            return (null, "Operating Company (divisionId) is strictly required to create an employee.");
         }
 
         if (designationId.HasValue)
@@ -3299,6 +3308,15 @@ public sealed class HrQueryService
         if (salRaw is not null and not DBNull && decimal.TryParse(salRaw.ToString(), out var sal))
             salary = sal;
 
+        decimal? allowances = null;
+        await using (var allowCmd = new NpgsqlCommand(
+                         "SELECT allowances FROM employees WHERE id = @eid", conn, (NpgsqlTransaction)tx))
+        {
+            allowCmd.Parameters.AddWithValue("eid", Convert.ToInt32(DictGet(row, "employeeId", "employee_id")!));
+            var a = await allowCmd.ExecuteScalarAsync(ct);
+            if (a is not null and not DBNull) allowances = Convert.ToDecimal(a);
+        }
+
         var html = CertificateGeneratorService.BuildHtml(
             certType,
             Convert.ToString(DictGet(row, "fullName", "full_name")) ?? "Employee",
@@ -3307,11 +3325,14 @@ public sealed class HrQueryService
             Convert.ToString(DictGet(row, "department")),
             Convert.ToString(DictGet(row, "division")),
             salary,
+            allowances,
             joinText,
             Convert.ToString(DictGet(row, "purpose")),
             Convert.ToString(DictGet(row, "bankName", "bank_name")),
             Convert.ToString(DictGet(row, "travelDestination", "travel_destination")),
-            DateTime.UtcNow);
+            DateTime.UtcNow,
+            id,
+            Convert.ToString(DictGet(row, "division")));
 
         var fileRef = await CertificateGeneratorService.SaveHtmlAsync(contentRootPath, id, html, ct);
 
@@ -3334,7 +3355,59 @@ public sealed class HrQueryService
 
         await tx.CommitAsync(ct);
         await _email.SendCertificateIssuedAsync(employeeId, certType, ct);
+        await WriteAuditAsync(null, "system", "issue", "certificate", id,
+            $"issued {certType} for emp {employeeId}", ct);
         return issued;
+    }
+
+    /// <summary>Public verification — issued certificates only.</summary>
+    public async Task<object?> VerifyCertificateAsync(int id, string? empCode, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            SELECT cr.id, cr.status, cr.full_name, cr.emp_code, cr.division, cr.designation,
+                   cr.issued_at, cr.certificate_type, cr.basic_salary
+            FROM certificate_requests cr
+            WHERE cr.id = @id
+            """, conn);
+        cmd.Parameters.AddWithValue("id", id);
+        var row = await ReadOneAsync(cmd, ct);
+        if (row is null)
+            return new { valid = false, status = "Not found", message = "No certificate matches this reference." };
+
+        var status = Convert.ToString(DictGet(row, "status")) ?? "";
+        var code = Convert.ToString(DictGet(row, "empCode", "emp_code")) ?? "";
+        if (!string.IsNullOrWhiteSpace(empCode)
+            && !string.Equals(code.Trim(), empCode.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return new { valid = false, status = "Mismatch", message = "Employee code does not match this certificate." };
+        }
+
+        if (!string.Equals(status, "issued", StringComparison.OrdinalIgnoreCase))
+        {
+            return new
+            {
+                valid = false,
+                status = status,
+                message = "Certificate exists but is not issued yet.",
+                certificateId = id,
+            };
+        }
+
+        return new
+        {
+            valid = true,
+            status = "Valid & Authenticated",
+            certificateId = id,
+            employeeName = DictGet(row, "fullName", "full_name"),
+            empCode = code,
+            designation = DictGet(row, "designation"),
+            legalEntity = DictGet(row, "division"),
+            certificateType = DictGet(row, "certificateType", "certificate_type"),
+            issuedAt = DictGet(row, "issuedAt", "issued_at"),
+            message = "This certificate was issued by GOCs HR and is authentic.",
+        };
     }
 
     private async Task<NpgsqlConnection> OpenAsync(CancellationToken ct)

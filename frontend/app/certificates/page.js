@@ -99,13 +99,16 @@ export default function CertificatesPage() {
   const other = rows.filter((r) => String(v(r, 'status')).toLowerCase() !== 'pending');
 
   return (
-    <AppShell title="Certificates" subtitle="Employee certificate requests — review, approve & generate">
+    <AppShell title="Certificates" subtitle="Salary / employment letters with QR verification — approve, issue, download">
       {error ? <div className="error">{error}</div> : null}
       {msg ? (
         <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>
           {msg}
         </div>
       ) : null}
+      <p className="muted" style={{ marginTop: 0 }}>
+        Issued certificates embed a QR to <code>/verify/certificate?id=…&amp;emp=…</code> for public authenticity checks.
+      </p>
 
       <div className="card" style={{ marginBottom: 16 }}>
         <h3 style={{ marginTop: 0 }}>Pending queue ({pending.length})</h3>
