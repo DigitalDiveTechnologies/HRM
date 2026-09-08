@@ -56,6 +56,43 @@ public sealed class WpsSifPreviewService
         sb.AppendLine($"# field_map={fieldMap}");
         sb.AppendLine("EmpCode,EmployeeName,IBAN,MOL_ID,Basic,Allowances,Deductions,Net,PaymentMethod,PreviewFlag");
 
+        // Prefer latest non-reversed run lines for the period when present
+        await using var runLines = new NpgsqlCommand(
+            """
+            SELECT l.emp_code, l.full_name, l.iban, l.mol_id, l.basic_salary, l.allowances,
+                   l.unpaid_leave_deduction + l.other_deductions AS deductions, l.net, l.payment_method
+            FROM payroll_run_lines l
+            JOIN payroll_runs r ON r.id = l.payroll_run_id
+            WHERE r.period_year = @y AND r.period_month = @m
+              AND r.status NOT IN ('reversed')
+              AND (@leid IS NULL OR r.legal_entity_id = @leid OR r.legal_entity_id IS NULL)
+            ORDER BY r.id DESC, l.emp_code
+            """, conn);
+        runLines.Parameters.AddWithValue("y", year);
+        runLines.Parameters.AddWithValue("m", month);
+        runLines.Parameters.AddWithValue("leid", (object?)legalEntityId ?? DBNull.Value);
+
+        var usedRun = false;
+        await using (var lr = await runLines.ExecuteReaderAsync(ct))
+        {
+            while (await lr.ReadAsync(ct))
+            {
+                usedRun = true;
+                sb.Append(Csv(lr.IsDBNull(0) ? "" : lr.GetString(0))).Append(',');
+                sb.Append(Csv(lr.IsDBNull(1) ? "" : lr.GetString(1))).Append(',');
+                sb.Append(Csv(lr.IsDBNull(2) ? "" : lr.GetString(2))).Append(',');
+                sb.Append(Csv(lr.IsDBNull(3) ? "" : lr.GetString(3))).Append(',');
+                sb.Append((lr.IsDBNull(4) ? 0m : lr.GetDecimal(4)).ToString("0.00")).Append(',');
+                sb.Append((lr.IsDBNull(5) ? 0m : lr.GetDecimal(5)).ToString("0.00")).Append(',');
+                sb.Append((lr.IsDBNull(6) ? 0m : lr.GetDecimal(6)).ToString("0.00")).Append(',');
+                sb.Append((lr.IsDBNull(7) ? 0m : lr.GetDecimal(7)).ToString("0.00")).Append(',');
+                sb.Append(Csv(lr.IsDBNull(8) ? "wps" : lr.GetString(8))).Append(',');
+                sb.AppendLine("PREVIEW_FROM_RUN");
+            }
+        }
+
+        if (!usedRun)
+        {
         await using var empCmd = new NpgsqlCommand(
             """
             SELECT e.emp_code, e.full_name, e.basic_salary, e.allowances,
@@ -83,6 +120,7 @@ public sealed class WpsSifPreviewService
             sb.Append(net.ToString("0.00")).Append(',');
             sb.Append(Csv(er.IsDBNull(6) ? "wps" : er.GetString(6))).Append(',');
             sb.AppendLine("PREVIEW");
+        }
         }
 
         var warning = string.IsNullOrWhiteSpace(employerId) || spec is null or "PENDING_SIR_SPEC"

@@ -78,10 +78,13 @@ var connectionString =
 builder.Services.AddSingleton(new Db(connectionString));
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddScoped<EosbCalculatorService>();
 builder.Services.AddScoped<HrQueryService>();
 builder.Services.AddScoped<OrgFoundationService>();
-builder.Services.AddScoped<EosbCalculatorService>();
 builder.Services.AddScoped<WpsSifPreviewService>();
+builder.Services.AddScoped<PayrollControlService>();
+builder.Services.AddScoped<ExitSettlementService>();
+builder.Services.AddScoped<DocumentRenewalService>();
 builder.Services.AddScoped<EmployeeBulkService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));

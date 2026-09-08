@@ -12,6 +12,7 @@ export default function CompliancePage() {
   const [rows, setRows] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [emiratisation, setEmiratisation] = useState(null);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [tab, setTab] = useState('all');
@@ -25,11 +26,17 @@ export default function CompliancePage() {
 
   const load = useCallback(() => {
     setError('');
-    Promise.all([api('/compliance'), api('/employees'), api('/audit')])
-      .then(([items, emps, logs]) => {
+    Promise.all([
+      api('/compliance'),
+      api('/employees'),
+      api('/audit'),
+      api('/payroll/emiratisation').catch(() => null),
+    ])
+      .then(([items, emps, logs, emi]) => {
         setRows(items || []);
         setEmployees(emps || []);
         setAuditLogs(logs || []);
+        setEmiratisation(emi);
       })
       .catch((e) => setError(e.message));
   }, []);
@@ -37,6 +44,18 @@ export default function CompliancePage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  async function syncRenewals() {
+    setMsg('');
+    setError('');
+    try {
+      const res = await api('/document-renewals/sync', { method: 'POST', body: '{}' });
+      setMsg(`Renewals synced · tasks +${res.created || 0} · compliance mirrored +${res.mirrored || 0}`);
+      load();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
 
   async function createItem(e) {
     e.preventDefault();
@@ -80,9 +99,27 @@ export default function CompliancePage() {
   }
 
   return (
-    <AppShell title="Compliance Management" subtitle="Labour law, visa, documents & audit follow-ups">
+    <AppShell title="Compliance Management" subtitle="Labour law, visa, documents, Emiratisation/GPSSA & audit follow-ups">
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
+
+      {emiratisation ? (
+        <div className="card" style={{ marginBottom: 14 }}>
+          <div className="panel-title">
+            <h3>Emiratisation / GPSSA (preview)</h3>
+          </div>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Emirati {emiratisation.emiratiCount}/{emiratisation.activeHeadcount} ({emiratisation.emiratisationPct}%)
+            {' · '}GPSSA eligible {emiratisation.gpssaEligible}
+            {' · '}Nafis {emiratisation.nafisRegistered}
+          </p>
+          {isAdmin ? (
+            <button type="button" className="btn secondary" onClick={syncRenewals}>
+              Sync document renewal tasks
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {isAdmin ? (
         <div className="card" style={{ marginBottom: 14 }}>

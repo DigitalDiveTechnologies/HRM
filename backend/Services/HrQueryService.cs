@@ -12,11 +12,13 @@ public sealed class HrQueryService
 {
     private readonly Db _db;
     private readonly EmailService _email;
+    private readonly EosbCalculatorService _eosb;
 
-    public HrQueryService(Db db, EmailService email)
+    public HrQueryService(Db db, EmailService email, EosbCalculatorService eosb)
     {
         _db = db;
         _email = email;
+        _eosb = eosb;
     }
 
     public async Task<object> DashboardAsync(CancellationToken ct)
@@ -1856,7 +1858,7 @@ public sealed class HrQueryService
         await using var conn = await OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
 
-        // EOSB estimate — UAE-style simplified: 21 days/yr first 5 years, 30 days/yr after
+        // EOSB via versioned rule service (Phase 2 — preview until golden cases signed)
         string? eosbNote = settlementNotes;
         decimal eosbAmount = 0m;
         decimal serviceYears = 0m;
@@ -1873,10 +1875,28 @@ public sealed class HrQueryService
                 var end = DateTime.TryParse(lastWorkingDate, out var lwd) ? lwd : DateTime.UtcNow.Date;
                 var years = join is null ? 0d : Math.Max(0, (end - join.Value).TotalDays / 365.25);
                 serviceYears = Math.Round((decimal)years, 2);
-                var first = Math.Min(years, 5d);
-                var after = Math.Max(0d, years - 5d);
-                eosbAmount = Math.Round((basic / 30m) * 21m * (decimal)first + (basic / 30m) * 30m * (decimal)after, 2);
-                var auto = $"EOSB estimate: {eosbAmount:0.##} ({serviceYears:0.00} yrs; 21d×min(5) + 30d×after).";
+                await reader.CloseAsync();
+
+                decimal unpaidDays = 0m;
+                await using (var u = new NpgsqlCommand(
+                                 """
+                                 SELECT COALESCE(SUM(days),0)::numeric FROM leave_requests
+                                 WHERE employee_id = @eid AND status = 'approved'
+                                   AND lower(leave_type) LIKE '%unpaid%'
+                                 """, conn, (NpgsqlTransaction)tx))
+                {
+                    u.Parameters.AddWithValue("eid", employeeId);
+                    unpaidDays = Convert.ToDecimal(await u.ExecuteScalarAsync(ct) ?? 0m);
+                }
+
+                var calc = await _eosb.CalculatePreviewAsync(basic, years, (double)unpaidDays, "uae_mainland", ct);
+                var json = System.Text.Json.JsonSerializer.Serialize(calc);
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("eosbAmount", out var ea))
+                    eosbAmount = ea.GetDecimal();
+                var rule = doc.RootElement.TryGetProperty("ruleCode", out var rc) ? rc.GetString() : "rule";
+                var ver = doc.RootElement.TryGetProperty("formulaVersion", out var fv) ? fv.GetString() : "v1";
+                var auto = $"EOSB {eosbAmount:0.##} ({serviceYears:0.00} yrs; {rule}/{ver}; unpaidDays={unpaidDays}). PREVIEW.";
                 eosbNote = string.IsNullOrWhiteSpace(settlementNotes) ? auto : $"{settlementNotes.Trim()} | {auto}";
             }
         }

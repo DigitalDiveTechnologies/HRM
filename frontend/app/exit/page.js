@@ -95,6 +95,30 @@ export default function ExitPage() {
     }
   }
 
+  async function runSettlement(id) {
+    setMsg('');
+    setError('');
+    try {
+      const res = await api(`/exit/${id}/settlement`, {
+        method: 'POST',
+        body: JSON.stringify({
+          unusedLeaveDays: 0,
+          noticePayDays: 0,
+          otherEarnings: 0,
+          otherDeductions: 0,
+        }),
+      });
+      const w = res.worksheet || {};
+      setMsg(
+        `Settlement PREVIEW for case #${id}: net AED ${w.netSettlement ?? '—'} `
+        + `(EOSB ${w.eosbAmount ?? '—'} · ${w.ruleCode || ''} / ${w.formulaVersion || ''})`,
+      );
+      load();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
   return (
     <AppShell title="Employee Exit" subtitle="Resignation, clearance, settlement & asset recovery">
       {error ? <div className="error">{error}</div> : null}
@@ -194,6 +218,11 @@ export default function ExitPage() {
                       <button type="button" className="btn secondary" onClick={() => openChecklist(v(r, 'id'))}>
                         Checklist
                       </button>
+                      {isAdmin ? (
+                        <button type="button" className="btn secondary" onClick={() => runSettlement(v(r, 'id'))}>
+                          Settlement
+                        </button>
+                      ) : null}
                       {isAdmin && String(v(r, 'status')) !== 'completed' ? (
                         <button type="button" className="btn ok" onClick={() => setCaseStatus(v(r, 'id'), 'completed')}>
                           Complete

@@ -12,8 +12,13 @@ namespace DigitalDive.Hr.Api.Controllers;
 public sealed class PayrollController : ControllerBase
 {
     private readonly HrQueryService _hr;
+    private readonly PayrollControlService _control;
 
-    public PayrollController(HrQueryService hr) => _hr = hr;
+    public PayrollController(HrQueryService hr, PayrollControlService control)
+    {
+        _hr = hr;
+        _control = control;
+    }
 
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct) => Ok(await _hr.PayrollAsync(ct));
@@ -23,7 +28,11 @@ public sealed class PayrollController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(body.PeriodLabel))
             return BadRequest(new { error = "periodLabel required (e.g. 2026-08)" });
-        var result = await _hr.RunPayrollAsync(body.PeriodLabel.Trim(), body.OtRatePerHour <= 0 ? 50m : body.OtRatePerHour, ct);
+        // Phase 2: generate payslips + payroll_runs control record
+        var email = User.FindFirst("email")?.Value;
+        var (result, error) = await _control.CalculateAsync(
+            body.PeriodLabel.Trim(), body.OtRatePerHour <= 0 ? 50m : body.OtRatePerHour, null, email, ct);
+        if (error is not null) return BadRequest(new { error, isPreview = true });
         return Ok(result);
     }
 

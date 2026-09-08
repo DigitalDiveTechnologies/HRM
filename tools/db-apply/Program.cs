@@ -15,6 +15,7 @@ var files = args.Length > 0
         "migrate-org-positions.sql",
         "schema-payroll-control.sql",
         "seed-payroll-control.sql",
+        "schema-payroll-phase2.sql",
     };
 
 string? FindApiDir()

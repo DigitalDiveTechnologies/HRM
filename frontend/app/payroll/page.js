@@ -15,6 +15,7 @@ function payrollLabel(type) {
 export default function PayrollPage() {
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState([]);
+  const [runs, setRuns] = useState([]);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [period, setPeriod] = useState(() => {
@@ -22,16 +23,21 @@ export default function PayrollPage() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
   const [busy, setBusy] = useState(false);
+  const [emiratisation, setEmiratisation] = useState(null);
 
   const load = useCallback(() => {
     setError('');
     Promise.all([
       api('/payroll'),
       api(`/payroll/summary?period=${encodeURIComponent(period)}`).catch(() => []),
+      api('/payroll/runs').catch(() => []),
+      api('/payroll/emiratisation').catch(() => null),
     ])
-      .then(([payroll, sum]) => {
+      .then(([payroll, sum, runList, emi]) => {
         setRows(payroll);
         setSummary(sum || []);
+        setRuns(runList || []);
+        setEmiratisation(emi);
       })
       .catch((e) => setError(e.message));
   }, [period]);
@@ -49,10 +55,29 @@ export default function PayrollPage() {
         method: 'POST',
         body: JSON.stringify({ periodLabel: period, otRatePerHour: 50 }),
       });
+      const runId = v(res?.run, 'id');
       setMsg(
-        `Payroll complete · ${res.created || 0} new slips · `
+        `Calculated run #${runId || '—'} · ${res.lineCount || res.created || 0} lines · `
         + `WPS: ${res.wpsCount ?? 0} · Bank: ${res.bankTransferCount ?? 0}`,
       );
+      load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function transition(runId, action, forceSelfApprove = false) {
+    setBusy(true);
+    setError('');
+    setMsg('');
+    try {
+      await api(`/payroll/runs/${runId}/transition`, {
+        method: 'POST',
+        body: JSON.stringify({ action, forceSelfApprove }),
+      });
+      setMsg(`Run #${runId} → ${action}`);
       load();
     } catch (e) {
       setError(e.message);
@@ -94,6 +119,22 @@ export default function PayrollPage() {
     }
   }
 
+  async function downloadRunSif(runId) {
+    setError('');
+    try {
+      const blob = await apiBlob(`/payroll/runs/${runId}/sif`);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `WPS_SIF_run${runId}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setMsg(`SIF from locked run #${runId} (still PREVIEW until bank validates field map).`);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
   async function runEosbPreview() {
     setError('');
     setMsg('');
@@ -116,18 +157,25 @@ export default function PayrollPage() {
   }
 
   const periodRows = rows.filter((p) => String(v(p, 'periodLabel', 'period_label')) === period);
+  const periodRun = runs.find((r) => {
+    const y = Number(v(r, 'periodYear', 'period_year'));
+    const m = Number(v(r, 'periodMonth', 'period_month'));
+    const [py, pm] = String(period).split('-').map(Number);
+    return y === py && m === pm && String(v(r, 'status')) !== 'reversed';
+  });
 
   return (
-    <AppShell title="Payroll Management" subtitle="Company-wise salary run — WPS vs bank transfer (Phase 2 preview tools available)">
+    <AppShell title="Payroll Management" subtitle="Controlled UAE payroll — calculate → review → approve/lock → pay → SIF">
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
 
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="panel-title">
-          <h3>Run payroll by company</h3>
+          <h3>1. Calculate payroll</h3>
         </div>
         <p className="muted" style={{ marginTop: 0 }}>
-          Each employee&apos;s payment method follows their company setting (Alkidma/Alqat/Royal Oceans → WPS, Overseas → bank transfer).
+          Feeds: attendance OT (period dates) + approved unpaid leave (overlap days) + GPSSA preview for Emirati/GPSSA staff.
+          Creates a control run and payslips together.
         </p>
         <div className="toolbar-row">
           <label className="field field-inline">
@@ -136,7 +184,7 @@ export default function PayrollPage() {
           </label>
           <div className="toolbar-actions">
             <button className="btn" type="button" disabled={busy} onClick={runPayroll}>
-              {busy ? 'Running…' : 'Generate payslips'}
+              {busy ? 'Running…' : 'Calculate / generate'}
             </button>
             <button className="btn secondary" type="button" onClick={() => downloadExport('wps')}>
               Download WPS CSV
@@ -148,22 +196,102 @@ export default function PayrollPage() {
         </div>
       </div>
 
+      <div className="card" style={{ marginBottom: 14 }}>
+        <div className="panel-title">
+          <h3>2. Control run lifecycle</h3>
+        </div>
+        {periodRun ? (
+          <div style={{ marginBottom: 10 }}>
+            <p style={{ marginTop: 0 }}>
+              Run <strong>#{v(periodRun, 'id')}</strong>
+              {' · '}
+              <Badge status={v(periodRun, 'status')} />
+              {' · '}
+              lines {v(periodRun, 'lineCount', 'line_count') ?? '—'}
+              {' · '}
+              net {money(v(periodRun, 'totalNet', 'total_net'))}
+              {Number(v(periodRun, 'notReadyCount', 'not_ready_count')) > 0 ? (
+                <span className="muted"> · {v(periodRun, 'notReadyCount', 'not_ready_count')} WPS issues</span>
+              ) : null}
+            </p>
+            <div className="toolbar-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button className="btn secondary" type="button" disabled={busy} onClick={() => transition(v(periodRun, 'id'), 'submit')}>
+                Submit review
+              </button>
+              <button className="btn secondary" type="button" disabled={busy} onClick={() => transition(v(periodRun, 'id'), 'approve', true)}>
+                Approve + lock
+              </button>
+              <button className="btn secondary" type="button" disabled={busy} onClick={() => transition(v(periodRun, 'id'), 'pay')}>
+                Mark paid
+              </button>
+              <button className="btn secondary" type="button" disabled={busy} onClick={() => transition(v(periodRun, 'id'), 'close')}>
+                Close
+              </button>
+              <button className="btn secondary" type="button" disabled={busy} onClick={() => transition(v(periodRun, 'id'), 'reject')}>
+                Reject → draft
+              </button>
+              <button className="btn secondary" type="button" disabled={busy} onClick={() => transition(v(periodRun, 'id'), 'reverse')}>
+                Reverse
+              </button>
+              <button className="btn" type="button" onClick={() => downloadRunSif(v(periodRun, 'id'))}>
+                SIF from locked run
+              </button>
+            </div>
+            <p className="muted" style={{ fontSize: 13 }}>
+              Approve uses maker-checker (same user blocked unless preview force). SIF export only after approve.
+            </p>
+          </div>
+        ) : (
+          <p className="muted">No open control run for {period} — calculate first.</p>
+        )}
+
+        {runs.length > 0 ? (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Period</th>
+                  <th>Status</th>
+                  <th>Lines</th>
+                  <th>Net</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runs.slice(0, 12).map((r) => (
+                  <tr key={v(r, 'id')}>
+                    <td>{v(r, 'id')}</td>
+                    <td>{v(r, 'periodYear', 'period_year')}-{String(v(r, 'periodMonth', 'period_month')).padStart(2, '0')}</td>
+                    <td><Badge status={v(r, 'status')} /></td>
+                    <td>{v(r, 'lineCount', 'line_count')}</td>
+                    <td>{money(v(r, 'totalNet', 'total_net'))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </div>
+
       <div className="card" style={{ marginBottom: 14, borderColor: 'rgba(245, 158, 11, 0.45)' }}>
         <div className="panel-title">
-          <h3>Phase 2 preview (sir config later)</h3>
+          <h3>Preview tools (sir bank map later)</h3>
         </div>
-        <p className="muted" style={{ marginTop: 0 }}>
-          Bank-validated SIF field map and golden cases can be plugged into <code>payroll_employer_config</code> later.
-          Until then exports stay labelled TEST/PREVIEW.
-        </p>
         <div className="toolbar-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="btn secondary" type="button" onClick={downloadSifPreview}>
-            Download SIF preview
+            Download SIF skeleton
           </button>
           <button className="btn secondary" type="button" onClick={runEosbPreview}>
             Run EOSB preview (sample)
           </button>
         </div>
+        {emiratisation ? (
+          <p className="muted" style={{ marginBottom: 0 }}>
+            Emiratisation: {emiratisation.emiratiCount}/{emiratisation.activeHeadcount}
+            {' '}({emiratisation.emiratisationPct}%) · GPSSA eligible {emiratisation.gpssaEligible}
+            {' · '}Nafis {emiratisation.nafisRegistered}
+          </p>
+        ) : null}
       </div>
 
       {summary.length > 0 ? (
@@ -236,7 +364,7 @@ export default function PayrollPage() {
               ))}
               {!rows.length ? (
                 <tr>
-                  <td colSpan={9}>No payslips yet — run payroll for this period.</td>
+                  <td colSpan={9}>No payslips yet — calculate payroll for this period.</td>
                 </tr>
               ) : null}
             </tbody>
