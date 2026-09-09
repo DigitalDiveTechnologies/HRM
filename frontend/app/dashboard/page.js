@@ -99,6 +99,7 @@ export default function DashboardPage() {
     }
     return [];
   });
+  const [showAddCompany, setShowAddCompany] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [isMounted, setIsMounted] = useState(false);
 
