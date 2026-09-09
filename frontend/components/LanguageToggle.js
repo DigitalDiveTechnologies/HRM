@@ -2,7 +2,7 @@
 
 import { useLocale } from '../lib/i18n/LocaleContext';
 
-export default function LanguageToggle({ className = 'btn secondary' }) {
+export default function LanguageToggle({ className = 'lang-toggle' }) {
   const { locale, t, toggleLocale } = useLocale();
   return (
     <button
@@ -11,7 +11,6 @@ export default function LanguageToggle({ className = 'btn secondary' }) {
       onClick={toggleLocale}
       aria-label={t('language')}
       title={t('language')}
-      style={{ minWidth: 72 }}
     >
       {locale === 'ar' ? 'EN' : 'ع'}
     </button>

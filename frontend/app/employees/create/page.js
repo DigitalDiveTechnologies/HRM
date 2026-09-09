@@ -178,19 +178,7 @@ export default function CreateEmployeePage() {
       actions={
         <Link
           href="/employees"
-          className="btn secondary"
-          style={{
-            height: '40px',
-            boxSizing: 'border-box',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            fontSize: '13px',
-            fontWeight: 600,
-            borderRadius: '6px',
-            padding: '0 14px',
-            textDecoration: 'none',
-          }}
+          className="topbar-action-btn"
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <line x1="19" y1="12" x2="5" y2="12" />

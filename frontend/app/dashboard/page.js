@@ -510,17 +510,8 @@ export default function DashboardPage() {
           <select
             value={selectedCompanyId}
             onChange={(e) => setSelectedCompanyId(e.target.value)}
-            style={{
-              padding: '6px 12px',
-              borderRadius: '8px',
-              border: selectedCompanyId ? '1.5px solid #00b8db' : '1px solid var(--line)',
-              fontSize: '12.5px',
-              fontWeight: 600,
-              background: 'var(--surface-alt)',
-              color: 'var(--ink)',
-              cursor: 'pointer',
-              maxWidth: '220px',
-            }}
+            className="topbar-select"
+            style={selectedCompanyId ? { borderColor: '#00b8db', borderWidth: '1.5px' } : undefined}
             title="Filter dashboard by company"
           >
             <option value="">🏢 All Companies ({companies.length})</option>
@@ -1093,10 +1084,16 @@ export default function DashboardPage() {
                   <tbody>
                     {filteredEmployees.length ? (
                       filteredEmployees.map((emp, index) => {
-                        const code = v(emp, 'empCode', 'emp_code') || `DD-${1000 + index}`;
-                        const name = v(emp, 'fullName', 'full_name') || '—';
-                        const dept = v(emp, 'departmentName', 'department_name') || 'General';
-                        const status = v(emp, 'status') || 'active';
+                        let md = {};
+                        try {
+                          md = typeof emp.masterData === 'string' ? JSON.parse(emp.masterData || '{}') : emp.masterData || {};
+                        } catch {
+                          md = {};
+                        }
+                        const code = v(emp, 'empCode', 'emp_code') || md.empCode || `DD-${1000 + index}`;
+                        const name = v(emp, 'fullName', 'full_name') || [md.firstName, md.lastName].filter(Boolean).join(' ') || '—';
+                        const dept = v(emp, 'departmentName', 'department_name') || md.departmentName || md.department || 'General';
+                        const status = v(emp, 'status') || md.status || 'active';
 
                         return (
                           <tr

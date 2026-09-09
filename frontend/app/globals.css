@@ -337,7 +337,8 @@ form > button,
 }
 .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
-.theme-toggle {
+.theme-toggle,
+.lang-toggle {
   width: 40px;
   height: 40px;
   border-radius: 6px;
@@ -348,18 +349,76 @@ form > button,
   place-items: center;
   cursor: pointer;
   flex-shrink: 0;
+  box-sizing: border-box;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  transition: all 0.15s ease;
 }
-.theme-toggle:hover {
+.theme-toggle:hover,
+.lang-toggle:hover {
   border-color: var(--brand);
   color: var(--brand);
 }
 .theme-toggle svg { width: 18px; height: 18px; display: block; }
 
+.topbar-action-btn {
+  height: 40px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--line-strong);
+  background: var(--chip-bg);
+  color: var(--ink);
+  padding: 0 14px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.topbar-action-btn:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.topbar-select {
+  height: 40px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+  border: 1px solid var(--line-strong);
+  background: var(--chip-bg);
+  color: var(--ink);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0 12px;
+  cursor: pointer;
+  max-width: 240px;
+  transition: all 0.15s ease;
+  outline: none;
+  flex-shrink: 0;
+}
+.topbar-select:hover,
+.topbar-select:focus {
+  border-color: var(--brand);
+}
+
 :root[data-theme='light'] .theme-toggle,
+:root[data-theme='light'] .lang-toggle,
+:root[data-theme='light'] .topbar-action-btn,
+:root[data-theme='light'] .topbar-select,
 :root[data-theme='light'] .user-chip {
   border-color: rgba(0, 184, 219, 0.55);
 }
-:root[data-theme='light'] .theme-toggle:hover {
+:root[data-theme='light'] .theme-toggle:hover,
+:root[data-theme='light'] .lang-toggle:hover,
+:root[data-theme='light'] .topbar-action-btn:hover {
   border-color: var(--brand);
   color: var(--brand);
   background: rgba(0, 184, 219, 0.08);
@@ -566,15 +625,20 @@ form > button,
 }
 
 .user-chip {
+  height: 40px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
   background: var(--chip-bg);
   border: 1px solid var(--line);
   border-radius: 6px;
-  padding: 8px 14px;
+  padding: 0 14px;
   font-size: 0.85rem;
   max-width: min(280px, 100%);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .menu-btn-wrap {
@@ -763,6 +827,9 @@ th {
 }
 :root[data-theme='dark'] .user-chip,
 :root[data-theme='dark'] .theme-toggle,
+:root[data-theme='dark'] .lang-toggle,
+:root[data-theme='dark'] .topbar-action-btn,
+:root[data-theme='dark'] .topbar-select,
 :root[data-theme='dark'] .field input,
 :root[data-theme='dark'] .field select,
 :root[data-theme='dark'] .field textarea,
@@ -770,7 +837,9 @@ th {
 :root[data-theme='dark'] .btn.secondary {
   border-color: rgba(0, 184, 219, 0.55);
 }
-:root[data-theme='dark'] .theme-toggle:hover {
+:root[data-theme='dark'] .theme-toggle:hover,
+:root[data-theme='dark'] .lang-toggle:hover,
+:root[data-theme='dark'] .topbar-action-btn:hover {
   border-color: var(--brand);
   color: var(--brand);
   background: rgba(0, 184, 219, 0.12);
