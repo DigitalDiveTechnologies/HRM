@@ -99,18 +99,23 @@ export default function DashboardPage() {
     }
     return [];
   });
-  const [selectedCompanyId, setSelectedCompanyId] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        return sessionStorage.getItem('gocs_selected_company_id') || '';
-      } catch {}
-    }
-    return '';
-  });
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
+  const [isMounted, setIsMounted] = useState(false);
 
-  // Persist selected company across page navigation
+  // Restore selected company on mount safely without hydration mismatch
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    try {
+      const saved = sessionStorage.getItem('gocs_selected_company_id');
+      if (saved) {
+        setSelectedCompanyId(saved);
+      }
+    } catch {}
+    setIsMounted(true);
+  }, []);
+
+  // Persist selected company across page navigation (only after mounted)
+  useEffect(() => {
+    if (!isMounted) return;
     try {
       if (selectedCompanyId) {
         sessionStorage.setItem('gocs_selected_company_id', String(selectedCompanyId));
@@ -118,7 +123,7 @@ export default function DashboardPage() {
         sessionStorage.removeItem('gocs_selected_company_id');
       }
     } catch {}
-  }, [selectedCompanyId]);
+  }, [selectedCompanyId, isMounted]);
   const [newCompany, setNewCompany] = useState({ code: '', name: '', payrollType: 'wps' });
   const [companySaving, setCompanySaving] = useState(false);
   const [companyMsg, setCompanyMsg] = useState('');
@@ -260,6 +265,7 @@ export default function DashboardPage() {
     const targetName = selectedCompanyName ? selectedCompanyName.toLowerCase().trim() : '';
 
     return (employees || []).filter((e) => {
+      if (!e) return false;
       let md = {};
       try {
         md = typeof e.masterData === 'string' ? JSON.parse(e.masterData || '{}') : e.masterData || {};
@@ -344,6 +350,7 @@ export default function DashboardPage() {
     if (!selectedCompanyId) return activities;
     if (filteredEmployees.length === 0) return [];
     return (activities || []).filter((act) => {
+      if (!act) return false;
       const title = (act.title || '').toLowerCase();
       const desc = (act.desc || '').toLowerCase();
       for (const name of filteredEmpNameSet) {
@@ -368,6 +375,7 @@ export default function DashboardPage() {
     limit.setDate(now.getDate() + 90);
     let count = 0;
     (filteredEmployees || []).forEach((e) => {
+      if (!e) return;
       let md = {};
       try {
         md = typeof e.masterData === 'string' ? JSON.parse(e.masterData || '{}') : e.masterData || {};
@@ -1102,9 +1110,10 @@ export default function DashboardPage() {
                   <tbody>
                     {filteredEmployees.length ? (
                       filteredEmployees.map((emp, index) => {
+                        if (!emp) return null;
                         let md = {};
                         try {
-                          md = typeof emp.masterData === 'string' ? JSON.parse(emp.masterData || '{}') : emp.masterData || {};
+                          md = typeof emp?.masterData === 'string' ? JSON.parse(emp?.masterData || '{}') : emp?.masterData || {};
                         } catch {
                           md = {};
                         }
