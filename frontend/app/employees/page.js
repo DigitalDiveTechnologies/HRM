@@ -519,6 +519,7 @@ function EmployeesContent() {
     // Find selected division and department names for reliable matching
     const selectedDivObj = filterCompany ? divisions.find((d) => String(v(d, 'id')) === String(filterCompany)) : null;
     const selectedDivName = selectedDivObj ? String(v(selectedDivObj, 'name') || '').toLowerCase().trim() : '';
+    const selectedDivCode = selectedDivObj ? String(v(selectedDivObj, 'code') || '').toLowerCase().trim() : '';
 
     const selectedDeptObj = filterDept ? departments.find((d) => String(v(d, 'id')) === String(filterDept)) : null;
     const selectedDeptName = selectedDeptObj ? String(v(selectedDeptObj, 'name') || '').toLowerCase().trim() : '';
@@ -544,17 +545,22 @@ function EmployeesContent() {
       // Search matches if all words in search query exist in searchableText
       const matchesSearch = !searchTerms.length || searchTerms.every((term) => searchableText.includes(term));
 
-      // Company / Division matching: matches by ID, by division_name, or by masterData companyIds
-      const empDivId = String(v(e, 'divisionId', 'division_id') || (md.companyIds && md.companyIds[0]) || '');
-      const matchesCompany = !filterCompany ||
-        empDivId === String(filterCompany) ||
-        (selectedDivName && (company.includes(selectedDivName) || selectedDivName.includes(company)));
+      // Company / Division matching: matches strictly by ID, by exact divisionCode, or by exact divisionName
+      const empDivId = String(v(e, 'divisionId', 'division_id') || md.divisionId || (md.companyIds && md.companyIds[0]) || '').trim();
+      const empDivCode = String(v(e, 'divisionCode', 'division_code') || md.divisionCode || '').toLowerCase().trim();
+      const empDivName = String(v(e, 'divisionName', 'division_name') || md.divisionName || '').toLowerCase().trim();
 
-      // Department matching: matches by ID or by department_name
-      const empDeptId = String(v(e, 'departmentId', 'department_id') || '');
+      const matchesCompany = !filterCompany ||
+        (empDivId && empDivId === String(filterCompany).trim()) ||
+        (selectedDivCode && empDivCode && empDivCode === selectedDivCode) ||
+        (selectedDivName && empDivName && empDivName === selectedDivName);
+
+      // Department matching: matches strictly by ID or by exact department_name
+      const empDeptId = String(v(e, 'departmentId', 'department_id') || '').trim();
+      const empDeptName = String(v(e, 'departmentName', 'department_name') || '').toLowerCase().trim();
       const matchesDept = !filterDept ||
-        empDeptId === String(filterDept) ||
-        (selectedDeptName && (dept.includes(selectedDeptName) || selectedDeptName.includes(dept)));
+        (empDeptId && empDeptId === String(filterDept).trim()) ||
+        (selectedDeptName && empDeptName && empDeptName === selectedDeptName);
 
       // Status matching: case-insensitive, treats null/empty as 'active'
       const rawStatus = v(e, 'status');

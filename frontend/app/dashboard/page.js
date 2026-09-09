@@ -233,9 +233,14 @@ export default function DashboardPage() {
     return selectedCompany ? String(v(selectedCompany, 'code') || '').toLowerCase().trim() : '';
   }, [selectedCompany]);
 
-  // Filter employees by selected company
+  // Filter employees by selected company (strict matching: ID, code, or exact non-empty name)
   const filteredEmployees = useMemo(() => {
     if (!selectedCompanyId) return employees;
+
+    const targetId = String(selectedCompanyId).trim();
+    const targetCode = selectedCompanyCode ? selectedCompanyCode.toLowerCase().trim() : '';
+    const targetName = selectedCompanyName ? selectedCompanyName.toLowerCase().trim() : '';
+
     return (employees || []).filter((e) => {
       let md = {};
       try {
@@ -243,16 +248,22 @@ export default function DashboardPage() {
       } catch {
         md = {};
       }
-      const empDivId = String(v(e, 'divisionId', 'division_id') || (md.companyIds && md.companyIds[0]) || '');
-      if (empDivId === String(selectedCompanyId)) return true;
 
-      const empDivName = String(v(e, 'divisionName', 'division_name') || '').toLowerCase().trim();
-      if (selectedCompanyName && (empDivName.includes(selectedCompanyName) || selectedCompanyName.includes(empDivName))) {
+      // 1. Direct ID match (highest priority, strict)
+      const empDivId = String(v(e, 'divisionId', 'division_id') || md.divisionId || (md.companyIds && md.companyIds[0]) || '').trim();
+      if (empDivId && empDivId === targetId) {
         return true;
       }
 
-      const empDivCode = String(v(e, 'divisionCode', 'division_code') || '').toLowerCase().trim();
-      if (selectedCompanyCode && empDivCode === selectedCompanyCode) {
+      // 2. Exact code match (must be non-empty)
+      const empDivCode = String(v(e, 'divisionCode', 'division_code') || md.divisionCode || '').toLowerCase().trim();
+      if (empDivCode && targetCode && empDivCode === targetCode) {
+        return true;
+      }
+
+      // 3. Exact name match (must be non-empty, no loose substring matching)
+      const empDivName = String(v(e, 'divisionName', 'division_name') || md.divisionName || '').toLowerCase().trim();
+      if (empDivName && targetName && empDivName === targetName) {
         return true;
       }
 
@@ -273,43 +284,47 @@ export default function DashboardPage() {
   // Filter leaves by selected company
   const filteredLeaves = useMemo(() => {
     if (!selectedCompanyId) return leaves;
+    if (filteredEmployees.length === 0) return [];
     return (leaves || []).filter((l) => {
-      const empId = String(v(l, 'employeeId', 'employee_id') || '');
+      const empId = String(v(l, 'employeeId', 'employee_id') || '').trim();
       if (empId && filteredEmpIdSet.has(empId)) return true;
       const empName = String(v(l, 'fullName', 'full_name') || v(l, 'employeeName', 'employee_name') || '').toLowerCase().trim();
       if (empName && filteredEmpNameSet.has(empName)) return true;
       return false;
     });
-  }, [leaves, selectedCompanyId, filteredEmpIdSet, filteredEmpNameSet]);
+  }, [leaves, selectedCompanyId, filteredEmployees, filteredEmpIdSet, filteredEmpNameSet]);
 
   // Filter recent attendance by selected company
   const filteredRecentAttendance = useMemo(() => {
     const base = data?.recentAttendance || [];
     if (!selectedCompanyId) return base;
+    if (filteredEmployees.length === 0) return [];
     return base.filter((a) => {
-      const empId = String(v(a, 'employeeId', 'employee_id') || '');
+      const empId = String(v(a, 'employeeId', 'employee_id') || '').trim();
       if (empId && filteredEmpIdSet.has(empId)) return true;
       const empName = String(v(a, 'fullName', 'full_name') || '').toLowerCase().trim();
       if (empName && filteredEmpNameSet.has(empName)) return true;
       return false;
     });
-  }, [data, selectedCompanyId, filteredEmpIdSet, filteredEmpNameSet]);
+  }, [data, selectedCompanyId, filteredEmployees, filteredEmpIdSet, filteredEmpNameSet]);
 
   // Filter full attendance list by selected company
   const filteredAttendanceList = useMemo(() => {
     if (!selectedCompanyId) return attendanceList;
+    if (filteredEmployees.length === 0) return [];
     return (attendanceList || []).filter((a) => {
-      const empId = String(v(a, 'employeeId', 'employee_id') || '');
+      const empId = String(v(a, 'employeeId', 'employee_id') || '').trim();
       if (empId && filteredEmpIdSet.has(empId)) return true;
       const empName = String(v(a, 'fullName', 'full_name') || '').toLowerCase().trim();
       if (empName && filteredEmpNameSet.has(empName)) return true;
       return false;
     });
-  }, [attendanceList, selectedCompanyId, filteredEmpIdSet, filteredEmpNameSet]);
+  }, [attendanceList, selectedCompanyId, filteredEmployees, filteredEmpIdSet, filteredEmpNameSet]);
 
   // Filter activities feed by selected company
   const filteredActivities = useMemo(() => {
     if (!selectedCompanyId) return activities;
+    if (filteredEmployees.length === 0) return [];
     return (activities || []).filter((act) => {
       const title = (act.title || '').toLowerCase();
       const desc = (act.desc || '').toLowerCase();
@@ -318,7 +333,7 @@ export default function DashboardPage() {
       }
       return false;
     });
-  }, [activities, selectedCompanyId, filteredEmpNameSet]);
+  }, [activities, selectedCompanyId, filteredEmployees, filteredEmpNameSet]);
 
   const totalEmployees = selectedCompanyId
     ? filteredEmployees.length
@@ -389,7 +404,7 @@ export default function DashboardPage() {
 
   // Dynamic workforce calculations
   const activeEmployees = Math.max(0, totalEmployees - todayOnLeave);
-  const activePercent = totalEmployees > 0 ? Math.round((activeEmployees / totalEmployees) * 100) : 100;
+  const activePercent = totalEmployees > 0 ? Math.round((activeEmployees / totalEmployees) * 100) : 0;
   const leavePercent = totalEmployees > 0 ? Math.round((todayOnLeave / totalEmployees) * 100) : 0;
   const expiringPercent = totalEmployees > 0 ? Math.round((expiringDocs / totalEmployees) * 100) : (selectedCompanyId ? 0 : 23);
 
