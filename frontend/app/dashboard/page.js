@@ -99,8 +99,26 @@ export default function DashboardPage() {
     }
     return [];
   });
-  const [showAddCompany, setShowAddCompany] = useState(false);
-  const [selectedCompanyId, setSelectedCompanyId] = useState('');
+  const [selectedCompanyId, setSelectedCompanyId] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return sessionStorage.getItem('gocs_selected_company_id') || '';
+      } catch {}
+    }
+    return '';
+  });
+
+  // Persist selected company across page navigation
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (selectedCompanyId) {
+        sessionStorage.setItem('gocs_selected_company_id', String(selectedCompanyId));
+      } else {
+        sessionStorage.removeItem('gocs_selected_company_id');
+      }
+    } catch {}
+  }, [selectedCompanyId]);
   const [newCompany, setNewCompany] = useState({ code: '', name: '', payrollType: 'wps' });
   const [companySaving, setCompanySaving] = useState(false);
   const [companyMsg, setCompanyMsg] = useState('');
