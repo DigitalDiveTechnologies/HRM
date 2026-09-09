@@ -37,11 +37,26 @@ export function saveSeenBaselines(baselines) {
   }
 }
 
-export function visibleBadgeCounts(raw, seenBaseline) {
-  // Live pending/unread counts — stay visible until cleared (0), not cleared on page open.
+export function visibleBadgeCounts(raw, seenBaseline, currentPath) {
   const out = {};
+  const baseline = seenBaseline || {};
+  const normCurrent = currentPath ? normalizePath(currentPath) : '';
+
   for (const [href, count] of Object.entries(raw || {})) {
-    if ((count || 0) > 0) out[href] = count;
+    const normHref = normalizePath(href);
+    // If the user is currently viewing this page or its subroute, suppress badge
+    if (normCurrent && (normCurrent === normHref || normCurrent.startsWith(`${normHref}/`))) {
+      out[normHref] = 0;
+      continue;
+    }
+    const rawVal = Number(count) || 0;
+    const seenVal = Number(baseline[normHref]) || 0;
+    const delta = Math.max(0, rawVal - seenVal);
+    if (delta > 0) {
+      out[normHref] = delta;
+    } else {
+      out[normHref] = 0;
+    }
   }
   return out;
 }

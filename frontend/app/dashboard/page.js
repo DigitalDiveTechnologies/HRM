@@ -7,6 +7,8 @@ import AppShell, { Badge } from '../../components/AppShell';
 import { api } from '../../lib/auth';
 import { formatDate, formatLate, v } from '../../lib/format';
 
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'July', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 export default function DashboardPage() {
   const router = useRouter();
   const [data, setData] = useState(() => {
@@ -98,6 +100,7 @@ export default function DashboardPage() {
     return [];
   });
   const [showAddCompany, setShowAddCompany] = useState(false);
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [newCompany, setNewCompany] = useState({ code: '', name: '', payrollType: 'wps' });
   const [companySaving, setCompanySaving] = useState(false);
   const [companyMsg, setCompanyMsg] = useState('');
@@ -217,17 +220,121 @@ export default function DashboardPage() {
     loadData();
   }, [loadData]);
 
-  const totalEmployees = data?.headcount ?? employees.length ?? 0;
-  const pendingLeaves = data?.pendingLeave ?? 0;
+  const selectedCompany = useMemo(() => {
+    if (!selectedCompanyId) return null;
+    return (companies || []).find((c) => String(v(c, 'id')) === String(selectedCompanyId)) || null;
+  }, [companies, selectedCompanyId]);
 
-  // Calculate docs expiring within 90 days (dynamic count from employees, default 3)
-  const expiringDocs = (() => {
-    if (data?.expiringDocs && data.expiringDocs > 0) return data.expiringDocs;
+  const selectedCompanyName = useMemo(() => {
+    return selectedCompany ? String(v(selectedCompany, 'name') || '').toLowerCase().trim() : '';
+  }, [selectedCompany]);
+
+  const selectedCompanyCode = useMemo(() => {
+    return selectedCompany ? String(v(selectedCompany, 'code') || '').toLowerCase().trim() : '';
+  }, [selectedCompany]);
+
+  // Filter employees by selected company
+  const filteredEmployees = useMemo(() => {
+    if (!selectedCompanyId) return employees;
+    return (employees || []).filter((e) => {
+      let md = {};
+      try {
+        md = typeof e.masterData === 'string' ? JSON.parse(e.masterData || '{}') : e.masterData || {};
+      } catch {
+        md = {};
+      }
+      const empDivId = String(v(e, 'divisionId', 'division_id') || (md.companyIds && md.companyIds[0]) || '');
+      if (empDivId === String(selectedCompanyId)) return true;
+
+      const empDivName = String(v(e, 'divisionName', 'division_name') || '').toLowerCase().trim();
+      if (selectedCompanyName && (empDivName.includes(selectedCompanyName) || selectedCompanyName.includes(empDivName))) {
+        return true;
+      }
+
+      const empDivCode = String(v(e, 'divisionCode', 'division_code') || '').toLowerCase().trim();
+      if (selectedCompanyCode && empDivCode === selectedCompanyCode) {
+        return true;
+      }
+
+      return false;
+    });
+  }, [employees, selectedCompanyId, selectedCompanyName, selectedCompanyCode]);
+
+  const filteredEmpIdSet = useMemo(() => {
+    return new Set((filteredEmployees || []).map((e) => String(v(e, 'id'))).filter(Boolean));
+  }, [filteredEmployees]);
+
+  const filteredEmpNameSet = useMemo(() => {
+    return new Set(
+      (filteredEmployees || []).map((e) => String(v(e, 'fullName', 'full_name') || '').toLowerCase().trim()).filter(Boolean)
+    );
+  }, [filteredEmployees]);
+
+  // Filter leaves by selected company
+  const filteredLeaves = useMemo(() => {
+    if (!selectedCompanyId) return leaves;
+    return (leaves || []).filter((l) => {
+      const empId = String(v(l, 'employeeId', 'employee_id') || '');
+      if (empId && filteredEmpIdSet.has(empId)) return true;
+      const empName = String(v(l, 'fullName', 'full_name') || v(l, 'employeeName', 'employee_name') || '').toLowerCase().trim();
+      if (empName && filteredEmpNameSet.has(empName)) return true;
+      return false;
+    });
+  }, [leaves, selectedCompanyId, filteredEmpIdSet, filteredEmpNameSet]);
+
+  // Filter recent attendance by selected company
+  const filteredRecentAttendance = useMemo(() => {
+    const base = data?.recentAttendance || [];
+    if (!selectedCompanyId) return base;
+    return base.filter((a) => {
+      const empId = String(v(a, 'employeeId', 'employee_id') || '');
+      if (empId && filteredEmpIdSet.has(empId)) return true;
+      const empName = String(v(a, 'fullName', 'full_name') || '').toLowerCase().trim();
+      if (empName && filteredEmpNameSet.has(empName)) return true;
+      return false;
+    });
+  }, [data, selectedCompanyId, filteredEmpIdSet, filteredEmpNameSet]);
+
+  // Filter full attendance list by selected company
+  const filteredAttendanceList = useMemo(() => {
+    if (!selectedCompanyId) return attendanceList;
+    return (attendanceList || []).filter((a) => {
+      const empId = String(v(a, 'employeeId', 'employee_id') || '');
+      if (empId && filteredEmpIdSet.has(empId)) return true;
+      const empName = String(v(a, 'fullName', 'full_name') || '').toLowerCase().trim();
+      if (empName && filteredEmpNameSet.has(empName)) return true;
+      return false;
+    });
+  }, [attendanceList, selectedCompanyId, filteredEmpIdSet, filteredEmpNameSet]);
+
+  // Filter activities feed by selected company
+  const filteredActivities = useMemo(() => {
+    if (!selectedCompanyId) return activities;
+    return (activities || []).filter((act) => {
+      const title = (act.title || '').toLowerCase();
+      const desc = (act.desc || '').toLowerCase();
+      for (const name of filteredEmpNameSet) {
+        if (name && (title.includes(name) || desc.includes(name))) return true;
+      }
+      return false;
+    });
+  }, [activities, selectedCompanyId, filteredEmpNameSet]);
+
+  const totalEmployees = selectedCompanyId
+    ? filteredEmployees.length
+    : (data?.headcount ?? employees.length ?? 0);
+
+  const pendingLeaves = selectedCompanyId
+    ? filteredLeaves.filter((l) => String(v(l, 'status') || '').toLowerCase() === 'pending').length
+    : (data?.pendingLeave ?? 0);
+
+  // Calculate docs expiring within 90 days for current company view
+  const expiringDocs = useMemo(() => {
     const now = new Date();
     const limit = new Date();
     limit.setDate(now.getDate() + 90);
     let count = 0;
-    (employees || []).forEach((e) => {
+    (filteredEmployees || []).forEach((e) => {
       let md = {};
       try {
         md = typeof e.masterData === 'string' ? JSON.parse(e.masterData || '{}') : e.masterData || {};
@@ -248,15 +355,18 @@ export default function DashboardPage() {
       });
       if (hasExp) count++;
     });
-    return count || 3;
-  })();
+    if (!selectedCompanyId && data?.expiringDocs && data.expiringDocs > 0) {
+      return data.expiringDocs;
+    }
+    return count;
+  }, [filteredEmployees, selectedCompanyId, data]);
 
   const unreadNotifications = data?.unreadNotifications ?? 0;
 
-  // Dynamic on-leave count (checks attendance records or approved leave requests for today)
+  // Dynamic on-leave count for current company view
   const todayOnLeave = useMemo(() => {
     // 1. Check attendance records marked with status 'leave'
-    const attOnLeave = (data?.recentAttendance || []).filter(
+    const attOnLeave = (filteredRecentAttendance || []).filter(
       (a) => (v(a, 'status') || '').toLowerCase().includes('leave')
     ).length;
 
@@ -264,7 +374,7 @@ export default function DashboardPage() {
 
     // 2. Check active approved leave requests covering today
     const todayStr = new Date().toISOString().slice(0, 10);
-    const approvedToday = (leaves || []).filter((l) => {
+    const approvedToday = (filteredLeaves || []).filter((l) => {
       const st = String(v(l, 'status') || '').toLowerCase();
       if (st !== 'approved') return false;
       const s = String(v(l, 'startDate', 'start_date') || '').slice(0, 10);
@@ -275,22 +385,21 @@ export default function DashboardPage() {
     if (approvedToday > 0) return approvedToday;
 
     return 0;
-  }, [data, leaves]);
+  }, [filteredRecentAttendance, filteredLeaves]);
 
-  // Fully functional dynamic workforce calculations
+  // Dynamic workforce calculations
   const activeEmployees = Math.max(0, totalEmployees - todayOnLeave);
   const activePercent = totalEmployees > 0 ? Math.round((activeEmployees / totalEmployees) * 100) : 100;
   const leavePercent = totalEmployees > 0 ? Math.round((todayOnLeave / totalEmployees) * 100) : 0;
-  const expiringPercent = totalEmployees > 0 ? Math.round((expiringDocs / totalEmployees) * 100) : 23;
+  const expiringPercent = totalEmployees > 0 ? Math.round((expiringDocs / totalEmployees) * 100) : (selectedCompanyId ? 0 : 23);
 
-  const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'July', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   // Dynamic 12-month workforce attendance statistics computed from real DB logs & approved leaves
   const monthlyStats = useMemo(() => {
-    // Combine all available attendance sources
-    const allAtt = [...(attendanceList || [])];
-    if (data?.recentAttendance && Array.isArray(data.recentAttendance)) {
-      data.recentAttendance.forEach((ra) => {
+    // Combine all available attendance sources for the selected company
+    const allAtt = [...(filteredAttendanceList || [])];
+    if (filteredRecentAttendance && Array.isArray(filteredRecentAttendance)) {
+      filteredRecentAttendance.forEach((ra) => {
         const id = v(ra, 'id');
         if (!allAtt.some((a) => v(a, 'id') === id)) {
           allAtt.push(ra);
@@ -311,7 +420,7 @@ export default function DashboardPage() {
       });
 
       // Filter approved leaves active in this month
-      const monthLeaves = (leaves || []).filter((l) => {
+      const monthLeaves = (filteredLeaves || []).filter((l) => {
         const status = String(v(l, 'status') || '').toLowerCase();
         if (status !== 'approved') return false;
         const s = v(l, 'startDate', 'start_date');
@@ -375,10 +484,40 @@ export default function DashboardPage() {
         leaveCount: 0,
       };
     });
-  }, [attendanceList, data, leaves]);
+  }, [filteredAttendanceList, filteredRecentAttendance, filteredLeaves]);
 
   return (
-    <AppShell title="Dashboard" subtitle="Workforce overview, live statistics and operational metrics">
+    <AppShell
+      title="Dashboard"
+      subtitle={selectedCompany ? `Workforce overview for ${v(selectedCompany, 'name')}` : "Workforce overview, live statistics and operational metrics"}
+      actions={
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <select
+            value={selectedCompanyId}
+            onChange={(e) => setSelectedCompanyId(e.target.value)}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '8px',
+              border: selectedCompanyId ? '1.5px solid #00b8db' : '1px solid var(--line)',
+              fontSize: '12.5px',
+              fontWeight: 600,
+              background: 'var(--surface-alt)',
+              color: 'var(--ink)',
+              cursor: 'pointer',
+              maxWidth: '220px',
+            }}
+            title="Filter dashboard by company"
+          >
+            <option value="">🏢 All Companies ({companies.length})</option>
+            {companies.map((c) => (
+              <option key={v(c, 'id')} value={String(v(c, 'id'))}>
+                {v(c, 'name')} {v(c, 'code') ? `(${v(c, 'code')})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      }
+    >
       {error ? <div className="error" style={{ marginBottom: 14 }}>{error}</div> : null}
       {loading && !data ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '36px 0', color: 'var(--muted, #64748b)' }}>
@@ -400,12 +539,128 @@ export default function DashboardPage() {
       {data ? (
         <div className="dash-container">
           {/* =========================================================================
+              ZONE 0: Company Selector / Filter Bar
+             ========================================================================= */}
+          <div
+            className="dash-company-filter-bar"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '14px',
+              background: 'var(--surface, #ffffff)',
+              border: '1px solid var(--line, #e2e8f0)',
+              borderRadius: '12px',
+              padding: '12px 20px',
+              boxShadow: '0 2px 6px rgba(0, 0, 0, 0.03)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00b8db" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M9 9h1M9 13h1M9 17h1M14 9h1M14 13h1M14 17h1" />
+                </svg>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                  Company Filter:
+                </span>
+              </div>
+
+              <div style={{ position: 'relative' }}>
+                <select
+                  value={selectedCompanyId}
+                  onChange={(e) => setSelectedCompanyId(e.target.value)}
+                  style={{
+                    appearance: 'none',
+                    WebkitAppearance: 'none',
+                    background: 'var(--surface-alt, #f8fafc)',
+                    border: selectedCompanyId ? '2px solid #00b8db' : '1px solid var(--line, #cbd5e1)',
+                    borderRadius: '8px',
+                    padding: '8px 36px 8px 14px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: 'var(--ink, #0f172a)',
+                    cursor: 'pointer',
+                    minWidth: '240px',
+                    outline: 'none',
+                  }}
+                >
+                  <option value="">🏢 All Companies ({companies.length})</option>
+                  {companies.map((c) => (
+                    <option key={v(c, 'id')} value={String(v(c, 'id'))}>
+                      {v(c, 'name')} {v(c, 'code') ? `(${v(c, 'code')})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <div
+                  style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    pointerEvents: 'none',
+                    color: 'var(--muted, #64748b)',
+                    fontSize: '11px',
+                  }}
+                >
+                  ▼
+                </div>
+              </div>
+
+              {selectedCompanyId ? (
+                <button
+                  type="button"
+                  onClick={() => setSelectedCompanyId('')}
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: '#ef4444',
+                    background: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    borderRadius: '6px',
+                    padding: '6px 12px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                  title="Clear company filter"
+                >
+                  ✕ Show All Companies
+                </button>
+              ) : null}
+            </div>
+
+            <div style={{ fontSize: '12.5px', color: 'var(--muted, #64748b)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {selectedCompany ? (
+                <>
+                  <span>Viewing company:</span>
+                  <span
+                    style={{
+                      background: 'rgba(0, 184, 219, 0.12)',
+                      color: '#0097b2',
+                      fontWeight: 700,
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      fontSize: '12.5px',
+                    }}
+                  >
+                    {v(selectedCompany, 'name')} ({filteredEmployees.length} {filteredEmployees.length === 1 ? 'employee' : 'employees'})
+                  </span>
+                </>
+              ) : (
+                <span>Showing aggregated metrics across <strong>all {companies.length} companies</strong> ({totalEmployees} total staff)</span>
+              )}
+            </div>
+          </div>
+
+          {/* =========================================================================
               ZONE 1: 4 Vibrant Cards (Row Direction, Proper Height & Generous Padding)
              ========================================================================= */}
           <div className="dash-kpi-grid">
             {/* Card 1: Emerald Teal (Dynamic Active Rate) */}
             <Link
-              href="/employees"
+              href={selectedCompanyId ? `/employees?company=${selectedCompanyId}#all-employees` : "/employees#all-employees"}
               className="dash-kpi-card"
               style={{
                 background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
@@ -422,7 +677,7 @@ export default function DashboardPage() {
               }}
             >
               <div className="kpi-content">
-                <span className="kpi-label">All Employees</span>
+                <span className="kpi-label">{selectedCompany ? 'Company Staff' : 'All Employees'}</span>
                 <div className="kpi-val">{totalEmployees}</div>
                 <div className="kpi-footer">
                   <span className="kpi-subtext">+{activePercent}% Active</span>
@@ -694,8 +949,8 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(data.recentAttendance || []).length ? (
-                      data.recentAttendance.map((r, i) => (
+                    {filteredRecentAttendance.length ? (
+                      filteredRecentAttendance.map((r, i) => (
                         <tr key={i} className="dash-row">
                           <td style={{ fontWeight: 500 }}>{formatDate(v(r, 'workDate', 'work_date'))}</td>
                           <td>
@@ -714,7 +969,7 @@ export default function DashboardPage() {
                     ) : (
                       <tr>
                         <td colSpan={4} className="muted" style={{ textAlign: 'center', padding: '24px 0' }}>
-                          No recent attendance records.
+                          {selectedCompany ? `No recent attendance records for ${v(selectedCompany, 'name')}.` : 'No recent attendance records.'}
                         </td>
                       </tr>
                     )}
@@ -755,9 +1010,9 @@ export default function DashboardPage() {
               </div>
 
               <div className="dash-scroll-box" style={{ maxHeight: '290px' }}>
-                {activities.length ? (
+                {filteredActivities.length ? (
                   <div className="activity-list">
-                    {activities.map((act) => (
+                    {filteredActivities.map((act) => (
                       <div key={act.id} className="activity-item">
                         <div className="activity-main">
                           <div className="activity-title">{act.title}</div>
@@ -773,7 +1028,7 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="muted" style={{ textAlign: 'center', padding: '36px 0' }}>
-                    No recent activities recorded.
+                    {selectedCompany ? `No recent activities recorded for ${v(selectedCompany, 'name')}.` : 'No recent activities recorded.'}
                   </div>
                 )}
               </div>
@@ -783,11 +1038,15 @@ export default function DashboardPage() {
             <div className="card dash-card">
               <div className="dash-card-header">
                 <div>
-                  <h3 className="dash-card-title">All Employees</h3>
-                  <div className="dash-card-subtitle">Complete workforce directory</div>
+                  <h3 className="dash-card-title">
+                    {selectedCompany ? `Employees (${filteredEmployees.length})` : 'All Employees'}
+                  </h3>
+                  <div className="dash-card-subtitle">
+                    {selectedCompany ? `Workforce directory for ${v(selectedCompany, 'name')}` : 'Complete workforce directory'}
+                  </div>
                 </div>
                 <Link
-                  href="/employees#all-employees"
+                  href={selectedCompanyId ? `/employees?company=${selectedCompanyId}#all-employees` : "/employees#all-employees"}
                   className="cyan-btn"
                   style={{
                     background: '#00b8db',
@@ -801,7 +1060,7 @@ export default function DashboardPage() {
                     border: 'none',
                   }}
                 >
-                  All Employees
+                  {selectedCompany ? 'View Company Staff' : 'All Employees'}
                 </Link>
               </div>
 
@@ -817,8 +1076,8 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {employees.length ? (
-                      employees.map((emp, index) => {
+                    {filteredEmployees.length ? (
+                      filteredEmployees.map((emp, index) => {
                         const code = v(emp, 'empCode', 'emp_code') || `DD-${1000 + index}`;
                         const name = v(emp, 'fullName', 'full_name') || '—';
                         const dept = v(emp, 'departmentName', 'department_name') || 'General';
@@ -850,7 +1109,7 @@ export default function DashboardPage() {
                     ) : (
                       <tr>
                         <td colSpan={5} className="muted" style={{ textAlign: 'center', padding: '36px 0' }}>
-                          No employee records found.
+                          {selectedCompany ? `No employee records found for ${v(selectedCompany, 'name')}.` : 'No employee records found.'}
                         </td>
                       </tr>
                     )}
@@ -987,9 +1246,10 @@ export default function DashboardPage() {
               <table className="dash-table">
                 <thead>
                   <tr>
-                    <th style={{ width: '30%' }}>Code</th>
-                    <th style={{ width: '50%' }}>Company Name</th>
-                    <th style={{ width: '20%', textAlign: 'right' }}>Status</th>
+                    <th style={{ width: '25%' }}>Code</th>
+                    <th style={{ width: '45%' }}>Company Name</th>
+                    <th style={{ width: '15%' }}>Status</th>
+                    <th style={{ width: '15%', textAlign: 'right' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1000,22 +1260,65 @@ export default function DashboardPage() {
                         const code = v(comp, 'code') || '—';
                         const name = v(comp, 'name') || '—';
                         const status = v(comp, 'status') || 'active';
+                        const isCurrentSelected = String(v(comp, 'id')) === String(selectedCompanyId);
 
                         return (
-                          <tr key={v(comp, 'id')} className="dash-row">
+                          <tr
+                            key={v(comp, 'id')}
+                            className="dash-row"
+                            style={{
+                              background: isCurrentSelected ? 'rgba(0, 184, 219, 0.07)' : undefined,
+                            }}
+                          >
                             <td>
                               <span className="code-pill">{code}</span>
                             </td>
-                            <td style={{ fontWeight: 600 }}>{name}</td>
-                            <td style={{ textAlign: 'right' }}>
+                            <td style={{ fontWeight: 600 }}>
+                              {name}
+                              {isCurrentSelected ? (
+                                <span
+                                  style={{
+                                    marginLeft: 8,
+                                    fontSize: '11px',
+                                    padding: '2px 7px',
+                                    borderRadius: 4,
+                                    background: '#00b8db',
+                                    color: '#ffffff',
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  Current View
+                                </span>
+                              ) : null}
+                            </td>
+                            <td>
                               <Badge status={status} />
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedCompanyId(isCurrentSelected ? '' : String(v(comp, 'id')))}
+                                style={{
+                                  fontSize: '11.5px',
+                                  fontWeight: 600,
+                                  padding: '4px 10px',
+                                  borderRadius: '6px',
+                                  border: isCurrentSelected ? '1px solid #00b8db' : '1px solid var(--line, #cbd5e1)',
+                                  background: isCurrentSelected ? '#00b8db' : 'var(--surface-alt, #f8fafc)',
+                                  color: isCurrentSelected ? '#ffffff' : 'var(--ink, #0f172a)',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease',
+                                }}
+                              >
+                                {isCurrentSelected ? 'Clear' : 'Filter View'}
+                              </button>
                             </td>
                           </tr>
                         );
                       })
                   ) : (
                     <tr>
-                      <td colSpan={3} className="muted" style={{ textAlign: 'center', padding: '24px 0' }}>
+                      <td colSpan={4} className="muted" style={{ textAlign: 'center', padding: '24px 0' }}>
                         No companies registered yet.
                       </td>
                     </tr>

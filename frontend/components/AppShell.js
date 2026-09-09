@@ -73,7 +73,7 @@ export default function AppShell({ title, subtitle, actions, children }) {
     };
   }, [pathname, ready]);
 
-  const { badgeFor, menuCategories, toast, dismissToast } = usePortalAlerts(pathname, ready && Boolean(user));
+  const { badgeFor, clearBadge, menuCategories, toast, dismissToast } = usePortalAlerts(pathname, ready && Boolean(user));
 
   if (!ready || !user) {
     return (
@@ -149,7 +149,10 @@ export default function AppShell({ title, subtitle, actions, children }) {
                         href={l.href}
                         className={isParentActive ? 'active' : ''}
                         aria-current={isParentActive ? 'page' : undefined}
-                        onClick={() => setMenuOpen(false)}
+                        onClick={() => {
+                          setMenuOpen(false);
+                          if (clearBadge) clearBadge(l.href);
+                        }}
                       >
                         <span className="nav-link-label">{label}</span>
                         {badge > 0 ? (
@@ -185,7 +188,13 @@ export default function AppShell({ title, subtitle, actions, children }) {
                                   fontWeight: isChildActive ? 700 : 500,
                                   textDecoration: 'none',
                                 }}
-                                onClick={() => setMenuOpen(false)}
+                                onClick={() => {
+                                  setMenuOpen(false);
+                                  if (clearBadge) {
+                                    clearBadge(c.href);
+                                    clearBadge(l.href);
+                                  }
+                                }}
                               >
                                 {navLabel(c, t)}
                               </Link>
@@ -250,6 +259,7 @@ export default function AppShell({ title, subtitle, actions, children }) {
             const path = toast.path;
             dismissToast();
             if (path) {
+              if (clearBadge) clearBadge(path);
               setMenuOpen(false);
               router.push(path);
             }
