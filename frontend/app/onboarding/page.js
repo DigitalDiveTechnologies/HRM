@@ -249,7 +249,7 @@ export default function OnboardingPage() {
                   onChange={(e) => setForm((f) => ({ ...f, employeeId: e.target.value }))}
                 >
                   <option value="">Choose Employee…</option>
-                  {employees.map((e) => (
+                  {employees.filter(e => !filteredEmpIds || filteredEmpIds.has(String(v(e, 'id')))).map((e) => (
                     <option key={v(e, 'id')} value={v(e, 'id')}>
                       {v(e, 'fullName', 'full_name')} ({v(e, 'empCode', 'emp_code')})
                     </option>

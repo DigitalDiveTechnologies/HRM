@@ -4,9 +4,11 @@ import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api } from '../../lib/auth';
 import { v } from '../../lib/format';
+import { useCompanyFilter, applyEmpFilter } from '../../lib/useCompanyFilter';
 
 export default function ApprovalsPage() {
   const [rows, setRows] = useState([]);
+  const { filteredEmpIds } = useCompanyFilter();
   const [error, setError] = useState('');
 
   const load = useCallback(() => {
@@ -55,7 +57,7 @@ export default function ApprovalsPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((a) => (
+              {applyEmpFilter(rows, filteredEmpIds).map((a) => (
                 <tr key={v(a, 'id')}>
                   <td>{v(a, 'title')}</td>
                   <td>{v(a, 'requestType', 'request_type')}</td>

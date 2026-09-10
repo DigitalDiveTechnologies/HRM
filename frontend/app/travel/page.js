@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api, getUser, normalizeRole } from '../../lib/auth';
 import { formatDate, money, currencyCode, todayISO, v } from '../../lib/format';
+import { useCompanyFilter } from '../../lib/useCompanyFilter';
 
 export default function TravelPage() {
   const role = normalizeRole(getUser());
@@ -12,6 +13,7 @@ export default function TravelPage() {
   const [travel, setTravel] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const { filteredEmpIds } = useCompanyFilter();
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [travelForm, setTravelForm] = useState({
@@ -165,7 +167,7 @@ export default function TravelPage() {
                   Employee
                   <select required value={travelForm.employeeId} onChange={(e) => setTravelForm({ ...travelForm, employeeId: e.target.value })}>
                     <option value="">Select…</option>
-                    {employees.map((e) => (
+                    {employees.filter(e => !filteredEmpIds || filteredEmpIds.has(String(v(e, 'id')))).map((e) => (
                       <option key={v(e, 'id')} value={v(e, 'id')}>
                         {v(e, 'fullName', 'full_name')} ({v(e, 'empCode', 'emp_code')})
                       </option>
@@ -288,7 +290,7 @@ export default function TravelPage() {
                 Employee
                 <select required value={expenseForm.employeeId} onChange={(e) => setExpenseForm({ ...expenseForm, employeeId: e.target.value })}>
                   <option value="">Select…</option>
-                  {employees.map((e) => (
+                  {employees.filter(e => !filteredEmpIds || filteredEmpIds.has(String(v(e, 'id')))).map((e) => (
                     <option key={v(e, 'id')} value={v(e, 'id')}>
                       {v(e, 'fullName', 'full_name')} ({v(e, 'empCode', 'emp_code')})
                     </option>

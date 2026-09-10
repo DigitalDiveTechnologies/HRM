@@ -118,7 +118,7 @@ export default function AttendancePage() {
                   onChange={(e) => setForm({ ...form, employeeId: e.target.value })}
                 >
                   <option value="">Select…</option>
-                  {employees.map((emp) => (
+                  {employees.filter(emp => !filteredEmpIds || filteredEmpIds.has(String(v(emp, 'id')))).map((emp) => (
                     <option key={v(emp, 'id')} value={v(emp, 'id')}>
                       {v(emp, 'fullName', 'full_name')}
                     </option>

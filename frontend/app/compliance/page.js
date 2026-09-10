@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api, getUser, normalizeRole } from '../../lib/auth';
 import { formatDate, todayISO, v } from '../../lib/format';
+import { useCompanyFilter } from '../../lib/useCompanyFilter';
 
 export default function CompliancePage() {
   const role = normalizeRole(getUser());
@@ -11,6 +12,7 @@ export default function CompliancePage() {
 
   const [rows, setRows] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
+  const { filteredEmpIds } = useCompanyFilter();
   const [employees, setEmployees] = useState([]);
   const [emiratisation, setEmiratisation] = useState(null);
   const [error, setError] = useState('');
@@ -132,7 +134,7 @@ export default function CompliancePage() {
                 Employee (optional)
                 <select value={form.employeeId} onChange={(e) => setForm({ ...form, employeeId: e.target.value })}>
                   <option value="">Company-wide</option>
-                  {employees.map((e) => (
+                  {employees.filter(e => !filteredEmpIds || filteredEmpIds.has(String(v(e, 'id')))).map((e) => (
                     <option key={v(e, 'id')} value={v(e, 'id')}>
                       {v(e, 'fullName', 'full_name')} ({v(e, 'empCode', 'emp_code')})
                     </option>

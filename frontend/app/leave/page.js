@@ -152,8 +152,9 @@ export default function LeavePage() {
       }
     });
 
-    return Array.from(map.values());
-  }, [employees, balances]);
+    const all = Array.from(map.values());
+    return filteredEmpIds ? all.filter((e) => filteredEmpIds.has(String(e.id))) : all;
+  }, [employees, balances, filteredEmpIds]);
 
   const activeBalanceEmpId = selectedBalanceEmpId || (balanceEmployees[0]?.id ? String(balanceEmployees[0].id) : '');
 
@@ -1131,7 +1132,7 @@ export default function LeavePage() {
                     onChange={(e) => setForm((f) => ({ ...f, employeeId: e.target.value }))}
                   >
                     <option value="">Choose Employee…</option>
-                    {employees.map((e) => (
+                    {employees.filter(e => !filteredEmpIds || filteredEmpIds.has(String(v(e, 'id')))).map((e) => (
                       <option key={v(e, 'id')} value={v(e, 'id')}>
                         {v(e, 'fullName', 'full_name')} ({v(e, 'empCode', 'emp_code')})
                       </option>

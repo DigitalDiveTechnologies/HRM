@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api, getUser, normalizeRole } from '../../lib/auth';
+import { useCompanyFilter } from '../../lib/useCompanyFilter';
 import { formatDate, todayISO, v } from '../../lib/format';
 
 export default function ExitPage() {
@@ -11,6 +12,7 @@ export default function ExitPage() {
 
   const [rows, setRows] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const { filteredEmpIds } = useCompanyFilter();
   const [checklist, setChecklist] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [error, setError] = useState('');
@@ -88,7 +90,7 @@ export default function ExitPage() {
   async function setCaseStatus(id, status) {
     try {
       await api(`/exit/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
-      setMsg(status === 'completed' ? 'Exit completed — employee marked exited.' : `Case marked ${status}.`);
+      setMsg(status === 'completed' ? 'Exit completed â€” employee marked exited.' : `Case marked ${status}.`);
       load();
     } catch (e) {
       setError(e.message);
@@ -110,8 +112,8 @@ export default function ExitPage() {
       });
       const w = res.worksheet || {};
       setMsg(
-        `Settlement PREVIEW for case #${id}: net AED ${w.netSettlement ?? '—'} `
-        + `(EOSB ${w.eosbAmount ?? '—'} · ${w.ruleCode || ''} / ${w.formulaVersion || ''})`,
+        `Settlement PREVIEW for case #${id}: net AED ${w.netSettlement ?? 'â€”'} `
+        + `(EOSB ${w.eosbAmount ?? 'â€”'} Â· ${w.ruleCode || ''} / ${w.formulaVersion || ''})`,
       );
       load();
     } catch (e) {
@@ -135,7 +137,7 @@ export default function ExitPage() {
                 Employee
                 <select required value={form.employeeId} onChange={(e) => setForm({ ...form, employeeId: e.target.value })}>
                   <option value="">Select…</option>
-                  {employees.map((e) => (
+                  {employees.filter(e => !filteredEmpIds || filteredEmpIds.has(String(v(e, 'id')))).map((e) => (
                     <option key={v(e, 'id')} value={v(e, 'id')}>
                       {v(e, 'fullName', 'full_name')} ({v(e, 'empCode', 'emp_code')})
                     </option>
@@ -203,9 +205,9 @@ export default function ExitPage() {
                   <td>{formatDate(v(r, 'lastWorkingDate', 'last_working_date'))}</td>
                   <td style={{ maxWidth: 220 }}>
                     <div className="muted" style={{ fontSize: 12 }}>
-                      EOSB {v(r, 'eosbAmount', 'eosb_amount') || '—'} · {v(r, 'serviceYears', 'service_years') || '—'} yrs
+                      EOSB {v(r, 'eosbAmount', 'eosb_amount') || 'â€”'} Â· {v(r, 'serviceYears', 'service_years') || 'â€”'} yrs
                     </div>
-                    <div className="muted" style={{ fontSize: 12 }}>{v(r, 'settlementNotes', 'settlement_notes') || '—'}</div>
+                    <div className="muted" style={{ fontSize: 12 }}>{v(r, 'settlementNotes', 'settlement_notes') || 'â€”'}</div>
                   </td>
                   <td>
                     {v(r, 'checklistDone', 'checklist_done') || 0}/{v(r, 'checklistTotal', 'checklist_total') || 0}

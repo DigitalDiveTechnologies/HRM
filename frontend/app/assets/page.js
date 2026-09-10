@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api, getUser, normalizeRole } from '../../lib/auth';
+import { useCompanyFilter } from '../../lib/useCompanyFilter';
 import { formatDate, v } from '../../lib/format';
+
 
 export default function AssetsPage() {
   const role = normalizeRole(getUser());
@@ -12,6 +14,7 @@ export default function AssetsPage() {
   const [assets, setAssets] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const { filteredEmpIds } = useCompanyFilter();
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [form, setForm] = useState({
@@ -155,7 +158,7 @@ export default function AssetsPage() {
                   Employee
                   <select required value={assign.employeeId} onChange={(e) => setAssign({ ...assign, employeeId: e.target.value })}>
                     <option value="">Select…</option>
-                    {employees.map((e) => (
+                    {employees.filter(e => !filteredEmpIds || filteredEmpIds.has(String(v(e, 'id')))).map((e) => (
                       <option key={v(e, 'id')} value={v(e, 'id')}>
                         {v(e, 'fullName', 'full_name')} ({v(e, 'empCode', 'emp_code')})
                       </option>

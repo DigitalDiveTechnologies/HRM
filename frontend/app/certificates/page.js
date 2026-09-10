@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api, getApiBase, getToken } from '../../lib/auth';
 import { formatDate, v } from '../../lib/format';
+import { useCompanyFilter, applyEmpFilter } from '../../lib/useCompanyFilter';
 
 const TYPE_LABELS = {
   bank: 'Bank Certificate',
@@ -18,6 +19,7 @@ function typeLabel(row) {
 
 export default function CertificatesPage() {
   const [rows, setRows] = useState([]);
+  const { filteredEmpIds } = useCompanyFilter();
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [busyId, setBusyId] = useState(null);
@@ -95,8 +97,8 @@ export default function CertificatesPage() {
     }
   }
 
-  const pending = rows.filter((r) => String(v(r, 'status')).toLowerCase() === 'pending');
-  const other = rows.filter((r) => String(v(r, 'status')).toLowerCase() !== 'pending');
+  const pending = applyEmpFilter(rows.filter((r) => String(v(r, 'status')).toLowerCase() === 'pending'), filteredEmpIds);
+  const other = applyEmpFilter(rows.filter((r) => String(v(r, 'status')).toLowerCase() !== 'pending'), filteredEmpIds);
 
   return (
     <AppShell title="Certificates" subtitle="Salary / employment letters with QR verification — approve, issue, download">
