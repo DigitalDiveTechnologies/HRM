@@ -30,14 +30,22 @@ export default function Profile() {
 
   const profile = data?.profile || {};
   const docs = data?.documents || [];
-  const company = value(profile, 'divisionName', 'division_name', 'companyName', 'company_name');
-  const divId = value(profile, 'divisionId', 'division_id');
+  let md = {};
+  try {
+    md = typeof profile.masterData === 'string' ? JSON.parse(profile.masterData || '{}') : profile.masterData || {};
+  } catch {}
+
+  const divId = String(value(profile, 'divisionId', 'division_id') || md.divisionId || (md.companyIds && md.companyIds[0]) || '');
+  const company = value(profile, 'divisionName', 'division_name', 'companyName', 'company_name') || md.divisionName || '';
+
   const matchedComp = divisions.find(
     (d) =>
-      (divId && String(value(d, 'id')) === String(divId)) ||
-      (company && String(value(d, 'name')).toLowerCase().trim() === String(company).toLowerCase().trim())
+      (divId && String(value(d, 'id')) === divId) ||
+      (company && String(value(d, 'name') || '').toLowerCase().trim() === String(company).toLowerCase().trim()) ||
+      (company && String(value(d, 'code') || '').toLowerCase().trim() === String(company).toLowerCase().trim())
   );
-  const companyLogo = matchedComp?.logo_url || matchedComp?.logoUrl || '';
+  const companyLogo = matchedComp?.logo_url || matchedComp?.logoUrl || value(profile, 'division_logo', 'divisionLogo', 'logo_url') || '';
+  const displayCompany = matchedComp ? value(matchedComp, 'name') : company;
 
   return (
     <PortalShell title="My Profile" subtitle="Your employment record, credentials and uploaded documents">
@@ -117,7 +125,7 @@ export default function Profile() {
               <DetailItem label="Contact Phone" value={value(profile, 'phone')} />
               
               {/* Company with Logo (Only shown if assigned) */}
-              {company ? (
+              {displayCompany ? (
                 <div>
                   <small style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     Operating Company
@@ -126,10 +134,10 @@ export default function Profile() {
                     {companyLogo ? (
                       <img
                         src={companyLogo}
-                        alt={company}
+                        alt={displayCompany}
                         style={{
-                          height: 26,
-                          maxWidth: 42,
+                          height: 28,
+                          maxWidth: 44,
                           objectFit: 'contain',
                           borderRadius: 4,
                           background: '#ffffff',
@@ -138,7 +146,7 @@ export default function Profile() {
                         }}
                       />
                     ) : null}
-                    <strong style={{ fontSize: '13.5px', color: 'var(--ink)' }}>{company}</strong>
+                    <strong style={{ fontSize: '13.5px', color: 'var(--ink)' }}>{displayCompany}</strong>
                   </div>
                 </div>
               ) : null}

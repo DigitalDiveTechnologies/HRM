@@ -20,8 +20,6 @@ export default function PortalShell({ title, subtitle, actions, children }) {
   const [user, setUser] = useState(null);
   const [open, setOpen] = useState(false);
   const [lang, setLang] = useState('en');
-  const [companies, setCompanies] = useState([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState('');
 
   useEffect(() => {
     const current = session.get();
@@ -30,11 +28,6 @@ export default function PortalShell({ title, subtitle, actions, children }) {
       return;
     }
     setUser(current.user);
-
-    // Fetch companies for company selector in header
-    api('/divisions')
-      .then((d) => setCompanies(Array.isArray(d) ? d : []))
-      .catch(() => {});
   }, [router]);
 
   // Preserve sidebar scroll position
@@ -89,7 +82,7 @@ export default function PortalShell({ title, subtitle, actions, children }) {
           <div className="brand-logo">
             GOCs <span className="accent">HR</span>
           </div>
-          <div className="brand-tag">HR Portal · UAE</div>
+          <div className="brand-tag">Employee Portal</div>
         </div>
 
         <nav className="sidebar-nav">
@@ -137,21 +130,6 @@ export default function PortalShell({ title, subtitle, actions, children }) {
 
           <div className="topbar-right">
             {actions}
-
-            {/* Company Selector Dropdown (Exact match to image) */}
-            <select
-              value={selectedCompanyId}
-              onChange={(e) => setSelectedCompanyId(e.target.value)}
-              className="topbar-select"
-              title="Filter by company"
-            >
-              <option value="">🏢 All Companies ({companies.length || 14})</option>
-              {companies.map((c) => (
-                <option key={value(c, 'id')} value={String(value(c, 'id'))}>
-                  {value(c, 'name')} {value(c, 'code') ? `(${value(c, 'code')})` : ''}
-                </option>
-              ))}
-            </select>
 
             {/* Language Toggle Button */}
             <button

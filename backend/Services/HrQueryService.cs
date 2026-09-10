@@ -1699,7 +1699,7 @@ public sealed class HrQueryService
         await using var conn = await OpenAsync(ct);
         var profileRows = await QueryAsync(conn,
             """
-            SELECT e.*, d.name AS department_name, dv.name AS division_name
+            SELECT e.*, d.name AS department_name, dv.name AS division_name, dv.logo_url AS division_logo, dv.logo_url
             FROM employees e
             LEFT JOIN departments d ON d.id = e.department_id
             LEFT JOIN divisions dv ON dv.id = e.division_id
