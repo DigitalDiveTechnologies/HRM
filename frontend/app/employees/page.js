@@ -245,6 +245,14 @@ function EmployeesContent() {
     load();
   }, [load]);
 
+  // Auto-apply dashboard company selection
+  useEffect(() => {
+    try {
+      const id = sessionStorage.getItem('gocs_selected_company_id') || '';
+      if (id) setFilterCompany(id);
+    } catch {}
+  }, []);
+
   async function openDetail(e) {
     if (!e) return;
     const empId = String(v(e, 'id'));

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api, apiBlob } from '../../lib/auth';
 import { money, v } from '../../lib/format';
+import { applyEmpFilter, useCompanyFilter } from '../../lib/useCompanyFilter';
 
 function payrollLabel(type) {
   const t = String(type || '').toLowerCase();
@@ -13,6 +14,7 @@ function payrollLabel(type) {
 }
 
 export default function PayrollPage() {
+  const { filteredEmpIds } = useCompanyFilter();
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState([]);
   const [runs, setRuns] = useState([]);
@@ -156,7 +158,8 @@ export default function PayrollPage() {
     }
   }
 
-  const periodRows = rows.filter((p) => String(v(p, 'periodLabel', 'period_label')) === period);
+  const companyRows = applyEmpFilter(rows, filteredEmpIds);
+  const periodRows = companyRows.filter((p) => String(v(p, 'periodLabel', 'period_label')) === period);
   const periodRun = runs.find((r) => {
     const y = Number(v(r, 'periodYear', 'period_year'));
     const m = Number(v(r, 'periodMonth', 'period_month'));
@@ -344,7 +347,7 @@ export default function PayrollPage() {
               </tr>
             </thead>
             <tbody>
-              {(periodRows.length ? periodRows : rows).map((p) => (
+              {(periodRows.length ? periodRows : companyRows).map((p) => (
                 <tr key={v(p, 'id')}>
                   <td>
                     {v(p, 'fullName', 'full_name')}

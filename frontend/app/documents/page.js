@@ -4,10 +4,12 @@ import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api, apiUpload, getUser, normalizeRole } from '../../lib/auth';
 import { downloadDocumentFile, formatDate, todayISO, v } from '../../lib/format';
+import { applyEmpFilter, useCompanyFilter } from '../../lib/useCompanyFilter';
 
 export default function DocumentsPage() {
   const role = normalizeRole(getUser());
   const isAdmin = role === 'admin';
+  const { filteredEmpIds } = useCompanyFilter();
 
   const [rows, setRows] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -195,7 +197,7 @@ export default function DocumentsPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((d) => (
+              {applyEmpFilter(rows, filteredEmpIds).map((d) => (
                 <tr key={v(d, 'id')}>
                   <td>{v(d, 'fullName', 'full_name')}</td>
                   <td>{v(d, 'docType', 'doc_type')}</td>

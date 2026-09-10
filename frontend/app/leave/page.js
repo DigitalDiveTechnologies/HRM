@@ -5,6 +5,7 @@ import AppShell, { Badge } from '../../components/AppShell';
 import { api, getUser, normalizeRole } from '../../lib/auth';
 import { formatDate, todayISO, v } from '../../lib/format';
 import { UAE_HOLIDAYS_2026 } from '../../lib/holidays';
+import { useCompanyFilter } from '../../lib/useCompanyFilter';
 
 export default function LeavePage() {
   const [user, setUser] = useState(() => {
@@ -18,6 +19,7 @@ export default function LeavePage() {
   const role = normalizeRole(user);
   const isEmployee = role === 'employee';
   const canApprove = role === 'admin';
+  const { filteredEmpIds } = useCompanyFilter();
 
   // Instant local cache hydration (eliminates "0 records" and "No data" flash)
   const [rows, setRows] = useState(() => {
@@ -367,9 +369,10 @@ export default function LeavePage() {
       const matchType = !typeFilter || t === typeFilter.toLowerCase();
       const matchStatus = !statusFilter || s === statusFilter.toLowerCase();
       const matchSearch = !q || name.includes(q) || code.includes(q);
-      return matchType && matchStatus && matchSearch;
+      const matchCompany = !filteredEmpIds || filteredEmpIds.has(String(v(r, 'employeeId', 'employee_id') || ''));
+      return matchType && matchStatus && matchSearch && matchCompany;
     });
-  }, [rows, typeFilter, statusFilter, searchFilter]);
+  }, [rows, typeFilter, statusFilter, searchFilter, filteredEmpIds]);
 
   // Selected leave detailed data
   const leaveEmp = useMemo(() => {

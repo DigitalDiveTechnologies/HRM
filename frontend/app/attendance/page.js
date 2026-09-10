@@ -4,11 +4,13 @@ import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api, getUser, normalizeRole } from '../../lib/auth';
 import { formatDate, formatLate, todayISO, v } from '../../lib/format';
+import { applyEmpFilter, useCompanyFilter } from '../../lib/useCompanyFilter';
 
 export default function AttendancePage() {
   const [user, setUser] = useState(null);
   const role = normalizeRole(user);
   const isEmployee = role === 'employee';
+  const { filteredEmpIds } = useCompanyFilter();
 
   const [rows, setRows] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -205,7 +207,7 @@ export default function AttendancePage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
+                {applyEmpFilter(rows, filteredEmpIds).map((r) => (
                   <tr key={v(r, 'id')}>
                     <td>{formatDate(v(r, 'workDate', 'work_date'))}</td>
                     <td>{v(r, 'fullName', 'full_name')}</td>

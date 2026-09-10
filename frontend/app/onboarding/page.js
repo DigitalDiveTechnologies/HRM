@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api, getUser, normalizeRole } from '../../lib/auth';
 import { formatDate, todayISO, v } from '../../lib/format';
+import { useCompanyFilter } from '../../lib/useCompanyFilter';
 
 export default function OnboardingPage() {
   const [user, setUser] = useState(() => {
@@ -16,6 +17,7 @@ export default function OnboardingPage() {
   });
   const role = normalizeRole(user);
   const isAdmin = role === 'admin';
+  const { filteredEmpIds } = useCompanyFilter();
 
   const [employees, setEmployees] = useState([]);
   const [rows, setRows] = useState([]);
@@ -113,10 +115,11 @@ export default function OnboardingPage() {
       const matchStatus = !statusFilter || s === statusFilter.toLowerCase();
       const matchCategory = !categoryFilter || c === categoryFilter.toLowerCase();
       const matchSearch = !q || name.includes(q) || code.includes(q) || title.includes(q) || tag.includes(q);
+      const matchCompany = !filteredEmpIds || filteredEmpIds.has(String(v(r, 'employeeId', 'employee_id') || ''));
 
-      return matchStatus && matchCategory && matchSearch;
+      return matchStatus && matchCategory && matchSearch && matchCompany;
     });
-  }, [rows, statusFilter, categoryFilter, searchQuery]);
+  }, [rows, statusFilter, categoryFilter, searchQuery, filteredEmpIds]);
 
   // Statistics
   const totalTasks = rows.length;
@@ -299,7 +302,7 @@ export default function OnboardingPage() {
                 />
               </label>
 
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, gridColumn: '1 / -1' }}>
                 <button
                   type="submit"
                   className="btn"

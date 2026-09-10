@@ -4,10 +4,12 @@ import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api, getUser, normalizeRole } from '../../lib/auth';
 import { formatDate, todayISO, v } from '../../lib/format';
+import { useCompanyFilter } from '../../lib/useCompanyFilter';
 
 export default function PerformancePage() {
   const role = normalizeRole(getUser());
   const isAdmin = role === 'admin';
+  const { filteredEmpIds } = useCompanyFilter();
 
   const [goals, setGoals] = useState([]);
   const [reviews, setReviews] = useState([]);
@@ -153,7 +155,7 @@ export default function PerformancePage() {
                 Employee
                 <select required value={goalForm.employeeId} onChange={(e) => setGoalForm({ ...goalForm, employeeId: e.target.value })}>
                   <option value="">Select…</option>
-                  {employees.map((e) => (
+                  {employees.filter(e => !filteredEmpIds || filteredEmpIds.has(String(v(e, 'id')))).map((e) => (
                     <option key={v(e, 'id')} value={v(e, 'id')}>
                       {v(e, 'fullName', 'full_name')} ({v(e, 'empCode', 'emp_code')})
                     </option>
@@ -206,7 +208,7 @@ export default function PerformancePage() {
               </tr>
             </thead>
             <tbody>
-              {goals.map((g) => (
+              {goals.filter(g => !filteredEmpIds || filteredEmpIds.has(String(v(g, 'employeeId', 'employee_id') || ''))).map((g) => (
                 <tr key={v(g, 'id')}>
                   <td>
                     {v(g, 'fullName', 'full_name')}
@@ -254,7 +256,7 @@ export default function PerformancePage() {
                 Employee
                 <select required value={reviewForm.employeeId} onChange={(e) => setReviewForm({ ...reviewForm, employeeId: e.target.value })}>
                   <option value="">Select…</option>
-                  {employees.map((e) => (
+                  {employees.filter(e => !filteredEmpIds || filteredEmpIds.has(String(v(e, 'id')))).map((e) => (
                     <option key={v(e, 'id')} value={v(e, 'id')}>
                       {v(e, 'fullName', 'full_name')} ({v(e, 'empCode', 'emp_code')})
                     </option>
@@ -312,7 +314,7 @@ export default function PerformancePage() {
               </tr>
             </thead>
             <tbody>
-              {reviews.map((r) => {
+              {reviews.filter(r => !filteredEmpIds || filteredEmpIds.has(String(v(r, 'employeeId', 'employee_id') || ''))).map((r) => {
                 const status = String(v(r, 'status') || '');
                 return (
                   <tr key={v(r, 'id')}>

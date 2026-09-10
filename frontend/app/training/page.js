@@ -4,10 +4,12 @@ import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api, getUser, normalizeRole } from '../../lib/auth';
 import { formatDate, todayISO, v } from '../../lib/format';
+import { useCompanyFilter } from '../../lib/useCompanyFilter';
 
 export default function TrainingPage() {
   const role = normalizeRole(getUser());
   const isAdmin = role === 'admin';
+  const { filteredEmpIds } = useCompanyFilter();
 
   const [courses, setCourses] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
@@ -370,7 +372,7 @@ export default function TrainingPage() {
                 Employee
                 <select required value={enrollForm.employeeId} onChange={(e) => setEnrollForm({ ...enrollForm, employeeId: e.target.value })}>
                   <option value="">Select…</option>
-                  {employees.map((e) => (
+                  {employees.filter(e => !filteredEmpIds || filteredEmpIds.has(String(v(e, 'id')))).map((e) => (
                     <option key={v(e, 'id')} value={v(e, 'id')}>
                       {v(e, 'fullName', 'full_name')} ({v(e, 'empCode', 'emp_code')})
                     </option>
@@ -405,7 +407,7 @@ export default function TrainingPage() {
               </tr>
             </thead>
             <tbody>
-              {enrollments.map((row) => {
+              {enrollments.filter(row => !filteredEmpIds || filteredEmpIds.has(String(v(row, 'employeeId', 'employee_id') || ''))).map((row) => {
                 const status = String(v(row, 'status') || '');
                 return (
                   <tr key={v(row, 'id')}>
