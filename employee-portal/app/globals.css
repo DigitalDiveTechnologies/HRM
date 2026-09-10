@@ -215,91 +215,136 @@ button, input, select, textarea { font-family: inherit; }
   max-width: 1440px;
 }
 
-/* Header & Top Bar (Exact Admin Layout) */
-header.top-header {
+/* Header & Top Bar (Exact Admin Layout - Image Matched) */
+.topbar {
   display: flex;
-  align-items: center;
+  gap: 12px;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
 }
 
-.page-title h1 {
-  font-size: 22px;
-  font-weight: 800;
-  margin: 0;
-  color: var(--ink);
-  letter-spacing: -0.02em;
-}
-
-.page-title p {
-  font-size: 12.5px;
-  color: var(--muted);
-  margin: 4px 0 0;
-}
-
-.top-bar-actions {
+.topbar-left {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  gap: 10px;
+  align-items: flex-start;
+  min-width: 0;
+  flex: 1 1 220px;
 }
 
-.action-chip, .lang-toggle, .theme-toggle-btn {
-  background: var(--surface);
-  border: 1px solid var(--line);
+.topbar-left h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
   color: var(--ink);
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 6px;
+  letter-spacing: -0.01em;
+}
+
+.topbar-left p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.topbar-right {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.topbar-select {
+  height: 38px;
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  font-size: 12.5px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 184, 219, 0.65);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
   font-weight: 600;
+  padding: 0 12px;
   cursor: pointer;
+  outline: none;
   transition: all 0.15s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
-.theme-toggle-btn, .lang-toggle {
-  width: 34px;
-  padding: 0;
-}
-
-.action-chip:hover, .lang-toggle:hover, .theme-toggle-btn:hover {
+.topbar-select:hover, .topbar-select:focus {
   border-color: var(--brand);
 }
 
-.user-chip {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 6px;
+.lang-toggle {
+  height: 38px;
+  width: 38px;
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12.5px;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 184, 219, 0.65);
+  background: var(--surface);
   color: var(--ink);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-}
-
-.user-chip .user-avatar {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--brand);
-  color: #fff;
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 700;
-  display: grid;
-  place-items: center;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
-.user-chip .user-role {
-  color: var(--muted);
+.lang-toggle:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: rgba(0, 184, 219, 0.06);
+}
+
+.theme-toggle {
+  height: 38px;
+  width: 38px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 184, 219, 0.65);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  outline: none;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.theme-toggle:hover {
+  border-color: var(--brand);
+  background: rgba(0, 184, 219, 0.06);
+}
+
+.theme-toggle svg {
+  width: 17px;
+  height: 17px;
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.user-chip {
+  height: 38px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 184, 219, 0.65);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
   font-weight: 500;
+  padding: 0 14px;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 /* Stat Cards (Exact Admin 4 Primary Color Cards with Circular Metric Rings) */

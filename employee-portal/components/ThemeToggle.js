@@ -2,9 +2,49 @@
 
 import { useEffect, useState } from 'react';
 
+function icon(theme) {
+  if (theme === 'dark') {
+    return (
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M21 14.5A8.5 8.5 0 1 1 9.5 3 7 7 0 0 0 21 14.5z" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+    </svg>
+  );
+}
+
 export default function ThemeToggle() {
-  const [dark, setDark] = useState(false);
-  useEffect(() => { const saved = localStorage.getItem('employee_portal_theme') === 'dark'; setDark(saved); document.documentElement.dataset.theme = saved ? 'dark' : 'light'; }, []);
-  function toggle() { const next = !dark; setDark(next); localStorage.setItem('employee_portal_theme', next ? 'dark' : 'light'); document.documentElement.dataset.theme = next ? 'dark' : 'light'; }
-  return <button className="theme-toggle-btn" onClick={toggle} title="Toggle theme" aria-label="Toggle theme">{dark ? '☀' : '◐'}</button>;
+  const [theme, setThemeState] = useState('light');
+
+  useEffect(() => {
+    const saved = localStorage.getItem('employee_portal_theme') || document.documentElement.getAttribute('data-theme') || 'light';
+    setThemeState(saved);
+    document.documentElement.setAttribute('data-theme', saved);
+  }, []);
+
+  function toggle() {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try {
+      localStorage.setItem('employee_portal_theme', next);
+    } catch {}
+    setThemeState(next);
+  }
+
+  return (
+    <button
+      type="button"
+      className="theme-toggle"
+      aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      onClick={toggle}
+    >
+      {icon(theme)}
+    </button>
+  );
 }

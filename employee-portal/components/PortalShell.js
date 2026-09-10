@@ -20,6 +20,8 @@ export default function PortalShell({ title, subtitle, actions, children }) {
   const [user, setUser] = useState(null);
   const [open, setOpen] = useState(false);
   const [lang, setLang] = useState('en');
+  const [companies, setCompanies] = useState([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
 
   useEffect(() => {
     const current = session.get();
@@ -28,9 +30,14 @@ export default function PortalShell({ title, subtitle, actions, children }) {
       return;
     }
     setUser(current.user);
+
+    // Fetch companies for company selector in header
+    api('/divisions')
+      .then((d) => setCompanies(Array.isArray(d) ? d : []))
+      .catch(() => {});
   }, [router]);
 
-  // Preserve sidebar scroll position so it doesn't reset to top on navigation
+  // Preserve sidebar scroll position
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const sidebar = document.getElementById('emp-sidebar');
@@ -65,7 +72,6 @@ export default function PortalShell({ title, subtitle, actions, children }) {
   }
 
   const displayName = user.fullName || user.email || 'Employee';
-  const initial = displayName.slice(0, 1).toUpperCase();
 
   return (
     <div className="shell">
@@ -77,7 +83,7 @@ export default function PortalShell({ title, subtitle, actions, children }) {
         />
       ) : null}
 
-      {/* Sidebar (Exact Admin Carbon Copy Structure) */}
+      {/* Sidebar */}
       <aside className={`sidebar${open ? ' open' : ''}`} id="emp-sidebar">
         <div className="sidebar-top">
           <div className="brand-logo">
@@ -112,9 +118,9 @@ export default function PortalShell({ title, subtitle, actions, children }) {
 
       {/* Main Container */}
       <main className="main">
-        {/* Top Header */}
-        <header className="top-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        {/* Top Header - Exact Match to Admin Dashboard Image */}
+        <div className="topbar">
+          <div className="topbar-left">
             <button
               type="button"
               className="mobile-menu-btn"
@@ -123,38 +129,50 @@ export default function PortalShell({ title, subtitle, actions, children }) {
             >
               ☰
             </button>
-            <div className="page-title">
-              <h1>{title}</h1>
-              {subtitle ? <p>{subtitle}</p> : null}
+            <div>
+              <h2>{title}</h2>
+              <p>{subtitle || 'Workforce overview, live statistics and operational metrics'}</p>
             </div>
           </div>
 
-          <div className="top-bar-actions">
-            {/* Custom page actions (if any) */}
+          <div className="topbar-right">
             {actions}
 
-            {/* Language toggle button */}
+            {/* Company Selector Dropdown (Exact match to image) */}
+            <select
+              value={selectedCompanyId}
+              onChange={(e) => setSelectedCompanyId(e.target.value)}
+              className="topbar-select"
+              title="Filter by company"
+            >
+              <option value="">🏢 All Companies ({companies.length || 14})</option>
+              {companies.map((c) => (
+                <option key={value(c, 'id')} value={String(value(c, 'id'))}>
+                  {value(c, 'name')} {value(c, 'code') ? `(${value(c, 'code')})` : ''}
+                </option>
+              ))}
+            </select>
+
+            {/* Language Toggle Button */}
             <button
               type="button"
               className="lang-toggle"
               onClick={toggleLang}
               title="Toggle Language"
-              style={{ fontWeight: 700 }}
+              aria-label="Toggle Language"
             >
               {lang === 'en' ? 'ع' : 'EN'}
             </button>
 
-            {/* Theme toggle */}
+            {/* Theme Toggle Button */}
             <ThemeToggle />
 
-            {/* User chip: [Employee Name] · employee */}
+            {/* User Chip: [Name] · employee */}
             <div className="user-chip">
-              <span className="user-avatar">{initial}</span>
-              <span style={{ fontWeight: 600 }}>{displayName}</span>
-              <span className="user-role">· employee</span>
+              {displayName} · employee
             </div>
           </div>
-        </header>
+        </div>
 
         {/* Page Content */}
         {children}
