@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react';
 import PortalShell from '@/components/PortalShell';
 import { api, value } from '@/lib/api';
+import { useLocale } from '@/lib/LocaleContext';
 
 const formatDate = (v) => (v ? new Date(v).toLocaleDateString() : '—');
 
 export default function Onboarding() {
+  const { t, locale } = useLocale();
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -24,8 +26,8 @@ export default function Onboarding() {
 
   return (
     <PortalShell
-      title="Onboarding & Handovers"
-      subtitle="Equipment, access credentials, verification tasks and handover checklist"
+      title={t('onboarding_title')}
+      subtitle={t('onboarding_subtitle')}
     >
       {error ? <div className="error-box">{error}</div> : null}
 
@@ -33,27 +35,31 @@ export default function Onboarding() {
       <div className="dash-kpi-grid">
         <div className="kpi-card blue">
           <div className="kpi-info">
-            <span className="kpi-title">Total Assigned</span>
+            <span className="kpi-title">{t('total_assigned')}</span>
             <span className="kpi-val">{total}</span>
-            <span className="kpi-badge">Items & Tasks</span>
+            <span className="kpi-badge">{locale === 'ar' ? 'العناصر والمهام' : 'Items & Tasks'}</span>
           </div>
           <div className="kpi-ring">{total}</div>
         </div>
 
         <div className="kpi-card amber">
           <div className="kpi-info">
-            <span className="kpi-title">Pending Handover</span>
+            <span className="kpi-title">{t('pending_tasks')}</span>
             <span className="kpi-val">{pending}</span>
-            <span className="kpi-badge">{pending > 0 ? 'Pending Verification' : 'Cleared'}</span>
+            <span className="kpi-badge">
+              {pending > 0 ? (locale === 'ar' ? 'في انتظار التحقق' : 'Pending Verification') : (locale === 'ar' ? 'مكتمل' : 'Cleared')}
+            </span>
           </div>
           <div className="kpi-ring">{pending}</div>
         </div>
 
         <div className="kpi-card green">
           <div className="kpi-info">
-            <span className="kpi-title">Completed</span>
+            <span className="kpi-title">{t('completed_tasks')}</span>
             <span className="kpi-val">{completed}</span>
-            <span className="kpi-badge">{total > 0 ? `${Math.round((completed / total) * 100)}% Done` : '100%'}</span>
+            <span className="kpi-badge">
+              {total > 0 ? `${Math.round((completed / total) * 100)}% ${locale === 'ar' ? 'مكتمل' : 'Done'}` : '100%'}
+            </span>
           </div>
           <div className="kpi-ring">{completed}</div>
         </div>
@@ -63,14 +69,14 @@ export default function Onboarding() {
       <div className="panel-card">
         <div className="panel-head">
           <div className="panel-title">
-            <h2>Assigned Checklist Items</h2>
-            <p>Admin-assigned devices, access permissions and documentation handovers</p>
+            <h2>{t('onboarding_checklist')}</h2>
+            <p>{t('onboarding_checklist_sub')}</p>
           </div>
         </div>
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--muted)' }}>
-            Loading assigned checklist…
+            {locale === 'ar' ? 'جاري تحميل قائمة المهام…' : 'Loading assigned checklist…'}
           </div>
         ) : rows.length ? (
           <div style={{ display: 'grid', gap: 14 }}>
@@ -96,7 +102,7 @@ export default function Onboarding() {
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span className={`status-pill ${isDone ? 'approved' : 'pending'}`}>
-                          {value(r, 'status') || 'pending'}
+                          {isDone ? t('done') : t('pending')}
                         </span>
                         <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--ink)' }}>
                           {value(r, 'title')}
@@ -104,12 +110,12 @@ export default function Onboarding() {
                         {tag ? <span className="code-pill">Tag: {tag}</span> : null}
                       </div>
                       <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--muted)' }}>
-                        Category: {value(r, 'category') || 'General Equipment'}
+                        {t('category')}: {value(r, 'category') || (locale === 'ar' ? 'معدات عامة' : 'General Equipment')}
                       </p>
                     </div>
 
-                    <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <small style={{ fontSize: '11px', color: 'var(--muted)', display: 'block' }}>Target Date</small>
+                    <div style={{ textAlign: locale === 'ar' ? 'left' : 'right', whiteSpace: 'nowrap' }}>
+                      <small style={{ fontSize: '11px', color: 'var(--muted)', display: 'block' }}>{t('due_date')}</small>
                       <strong style={{ fontSize: '12.5px', color: 'var(--ink)' }}>{formatDate(value(r, 'dueDate', 'due_date'))}</strong>
                     </div>
                   </div>
@@ -125,11 +131,15 @@ export default function Onboarding() {
                     }}
                   >
                     <div>
-                      <span style={{ color: 'var(--muted)', display: 'block', fontSize: '11px' }}>Assigned Date</span>
+                      <span style={{ color: 'var(--muted)', display: 'block', fontSize: '11px' }}>
+                        {locale === 'ar' ? 'تاريخ التكليف' : 'Assigned Date'}
+                      </span>
                       <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{formatDate(value(r, 'createdAt', 'created_at'))}</span>
                     </div>
                     <div>
-                      <span style={{ color: 'var(--muted)', display: 'block', fontSize: '11px' }}>Handover Signed</span>
+                      <span style={{ color: 'var(--muted)', display: 'block', fontSize: '11px' }}>
+                        {locale === 'ar' ? 'تاريخ التسليم' : 'Handover Signed'}
+                      </span>
                       <span style={{ fontWeight: 600, color: isDone ? '#065f46' : 'var(--muted)' }}>
                         {formatDate(value(r, 'signedAt', 'signed_at'))}
                       </span>
@@ -147,7 +157,9 @@ export default function Onboarding() {
                         color: 'var(--muted)',
                       }}
                     >
-                      <strong style={{ color: 'var(--ink)', marginRight: 6 }}>Notes:</strong>
+                      <strong style={{ color: 'var(--ink)', marginRight: 6 }}>
+                        {locale === 'ar' ? 'ملاحظات:' : 'Notes:'}
+                      </strong>
                       {value(r, 'notes')}
                     </div>
                   ) : null}
@@ -157,7 +169,7 @@ export default function Onboarding() {
           </div>
         ) : (
           <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--muted)' }}>
-            No onboarding items currently assigned to your profile.
+            {t('no_onboarding_tasks')}
           </div>
         )}
       </div>

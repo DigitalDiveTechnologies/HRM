@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react';
 import PortalShell from '@/components/PortalShell';
 import { api, session, value } from '@/lib/api';
+import { useLocale } from '@/lib/LocaleContext';
 
 const formatDate = (v) => (v ? new Date(v).toLocaleDateString() : '—');
 
 export default function Profile() {
+  const { t, locale } = useLocale();
   const [data, setData] = useState(null);
   const [team, setTeam] = useState(null);
   const [divisions, setDivisions] = useState([]);
@@ -48,12 +50,15 @@ export default function Profile() {
   const displayCompany = matchedComp ? value(matchedComp, 'name') : company;
 
   return (
-    <PortalShell title="My Profile" subtitle="Your employment record, credentials and uploaded documents">
+    <PortalShell
+      title={t('profile_title')}
+      subtitle={t('profile_subtitle')}
+    >
       {error ? <div className="error-box">{error}</div> : null}
 
       {!data ? (
         <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--muted)' }}>
-          Loading profile details…
+          {locale === 'ar' ? 'جاري تحميل الملف الشخصي…' : 'Loading profile details…'}
         </div>
       ) : (
         <>
@@ -81,7 +86,7 @@ export default function Profile() {
                 {value(profile, 'fullName', 'full_name')}
               </h2>
               <p style={{ margin: 0, fontSize: '13px', color: 'var(--muted)' }}>
-                {value(profile, 'jobTitle', 'job_title') || 'Employee'} · {value(profile, 'departmentName', 'department_name') || 'General'}
+                {value(profile, 'jobTitle', 'job_title') || (locale === 'ar' ? 'موظف' : 'Employee')} · {value(profile, 'departmentName', 'department_name') || (locale === 'ar' ? 'عام' : 'General')}
               </p>
               {team?.isTeamLead ? (
                 <span
@@ -96,7 +101,7 @@ export default function Profile() {
                     fontWeight: 700,
                   }}
                 >
-                  Team Lead
+                  {locale === 'ar' ? 'قائد الفريق' : 'Team Lead'}
                 </span>
               ) : null}
             </div>
@@ -106,8 +111,8 @@ export default function Profile() {
           <div className="panel-card">
             <div className="panel-head" style={{ borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
               <div className="panel-title">
-                <h2>Employment Details</h2>
-                <p>Personal and professional assignment records</p>
+                <h2>{t('employment_info')}</h2>
+                <p>{t('personal_info')}</p>
               </div>
             </div>
             <div
@@ -118,17 +123,17 @@ export default function Profile() {
                 marginTop: 16,
               }}
             >
-              <DetailItem label="Employee Code" value={value(profile, 'empCode', 'emp_code')} isCode />
-              <DetailItem label="Official Email" value={value(profile, 'email')} />
-              <DetailItem label="Department" value={value(profile, 'departmentName', 'department_name')} />
-              <DetailItem label="Job Title" value={value(profile, 'jobTitle', 'job_title')} />
-              <DetailItem label="Contact Phone" value={value(profile, 'phone')} />
+              <DetailItem label={t('employee_code')} value={value(profile, 'empCode', 'emp_code')} isCode />
+              <DetailItem label={t('email_address')} value={value(profile, 'email')} />
+              <DetailItem label={t('department')} value={value(profile, 'departmentName', 'department_name')} />
+              <DetailItem label={t('designation')} value={value(profile, 'jobTitle', 'job_title')} />
+              <DetailItem label={t('phone_number')} value={value(profile, 'phone')} />
               
               {/* Company with Logo (Only shown if assigned) */}
               {displayCompany ? (
                 <div>
                   <small style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    Operating Company
+                    {t('company')}
                   </small>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
                     {companyLogo ? (
@@ -151,8 +156,8 @@ export default function Profile() {
                 </div>
               ) : null}
 
-              <DetailItem label="Joining Date" value={formatDate(value(profile, 'joinDate', 'join_date'))} />
-              <DetailItem label="Employment Status" value={value(profile, 'status')} isStatus />
+              <DetailItem label={t('joining_date')} value={formatDate(value(profile, 'joinDate', 'join_date'))} />
+              <DetailItem label={t('status')} value={value(profile, 'status')} isStatus />
             </div>
           </div>
 
@@ -160,19 +165,19 @@ export default function Profile() {
           <div className="panel-card">
             <div className="panel-head">
               <div className="panel-title">
-                <h2>Uploaded Documents & Credentials</h2>
-                <p>Official identification and visa records</p>
+                <h2>{locale === 'ar' ? 'المستندات والشهادات المرفوعة' : 'Uploaded Documents & Credentials'}</h2>
+                <p>{locale === 'ar' ? 'سجلات الهوية الرسمية والإقامات' : 'Official identification and visa records'}</p>
               </div>
             </div>
             <div className="table-wrap">
               <table className="portal-table">
                 <thead>
                   <tr>
-                    <th>Document Title</th>
-                    <th>Type</th>
-                    <th>Issue Date</th>
-                    <th>Expiry Date</th>
-                    <th>Status</th>
+                    <th>{t('item_title')}</th>
+                    <th>{locale === 'ar' ? 'النوع' : 'Type'}</th>
+                    <th>{locale === 'ar' ? 'تاريخ الإصدار' : 'Issue Date'}</th>
+                    <th>{locale === 'ar' ? 'تاريخ الانتهاء' : 'Expiry Date'}</th>
+                    <th>{t('status')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -193,7 +198,7 @@ export default function Profile() {
                   ) : (
                     <tr>
                       <td colSpan={5} style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px 0' }}>
-                        No documents uploaded for this profile.
+                        {locale === 'ar' ? 'لا توجد مستندات مرفوعة لهذا الموظف.' : 'No documents uploaded for this profile.'}
                       </td>
                     </tr>
                   )}

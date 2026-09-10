@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import PortalShell from '@/components/PortalShell';
 import { api, session, value } from '@/lib/api';
+import { useLocale } from '@/lib/LocaleContext';
 
 const formatDate = (v) => (v ? new Date(v).toLocaleDateString() : '—');
 
 export default function Dashboard() {
+  const { t, locale } = useLocale();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
 
@@ -48,58 +50,72 @@ export default function Dashboard() {
 
   return (
     <PortalShell
-      title="Dashboard"
-      subtitle="Workforce overview, live statistics and operational metrics"
+      title={t('dash_title')}
+      subtitle={t('dash_subtitle')}
     >
       {error ? <div className="error-box">{error}</div> : null}
 
       {!data ? (
         <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--muted)' }}>
-          Loading your workforce statistics…
+          {t('loading_stats')}
         </div>
       ) : (
         <>
-          {/* 4 Primary KPI Stat Cards (Exact Admin Portal Design) */}
+          {/* 4 Primary KPI Stat Cards (Clickable & Linked to Pages) */}
           <div className="dash-kpi-grid">
-            {/* Green Card: Attendance */}
-            <div className="kpi-card green">
-              <div className="kpi-info">
-                <span className="kpi-title">Today's Attendance</span>
-                <span className="kpi-val">{todayStatus}</span>
-                <span className="kpi-badge">{todayAtt ? 'Active Today' : 'Shift Open'}</span>
+            {/* Green Card: Attendance -> /attendance */}
+            <Link href="/attendance" style={{ textDecoration: 'none', display: 'block' }}>
+              <div className="kpi-card green clickable-card">
+                <div className="kpi-info">
+                  <span className="kpi-title">{t('kpi_today_attendance')}</span>
+                  <span className="kpi-val">{todayStatus}</span>
+                  <span className="kpi-badge">{todayAtt ? t('kpi_active_today') : t('kpi_shift_open')}</span>
+                </div>
+                <div className="kpi-ring">100%</div>
               </div>
-              <div className="kpi-ring">100%</div>
-            </div>
+            </Link>
 
-            {/* Amber Card: Leave Balance */}
-            <div className="kpi-card amber">
-              <div className="kpi-info">
-                <span className="kpi-title">Leave Balance</span>
-                <span className="kpi-val">{remaining}</span>
-                <span className="kpi-badge">Days Remaining</span>
+            {/* Amber Card: Leave Balance -> /leaves */}
+            <Link href="/leaves" style={{ textDecoration: 'none', display: 'block' }}>
+              <div className="kpi-card amber clickable-card">
+                <div className="kpi-info">
+                  <span className="kpi-title">{t('kpi_leave_balance')}</span>
+                  <span className="kpi-val">{remaining}</span>
+                  <span className="kpi-badge">{t('kpi_days_remaining')}</span>
+                </div>
+                <div className="kpi-ring">{remaining}d</div>
               </div>
-              <div className="kpi-ring">{remaining}d</div>
-            </div>
+            </Link>
 
-            {/* Red Card: Onboarding */}
-            <div className="kpi-card red">
-              <div className="kpi-info">
-                <span className="kpi-title">Onboarding Tasks</span>
-                <span className="kpi-val">{pendingOnboarding}</span>
-                <span className="kpi-badge">{pendingOnboarding > 0 ? 'Action Required' : 'All Completed'}</span>
+            {/* Red Card: Onboarding Tasks -> /onboarding */}
+            <Link href="/onboarding" style={{ textDecoration: 'none', display: 'block' }}>
+              <div className="kpi-card red clickable-card">
+                <div className="kpi-info">
+                  <span className="kpi-title">{t('kpi_onboarding_tasks')}</span>
+                  <span className="kpi-val">{pendingOnboarding}</span>
+                  <span className="kpi-badge">
+                    {pendingOnboarding > 0 ? t('kpi_action_required') : t('kpi_all_completed')}
+                  </span>
+                </div>
+                <div className="kpi-ring">
+                  {onboarding.length
+                    ? `${Math.round(((onboarding.length - pendingOnboarding) / onboarding.length) * 100)}%`
+                    : '100%'}
+                </div>
               </div>
-              <div className="kpi-ring">{onboarding.length ? `${Math.round(((onboarding.length - pendingOnboarding) / onboarding.length) * 100)}%` : '100%'}</div>
-            </div>
+            </Link>
 
-            {/* Blue Card: Notifications */}
-            <div className="kpi-card blue">
-              <div className="kpi-info">
-                <span className="kpi-title">Notifications</span>
-                <span className="kpi-val">{unreadNotifs}</span>
-                <span className="kpi-badge">Unread Alerts</span>
+            {/* Blue Card: Notifications -> /notifications */}
+            <Link href="/notifications" style={{ textDecoration: 'none', display: 'block' }}>
+              <div className="kpi-card blue clickable-card">
+                <div className="kpi-info">
+                  <span className="kpi-title">{t('kpi_notifications')}</span>
+                  <span className="kpi-val">{unreadNotifs}</span>
+                  <span className="kpi-badge">{t('kpi_unread_alerts')}</span>
+                </div>
+                <div className="kpi-ring">{unreadNotifs}</div>
               </div>
-              <div className="kpi-ring">{unreadNotifs}</div>
-            </div>
+            </Link>
           </div>
 
           {/* Row 1 Panels: Attendance & Leave Summary */}
@@ -108,12 +124,12 @@ export default function Dashboard() {
             <div className="panel-card">
               <div className="panel-head">
                 <div className="panel-title">
-                  <h2>Recent Attendance</h2>
-                  <p>Latest check-in logs & punctuality</p>
+                  <h2>{t('recent_attendance')}</h2>
+                  <p>{t('recent_attendance_sub')}</p>
                 </div>
                 <Link href="/attendance">
                   <button type="button" className="panel-btn">
-                    All Attendance
+                    {t('all_attendance')}
                   </button>
                 </Link>
               </div>
@@ -121,10 +137,10 @@ export default function Dashboard() {
                 <table className="portal-table">
                   <thead>
                     <tr>
-                      <th>Date</th>
-                      <th>Check In</th>
-                      <th>Check Out</th>
-                      <th>Status</th>
+                      <th>{t('date')}</th>
+                      <th>{t('check_in')}</th>
+                      <th>{t('check_out')}</th>
+                      <th>{t('status')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -149,7 +165,7 @@ export default function Dashboard() {
                     ) : (
                       <tr>
                         <td colSpan={4} style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px 0' }}>
-                          No recent attendance records.
+                          {t('no_att_logs')}
                         </td>
                       </tr>
                     )}
@@ -162,12 +178,12 @@ export default function Dashboard() {
             <div className="panel-card">
               <div className="panel-head">
                 <div className="panel-title">
-                  <h2>Leave Balances</h2>
-                  <p>Current entitlement & balance breakdown</p>
+                  <h2>{t('leave_balances')}</h2>
+                  <p>{t('leave_balances_sub')}</p>
                 </div>
                 <Link href="/leaves">
                   <button type="button" className="panel-btn">
-                    Apply Leave
+                    {t('apply_leave')}
                   </button>
                 </Link>
               </div>
@@ -175,10 +191,10 @@ export default function Dashboard() {
                 <table className="portal-table">
                   <thead>
                     <tr>
-                      <th>Leave Type</th>
-                      <th>Used</th>
-                      <th>Remaining</th>
-                      <th>Status</th>
+                      <th>{t('leave_type')}</th>
+                      <th>{t('used')}</th>
+                      <th>{t('remaining')}</th>
+                      <th>{t('status')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -188,13 +204,13 @@ export default function Dashboard() {
                         return (
                           <tr key={i}>
                             <td style={{ fontWeight: 600 }}>{value(b, 'leaveType', 'leave_type')}</td>
-                            <td>{value(b, 'usedDays', 'used_days') || 0} days</td>
+                            <td>{value(b, 'usedDays', 'used_days') || 0} {t('days')}</td>
                             <td style={{ fontWeight: 700, color: rem > 0 ? 'var(--brand)' : 'var(--muted)' }}>
-                              {rem} days
+                              {rem} {t('days')}
                             </td>
                             <td>
                               <span className={`status-pill ${rem > 0 ? 'active' : 'pending'}`}>
-                                {rem > 0 ? 'available' : 'exhausted'}
+                                {rem > 0 ? t('available') : t('exhausted')}
                               </span>
                             </td>
                           </tr>
@@ -203,7 +219,7 @@ export default function Dashboard() {
                     ) : (
                       <tr>
                         <td colSpan={4} style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px 0' }}>
-                          No leave balance information available.
+                          {locale === 'ar' ? 'لا توجد بيانات متاحة لرصيد الإجازات.' : 'No leave balance information available.'}
                         </td>
                       </tr>
                     )}
@@ -219,12 +235,12 @@ export default function Dashboard() {
             <div className="panel-card">
               <div className="panel-head">
                 <div className="panel-title">
-                  <h2>Recent Leave Activity</h2>
-                  <p>Applied leave requests & workflow status</p>
+                  <h2>{t('recent_leaves')}</h2>
+                  <p>{t('recent_leaves_sub')}</p>
                 </div>
                 <Link href="/leaves">
                   <button type="button" className="panel-btn">
-                    All Leaves
+                    {t('all_leaves')}
                   </button>
                 </Link>
               </div>
@@ -232,10 +248,10 @@ export default function Dashboard() {
                 <table className="portal-table">
                   <thead>
                     <tr>
-                      <th>Type</th>
-                      <th>Dates</th>
-                      <th>Total</th>
-                      <th>Status</th>
+                      <th>{t('leave_type')}</th>
+                      <th>{t('date')}</th>
+                      <th>{t('total_days')}</th>
+                      <th>{t('status')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -260,7 +276,7 @@ export default function Dashboard() {
                     ) : (
                       <tr>
                         <td colSpan={4} style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px 0' }}>
-                          No recent leave requests.
+                          {locale === 'ar' ? 'لا توجد طلبات إجازة حديثة.' : 'No recent leave requests.'}
                         </td>
                       </tr>
                     )}
@@ -273,12 +289,12 @@ export default function Dashboard() {
             <div className="panel-card">
               <div className="panel-head">
                 <div className="panel-title">
-                  <h2>Onboarding & Handover</h2>
-                  <p>Assigned equipment, accounts & tasks</p>
+                  <h2>{t('onboarding_handover')}</h2>
+                  <p>{t('onboarding_handover_sub')}</p>
                 </div>
                 <Link href="/onboarding">
                   <button type="button" className="panel-btn">
-                    View Items
+                    {t('view_items')}
                   </button>
                 </Link>
               </div>
@@ -286,9 +302,9 @@ export default function Dashboard() {
                 <table className="portal-table">
                   <thead>
                     <tr>
-                      <th>Item / Title</th>
-                      <th>Due Date</th>
-                      <th>Status</th>
+                      <th>{t('item_title')}</th>
+                      <th>{t('due_date')}</th>
+                      <th>{t('status')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -310,7 +326,7 @@ export default function Dashboard() {
                     ) : (
                       <tr>
                         <td colSpan={3} style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px 0' }}>
-                          No onboarding tasks assigned.
+                          {t('no_onboarding_tasks')}
                         </td>
                       </tr>
                     )}

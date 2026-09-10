@@ -708,3 +708,75 @@ table.portal-table tbody tr:hover {
   opacity: 0.35;
   cursor: not-allowed;
 }
+
+/* Nav SVG Icons */
+.nav-svg-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.nav-svg-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+}
+
+/* Clickable KPI Cards */
+.clickable-card {
+  cursor: pointer;
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.18s ease;
+}
+
+.clickable-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(0, 184, 219, 0.22);
+}
+
+/* Full RTL (Arabic) Support */
+html[dir='rtl'] body {
+  text-align: right;
+  direction: rtl;
+}
+
+html[dir='rtl'] .sidebar {
+  left: auto;
+  right: 0;
+  border-right: none;
+  border-left: 1px solid var(--sidebar-border);
+}
+
+html[dir='rtl'] .main {
+  margin-left: 0;
+  margin-right: 240px;
+}
+
+html[dir='rtl'] .table-wrap table {
+  text-align: right;
+}
+
+html[dir='rtl'] .table-wrap th,
+html[dir='rtl'] .table-wrap td {
+  text-align: right;
+}
+
+html[dir='rtl'] .kpi-card {
+  text-align: right;
+}
+
+@media (max-width: 900px) {
+  html[dir='rtl'] .sidebar {
+    left: auto;
+    right: 0;
+    transform: translateX(105%);
+  }
+  html[dir='rtl'] .sidebar.open {
+    transform: translateX(0);
+  }
+  html[dir='rtl'] .main {
+    margin-right: 0;
+  }
+}
