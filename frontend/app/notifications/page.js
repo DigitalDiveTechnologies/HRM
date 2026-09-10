@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api } from '../../lib/auth';
 import { formatDate, v } from '../../lib/format';
+import { useCompanyFilter, applyEmpFilter } from '../../lib/useCompanyFilter';
 
 /** Admin portal: show employee name instead of employee-facing "Your …". */
 function adminNotificationMessage(row) {
@@ -18,6 +19,7 @@ function adminNotificationMessage(row) {
 
 export default function NotificationsPage() {
   const [rows, setRows] = useState([]);
+  const { filteredEmpIds } = useCompanyFilter();
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [markingAll, setMarkingAll] = useState(false);
@@ -94,7 +96,7 @@ export default function NotificationsPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((n) => {
+              {applyEmpFilter(rows, filteredEmpIds).map((n) => {
                 const read = v(n, 'isRead', 'is_read') === true;
                 return (
                   <tr key={v(n, 'id')}>

@@ -5,7 +5,7 @@ import AppShell, { Badge } from '../../components/AppShell';
 import { api, getUser, normalizeRole } from '../../lib/auth';
 import { formatDate, todayISO, v } from '../../lib/format';
 import { UAE_HOLIDAYS_2026 } from '../../lib/holidays';
-import { useCompanyFilter } from '../../lib/useCompanyFilter';
+import { useCompanyFilter, buildLocalEmpIds } from '../../lib/useCompanyFilter';
 
 export default function LeavePage() {
   const [user, setUser] = useState(() => {
@@ -19,7 +19,7 @@ export default function LeavePage() {
   const role = normalizeRole(user);
   const isEmployee = role === 'employee';
   const canApprove = role === 'admin';
-  const { filteredEmpIds } = useCompanyFilter();
+  const { selectedCompanyId, filteredEmpIds } = useCompanyFilter();
 
   // Instant local cache hydration (eliminates "0 records" and "No data" flash)
   const [rows, setRows] = useState(() => {
@@ -66,6 +66,12 @@ export default function LeavePage() {
     }
     return [];
   });
+
+  // Build filteredEmpIds from locally-loaded employees (more reliable than cache-based hook)
+  const localFilteredEmpIds = useMemo(
+    () => buildLocalEmpIds(employees, selectedCompanyId),
+    [employees, selectedCompanyId]
+  );
 
   const [approvals, setApprovals] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -153,8 +159,8 @@ export default function LeavePage() {
     });
 
     const all = Array.from(map.values());
-    return filteredEmpIds ? all.filter((e) => filteredEmpIds.has(String(e.id))) : all;
-  }, [employees, balances, filteredEmpIds]);
+    return localFilteredEmpIds ? all.filter((e) => localFilteredEmpIds.has(String(e.id))) : all;
+  }, [employees, balances, localFilteredEmpIds]);
 
   const activeBalanceEmpId = selectedBalanceEmpId || (balanceEmployees[0]?.id ? String(balanceEmployees[0].id) : '');
 
@@ -370,10 +376,10 @@ export default function LeavePage() {
       const matchType = !typeFilter || t === typeFilter.toLowerCase();
       const matchStatus = !statusFilter || s === statusFilter.toLowerCase();
       const matchSearch = !q || name.includes(q) || code.includes(q);
-      const matchCompany = !filteredEmpIds || filteredEmpIds.has(String(v(r, 'employeeId', 'employee_id') || ''));
+      const matchCompany = !localFilteredEmpIds || localFilteredEmpIds.has(String(v(r, 'employeeId', 'employee_id') || ''));
       return matchType && matchStatus && matchSearch && matchCompany;
     });
-  }, [rows, typeFilter, statusFilter, searchFilter, filteredEmpIds]);
+  }, [rows, typeFilter, statusFilter, searchFilter, localFilteredEmpIds]);
 
   // Selected leave detailed data
   const leaveEmp = useMemo(() => {
@@ -1132,7 +1138,7 @@ export default function LeavePage() {
                     onChange={(e) => setForm((f) => ({ ...f, employeeId: e.target.value }))}
                   >
                     <option value="">Choose Employee…</option>
-                    {employees.filter(e => !filteredEmpIds || filteredEmpIds.has(String(v(e, 'id')))).map((e) => (
+                    {employees.filter(e => !localFilteredEmpIds || localFilteredEmpIds.has(String(v(e, 'id')))).map((e) => (
                       <option key={v(e, 'id')} value={v(e, 'id')}>
                         {v(e, 'fullName', 'full_name')} ({v(e, 'empCode', 'emp_code')})
                       </option>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api, getToken, getApiBase } from '../../lib/auth';
 import { formatDate, v } from '../../lib/format';
+import { useCompanyFilter, applyEmpCodeFilter } from '../../lib/useCompanyFilter';
 
 async function downloadReportCsv(reportKey) {
   const token = getToken();
@@ -34,6 +35,7 @@ export default function OpsPage() {
   const [config, setConfig] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [analytics, setAnalytics] = useState(null);
+  const { filteredEmpCodes } = useCompanyFilter();
   const [exports, setExports] = useState([]);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -270,7 +272,7 @@ export default function OpsPage() {
                 <tr><th>Code</th><th>Name</th><th>Missing IBAN</th><th>Missing MOL</th></tr>
               </thead>
               <tbody>
-                {analytics.wpsGaps.map((g, i) => (
+                {applyEmpCodeFilter(analytics.wpsGaps, 'emp_code', filteredEmpCodes).map((g, i) => (
                   <tr key={i}>
                     <td>{v(g, 'empCode', 'emp_code')}</td>
                     <td>{v(g, 'fullName', 'full_name')}</td>
