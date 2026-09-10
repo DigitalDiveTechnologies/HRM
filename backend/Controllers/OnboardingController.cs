@@ -1,5 +1,6 @@
 using DigitalDive.Hr.Api.Models;
 using DigitalDive.Hr.Api.Services;
+using DigitalDive.Hr.Api.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,7 +9,7 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "Onboarding")]
 [Route("api/onboarding")]
-[Authorize(Roles = "admin")]
+[Authorize]
 public sealed class OnboardingController : ControllerBase
 {
     private readonly HrQueryService _hr;
@@ -25,9 +26,21 @@ public sealed class OnboardingController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Roles = "admin")]
     public async Task<IActionResult> List(CancellationToken ct) => Ok(await _hr.OnboardingAsync(ct));
 
+    /// <summary>Employee portal: return only the onboarding tasks assigned to the signed-in employee.</summary>
+    [HttpGet("my")]
+    [Authorize(Roles = "employee")]
+    public async Task<IActionResult> MyTasks(CancellationToken ct)
+    {
+        var employeeId = CurrentUser.EmployeeId(User);
+        if (employeeId is null or <= 0) return Forbid();
+        return Ok(await _hr.OnboardingForEmployeeAsync(employeeId.Value, ct));
+    }
+
     [HttpPost]
+    [Authorize(Roles = "admin")]
     public async Task<IActionResult> Create([FromBody] OnboardingCreateRequest body, CancellationToken ct)
     {
         var (row, error) = await _hr.CreateOnboardingAsync(
@@ -39,6 +52,7 @@ public sealed class OnboardingController : ControllerBase
     }
 
     [HttpPatch("{id:int}")]
+    [Authorize(Roles = "admin")]
     public async Task<IActionResult> Update(int id, [FromBody] StatusUpdateRequest body, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(body.Status)) return BadRequest(new { error = "status required" });

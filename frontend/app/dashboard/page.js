@@ -123,9 +123,10 @@ export default function DashboardPage() {
       } else {
         sessionStorage.removeItem('gocs_selected_company_id');
       }
+      window.dispatchEvent(new Event('gocs_company_changed'));
     } catch {}
   }, [selectedCompanyId, isMounted]);
-  const [newCompany, setNewCompany] = useState({ code: '', name: '', payrollType: 'wps' });
+  const [newCompany, setNewCompany] = useState({ code: '', name: '', payrollType: 'wps', logoUrl: '' });
   const [companySaving, setCompanySaving] = useState(false);
   const [companyMsg, setCompanyMsg] = useState('');
   const [error, setError] = useState('');
@@ -227,17 +228,68 @@ export default function DashboardPage() {
           code: newCompany.code.trim().toUpperCase(),
           name: newCompany.name.trim(),
           payrollType: newCompany.payrollType,
+          logoUrl: newCompany.logoUrl || null,
         }),
       });
       setCompanyMsg('Company created successfully.');
-      setNewCompany({ code: '', name: '', payrollType: 'wps' });
+      setNewCompany({ code: '', name: '', payrollType: 'wps', logoUrl: '' });
       setShowAddCompany(false);
-      api('/divisions').then((d) => setCompanies(Array.isArray(d) ? d : []));
+      const d = await api('/divisions');
+      const cleanDivs = Array.isArray(d) ? d : [];
+      setCompanies(cleanDivs);
+      try {
+        const cached = localStorage.getItem('gocs_cached_dashboard');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          parsed.companies = cleanDivs;
+          localStorage.setItem('gocs_cached_dashboard', JSON.stringify(parsed));
+        }
+      } catch {}
+      window.dispatchEvent(new Event('gocs_company_changed'));
     } catch (err) {
       setError(err.message);
     } finally {
       setCompanySaving(false);
     }
+  }
+
+  async function handleUploadCompanyLogo(companyId, file) {
+    if (!file || !companyId) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Please select a valid image file (PNG, JPG, SVG, WebP).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result;
+      setCompanySaving(true);
+      setCompanyMsg('');
+      setError('');
+      try {
+        await api('/divisions/' + companyId, {
+          method: 'PATCH',
+          body: JSON.stringify({ logoUrl: base64 }),
+        });
+        setCompanyMsg('Company logo updated successfully.');
+        const d = await api('/divisions');
+        const cleanDivs = Array.isArray(d) ? d : [];
+        setCompanies(cleanDivs);
+        try {
+          const cached = localStorage.getItem('gocs_cached_dashboard');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            parsed.companies = cleanDivs;
+            localStorage.setItem('gocs_cached_dashboard', JSON.stringify(parsed));
+          }
+        } catch {}
+        window.dispatchEvent(new Event('gocs_company_changed'));
+      } catch (err) {
+        setError(err.message || 'Failed to update company logo.');
+      } finally {
+        setCompanySaving(false);
+      }
+    };
+    reader.readAsDataURL(file);
   }
 
   useEffect(() => {
@@ -1222,7 +1274,7 @@ export default function DashboardPage() {
                 <div style={{ fontWeight: 700, fontSize: '13px', marginBottom: '10px', color: 'var(--ink)' }}>
                   Add New Company
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '12px' }}>
                   <label className="field" style={{ margin: 0 }}>
                     <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Company Code</span>
                     <input
@@ -1242,6 +1294,31 @@ export default function DashboardPage() {
                       onChange={(e) => setNewCompany({ ...newCompany, name: e.target.value })}
                       style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--line)', boxSizing: 'border-box' }}
                     />
+                  </label>
+                  <label className="field" style={{ margin: 0 }}>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Company Logo (Optional)</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const r = new FileReader();
+                            r.onload = () => setNewCompany((prev) => ({ ...prev, logoUrl: String(r.result || '') }));
+                            r.readAsDataURL(file);
+                          }
+                        }}
+                        style={{ fontSize: '11px', color: 'var(--ink)' }}
+                      />
+                      {newCompany.logoUrl ? (
+                        <img
+                          src={newCompany.logoUrl}
+                          alt="Logo Preview"
+                          style={{ height: 28, maxWidth: 40, objectFit: 'contain', borderRadius: 4, border: '1px solid var(--line)', background: '#ffffff' }}
+                        />
+                      ) : null}
+                    </div>
                   </label>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
@@ -1263,7 +1340,10 @@ export default function DashboardPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowAddCompany(false)}
+                    onClick={() => {
+                      setNewCompany({ code: '', name: '', payrollType: 'wps', logoUrl: '' });
+                      setShowAddCompany(false);
+                    }}
                     style={{
                       background: 'transparent',
                       color: 'var(--muted)',
@@ -1286,9 +1366,10 @@ export default function DashboardPage() {
               <table className="dash-table">
                 <thead>
                   <tr>
-                    <th style={{ width: '25%' }}>Code</th>
-                    <th style={{ width: '45%' }}>Company Name</th>
-                    <th style={{ width: '15%' }}>Status</th>
+                    <th style={{ width: '12%' }}>Logo</th>
+                    <th style={{ width: '22%' }}>Code</th>
+                    <th style={{ width: '38%' }}>Company Name</th>
+                    <th style={{ width: '13%' }}>Status</th>
                     <th style={{ width: '15%', textAlign: 'right' }}>Action</th>
                   </tr>
                 </thead>
@@ -1300,6 +1381,7 @@ export default function DashboardPage() {
                         const code = v(comp, 'code') || '—';
                         const name = v(comp, 'name') || '—';
                         const status = v(comp, 'status') || 'active';
+                        const logo = comp.logo_url || comp.logoUrl || '';
                         const isCurrentSelected = String(v(comp, 'id')) === String(selectedCompanyId);
 
                         return (
@@ -1310,6 +1392,66 @@ export default function DashboardPage() {
                               background: isCurrentSelected ? 'rgba(0, 184, 219, 0.07)' : undefined,
                             }}
                           >
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                {logo ? (
+                                  <img
+                                    src={logo}
+                                    alt={name}
+                                    style={{
+                                      height: 26,
+                                      width: 26,
+                                      objectFit: 'contain',
+                                      borderRadius: 4,
+                                      border: '1px solid var(--line)',
+                                      background: '#ffffff',
+                                      padding: '1px',
+                                    }}
+                                  />
+                                ) : (
+                                  <span
+                                    style={{
+                                      width: 26,
+                                      height: 26,
+                                      borderRadius: 4,
+                                      background: 'var(--surface-alt, #e2e8f0)',
+                                      display: 'grid',
+                                      placeItems: 'center',
+                                      fontSize: '10px',
+                                      fontWeight: 700,
+                                      color: 'var(--muted, #64748b)',
+                                    }}
+                                  >
+                                    {String(code).slice(0, 2)}
+                                  </span>
+                                )}
+                                <label
+                                  title="Upload / Change Logo"
+                                  style={{
+                                    cursor: 'pointer',
+                                    padding: '2px 5px',
+                                    borderRadius: 4,
+                                    background: 'var(--surface-alt)',
+                                    border: '1px solid var(--line)',
+                                    fontSize: '10px',
+                                    fontWeight: 600,
+                                    color: 'var(--primary, #00b8db)',
+                                    lineHeight: 1,
+                                  }}
+                                >
+                                  📷
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    style={{ display: 'none' }}
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) handleUploadCompanyLogo(v(comp, 'id'), file);
+                                    }}
+                                  />
+                                </label>
+                              </div>
+                            </td>
                             <td>
                               <span className="code-pill">{code}</span>
                             </td>

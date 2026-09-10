@@ -17,6 +17,7 @@ import ThemeToggle from './ThemeToggle';
 import LanguageToggle from './LanguageToggle';
 import { usePortalAlerts } from './usePortalAlerts';
 import { useLocale } from '../lib/i18n/LocaleContext';
+import { useCompanyFilter } from '../lib/useCompanyFilter';
 
 export default function AppShell({ title, subtitle, actions, children }) {
   const pathname = usePathname();
@@ -74,6 +75,7 @@ export default function AppShell({ title, subtitle, actions, children }) {
   }, [pathname, ready]);
 
   const { badgeFor, clearBadge, menuCategories, toast, dismissToast } = usePortalAlerts(pathname, ready && Boolean(user));
+  const { selectedCompany } = useCompanyFilter();
 
   if (!ready || !user) {
     return (
@@ -91,6 +93,9 @@ export default function AppShell({ title, subtitle, actions, children }) {
     router.replace('/');
   }
 
+  const companyLogo = selectedCompany?.logo_url || selectedCompany?.logoUrl || '';
+  const companyName = selectedCompany?.name || '';
+
   return (
     <>
       <div className={`backdrop${menuOpen ? ' show' : ''}`} onClick={() => setMenuOpen(false)} />
@@ -98,10 +103,38 @@ export default function AppShell({ title, subtitle, actions, children }) {
         <aside className={`sidebar${menuOpen ? ' open' : ''}`} id="sidebar">
           <div className="sidebar-top">
             <div>
-              <div className="logo">
-                {BRAND.sidebarTitle} <span>{BRAND.sidebarAccent}</span>
+              <div className="logo" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {selectedCompany ? (
+                  <>
+                    {companyLogo ? (
+                      <img
+                        src={companyLogo}
+                        alt={companyName}
+                        style={{
+                          height: 28,
+                          maxWidth: 42,
+                          objectFit: 'contain',
+                          borderRadius: 4,
+                          flexShrink: 0,
+                          background: '#ffffff',
+                          padding: '1px',
+                          border: '1px solid rgba(255,255,255,0.15)'
+                        }}
+                      />
+                    ) : null}
+                    <span style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+                      {companyName} <span style={{ color: 'var(--primary, #00b8db)', fontWeight: 800 }}>HR</span>
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    {BRAND.sidebarTitle} <span>{BRAND.sidebarAccent}</span>
+                  </>
+                )}
               </div>
-              <div className="tag">{BRAND.sidebarTag}</div>
+              <div className="tag">
+                {selectedCompany ? (selectedCompany.code || BRAND.sidebarTag) : BRAND.sidebarTag}
+              </div>
             </div>
             <button
               type="button"

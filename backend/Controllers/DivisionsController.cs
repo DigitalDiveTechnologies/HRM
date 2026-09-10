@@ -30,7 +30,7 @@ public sealed class DivisionsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateDivisionRequest body, CancellationToken ct)
     {
-        var (row, error) = await _hr.CreateDivisionAsync(body.Code, body.Name, body.PayrollType ?? "wps", ct);
+        var (row, error) = await _hr.CreateDivisionAsync(body.Code, body.Name, body.PayrollType ?? "wps", body.LogoUrl, ct);
         if (error is not null) return BadRequest(new { error });
         return StatusCode(StatusCodes.Status201Created, row);
     }
@@ -39,7 +39,7 @@ public sealed class DivisionsController : ControllerBase
     [HttpPatch("{id:int}")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateDivisionRequest body, CancellationToken ct)
     {
-        var (row, error) = await _hr.UpdateDivisionAsync(id, body.Name, body.PayrollType, body.Status, ct);
+        var (row, error) = await _hr.UpdateDivisionAsync(id, body.Name, body.PayrollType, body.Status, body.LogoUrl, ct);
         if (error is not null)
         {
             return error.Contains("not found", StringComparison.OrdinalIgnoreCase)

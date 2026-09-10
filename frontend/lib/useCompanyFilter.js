@@ -16,86 +16,103 @@ const KEY = 'gocs_selected_company_id';
  */
 export function useCompanyFilter() {
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
+  const [selectedCompany, setSelectedCompany] = useState(null);
   const [filteredEmpIds, setFilteredEmpIds] = useState(null);
   const [filteredEmpCodes, setFilteredEmpCodes] = useState(null);
 
   useEffect(() => {
-    let id = '';
-    try { id = sessionStorage.getItem(KEY) || ''; } catch {}
+    function computeFilter() {
+      let id = '';
+      try { id = sessionStorage.getItem(KEY) || ''; } catch {}
 
-    setSelectedCompanyId(id);
+      setSelectedCompanyId(id);
 
-    // No company selected = All Companies = no filter
-    if (!id) {
-      setFilteredEmpIds(null);
-      setFilteredEmpCodes(null);
-      return;
-    }
-
-    // Read caches
-    let employees = [];
-    let companies = [];
-    try {
-      const ec = localStorage.getItem('gocs_cached_employees');
-      if (ec) employees = JSON.parse(ec) || [];
-    } catch {}
-    try {
-      const dc = localStorage.getItem('gocs_cached_dashboard');
-      if (dc) {
-        const p = JSON.parse(dc);
-        if (Array.isArray(p.companies)) companies = p.companies;
-        if (!employees.length && Array.isArray(p.employees)) employees = p.employees;
-      }
-    } catch {}
-
-    // If no employee cache available, show everything (safe fallback)
-    if (!employees.length) {
-      setFilteredEmpIds(null);
-      setFilteredEmpCodes(null);
-      return;
-    }
-
-    // Find company name/code for richer matching
-    const company = companies.find((c) => String(v(c, 'id')) === id);
-    const targetCode = company ? String(v(company, 'code') || '').toLowerCase().trim() : '';
-    const targetName = company ? String(v(company, 'name') || '').toLowerCase().trim() : '';
-
-    const matchingEmps = employees.filter((emp) => {
-      if (!emp) return false;
-      let md = {};
+      // Read caches
+      let employees = [];
+      let companies = [];
       try {
-        md = typeof emp.masterData === 'string'
-          ? JSON.parse(emp.masterData || '{}')
-          : emp.masterData || {};
-      } catch { md = {}; }
+        const ec = localStorage.getItem('gocs_cached_employees');
+        if (ec) employees = JSON.parse(ec) || [];
+      } catch {}
+      try {
+        const dc = localStorage.getItem('gocs_cached_dashboard');
+        if (dc) {
+          const p = JSON.parse(dc);
+          if (Array.isArray(p.companies)) companies = p.companies;
+          if (!employees.length && Array.isArray(p.employees)) employees = p.employees;
+        }
+      } catch {}
 
-      const empDivId = String(
-        v(emp, 'divisionId', 'division_id') ||
-        emp.companyId || emp.company_id ||
-        md.divisionId ||
-        (md.companyIds && md.companyIds[0]) ||
-        ''
-      ).trim();
-      const empDivCode = String(v(emp, 'divisionCode', 'division_code') || md.divisionCode || '').toLowerCase().trim();
-      const empDivName = String(v(emp, 'divisionName', 'division_name') || md.divisionName || '').toLowerCase().trim();
+      const foundComp = id && companies.length
+        ? companies.find((c) => String(v(c, 'id')) === id) || null
+        : null;
+      setSelectedCompany(foundComp);
 
-      return (empDivId && empDivId === id) ||
-        (targetCode && empDivCode && empDivCode === targetCode) ||
-        (targetName && empDivName && empDivName === targetName);
-    });
+      // No company selected = All Companies = no filter
+      if (!id) {
+        setFilteredEmpIds(null);
+        setFilteredEmpCodes(null);
+        return;
+      }
 
-    const ids = new Set(
-      matchingEmps.map((emp) => String(v(emp, 'id'))).filter(Boolean)
-    );
-    const codes = new Set(
-      matchingEmps.map((emp) => String(v(emp, 'empCode', 'emp_code') || '')).filter(Boolean)
-    );
+      // If no employee cache available, show everything (safe fallback)
+      if (!employees.length) {
+        setFilteredEmpIds(null);
+        setFilteredEmpCodes(null);
+        return;
+      }
 
-    setFilteredEmpIds(ids);
-    setFilteredEmpCodes(codes);
+      // Find company name/code for richer matching
+      const targetCode = foundComp ? String(v(foundComp, 'code') || '').toLowerCase().trim() : '';
+      const targetName = foundComp ? String(v(foundComp, 'name') || '').toLowerCase().trim() : '';
+
+      const matchingEmps = employees.filter((emp) => {
+        if (!emp) return false;
+        let md = {};
+        try {
+          md = typeof emp.masterData === 'string'
+            ? JSON.parse(emp.masterData || '{}')
+            : emp.masterData || {};
+        } catch { md = {}; }
+
+        const empDivId = String(
+          v(emp, 'divisionId', 'division_id') ||
+          emp.companyId || emp.company_id ||
+          md.divisionId ||
+          (md.companyIds && md.companyIds[0]) ||
+          ''
+        ).trim();
+        const empDivCode = String(v(emp, 'divisionCode', 'division_code') || md.divisionCode || '').toLowerCase().trim();
+        const empDivName = String(v(emp, 'divisionName', 'division_name') || md.divisionName || '').toLowerCase().trim();
+
+        return (empDivId && empDivId === id) ||
+          (targetCode && empDivCode && empDivCode === targetCode) ||
+          (targetName && empDivName && empDivName === targetName);
+      });
+
+      const ids = new Set(
+        matchingEmps.map((emp) => String(v(emp, 'id'))).filter(Boolean)
+      );
+      const codes = new Set(
+        matchingEmps.map((emp) => String(v(emp, 'empCode', 'emp_code') || '')).filter(Boolean)
+      );
+
+      setFilteredEmpIds(ids);
+      setFilteredEmpCodes(codes);
+    }
+
+    computeFilter();
+
+    window.addEventListener('gocs_company_changed', computeFilter);
+    window.addEventListener('storage', computeFilter);
+
+    return () => {
+      window.removeEventListener('gocs_company_changed', computeFilter);
+      window.removeEventListener('storage', computeFilter);
+    };
   }, []);
 
-  return { selectedCompanyId, filteredEmpIds, filteredEmpCodes };
+  return { selectedCompanyId, selectedCompany, filteredEmpIds, filteredEmpCodes };
 }
 
 /**

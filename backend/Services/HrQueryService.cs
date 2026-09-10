@@ -103,14 +103,14 @@ public sealed class HrQueryService
         QueryConnAsync(
             activeOnly
                 ? """
-                  SELECT id, code, name, payroll_type, status, created_at,
+                  SELECT id, code, name, payroll_type, status, logo_url, created_at,
                          (SELECT COUNT(*)::int FROM employees WHERE division_id = divisions.id AND status != 'exited') AS employee_count
                   FROM divisions
                   WHERE status = 'active'
                   ORDER BY name
                   """
                 : """
-                  SELECT id, code, name, payroll_type, status, created_at,
+                  SELECT id, code, name, payroll_type, status, logo_url, created_at,
                          (SELECT COUNT(*)::int FROM employees WHERE division_id = divisions.id AND status != 'exited') AS employee_count
                   FROM divisions
                   ORDER BY name
@@ -121,7 +121,7 @@ public sealed class HrQueryService
     {
         var rows = await QueryConnAsync(
             """
-            SELECT id, code, name, payroll_type, status, created_at,
+            SELECT id, code, name, payroll_type, status, logo_url, created_at,
                    (SELECT COUNT(*)::int FROM employees WHERE division_id = divisions.id AND status != 'exited') AS employee_count
             FROM divisions
             WHERE id = @id
@@ -132,7 +132,7 @@ public sealed class HrQueryService
     }
 
     public async Task<(Dictionary<string, object?>? Row, string? Error)> CreateDivisionAsync(
-        string code, string name, string payrollType, CancellationToken ct)
+        string code, string name, string payrollType, string? logoUrl, CancellationToken ct)
     {
         code = code.Trim().ToUpperInvariant().Replace(' ', '_');
         name = name.Trim();
@@ -153,14 +153,15 @@ public sealed class HrQueryService
         {
             await using var cmd = new NpgsqlCommand(
                 """
-                INSERT INTO divisions (code, name, payroll_type, status)
-                VALUES (@code, @name, @payroll, 'active')
+                INSERT INTO divisions (code, name, payroll_type, logo_url, status)
+                VALUES (@code, @name, @payroll, @logo, 'active')
                 RETURNING id
                 """,
                 conn);
             cmd.Parameters.AddWithValue("code", code);
             cmd.Parameters.AddWithValue("name", name);
             cmd.Parameters.AddWithValue("payroll", payrollType);
+            cmd.Parameters.AddWithValue("logo", (object?)logoUrl ?? DBNull.Value);
             var id = Convert.ToInt32(await cmd.ExecuteScalarAsync(ct));
             var row = await DivisionByIdAsync(id, ct);
             return (row, null);
@@ -172,7 +173,7 @@ public sealed class HrQueryService
     }
 
     public async Task<(Dictionary<string, object?>? Row, string? Error)> UpdateDivisionAsync(
-        int id, string? name, string? payrollType, string? status, CancellationToken ct)
+        int id, string? name, string? payrollType, string? status, string? logoUrl, CancellationToken ct)
     {
         var existing = await DivisionByIdAsync(id, ct);
         if (existing is null)
@@ -187,6 +188,7 @@ public sealed class HrQueryService
         var nextStatus = string.IsNullOrWhiteSpace(status)
             ? existing["status"]?.ToString() ?? "active"
             : status.Trim().ToLowerInvariant();
+        var nextLogo = logoUrl is not null ? logoUrl : existing.GetValueOrDefault("logoUrl")?.ToString();
 
         if (string.IsNullOrWhiteSpace(nextName))
         {
@@ -223,13 +225,14 @@ public sealed class HrQueryService
         await using var cmd = new NpgsqlCommand(
             """
             UPDATE divisions
-            SET name = @name, payroll_type = @payroll, status = @status
+            SET name = @name, payroll_type = @payroll, status = @status, logo_url = @logo
             WHERE id = @id
             """,
             conn2);
         cmd.Parameters.AddWithValue("name", nextName);
         cmd.Parameters.AddWithValue("payroll", nextPayroll);
         cmd.Parameters.AddWithValue("status", nextStatus);
+        cmd.Parameters.AddWithValue("logo", (object?)nextLogo ?? DBNull.Value);
         cmd.Parameters.AddWithValue("id", id);
         await cmd.ExecuteNonQueryAsync(ct);
 
@@ -852,6 +855,17 @@ public sealed class HrQueryService
             JOIN employees e ON e.id = t.employee_id
             ORDER BY t.due_date NULLS LAST, t.id
             """, ct);
+
+    /// <summary>Employee self-service view of onboarding tasks assigned by HR.</summary>
+    public Task<List<Dictionary<string, object?>>> OnboardingForEmployeeAsync(int employeeId, CancellationToken ct) =>
+        QueryConnAsync(
+            """
+            SELECT t.*, e.full_name, e.emp_code
+            FROM onboarding_tasks t
+            JOIN employees e ON e.id = t.employee_id
+            WHERE t.employee_id = @eid
+            ORDER BY t.due_date NULLS LAST, t.id
+            """, ct, ("eid", employeeId));
 
     public async Task<Dictionary<string, object?>?> UpdateOnboardingAsync(int id, string status, CancellationToken ct)
     {
@@ -1685,8 +1699,10 @@ public sealed class HrQueryService
         await using var conn = await OpenAsync(ct);
         var profileRows = await QueryAsync(conn,
             """
-            SELECT e.*, d.name AS department_name
-            FROM employees e LEFT JOIN departments d ON d.id = e.department_id
+            SELECT e.*, d.name AS department_name, dv.name AS division_name
+            FROM employees e
+            LEFT JOIN departments d ON d.id = e.department_id
+            LEFT JOIN divisions dv ON dv.id = e.division_id
             WHERE e.id = @id
             """, ct, ("id", employeeId));
         var leave = await QueryAsync(conn,
@@ -2112,12 +2128,17 @@ public sealed class HrQueryService
             SELECT g.*, e.full_name, e.emp_code, e.job_title
             FROM performance_goals g
             JOIN employees e ON e.id = g.employee_id
-            WHERE (@eid IS NULL OR g.employee_id = @eid)
+            """;
+        if (onlyEmployeeId is > 0) sql += " WHERE g.employee_id = @eid";
+        sql += """
+
             ORDER BY
               CASE g.status WHEN 'active' THEN 0 WHEN 'completed' THEN 1 ELSE 2 END,
               g.id DESC
             """;
-        return QueryConnAsync(sql, ct, ("eid", onlyEmployeeId is > 0 ? onlyEmployeeId.Value : DBNull.Value));
+        return onlyEmployeeId is > 0
+            ? QueryConnAsync(sql, ct, ("eid", onlyEmployeeId.Value))
+            : QueryConnAsync(sql, ct);
     }
 
     public async Task<bool> PerformanceGoalOwnedByAsync(int goalId, int employeeId, CancellationToken ct)
@@ -2173,10 +2194,12 @@ public sealed class HrQueryService
             SELECT r.*, e.full_name, e.emp_code, e.job_title
             FROM performance_reviews r
             JOIN employees e ON e.id = r.employee_id
-            WHERE (@eid IS NULL OR r.employee_id = @eid)
-            ORDER BY r.review_date DESC NULLS LAST, r.id DESC
             """;
-        return QueryConnAsync(sql, ct, ("eid", onlyEmployeeId is > 0 ? onlyEmployeeId.Value : DBNull.Value));
+        if (onlyEmployeeId is > 0) sql += " WHERE r.employee_id = @eid";
+        sql += " ORDER BY r.review_date DESC NULLS LAST, r.id DESC";
+        return onlyEmployeeId is > 0
+            ? QueryConnAsync(sql, ct, ("eid", onlyEmployeeId.Value))
+            : QueryConnAsync(sql, ct);
     }
 
     public async Task<bool> PerformanceReviewOwnedByAsync(int reviewId, int employeeId, CancellationToken ct)
@@ -2267,10 +2290,12 @@ public sealed class HrQueryService
             FROM course_enrollments en
             JOIN courses c ON c.id = en.course_id
             JOIN employees e ON e.id = en.employee_id
-            WHERE (@eid IS NULL OR en.employee_id = @eid)
-            ORDER BY en.id DESC
             """;
-        return QueryConnAsync(sql, ct, ("eid", onlyEmployeeId is > 0 ? onlyEmployeeId.Value : DBNull.Value));
+        if (onlyEmployeeId is > 0) sql += " WHERE en.employee_id = @eid";
+        sql += " ORDER BY en.id DESC";
+        return onlyEmployeeId is > 0
+            ? QueryConnAsync(sql, ct, ("eid", onlyEmployeeId.Value))
+            : QueryConnAsync(sql, ct);
     }
 
     public async Task<bool> EnrollmentOwnedByAsync(int enrollmentId, int employeeId, CancellationToken ct)
@@ -2320,10 +2345,12 @@ public sealed class HrQueryService
             SELECT cert.*, e.full_name, e.emp_code
             FROM certifications cert
             JOIN employees e ON e.id = cert.employee_id
-            WHERE (@eid IS NULL OR cert.employee_id = @eid)
-            ORDER BY cert.expires_on NULLS LAST, cert.id DESC
             """;
-        return QueryConnAsync(sql, ct, ("eid", onlyEmployeeId is > 0 ? onlyEmployeeId.Value : DBNull.Value));
+        if (onlyEmployeeId is > 0) sql += " WHERE cert.employee_id = @eid";
+        sql += " ORDER BY cert.expires_on NULLS LAST, cert.id DESC";
+        return onlyEmployeeId is > 0
+            ? QueryConnAsync(sql, ct, ("eid", onlyEmployeeId.Value))
+            : QueryConnAsync(sql, ct);
     }
 
     public async Task<Dictionary<string, object?>> CreateCertificationAsync(
