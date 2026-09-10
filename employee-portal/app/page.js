@@ -1,0 +1,17 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import PortalShell from '@/components/PortalShell';
+import { api, session, value } from '@/lib/api';
+
+const date = (v) => v ? new Date(v).toLocaleDateString() : '—';
+export default function Dashboard() {
+  const [data, setData] = useState(null); const [error, setError] = useState('');
+  useEffect(() => { const id = session.get()?.user?.employeeId; if (!id) return; Promise.all([api('/ess/' + id), api('/leave/balances'), api('/notifications'), api('/onboarding/my')]).then(([ess, balances, notifications, onboarding]) => setData({ ess, balances, notifications, onboarding })).catch((e) => setError(e.message)); }, []);
+  const attendance = data?.ess?.attendance || []; const leaves = data?.ess?.leave || []; const balances = data?.balances || []; const onboarding = data?.onboarding || []; const notifications = data?.notifications || [];
+  const remaining = balances.reduce((sum, row) => sum + Number(value(row, 'remainingDays', 'remaining_days') || 0), 0);
+  return <PortalShell title="Dashboard" subtitle="Your personal workforce overview"><>{error && <div className="error">{error}</div>}{!data ? <div className="loading">Loading your information…</div> : <><section className="cards"><Card label="Today’s Attendance" value={attendance[0] ? value(attendance[0], 'status') || 'Recorded' : 'Not marked'} tone="blue" /><Card label="Leave Balance" value={`${remaining} days`} tone="green" /><Card label="Onboarding" value={`${onboarding.filter((x) => value(x, 'status') !== 'done').length} pending`} tone="orange" /><Card label="Notifications" value={`${notifications.filter((x) => !value(x, 'isRead', 'is_read')).length} unread`} tone="purple" /></section><section className="grid two"><Panel title="Recent Attendance"><Table headers={['Date', 'Check in', 'Check out', 'Status']} rows={attendance.slice(0, 5).map((r) => [date(value(r, 'workDate', 'work_date')), value(r, 'checkIn', 'check_in') || '—', value(r, 'checkOut', 'check_out') || '—', value(r, 'status') || '—'])} /></Panel><Panel title="Leave Summary"><Table headers={['Type', 'Used', 'Remaining']} rows={balances.map((r) => [value(r, 'leaveType', 'leave_type'), `${value(r, 'usedDays', 'used_days') || 0} days`, `${value(r, 'remainingDays', 'remaining_days') || 0} days`])} /></Panel></section><section className="grid two"><Panel title="Recent Leave Activity"><Table headers={['Leave', 'Dates', 'Status']} rows={leaves.slice(0, 5).map((r) => [value(r, 'leaveType', 'leave_type'), `${date(value(r, 'startDate', 'start_date'))} – ${date(value(r, 'endDate', 'end_date'))}`, value(r, 'workflowStage', 'workflow_stage', 'status')])} /></Panel><Panel title="Assigned Onboarding"><Table headers={['Item', 'Due date', 'Status']} rows={onboarding.slice(0, 5).map((r) => [value(r, 'title'), date(value(r, 'dueDate', 'due_date')), value(r, 'status')])} /></Panel></section></>}</></PortalShell>;
+}
+function Card({ label, value, tone }) { return <div className={`card ${tone}`}><small>{label}</small><strong>{value}</strong></div>; }
+function Panel({ title, children }) { return <section className="panel"><h2>{title}</h2>{children}</section>; }
+function Table({ headers, rows }) { return <div className="table-wrap"><table><thead><tr>{headers.map((x) => <th key={x}>{x}</th>)}</tr></thead><tbody>{rows.length ? rows.map((row, i) => <tr key={i}>{row.map((cell, j) => <td key={j}>{cell}</td>)}</tr>) : <tr><td colSpan={headers.length}>No records found.</td></tr>}</tbody></table></div>; }
