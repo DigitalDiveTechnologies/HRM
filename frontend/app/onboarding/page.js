@@ -103,7 +103,7 @@ export default function OnboardingPage() {
 
   // Filtered rows
   const filteredRows = useMemo(() => {
-    return rows.filter((r) => {
+    const list = rows.filter((r) => {
       const s = String(v(r, 'status') || '').toLowerCase();
       const c = String(v(r, 'category') || '').toLowerCase();
       const name = String(v(r, 'fullName', 'full_name') || '').toLowerCase();
@@ -118,6 +118,16 @@ export default function OnboardingPage() {
       const matchCompany = !filteredEmpIds || filteredEmpIds.has(String(v(r, 'employeeId', 'employee_id') || ''));
 
       return matchStatus && matchCategory && matchSearch && matchCompany;
+    });
+
+    // Latest assignments on top (newest created_at or highest id first)
+    return list.sort((a, b) => {
+      const dateA = new Date(v(a, 'createdAt', 'created_at') || 0).getTime();
+      const dateB = new Date(v(b, 'createdAt', 'created_at') || 0).getTime();
+      if (dateA && dateB && dateA !== dateB) return dateB - dateA;
+      const idA = Number(v(a, 'id') || 0);
+      const idB = Number(v(b, 'id') || 0);
+      return idB - idA;
     });
   }, [rows, statusFilter, categoryFilter, searchQuery, filteredEmpIds]);
 

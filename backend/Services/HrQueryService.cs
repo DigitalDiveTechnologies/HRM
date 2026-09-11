@@ -853,7 +853,7 @@ public sealed class HrQueryService
             SELECT t.*, e.full_name, e.emp_code
             FROM onboarding_tasks t
             JOIN employees e ON e.id = t.employee_id
-            ORDER BY t.due_date NULLS LAST, t.id
+            ORDER BY t.created_at DESC NULLS LAST, t.id DESC
             """, ct);
 
     /// <summary>Employee self-service view of onboarding tasks assigned by HR.</summary>
@@ -864,7 +864,7 @@ public sealed class HrQueryService
             FROM onboarding_tasks t
             JOIN employees e ON e.id = t.employee_id
             WHERE t.employee_id = @eid
-            ORDER BY t.due_date NULLS LAST, t.id
+            ORDER BY t.created_at DESC NULLS LAST, t.id DESC
             """, ct, ("eid", employeeId));
 
     public async Task<Dictionary<string, object?>?> UpdateOnboardingAsync(int id, string status, CancellationToken ct)
