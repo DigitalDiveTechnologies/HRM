@@ -68,7 +68,9 @@ export default function Dashboard() {
               <div className="kpi-card green clickable-card">
                 <div className="kpi-info">
                   <span className="kpi-title">{t('kpi_today_attendance')}</span>
-                  <span className="kpi-val">{todayStatus}</span>
+                  <span className={`kpi-val ${isNaN(Number(todayStatus)) ? 'kpi-val-text' : ''}`}>
+                    {todayStatus === 'Not marked' ? t('not_marked') : todayStatus}
+                  </span>
                   <span className="kpi-badge">{todayAtt ? t('kpi_active_today') : t('kpi_shift_open')}</span>
                 </div>
                 <div className="kpi-ring">100%</div>

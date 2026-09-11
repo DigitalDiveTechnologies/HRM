@@ -353,11 +353,19 @@ button, input, select, textarea { font-family: inherit; }
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   margin-bottom: 20px;
+  align-items: stretch;
+}
+
+.dash-kpi-grid > a {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  height: 100%;
 }
 
 .kpi-card {
   border-radius: 10px;
-  padding: 18px 20px;
+  padding: 16px 20px;
   color: #FFFFFF;
   display: flex;
   align-items: center;
@@ -365,6 +373,9 @@ button, input, select, textarea { font-family: inherit; }
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
   position: relative;
   overflow: hidden;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 108px;
 }
 
 .kpi-card.green {
@@ -386,21 +397,34 @@ button, input, select, textarea { font-family: inherit; }
 .kpi-info {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
 }
 
 .kpi-title {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
   opacity: 0.92;
+  white-space: nowrap;
 }
 
 .kpi-val {
   font-size: 28px;
   font-weight: 800;
-  line-height: 1;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.kpi-val-text {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 
 .kpi-badge {
@@ -412,12 +436,13 @@ button, input, select, textarea { font-family: inherit; }
   font-size: 10.5px;
   font-weight: 700;
   width: fit-content;
-  margin-top: 4px;
+  margin-top: 2px;
+  white-space: nowrap;
 }
 
 .kpi-ring {
-  width: 52px;
-  height: 52px;
+  width: 50px;
+  height: 50px;
   border-radius: 50%;
   border: 3.5px solid rgba(255, 255, 255, 0.3);
   border-top-color: #FFFFFF;
