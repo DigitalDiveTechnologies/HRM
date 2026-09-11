@@ -20,7 +20,26 @@ export async function api(path, options = {}) {
   return data;
 }
 
+export async function apiBlob(path, options = {}) {
+  const current = session.get();
+  const base = apiBase();
+  const url = path.startsWith('http') ? path : `${base}/api${path}`;
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...(current?.token ? { Authorization: `Bearer ${current.token}` } : {}),
+      ...(options.headers || {}),
+    },
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || `Failed to download file (${response.status})`);
+  }
+  return response.blob();
+}
+
 export function value(row, ...keys) {
   for (const key of keys) if (row?.[key] !== undefined && row?.[key] !== null) return row[key];
   return '';
 }
+
