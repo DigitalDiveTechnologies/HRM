@@ -127,9 +127,7 @@ export default function AppShell({ title, subtitle, actions, children }) {
                     </span>
                   </>
                 ) : (
-                  <>
-                    {BRAND.sidebarTitle} <span>{BRAND.sidebarAccent}</span>
-                  </>
+                  <span>{BRAND.sidebarTitle}</span>
                 )}
               </div>
               <div className="tag">

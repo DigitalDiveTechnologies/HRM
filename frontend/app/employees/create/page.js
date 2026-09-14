@@ -66,10 +66,6 @@ export default function CreateEmployeePage() {
       if (empsRes.status === 'fulfilled' && Array.isArray(empsRes.value)) {
         const list = empsRes.value;
         setManagers(list);
-        setForm((prev) => ({
-          ...prev,
-          empCode: prev.empCode || calculateNextCode(list),
-        }));
       }
       if (posRes.status === 'fulfilled' && Array.isArray(posRes.value)) setVacantPositions(posRes.value);
     });

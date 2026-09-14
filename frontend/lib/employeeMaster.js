@@ -22,6 +22,31 @@ export const MASTER_TABS = [
   'Attachments',
 ];
 
+/**
+ * Auto-generate company-based Employee Code (e.g. OVE-001, DIG-002, GOC-003).
+ * Uses first 3 uppercase letters of company code/name + '-' + 3-digit sequence number.
+ */
+export function generateCompanyEmpCode(company, existingEmployees = []) {
+  if (!company) return '';
+  const raw = (v(company, 'code') || v(company, 'name') || '').trim().replace(/[^a-zA-Z0-9]/g, '');
+  if (!raw) return '';
+  const prefix = (raw.length >= 3 ? raw.substring(0, 3) : raw.padEnd(3, 'X')).toUpperCase();
+
+  let maxNum = 0;
+  const prefixRegex = new RegExp(`^${prefix}[-_]?(\\d+)`, 'i');
+  (existingEmployees || []).forEach((emp) => {
+    const code = String(v(emp, 'empCode', 'emp_code') || '').trim();
+    const match = code.match(prefixRegex);
+    if (match) {
+      const n = parseInt(match[1], 10);
+      if (!isNaN(n) && n > maxNum) maxNum = n;
+    }
+  });
+
+  const nextNum = maxNum + 1;
+  return `${prefix}-${String(nextNum).padStart(3, '0')}`;
+}
+
 export function emptyMasterForm() {
   return {
     firstName: '',

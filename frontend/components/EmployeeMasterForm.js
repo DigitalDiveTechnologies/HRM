@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { getApiBase } from '../lib/auth';
+import { generateCompanyEmpCode } from '../lib/employeeMaster';
 import { v } from '../lib/format';
 
 const PREVIOUS_VISA_TYPES = [
@@ -129,6 +130,16 @@ function SectionCard({ title, children, style = {} }) {
     </div>
   );
 }
+
+const FORM_TABS = [
+  { id: 'Personal info', label: 'Personal info' },
+  { id: 'Address', label: 'Address' },
+  { id: 'Education', label: 'Education' },
+  { id: 'Work experience', label: 'Work experience' },
+  { id: 'Employee details', label: 'Employee details' },
+  { id: 'Documents', label: 'Documents' },
+  { id: 'Payroll', label: 'Payroll' },
+];
 
 export default function EmployeeMasterForm({
   mode = 'create',
@@ -505,6 +516,20 @@ export default function EmployeeMasterForm({
 
   const set = (key, val) => setForm((prev) => ({ ...prev, [key]: val }));
 
+  const handleCompanyChange = (val) => {
+    set('divisionId', val);
+    set('companyIds', val ? [val] : []);
+    if (!isEdit) {
+      if (val) {
+        const selectedComp = divisions.find((d) => String(v(d, 'id')) === String(val));
+        const code = generateCompanyEmpCode(selectedComp, managers);
+        set('empCode', code);
+      } else {
+        set('empCode', '');
+      }
+    }
+  };
+
   const experiences = Array.isArray(form.workExperiences) && form.workExperiences.length > 0
     ? form.workExperiences
     : (form.workExperience?.previousCompany || form.workExperience?.position)
@@ -714,12 +739,7 @@ export default function EmployeeMasterForm({
             overflowX: 'auto',
           }}
         >
-          {[
-            { id: 'Personal info', label: 'Personal info' },
-            { id: 'Employee details', label: 'Employee details' },
-            { id: 'Documents', label: 'Documents' },
-            { id: 'Payroll', label: 'Payroll' },
-          ].map((tab) => {
+          {FORM_TABS.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
               <button
@@ -853,11 +873,7 @@ export default function EmployeeMasterForm({
                     <select
                       required
                       value={form.divisionId || form.companyIds?.[0] || ''}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        set('divisionId', val);
-                        set('companyIds', val ? [val] : []);
-                      }}
+                      onChange={(e) => handleCompanyChange(e.target.value)}
                       style={inputStyle}
                     >
                       <option value="">-- Select Company --</option>
@@ -874,11 +890,11 @@ export default function EmployeeMasterForm({
                     </select>
                   </FieldRow>
 
-                  <FieldRow label="Employee Code" helper="Auto-generated serial">
+                  <FieldRow label="Employee Code" helper="Auto-generated on company selection (editable)">
                     <input
-                      style={{ ...inputStyle, background: '#f8fafc', fontWeight: 700, color: '#008fa8' }}
-                      value={form.empCode || 'Auto-generated'}
-                      readOnly={!isEdit}
+                      style={{ ...inputStyle, background: '#ffffff', fontWeight: 700, color: '#008fa8' }}
+                      placeholder="Code Auto Generated"
+                      value={form.empCode || ''}
                       onChange={(e) => set('empCode', e.target.value)}
                     />
                   </FieldRow>
@@ -1013,9 +1029,20 @@ export default function EmployeeMasterForm({
                 </div>
               </div>
             </SectionCard>
+          </div>
+        )}
 
-            {/* Card 2: Address (Full Width) */}
-            <SectionCard title="Address">
+        {/* =========================================================================
+            TAB 2: Address (Citizen ID & Residential Address)
+           ========================================================================= */}
+        {activeTab === 'Address' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <SectionCard
+              title="Address"
+              disabled={isAddressDisabled}
+              onSectionSave={() => triggerSectionSuccess('Address')}
+              isSaved={savedSectionName === 'Address'}
+            >
               <FieldRow label="Citizen ID address">
                 <input
                   style={inputStyle}
@@ -1034,8 +1061,14 @@ export default function EmployeeMasterForm({
                 />
               </FieldRow>
             </SectionCard>
+          </div>
+        )}
 
-            {/* Card 3: Education Details (Multiple Qualifications Support, Latest on Top) */}
+        {/* =========================================================================
+            TAB 3: Education (Qualifications & Certificates)
+           ========================================================================= */}
+        {activeTab === 'Education' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <SectionCard
               title="Education details"
               disabled={isEduDisabled}
@@ -1338,8 +1371,14 @@ export default function EmployeeMasterForm({
                 ))}
               </div>
             </SectionCard>
+          </div>
+        )}
 
-            {/* Card 4: Work Experience (Multiple Experiences Support, Latest on Top) */}
+        {/* =========================================================================
+            TAB 4: Work experience (Previous Experience Records)
+           ========================================================================= */}
+        {activeTab === 'Work experience' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <SectionCard
               title="Work experience"
               disabled={isWorkExpDisabled}
@@ -1636,11 +1675,7 @@ export default function EmployeeMasterForm({
                     required
                     style={inputStyle}
                     value={form.divisionId || form.companyIds?.[0] || ''}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      set('divisionId', val);
-                      set('companyIds', [val]);
-                    }}
+                    onChange={(e) => handleCompanyChange(e.target.value)}
                   >
                     <option value="">— Select Company —</option>
                     {divisions.map((d) => (
@@ -2399,35 +2434,36 @@ export default function EmployeeMasterForm({
             }}
           >
             <div style={{ display: 'flex', gap: 8 }}>
-              {activeTab !== 'Personal info' ? (
-                <button
-                  type="button"
-                  className="btn secondary"
-                  onClick={() => {
-                    if (activeTab === 'Payroll') setActiveTab('Documents');
-                    else if (activeTab === 'Documents') setActiveTab('Employee details');
-                    else if (activeTab === 'Employee details') setActiveTab('Personal info');
-                  }}
-                  style={{ padding: '8px 16px', fontSize: '12.5px', borderRadius: '8px' }}
-                >
-                  ← Previous Tab
-                </button>
-              ) : null}
+              {(() => {
+                const curIdx = FORM_TABS.findIndex((t) => t.id === activeTab);
+                const prev = curIdx > 0 ? FORM_TABS[curIdx - 1].id : null;
+                const next = curIdx >= 0 && curIdx < FORM_TABS.length - 1 ? FORM_TABS[curIdx + 1].id : null;
+                return (
+                  <>
+                    {prev ? (
+                      <button
+                        type="button"
+                        className="btn secondary"
+                        onClick={() => setActiveTab(prev)}
+                        style={{ padding: '8px 16px', fontSize: '12.5px', borderRadius: '8px' }}
+                      >
+                        ← Previous Tab
+                      </button>
+                    ) : null}
 
-              {activeTab !== 'Payroll' ? (
-                <button
-                  type="button"
-                  className="btn secondary"
-                  onClick={() => {
-                    if (activeTab === 'Personal info') setActiveTab('Employee details');
-                    else if (activeTab === 'Employee details') setActiveTab('Documents');
-                    else if (activeTab === 'Documents') setActiveTab('Payroll');
-                  }}
-                  style={{ padding: '8px 16px', fontSize: '12.5px', borderRadius: '8px', color: '#008fa8', fontWeight: 600 }}
-                >
-                  Next Tab →
-                </button>
-              ) : null}
+                    {next ? (
+                      <button
+                        type="button"
+                        className="btn secondary"
+                        onClick={() => setActiveTab(next)}
+                        style={{ padding: '8px 16px', fontSize: '12.5px', borderRadius: '8px', color: '#008fa8', fontWeight: 600 }}
+                      >
+                        Next Tab →
+                      </button>
+                    ) : null}
+                  </>
+                );
+              })()}
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
