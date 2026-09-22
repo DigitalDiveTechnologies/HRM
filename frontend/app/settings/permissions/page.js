@@ -103,7 +103,7 @@ export default function SettingsPermissionsPage() {
   }
 
   return (
-    <AppShell title="Permissions" subtitle="Tick = assigned · Cross = denied. Save to apply for each role.">
+    <AppShell title="Permissions" subtitle="Admin portal access only. Tick = allowed · Cross = denied. Employee portal stays separate.">
       {error ? <div className="error">{error}</div> : null}
       {ok ? <div className="perm-save-banner">{ok}</div> : null}
 

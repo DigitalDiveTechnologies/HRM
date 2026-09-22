@@ -1773,44 +1773,68 @@ html[dir='rtl'] .row-actions {
   background: rgba(180, 35, 24, 0.12);
   color: var(--danger);
 }
-.perm-matrix-card { overflow: hidden; }
+.perm-matrix-card {
+  overflow: hidden;
+  width: 100%;
+  padding: 0;
+}
+.perm-matrix-card > .muted {
+  padding: 16px;
+}
 .perm-matrix-wrap {
   overflow-x: auto;
-  border: 0;
-  box-shadow: none;
+  border: 0 !important;
+  box-shadow: none !important;
   background: transparent;
+  max-width: 100%;
 }
 .perm-matrix {
   width: 100%;
   border-collapse: collapse;
   border-spacing: 0;
-  min-width: 720px;
+  min-width: 640px;
+  font-size: 0.92rem;
 }
 .perm-matrix th,
 .perm-matrix td {
-  border: 0 !important;
+  border: none !important;
   border-bottom: 1px solid var(--line) !important;
-  padding: 10px 12px;
+  outline: none !important;
+  box-shadow: none !important;
+  padding: 12px 14px;
   vertical-align: middle;
   background-clip: padding-box;
+  white-space: nowrap;
 }
 .perm-matrix thead th {
   background: var(--table-head);
   position: sticky;
   top: 0;
   z-index: 1;
-  font-size: 0.85rem;
-  border-bottom: 1px solid var(--line) !important;
-}
-.perm-col-name { text-align: start; min-width: 220px; }
-.perm-col-role { text-align: center; min-width: 96px; }
-.perm-group-row td {
-  background: var(--surface-alt);
-  font-weight: 700;
   font-size: 0.78rem;
-  letter-spacing: 0.04em;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.perm-matrix tbody tr:last-child td {
+  border-bottom: none !important;
+}
+.perm-col-name {
+  text-align: start;
+  min-width: 220px;
+  white-space: normal !important;
+  font-weight: 500;
+  color: var(--ink);
+}
+.perm-col-role { text-align: center; min-width: 100px; }
+.perm-group-row td {
+  background: var(--surface-alt) !important;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--muted);
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
   border-bottom: 1px solid var(--line) !important;
 }
 .perm-indent-1 { padding-inline-start: 28px !important; }
@@ -1820,7 +1844,10 @@ html[dir='rtl'] .row-actions {
   place-items: center;
   cursor: pointer;
   margin: 0;
+  padding: 4px;
+  border-radius: 8px;
 }
+.perm-check:hover { background: var(--brand-soft); }
 .perm-check input {
   position: absolute;
   opacity: 0;
@@ -1832,9 +1859,12 @@ html[dir='rtl'] .row-actions {
 .perm-matrix-actions {
   display: flex;
   justify-content: flex-end;
-  padding-top: 16px;
-  margin-top: 8px;
-  border-top: 1px solid var(--line);
+  gap: 8px;
+  padding: 14px 16px 16px;
+  margin: 0;
+  border: none !important;
+  border-top: 1px solid var(--line) !important;
+  background: var(--surface);
 }
 .perm-save-banner {
   margin-bottom: 12px;

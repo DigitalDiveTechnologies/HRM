@@ -139,7 +139,12 @@ public sealed class RbacService
     {
         var allRoles = await ListRolesAsync(ct);
         var matrixRoles = allRoles
-            .Where(r => !string.Equals(r.Code, "super_admin", StringComparison.OrdinalIgnoreCase))
+            .Where(r =>
+            {
+                var code = r.Code;
+                return !string.Equals(code, "super_admin", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(code, "employee", StringComparison.OrdinalIgnoreCase);
+            })
             .ToList();
         var permissions = await ListPermissionsAsync(ct);
         var grants = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
@@ -152,7 +157,7 @@ public sealed class RbacService
             FROM role_permissions rp
             JOIN roles r ON r.id = rp.role_id
             JOIN permissions p ON p.id = rp.permission_id
-            WHERE LOWER(r.code) <> 'super_admin'
+            WHERE LOWER(r.code) NOT IN ('super_admin', 'employee')
             ORDER BY r.code, p.sort_order
             """,
             conn);
@@ -198,7 +203,7 @@ public sealed class RbacService
             // Resolve role ids once
             var roleIds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             await using (var roleCmd = new NpgsqlCommand(
-                "SELECT id, LOWER(code) FROM roles WHERE LOWER(code) <> 'super_admin'", conn, tx))
+                "SELECT id, LOWER(code) FROM roles WHERE LOWER(code) NOT IN ('super_admin', 'employee')", conn, tx))
             await using (var roleReader = await roleCmd.ExecuteReaderAsync(ct))
             {
                 while (await roleReader.ReadAsync(ct))
@@ -220,7 +225,7 @@ public sealed class RbacService
             foreach (var (roleCodeRaw, codes) in req.Grants)
             {
                 var roleCode = (roleCodeRaw ?? string.Empty).Trim().ToLowerInvariant();
-                if (string.IsNullOrEmpty(roleCode) || roleCode == "super_admin")
+                if (string.IsNullOrEmpty(roleCode) || roleCode is "super_admin" or "employee")
                     continue;
                 if (!roleIds.TryGetValue(roleCode, out var roleId))
                     return (false, $"Unknown role: {roleCode}");
