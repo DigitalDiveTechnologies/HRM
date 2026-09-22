@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import AppShell from '../../../components/AppShell';
 import { api } from '../../../lib/auth';
 
@@ -17,39 +17,56 @@ export default function SettingsRolesPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const adminRoles = useMemo(
+    () =>
+      roles.filter((r) => {
+        const code = String(r.code || '').toLowerCase();
+        const portal = String(r.portal || '').toLowerCase();
+        return code !== 'employee' && (portal === 'admin' || portal === 'users' || code === 'super_admin');
+      }),
+    [roles],
+  );
+
   return (
-    <AppShell title="Roles" subtitle="System roles available for Admin portal users">
+    <AppShell title="Roles" subtitle="Admin portal roles — not linked to employees or companies">
       {error ? <div className="error">{error}</div> : null}
-      <div className="card">
+
+      <div className="card roles-card">
         {loading ? (
-          <p className="muted">Loading…</p>
+          <p className="muted" style={{ padding: 16, margin: 0 }}>Loading…</p>
         ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Role</th>
-                  <th>Code</th>
-                  <th>Portal</th>
-                  <th>Description</th>
-                </tr>
-              </thead>
-              <tbody>
-                {roles.map((r) => (
-                  <tr key={r.id}>
-                    <td style={{ fontWeight: 600 }}>{r.name}</td>
-                    <td><span className="badge">{r.code}</span></td>
-                    <td>{r.portal}</td>
-                    <td className="muted">{r.description || '—'}</td>
+          <>
+            <div className="table-wrap roles-table-wrap">
+              <table className="roles-table">
+                <thead>
+                  <tr>
+                    <th>Role</th>
+                    <th>Code</th>
+                    <th>Description</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {adminRoles.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="muted">No admin portal roles found.</td>
+                    </tr>
+                  ) : (
+                    adminRoles.map((r) => (
+                      <tr key={r.id}>
+                        <td className="roles-name">{r.name}</td>
+                        <td><span className="badge">{r.code}</span></td>
+                        <td className="roles-desc">{r.description || '—'}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <p className="roles-hint">
+              Set access under <strong>Settings → Permissions</strong>. Create logins under <strong>Settings → Users</strong>.
+            </p>
+          </>
         )}
-        <p className="muted" style={{ marginTop: 12, marginBottom: 0 }}>
-          Assign what each role can open under Settings → Permissions. Create users under Settings → Users.
-        </p>
       </div>
     </AppShell>
   );
