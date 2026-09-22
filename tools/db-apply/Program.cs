@@ -20,6 +20,8 @@ var files = args.Length > 0
         "schema-audit-ensure.sql",
         "schema-onboarding-tasks.sql",
         "schema-phase5-scale.sql",
+        "schema-masters.sql",
+        "seed-masters.sql",
         "schema-rbac.sql",
         "seed-rbac.sql",
         "seed-rbac-extra-roles.sql",

@@ -110,9 +110,7 @@ TRUNCATE TABLE
   branches,
   legal_entities,
   divisions,
-  departments,
-  designations,
-  employment_types
+  departments
 RESTART IDENTITY;
 
 -- Employees: keep only Fatima (linked to kept login)
