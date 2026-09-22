@@ -18,15 +18,24 @@ export default function SettingsUsersPage() {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const assignableRoles = useMemo(
-    () =>
-      roles.filter((r) => {
-        const code = String(r.code || '').toLowerCase();
-        const portal = String(r.portal || '').toLowerCase();
-        return (portal === 'admin' || portal === 'users') && code !== 'super_admin' && code !== 'employee';
-      }),
-    [roles],
-  );
+  const assignableRoles = useMemo(() => {
+    const preferred = ['admin', 'finance', 'hr_officer', 'manager', 'viewer'];
+    const filtered = roles.filter((r) => {
+      const code = String(r.code || '').toLowerCase();
+      const portal = String(r.portal || '').toLowerCase();
+      return (portal === 'admin' || portal === 'users') && code !== 'super_admin' && code !== 'employee';
+    });
+    return filtered.sort((a, b) => {
+      const ac = String(a.code || '').toLowerCase();
+      const bc = String(b.code || '').toLowerCase();
+      const ai = preferred.indexOf(ac);
+      const bi = preferred.indexOf(bc);
+      if (ai === -1 && bi === -1) return String(a.name).localeCompare(String(b.name));
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+  }, [roles]);
 
   const load = useCallback(async () => {
     const [roleRows, userRows] = await Promise.all([api('/rbac/roles'), api('/rbac/users')]);
@@ -219,23 +228,29 @@ export default function SettingsUsersPage() {
       </div>
 
       {edit ? (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <h2 style={{ marginTop: 0, fontSize: '1.05rem' }}>Edit user</h2>
-          <form className="form form-create" onSubmit={saveEdit}>
-            <label>
-              Display name
-              <input value={edit.displayName} onChange={(e) => setEdit({ ...edit, displayName: e.target.value })} />
+        <div className="card create-user-card" style={{ marginBottom: 16 }}>
+          <h2 className="create-user-title">Edit user</h2>
+          <form className="create-user-form" onSubmit={saveEdit} autoComplete="off">
+            <label className="create-user-field">
+              <span>Display name</span>
+              <input
+                placeholder="e.g. Sara HR"
+                value={edit.displayName}
+                onChange={(e) => setEdit({ ...edit, displayName: e.target.value })}
+              />
             </label>
-            <label>
-              Email
+            <label className="create-user-field">
+              <span>Email</span>
               <input type="email" value={edit.email} disabled />
             </label>
-            <label>
-              New password (optional)
+            <label className="create-user-field">
+              <span>New password (optional)</span>
               <div className="password-field">
                 <input
                   type={showEditPass ? 'text' : 'password'}
                   minLength={6}
+                  placeholder="Leave blank to keep current"
+                  autoComplete="new-password"
                   value={edit.password}
                   onChange={(e) => setEdit({ ...edit, password: e.target.value })}
                 />
@@ -244,15 +259,15 @@ export default function SettingsUsersPage() {
                 </button>
               </div>
             </label>
-            <label>
-              Role
+            <label className="create-user-field">
+              <span>Role</span>
               <select value={edit.roleCode} onChange={(e) => setEdit({ ...edit, roleCode: e.target.value })}>
                 {assignableRoles.map((r) => (
                   <option key={r.code} value={r.code}>{r.name}</option>
                 ))}
               </select>
             </label>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div className="create-user-actions">
               <button type="submit" className="btn btn-fit" disabled={busy}>Save</button>
               <button type="button" className="btn secondary btn-fit" onClick={() => setEdit(null)}>Cancel</button>
             </div>
@@ -260,24 +275,37 @@ export default function SettingsUsersPage() {
         </div>
       ) : null}
 
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: '1.05rem' }}>Create portal user</h2>
-        <form className="form form-create" onSubmit={createUser}>
-          <label>
-            Display name
-            <input value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} />
+      <div className="card create-user-card">
+        <h2 className="create-user-title">Create portal user</h2>
+        <form className="create-user-form" onSubmit={createUser} autoComplete="off">
+          <label className="create-user-field">
+            <span>Display name</span>
+            <input
+              placeholder="e.g. Sara HR"
+              value={form.displayName}
+              onChange={(e) => setForm({ ...form, displayName: e.target.value })}
+            />
           </label>
-          <label>
-            Email
-            <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          <label className="create-user-field">
+            <span>Email</span>
+            <input
+              type="email"
+              required
+              placeholder="name@company.com"
+              autoComplete="off"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+            />
           </label>
-          <label>
-            Password
+          <label className="create-user-field">
+            <span>Password</span>
             <div className="password-field">
               <input
                 type={showPass ? 'text' : 'password'}
                 required
                 minLength={6}
+                placeholder="Min. 6 characters"
+                autoComplete="new-password"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
               />
@@ -286,15 +314,25 @@ export default function SettingsUsersPage() {
               </button>
             </div>
           </label>
-          <label>
-            Role
-            <select required value={form.roleCode} onChange={(e) => setForm({ ...form, roleCode: e.target.value })}>
-              {assignableRoles.map((r) => (
-                <option key={r.code} value={r.code}>{r.name}</option>
-              ))}
+          <label className="create-user-field">
+            <span>Role</span>
+            <select
+              required
+              value={form.roleCode}
+              onChange={(e) => setForm({ ...form, roleCode: e.target.value })}
+            >
+              {assignableRoles.length === 0 ? (
+                <option value="">No roles available</option>
+              ) : (
+                assignableRoles.map((r) => (
+                  <option key={r.code} value={r.code}>{r.name}</option>
+                ))
+              )}
             </select>
           </label>
-          <button type="submit" className="btn btn-fit" disabled={busy}>Create &amp; assign role</button>
+          <button type="submit" className="btn btn-fit create-user-submit" disabled={busy || !assignableRoles.length}>
+            Create &amp; assign role
+          </button>
         </form>
       </div>
     </AppShell>

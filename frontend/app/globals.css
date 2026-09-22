@@ -1676,7 +1676,70 @@ html[dir='rtl'] .row-actions {
 
 
 
-/* Settings ? Permissions matrix */
+/* Settings → Create portal user (image-2 layout) */
+.create-user-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 20px 22px 22px;
+  max-width: 560px;
+}
+.create-user-title {
+  margin: 0 0 16px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.create-user-form {
+  display: grid;
+  gap: 14px;
+}
+.create-user-field {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+.create-user-field > span {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.create-user-field input,
+.create-user-field select {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--ink);
+  font: inherit;
+}
+.create-user-field input::placeholder {
+  color: #98a2b3;
+  font-weight: 400;
+}
+.create-user-field input:focus,
+.create-user-field select:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft);
+}
+.create-user-field input:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+.create-user-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.create-user-submit {
+  margin-top: 4px;
+}
+
 .form-create {
   display: grid;
   gap: 12px;
