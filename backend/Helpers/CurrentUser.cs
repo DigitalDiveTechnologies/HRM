@@ -4,10 +4,25 @@ namespace DigitalDive.Hr.Api.Helpers;
 
 public static class CurrentUser
 {
-    public static string Role(ClaimsPrincipal user) =>
-        user.FindFirstValue("role")
-        ?? user.FindFirstValue(ClaimTypes.Role)
-        ?? "employee";
+    private static readonly string[] RolePreference =
+    {
+        "super_admin", "admin", "manager", "hr_officer", "finance", "viewer", "employee"
+    };
+
+    public static string Role(ClaimsPrincipal user)
+    {
+        var roles = user.FindAll("role").Select(c => c.Value)
+            .Concat(user.FindAll(ClaimTypes.Role).Select(c => c.Value))
+            .Where(r => !string.IsNullOrWhiteSpace(r))
+            .ToList();
+        if (roles.Count == 0) return "employee";
+        foreach (var preferred in RolePreference)
+        {
+            var hit = roles.FirstOrDefault(r => string.Equals(r, preferred, StringComparison.OrdinalIgnoreCase));
+            if (hit is not null) return hit;
+        }
+        return roles[0];
+    }
 
     public static string? Email(ClaimsPrincipal user) =>
         user.FindFirstValue("email")
@@ -30,7 +45,10 @@ public static class CurrentUser
     }
 
     public static bool IsAdmin(ClaimsPrincipal user) =>
-        string.Equals(Role(user), "admin", StringComparison.OrdinalIgnoreCase);
+        user.IsInRole("admin")
+        || user.IsInRole("super_admin")
+        || string.Equals(Role(user), "admin", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Role(user), "super_admin", StringComparison.OrdinalIgnoreCase);
 
     public static bool IsManager(ClaimsPrincipal user) =>
         string.Equals(Role(user), "manager", StringComparison.OrdinalIgnoreCase);

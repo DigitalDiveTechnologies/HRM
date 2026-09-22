@@ -10,6 +10,32 @@ public sealed class RoleDto
     public bool IsSystem { get; set; }
 }
 
+public sealed class PermissionDto
+{
+    public int Id { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string GroupCode { get; set; } = string.Empty;
+    public string GroupName { get; set; } = string.Empty;
+    public string? ParentCode { get; set; }
+    public string? Path { get; set; }
+    public int SortOrder { get; set; }
+}
+
+public sealed class PermissionMatrixDto
+{
+    public IReadOnlyList<RoleDto> Roles { get; set; } = Array.Empty<RoleDto>();
+    public IReadOnlyList<PermissionDto> Permissions { get; set; } = Array.Empty<PermissionDto>();
+    /// <summary>roleCode → permission codes granted</summary>
+    public Dictionary<string, List<string>> Grants { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+}
+
+public sealed class SavePermissionMatrixRequest
+{
+    /// <summary>roleCode → permission codes to grant (replaces existing grants for that role)</summary>
+    public Dictionary<string, List<string>> Grants { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+}
+
 public sealed class RbacUserDto
 {
     public int Id { get; set; }

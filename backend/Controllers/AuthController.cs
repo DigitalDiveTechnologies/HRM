@@ -13,11 +13,13 @@ public sealed class AuthController : ControllerBase
 {
     private readonly AuthService _auth;
     private readonly JwtTokenService _jwt;
+    private readonly RbacService _rbac;
 
-    public AuthController(AuthService auth, JwtTokenService jwt)
+    public AuthController(AuthService auth, JwtTokenService jwt, RbacService rbac)
     {
         _auth = auth;
         _jwt = jwt;
+        _rbac = rbac;
     }
 
     /// <summary>Login — returns JWT Bearer token. Passwords are verified with BCrypt.</summary>
@@ -44,6 +46,7 @@ public sealed class AuthController : ControllerBase
         }
 
         var (token, expiresMinutes) = _jwt.CreateToken(user);
+        var permissions = await _rbac.GetPermissionCodesForRoleAsync(user.Role, ct);
 
         return Ok(new LoginResponse
         {
@@ -59,7 +62,8 @@ public sealed class AuthController : ControllerBase
                 FullName = user.FullName,
                 JobTitle = user.JobTitle,
                 PreferredLocale = string.IsNullOrWhiteSpace(user.PreferredLocale) ? "en" : user.PreferredLocale,
-                Portal = user.Portal,
+                Portal = string.Equals(user.Portal, "users", StringComparison.OrdinalIgnoreCase) ? "admin" : user.Portal,
+                Permissions = permissions.ToList(),
             }
         });
     }
@@ -67,15 +71,18 @@ public sealed class AuthController : ControllerBase
     /// <summary>Current user from JWT.</summary>
     [Authorize]
     [HttpGet("me")]
-    public IActionResult Me()
+    public async Task<IActionResult> Me(CancellationToken ct)
     {
+        var role = CurrentUser.Role(User) ?? string.Empty;
+        var permissions = await _rbac.GetPermissionCodesForRoleAsync(role, ct);
         return Ok(new
         {
             id = CurrentUser.UserId(User),
             email = CurrentUser.Email(User),
-            role = CurrentUser.Role(User),
+            role,
             employeeId = CurrentUser.EmployeeId(User),
             fullName = CurrentUser.Name(User),
+            permissions,
         });
     }
 

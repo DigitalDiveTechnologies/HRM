@@ -113,6 +113,11 @@ public sealed class AuthService
             portalCmd.Parameters.AddWithValue("id", user.Id);
             portalCmd.Parameters.AddWithValue("role", user.Role);
             user.Portal = await portalCmd.ExecuteScalarAsync(ct) as string;
+            if (string.Equals(user.Portal, "users", StringComparison.OrdinalIgnoreCase)
+                || (user.Portal is null && string.Equals(user.Role, "super_admin", StringComparison.OrdinalIgnoreCase)))
+            {
+                user.Portal = "admin";
+            }
         }
         catch (PostgresException)
         {

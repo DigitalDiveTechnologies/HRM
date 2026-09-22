@@ -31,8 +31,8 @@ public sealed class JwtTokenService
             new("role", user.Role),
         };
 
-        // Extra Admin-portal RBAC roles still need API access gated by [Authorize(Roles="admin")]
-        if (role is "hr_officer" or "finance" or "viewer")
+        // Super Admin + extra Admin-portal RBAC roles still need API access gated by [Authorize(Roles="admin")]
+        if (role is "super_admin" or "hr_officer" or "finance" or "viewer")
         {
             claims.Add(new Claim("role", "admin"));
         }

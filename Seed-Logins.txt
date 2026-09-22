@@ -1,6 +1,6 @@
 Demo portal logins (production / staging):
 
-superadmin@digitaldive.demo / demo123 (Super Admin — Users portal / RBAC)
+superadmin@digitaldive.demo / demo123 (Super Admin — HR Admin portal → Settings)
 admin@digitaldive.demo / demo123 (Admin — Sara — HR Admin portal)
 fatima@digitaldive.demo / demo123 (Employee ESS)
 ahmed@digitaldive.demo / demo123 (Team Lead — approves leave in app)

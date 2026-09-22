@@ -70,10 +70,11 @@ export function normalizeRole(user) {
   return 'employee';
 }
 
-/** HR web portal — admin staff roles + manager/employee self-service. Super Admin uses Users portal only. */
+/** HR web portal — Super Admin + admin staff + manager/employee self-service. */
 export function canUsePortal(user) {
   const role = normalizeRole(user);
   return (
+    role === 'super_admin' ||
     role === 'admin' ||
     role === 'manager' ||
     role === 'employee' ||
@@ -85,9 +86,15 @@ export function canUsePortal(user) {
 
 export function homeForRole(user) {
   const role = normalizeRole(user);
+  if (role === 'super_admin') return '/settings/users';
   if (role === 'manager') return '/mss';
   if (role === 'employee') return '/ess';
   return '/dashboard';
+}
+
+export function getPermissions(user) {
+  const raw = user?.permissions || user?.Permissions || [];
+  return Array.isArray(raw) ? raw.map((c) => String(c)) : [];
 }
 
 /** Portal keeps the session on 401 — admin signs out manually when needed. */

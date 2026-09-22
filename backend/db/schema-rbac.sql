@@ -16,7 +16,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TR
 ALTER TABLE users ADD COLUMN IF NOT EXISTS role_id INT REFERENCES roles(id);
 
 INSERT INTO roles (code, name, description, portal, is_system) VALUES
-  ('super_admin', 'Super Admin', 'Manages users and role assignments in the Users portal.', 'users', TRUE),
+  ('super_admin', 'Super Admin', 'Full access + Settings (Users, Roles, Permissions) on the HR Admin portal.', 'admin', TRUE),
   ('admin', 'Admin (HR)', 'Full HR Admin portal access.', 'admin', TRUE),
   ('manager', 'Manager', 'Manager / MSS access on Admin portal.', 'admin', TRUE),
   ('employee', 'Employee', 'Employee self-service portal access.', 'employee', TRUE)

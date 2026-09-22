@@ -19,6 +19,22 @@ public sealed class RbacController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<RoleDto>>> ListRoles(CancellationToken ct)
         => Ok(await _rbac.ListRolesAsync(ct));
 
+    [HttpGet("permissions")]
+    public async Task<ActionResult<IReadOnlyList<PermissionDto>>> ListPermissions(CancellationToken ct)
+        => Ok(await _rbac.ListPermissionsAsync(ct));
+
+    [HttpGet("permission-matrix")]
+    public async Task<ActionResult<PermissionMatrixDto>> GetMatrix(CancellationToken ct)
+        => Ok(await _rbac.GetPermissionMatrixAsync(ct));
+
+    [HttpPut("permission-matrix")]
+    public async Task<IActionResult> SaveMatrix([FromBody] SavePermissionMatrixRequest body, CancellationToken ct)
+    {
+        var (ok, error) = await _rbac.SavePermissionMatrixAsync(body, ct);
+        if (!ok) return BadRequest(new { error });
+        return Ok(await _rbac.GetPermissionMatrixAsync(ct));
+    }
+
     [HttpGet("users")]
     public async Task<ActionResult<IReadOnlyList<RbacUserDto>>> ListUsers(CancellationToken ct)
         => Ok(await _rbac.ListUsersAsync(ct));

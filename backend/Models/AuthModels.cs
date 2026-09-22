@@ -23,8 +23,10 @@ public sealed class UserDto
     public string? FullName { get; set; }
     public string? JobTitle { get; set; }
     public string PreferredLocale { get; set; } = "en";
-    /// <summary>Portal this role may use: users | admin | employee (from roles table).</summary>
+    /// <summary>Portal this role may use: admin | employee (from roles table).</summary>
     public string? Portal { get; set; }
+    /// <summary>Permission codes granted to this role (empty = fall back to legacy nav roles).</summary>
+    public List<string> Permissions { get; set; } = new();
 }
 
 public sealed class UserRecord
@@ -39,6 +41,7 @@ public sealed class UserRecord
     public string PreferredLocale { get; set; } = "en";
     public bool IsActive { get; set; } = true;
     public string? Portal { get; set; }
+    public List<string> Permissions { get; set; } = new();
 }
 
 public sealed class LocaleUpdateRequest

@@ -21,6 +21,59 @@ public sealed class RbacService
         return portal;
     }
 
+    public async Task<IReadOnlyList<string>> GetPermissionCodesForRoleAsync(string roleCode, CancellationToken ct = default)
+    {
+        var code = (roleCode ?? string.Empty).Trim().ToLowerInvariant();
+        if (string.IsNullOrEmpty(code)) return Array.Empty<string>();
+
+        // Super Admin always has every catalog permission + Settings (client-side)
+        if (code == "super_admin")
+        {
+            await using var connAll = _db.CreateConnection();
+            await connAll.OpenAsync(ct);
+            try
+            {
+                await using var all = new NpgsqlCommand(
+                    "SELECT code FROM permissions ORDER BY sort_order, id", connAll);
+                var list = new List<string>();
+                await using var reader = await all.ExecuteReaderAsync(ct);
+                while (await reader.ReadAsync(ct))
+                    list.Add(reader.GetString(0));
+                return list;
+            }
+            catch (PostgresException ex) when (ex.SqlState == "42P01")
+            {
+                return Array.Empty<string>();
+            }
+        }
+
+        await using var conn = _db.CreateConnection();
+        await conn.OpenAsync(ct);
+        try
+        {
+            await using var cmd = new NpgsqlCommand(
+                """
+                SELECT p.code
+                FROM role_permissions rp
+                JOIN roles r ON r.id = rp.role_id
+                JOIN permissions p ON p.id = rp.permission_id
+                WHERE LOWER(r.code) = @code
+                ORDER BY p.sort_order, p.id
+                """,
+                conn);
+            cmd.Parameters.AddWithValue("code", code);
+            var list = new List<string>();
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                list.Add(reader.GetString(0));
+            return list;
+        }
+        catch (PostgresException ex) when (ex.SqlState == "42P01")
+        {
+            return Array.Empty<string>();
+        }
+    }
+
     public async Task<IReadOnlyList<RoleDto>> ListRolesAsync(CancellationToken ct = default)
     {
         await using var conn = _db.CreateConnection();
@@ -30,7 +83,16 @@ public sealed class RbacService
             SELECT id, code, name, description, portal, is_system
             FROM roles
             ORDER BY
-              CASE portal WHEN 'users' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,
+              CASE LOWER(code)
+                WHEN 'super_admin' THEN 0
+                WHEN 'admin' THEN 1
+                WHEN 'manager' THEN 2
+                WHEN 'hr_officer' THEN 3
+                WHEN 'finance' THEN 4
+                WHEN 'viewer' THEN 5
+                WHEN 'employee' THEN 6
+                ELSE 9
+              END,
               name
             """,
             conn);
@@ -52,6 +114,137 @@ public sealed class RbacService
         return list;
     }
 
+    public async Task<IReadOnlyList<PermissionDto>> ListPermissionsAsync(CancellationToken ct = default)
+    {
+        await using var conn = _db.CreateConnection();
+        await conn.OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            SELECT id, code, name, group_code, group_name, parent_code, path, sort_order
+            FROM permissions
+            ORDER BY sort_order, id
+            """,
+            conn);
+
+        var list = new List<PermissionDto>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            list.Add(ReadPermission(reader));
+        }
+        return list;
+    }
+
+    public async Task<PermissionMatrixDto> GetPermissionMatrixAsync(CancellationToken ct = default)
+    {
+        var allRoles = await ListRolesAsync(ct);
+        var matrixRoles = allRoles
+            .Where(r => !string.Equals(r.Code, "super_admin", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        var permissions = await ListPermissionsAsync(ct);
+        var grants = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+
+        await using var conn = _db.CreateConnection();
+        await conn.OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            SELECT LOWER(r.code), p.code
+            FROM role_permissions rp
+            JOIN roles r ON r.id = rp.role_id
+            JOIN permissions p ON p.id = rp.permission_id
+            WHERE LOWER(r.code) <> 'super_admin'
+            ORDER BY r.code, p.sort_order
+            """,
+            conn);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var role = reader.GetString(0);
+            var perm = reader.GetString(1);
+            if (!grants.TryGetValue(role, out var list))
+            {
+                list = new List<string>();
+                grants[role] = list;
+            }
+            list.Add(perm);
+        }
+
+        foreach (var role in matrixRoles)
+        {
+            if (!grants.ContainsKey(role.Code))
+                grants[role.Code] = new List<string>();
+        }
+
+        return new PermissionMatrixDto
+        {
+            Roles = matrixRoles,
+            Permissions = permissions,
+            Grants = grants,
+        };
+    }
+
+    public async Task<(bool Ok, string? Error)> SavePermissionMatrixAsync(
+        SavePermissionMatrixRequest req, CancellationToken ct = default)
+    {
+        if (req.Grants is null || req.Grants.Count == 0)
+            return (false, "Nothing to save.");
+
+        await using var conn = _db.CreateConnection();
+        await conn.OpenAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
+
+        try
+        {
+            foreach (var (roleCodeRaw, codes) in req.Grants)
+            {
+                var roleCode = (roleCodeRaw ?? string.Empty).Trim().ToLowerInvariant();
+                if (string.IsNullOrEmpty(roleCode) || roleCode == "super_admin")
+                    continue;
+
+                await using var roleCmd = new NpgsqlCommand(
+                    "SELECT id FROM roles WHERE LOWER(code) = @code LIMIT 1", conn, tx);
+                roleCmd.Parameters.AddWithValue("code", roleCode);
+                var roleIdObj = await roleCmd.ExecuteScalarAsync(ct);
+                if (roleIdObj is null || roleIdObj is DBNull)
+                    return (false, $"Unknown role: {roleCode}");
+                var roleId = Convert.ToInt32(roleIdObj);
+
+                await using var del = new NpgsqlCommand(
+                    "DELETE FROM role_permissions WHERE role_id = @roleId", conn, tx);
+                del.Parameters.AddWithValue("roleId", roleId);
+                await del.ExecuteNonQueryAsync(ct);
+
+                var unique = (codes ?? new List<string>())
+                    .Select(c => (c ?? string.Empty).Trim())
+                    .Where(c => c.Length > 0)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                foreach (var permCode in unique)
+                {
+                    await using var ins = new NpgsqlCommand(
+                        """
+                        INSERT INTO role_permissions (role_id, permission_id)
+                        SELECT @roleId, p.id FROM permissions p WHERE LOWER(p.code) = LOWER(@code)
+                        ON CONFLICT DO NOTHING
+                        """,
+                        conn, tx);
+                    ins.Parameters.AddWithValue("roleId", roleId);
+                    ins.Parameters.AddWithValue("code", permCode);
+                    await ins.ExecuteNonQueryAsync(ct);
+                }
+            }
+
+            await tx.CommitAsync(ct);
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            await tx.RollbackAsync(ct);
+            return (false, ex.Message);
+        }
+    }
+
     public async Task<IReadOnlyList<RbacUserDto>> ListUsersAsync(CancellationToken ct = default)
     {
         await using var conn = _db.CreateConnection();
@@ -65,7 +258,6 @@ public sealed class RbacService
               u.role,
               COALESCE(r.name, r2.name, u.role) AS role_name,
               COALESCE(r.portal, r2.portal, CASE
-                WHEN LOWER(u.role) = 'super_admin' THEN 'users'
                 WHEN LOWER(u.role) = 'employee' THEN 'employee'
                 ELSE 'admin'
               END) AS portal,
@@ -77,10 +269,9 @@ public sealed class RbacService
             LEFT JOIN employees e ON e.id = u.employee_id
             WHERE LOWER(u.role) <> 'employee'
               AND COALESCE(r.portal, r2.portal, CASE
-                    WHEN LOWER(u.role) = 'super_admin' THEN 'users'
                     WHEN LOWER(u.role) = 'employee' THEN 'employee'
                     ELSE 'admin'
-                  END) IN ('users', 'admin')
+                  END) IN ('admin', 'users')
             ORDER BY
               CASE LOWER(u.role) WHEN 'super_admin' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,
               u.id
@@ -121,7 +312,7 @@ public sealed class RbacService
         if (string.IsNullOrWhiteSpace(roleCode))
             return (null, "Role is required.");
         if (roleCode is "super_admin" or "employee")
-            return (null, "Cannot assign Super Admin or Employee from this portal.");
+            return (null, "Cannot assign Super Admin or Employee from Settings → Users.");
 
         await using var conn = _db.CreateConnection();
         await conn.OpenAsync(ct);
@@ -131,16 +322,15 @@ public sealed class RbacService
         roleCmd.Parameters.AddWithValue("code", roleCode);
         await using var roleReader = await roleCmd.ExecuteReaderAsync(ct);
         if (!await roleReader.ReadAsync(ct))
-        {
             return (null, "Unknown role. Roles must exist in the database.");
-        }
         var roleId = roleReader.GetInt32(0);
         var roleName = roleReader.GetString(1);
         var portal = roleReader.GetString(2);
         await roleReader.CloseAsync();
 
-        if (!string.Equals(portal, "admin", StringComparison.OrdinalIgnoreCase))
-            return (null, "Only HR Admin portal roles can be assigned here. Employees stay on the Employee portal.");
+        if (!string.Equals(portal, "admin", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(portal, "users", StringComparison.OrdinalIgnoreCase))
+            return (null, "Only Admin portal roles can be assigned here. Employees stay on the Employee portal.");
 
         await using var exists = new NpgsqlCommand(
             "SELECT 1 FROM users WHERE LOWER(email) = @email LIMIT 1", conn);
@@ -192,7 +382,7 @@ public sealed class RbacService
         await curReader.CloseAsync();
 
         if (string.Equals(currentRole, "employee", StringComparison.OrdinalIgnoreCase))
-            return (null, "Employee accounts are managed from the HR Admin portal, not here.");
+            return (null, "Employee accounts are managed from Employees, not Settings → Users.");
 
         if (string.Equals(currentRole, "super_admin", StringComparison.OrdinalIgnoreCase)
             && req.RoleCode is not null
@@ -210,7 +400,7 @@ public sealed class RbacService
         {
             roleCode = req.RoleCode.Trim().ToLowerInvariant();
             if (roleCode is "super_admin" or "employee")
-                return (null, "Cannot assign Super Admin or Employee from this portal.");
+                return (null, "Cannot assign Super Admin or Employee from Settings → Users.");
 
             await using var roleCmd = new NpgsqlCommand(
                 "SELECT id, name, portal FROM roles WHERE LOWER(code) = @code LIMIT 1", conn);
@@ -223,8 +413,9 @@ public sealed class RbacService
             portal = roleReader.GetString(2);
             await roleReader.CloseAsync();
 
-            if (!string.Equals(portal, "admin", StringComparison.OrdinalIgnoreCase))
-                return (null, "Only HR Admin portal roles can be assigned here.");
+            if (!string.Equals(portal, "admin", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(portal, "users", StringComparison.OrdinalIgnoreCase))
+                return (null, "Only Admin portal roles can be assigned here.");
         }
 
         if (!string.IsNullOrWhiteSpace(req.Password))
@@ -279,11 +470,23 @@ public sealed class RbacService
         if (string.Equals(role, "super_admin", StringComparison.OrdinalIgnoreCase))
             return (false, "Cannot delete the Super Admin account.");
         if (string.Equals(role, "employee", StringComparison.OrdinalIgnoreCase))
-            return (false, "Employee accounts are managed from the HR Admin portal.");
+            return (false, "Employee accounts are managed from Employees.");
 
         await using var del = new NpgsqlCommand("DELETE FROM users WHERE id = @id", conn);
         del.Parameters.AddWithValue("id", userId);
         var n = await del.ExecuteNonQueryAsync(ct);
         return n > 0 ? (true, null) : (false, "User not found.");
     }
+
+    private static PermissionDto ReadPermission(NpgsqlDataReader reader) => new()
+    {
+        Id = reader.GetInt32(0),
+        Code = reader.GetString(1),
+        Name = reader.GetString(2),
+        GroupCode = reader.GetString(3),
+        GroupName = reader.GetString(4),
+        ParentCode = reader.IsDBNull(5) ? null : reader.GetString(5),
+        Path = reader.IsDBNull(6) ? null : reader.GetString(6),
+        SortOrder = reader.GetInt32(7),
+    };
 }

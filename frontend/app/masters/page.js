@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api } from '../../lib/auth';
+import { api, getPermissions, getUser, normalizeRole } from '../../lib/auth';
+import { hasPermission } from '../../lib/nav';
 import { v } from '../../lib/format';
 
 const emptyDes = () => ({ name: '', code: '', jobFamily: '', grade: '', skillLevel: '' });
@@ -16,6 +17,15 @@ export default function MastersPage() {
   const [empForm, setEmpForm] = useState(emptyMaster());
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
+  const perms = getPermissions(getUser());
+  const role = normalizeRole(getUser());
+  const canDes = role === 'super_admin' || hasPermission(perms, 'masters.designations') || (!perms.length && role === 'admin');
+  const canEmp = role === 'super_admin' || hasPermission(perms, 'masters.employment_types') || (!perms.length && role === 'admin');
+
+  useEffect(() => {
+    if (canDes && !canEmp) setTab('designations');
+    else if (!canDes && canEmp) setTab('employment');
+  }, [canDes, canEmp]);
 
   const load = useCallback(() => {
     setError('');
@@ -88,16 +98,20 @@ export default function MastersPage() {
 
       <div className="card" style={{ marginBottom: 14 }}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button type="button" className={`btn${tab === 'designations' ? '' : ' secondary'}`} onClick={() => setTab('designations')}>
-            Designations
-          </button>
-          <button type="button" className={`btn${tab === 'employment' ? '' : ' secondary'}`} onClick={() => setTab('employment')}>
-            Employment types
-          </button>
+          {canDes ? (
+            <button type="button" className={`btn${tab === 'designations' ? '' : ' secondary'}`} onClick={() => setTab('designations')}>
+              Designations
+            </button>
+          ) : null}
+          {canEmp ? (
+            <button type="button" className={`btn${tab === 'employment' ? '' : ' secondary'}`} onClick={() => setTab('employment')}>
+              Employment types
+            </button>
+          ) : null}
         </div>
       </div>
 
-      {tab === 'designations' ? (
+      {tab === 'designations' && canDes ? (
         <>
           <div className="card" style={{ marginBottom: 14 }}>
             <div className="panel-title">
@@ -180,7 +194,7 @@ export default function MastersPage() {
             </div>
           </div>
         </>
-      ) : (
+      ) : tab === 'employment' && canEmp ? (
         <>
           <div className="card" style={{ marginBottom: 14 }}>
             <div className="panel-title">
@@ -239,7 +253,7 @@ export default function MastersPage() {
             </div>
           </div>
         </>
-      )}
+      ) : null}
     </AppShell>
   );
 }

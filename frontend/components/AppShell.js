@@ -8,6 +8,7 @@ import {
   clearSession,
   getToken,
   getUser,
+  getPermissions,
   hasSession,
   homeForRole,
   normalizeRole,
@@ -43,17 +44,30 @@ export default function AppShell({ title, subtitle, actions, children }) {
       return;
     }
     const role = normalizeRole(u);
-    if (!canAccessPath(pathname, role)) {
+    const permissions = getPermissions(u);
+    if (!canAccessPath(pathname, role, permissions)) {
       router.replace(homeForRole(u));
       return;
     }
     setUser(u);
     setReady(true);
-    // Enforce deactivate: inactive accounts lose portal access even with an old JWT
-    api('/auth/me').catch(() => {
-      clearSession();
-      router.replace('/');
-    });
+    // Enforce deactivate + refresh permissions from server
+    api('/auth/me')
+      .then((me) => {
+        if (me && Array.isArray(me.permissions)) {
+          const next = { ...u, permissions: me.permissions };
+          try {
+            localStorage.setItem('hr_user', JSON.stringify(next));
+          } catch {
+            /* ignore */
+          }
+          setUser(next);
+        }
+      })
+      .catch(() => {
+        clearSession();
+        router.replace('/');
+      });
   }, [pathname, router]);
 
   // Preserve sidebar scroll position and ensure active tab is vertically centered
@@ -92,7 +106,8 @@ export default function AppShell({ title, subtitle, actions, children }) {
   }
 
   const role = normalizeRole(user);
-  const filteredNav = navForRole(role);
+  const permissions = getPermissions(user);
+  const filteredNav = navForRole(role, permissions);
 
   function logout() {
     clearSession();

@@ -1675,3 +1675,88 @@ html[dir='rtl'] .row-actions {
 }
 
 
+
+/* Settings ? Permissions matrix */
+.form-create {
+  display: grid;
+  gap: 12px;
+  max-width: 640px;
+}
+.form-create label {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.btn-fit {
+  width: fit-content;
+  max-width: 100%;
+  align-self: start;
+}
+.password-eye {
+  position: absolute;
+  inset-inline-end: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 4px 6px;
+}
+.password-eye:hover { color: var(--brand); }
+.badge.off {
+  background: rgba(180, 35, 24, 0.12);
+  color: var(--danger);
+}
+.perm-matrix-card { overflow: hidden; }
+.perm-matrix-wrap { overflow-x: auto; }
+.perm-matrix { width: 100%; border-collapse: collapse; min-width: 720px; }
+.perm-matrix th,
+.perm-matrix td {
+  border-bottom: 1px solid var(--line);
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+.perm-matrix thead th {
+  background: var(--table-head);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  font-size: 0.85rem;
+}
+.perm-col-name { text-align: start; min-width: 220px; }
+.perm-col-role { text-align: center; min-width: 96px; }
+.perm-group-row td {
+  background: var(--surface-alt);
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.perm-indent-1 { padding-inline-start: 28px !important; }
+.perm-indent-2 { padding-inline-start: 44px !important; color: var(--muted); }
+.perm-check {
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  margin: 0;
+}
+.perm-check input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+.perm-icon { display: inline-grid; line-height: 0; }
+.perm-matrix-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 16px;
+  margin-top: 8px;
+  border-top: 1px solid var(--line);
+}
