@@ -86,7 +86,6 @@ export function canUsePortal(user) {
 
 export function homeForRole(user) {
   const role = normalizeRole(user);
-  if (role === 'super_admin') return '/settings/users';
   if (role === 'manager') return '/mss';
   if (role === 'employee') return '/ess';
   return '/dashboard';

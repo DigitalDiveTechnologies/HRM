@@ -50,7 +50,8 @@ export default function SettingsUsersPage() {
 
   useEffect(() => {
     const me = getUser();
-    if (normalizeRole(me) !== 'super_admin') return;
+    const role = normalizeRole(me);
+    if (role !== 'super_admin' && role !== 'admin') return;
     setLoading(true);
     load()
       .catch((err) => setError(err.message || 'Failed to load users.'))

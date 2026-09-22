@@ -68,11 +68,11 @@ export const NAV = [
   },
   {
     titleKey: 'nav_settings',
-    superAdminOnly: true,
+    settingsSection: true,
     links: [
-      { href: '/settings/users', label: 'Users', roles: ['super_admin'] },
-      { href: '/settings/roles', label: 'Roles', roles: ['super_admin'] },
-      { href: '/settings/permissions', label: 'Permissions', roles: ['super_admin'] },
+      { href: '/settings/users', label: 'Users', roles: ['super_admin', 'admin'] },
+      { href: '/settings/roles', label: 'Roles', roles: ['super_admin', 'admin'] },
+      { href: '/settings/permissions', label: 'Permissions', roles: ['super_admin', 'admin'] },
     ],
   },
 ];
@@ -117,17 +117,12 @@ export function canAccessPath(pathname, role, permissions) {
   const path = pathname.startsWith('/') ? pathname : `/${pathname}`;
   const base = path.split('?')[0];
 
-  if (role === 'super_admin') {
-    if (base.startsWith('/settings')) return true;
-    // fall through — still allow all admin paths
-  }
-
   if (base.startsWith('/settings')) {
-    return role === 'super_admin';
+    return role === 'super_admin' || role === 'admin';
   }
 
   for (const group of NAV) {
-    if (group.superAdminOnly) continue;
+    if (group.settingsSection) continue;
     for (const link of group.links) {
       if (link.href === base || (base.startsWith(`${link.href}/`) && link.href !== '/')) {
         if (linkAllowed(link, role, permissions)) return true;
@@ -148,8 +143,8 @@ export function canAccessPath(pathname, role, permissions) {
 
 export function navForRole(role, permissions) {
   return NAV.map((group) => {
-    if (group.superAdminOnly) {
-      if (role !== 'super_admin') return { ...group, links: [] };
+    if (group.settingsSection) {
+      if (role !== 'super_admin' && role !== 'admin') return { ...group, links: [] };
       return { ...group, links: group.links.slice() };
     }
     return {

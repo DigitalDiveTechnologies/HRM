@@ -8,7 +8,7 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "RBAC")]
 [Route("api/rbac")]
-[Authorize(Roles = "super_admin")]
+[Authorize(Roles = "super_admin,admin")]
 public sealed class RbacController : ControllerBase
 {
     private readonly RbacService _rbac;
