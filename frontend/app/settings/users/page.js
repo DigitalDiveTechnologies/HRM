@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AppShell from '../../../components/AppShell';
 import { api, normalizeRole, getUser } from '../../../lib/auth';
 
@@ -17,6 +17,7 @@ export default function SettingsUsersPage() {
   const [ok, setOk] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const editRef = useRef(null);
 
   const assignableRoles = useMemo(() => {
     const preferred = ['admin', 'finance', 'hr_officer', 'manager', 'viewer'];
@@ -66,6 +67,11 @@ export default function SettingsUsersPage() {
       .catch((err) => setError(err.message || 'Failed to load users.'))
       .finally(() => setLoading(false));
   }, [load]);
+
+  useEffect(() => {
+    if (!edit || !editRef.current) return;
+    editRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [edit]);
 
   async function createUser(e) {
     e.preventDefault();
@@ -118,6 +124,7 @@ export default function SettingsUsersPage() {
     try {
       await api(`/rbac/users/${row.id}`, { method: 'DELETE' });
       setOk('User deleted.');
+      if (edit?.id === row.id) setEdit(null);
       await load();
     } catch (err) {
       setError(err.message || 'Could not delete user.');
@@ -129,9 +136,9 @@ export default function SettingsUsersPage() {
     setShowEditPass(false);
     setEdit({
       id: row.id,
-      displayName: row.displayName || '',
-      email: row.email,
-      roleCode: row.role,
+      displayName: row.displayName || row.DisplayName || '',
+      email: row.email || row.Email || '',
+      roleCode: String(row.role || row.Role || 'admin').toLowerCase(),
       password: '',
     });
     setError('');
@@ -146,10 +153,14 @@ export default function SettingsUsersPage() {
     setOk('');
     try {
       const body = {
-        displayName: edit.displayName.trim() || null,
-        roleCode: edit.roleCode,
+        displayName: (edit.displayName || '').trim() || null,
+        roleCode: String(edit.roleCode || '').trim().toLowerCase(),
       };
-      if (edit.password.trim()) body.password = edit.password.trim();
+      const pw = (edit.password || '').trim();
+      if (pw) {
+        if (pw.length < 6) throw new Error('Password must be at least 6 characters.');
+        body.password = pw;
+      }
       await api(`/rbac/users/${edit.id}`, { method: 'PATCH', body: JSON.stringify(body) });
       setEdit(null);
       setOk('User updated.');
@@ -165,6 +176,57 @@ export default function SettingsUsersPage() {
     <AppShell title="Users" subtitle="Create users and assign roles for the HR Admin portal">
       {error ? <div className="error">{error}</div> : null}
       {ok ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{ok}</div> : null}
+
+      {edit ? (
+        <div className="card create-user-card" style={{ marginBottom: 16 }} ref={editRef}>
+          <h2 className="create-user-title">Edit user</h2>
+          <form className="create-user-form" onSubmit={saveEdit} autoComplete="off">
+            <label className="create-user-field">
+              <span>Display name</span>
+              <input
+                placeholder="e.g. Sara HR"
+                value={edit.displayName}
+                onChange={(e) => setEdit({ ...edit, displayName: e.target.value })}
+              />
+            </label>
+            <label className="create-user-field">
+              <span>Email</span>
+              <input type="email" value={edit.email} disabled readOnly />
+            </label>
+            <label className="create-user-field">
+              <span>New password (optional)</span>
+              <div className="password-field">
+                <input
+                  type={showEditPass ? 'text' : 'password'}
+                  placeholder="Leave blank to keep current"
+                  autoComplete="new-password"
+                  value={edit.password}
+                  onChange={(e) => setEdit({ ...edit, password: e.target.value })}
+                />
+                <button type="button" className="password-eye" onClick={() => setShowEditPass((v) => !v)}>
+                  {showEditPass ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </label>
+            <label className="create-user-field">
+              <span>Role</span>
+              <select
+                required
+                value={edit.roleCode}
+                onChange={(e) => setEdit({ ...edit, roleCode: e.target.value })}
+              >
+                {assignableRoles.map((r) => (
+                  <option key={r.code} value={String(r.code).toLowerCase()}>{r.name}</option>
+                ))}
+              </select>
+            </label>
+            <div className="create-user-actions">
+              <button type="submit" className="btn btn-fit" disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
+              <button type="button" className="btn secondary btn-fit" onClick={() => setEdit(null)} disabled={busy}>Cancel</button>
+            </div>
+          </form>
+        </div>
+      ) : null}
 
       <div className="card" style={{ marginBottom: 16 }}>
         <h2 style={{ marginTop: 0, fontSize: '1.05rem' }}>Assigned users</h2>
@@ -226,54 +288,6 @@ export default function SettingsUsersPage() {
           </div>
         )}
       </div>
-
-      {edit ? (
-        <div className="card create-user-card" style={{ marginBottom: 16 }}>
-          <h2 className="create-user-title">Edit user</h2>
-          <form className="create-user-form" onSubmit={saveEdit} autoComplete="off">
-            <label className="create-user-field">
-              <span>Display name</span>
-              <input
-                placeholder="e.g. Sara HR"
-                value={edit.displayName}
-                onChange={(e) => setEdit({ ...edit, displayName: e.target.value })}
-              />
-            </label>
-            <label className="create-user-field">
-              <span>Email</span>
-              <input type="email" value={edit.email} disabled />
-            </label>
-            <label className="create-user-field">
-              <span>New password (optional)</span>
-              <div className="password-field">
-                <input
-                  type={showEditPass ? 'text' : 'password'}
-                  minLength={6}
-                  placeholder="Leave blank to keep current"
-                  autoComplete="new-password"
-                  value={edit.password}
-                  onChange={(e) => setEdit({ ...edit, password: e.target.value })}
-                />
-                <button type="button" className="password-eye" onClick={() => setShowEditPass((v) => !v)}>
-                  {showEditPass ? 'Hide' : 'Show'}
-                </button>
-              </div>
-            </label>
-            <label className="create-user-field">
-              <span>Role</span>
-              <select value={edit.roleCode} onChange={(e) => setEdit({ ...edit, roleCode: e.target.value })}>
-                {assignableRoles.map((r) => (
-                  <option key={r.code} value={r.code}>{r.name}</option>
-                ))}
-              </select>
-            </label>
-            <div className="create-user-actions">
-              <button type="submit" className="btn btn-fit" disabled={busy}>Save</button>
-              <button type="button" className="btn secondary btn-fit" onClick={() => setEdit(null)}>Cancel</button>
-            </div>
-          </form>
-        </div>
-      ) : null}
 
       <div className="card create-user-card">
         <h2 className="create-user-title">Create portal user</h2>
