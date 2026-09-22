@@ -3,11 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, isSuperAdmin, session } from '@/lib/api';
+import { useLocale } from '@/lib/LocaleContext';
+import ThemeToggle from '@/components/ThemeToggle';
+import LanguageToggle from '@/components/LanguageToggle';
 
 const emptyForm = { email: '', password: '', displayName: '', roleCode: 'admin' };
 
 export default function UsersHome() {
   const router = useRouter();
+  const { t } = useLocale();
   const [user, setUser] = useState(null);
   const [roles, setRoles] = useState([]);
   const [users, setUsers] = useState([]);
@@ -17,7 +21,6 @@ export default function UsersHome() {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Only HR Admin portal roles (not employee, not another super admin)
   const assignableRoles = useMemo(
     () =>
       roles.filter((r) => {
@@ -73,7 +76,7 @@ export default function UsersHome() {
           roleCode: form.roleCode,
         }),
       });
-      setOk('Portal user created. They can sign in to the HR Admin portal with this role.');
+      setOk(t('createdOk'));
       setForm({ ...emptyForm, roleCode: form.roleCode || 'admin' });
       await load();
     } catch (err) {
@@ -91,7 +94,7 @@ export default function UsersHome() {
         method: 'PATCH',
         body: JSON.stringify({ roleCode }),
       });
-      setOk('Role updated.');
+      setOk(t('roleUpdated'));
       await load();
     } catch (err) {
       setError(err.message || 'Could not update role.');
@@ -107,7 +110,7 @@ export default function UsersHome() {
         method: 'PATCH',
         body: JSON.stringify({ isActive: !row.isActive }),
       });
-      setOk(row.isActive ? 'User deactivated.' : 'User activated.');
+      setOk(row.isActive ? t('deactivated') : t('activated'));
       await load();
     } catch (err) {
       setError(err.message || 'Could not update user.');
@@ -117,10 +120,12 @@ export default function UsersHome() {
   if (loading) {
     return (
       <div className="login-page">
-        <div className="muted">Loading…</div>
+        <div className="muted">{t('loading')}</div>
       </div>
     );
   }
+
+  const chipName = user?.fullName || user?.email || 'Super Admin';
 
   return (
     <div className="app-shell">
@@ -131,29 +136,34 @@ export default function UsersHome() {
           </div>
           <div className="tag">Users Portal · UAE</div>
         </div>
+
         <div className="nav-group">
-          <h4>Access</h4>
+          <h4>{t('overview')}</h4>
           <div className="nav">
             <a className="active" href="/">
-              Portal users
+              {t('navUsers')}
             </a>
-            <button type="button" className="nav-btn" onClick={logout}>
-              Sign out
-            </button>
           </div>
         </div>
+
+        <button className="btn logout-btn block" type="button" onClick={logout}>
+          {t('logout')}
+        </button>
       </aside>
 
       <main className="main">
-        <div className="page-head">
-          <div>
-            <h1>Portal users</h1>
-            <p>
-              Super Admin creates main users and assigns HR Admin / Manager roles. Employee accounts are not listed
-              here — they stay on the Employee portal.
-            </p>
+        <div className="topbar">
+          <div className="topbar-left">
+            <div>
+              <h2>{t('portalUsers')}</h2>
+              <p>{t('portalUsersSub')}</p>
+            </div>
           </div>
-          <div className="user-chip">{user?.fullName || user?.email || 'Super Admin'}</div>
+          <div className="topbar-right">
+            <LanguageToggle />
+            <ThemeToggle />
+            <div className="user-chip">{chipName} · super_admin</div>
+          </div>
         </div>
 
         {error ? <div className="error-box">{error}</div> : null}
@@ -161,26 +171,24 @@ export default function UsersHome() {
 
         <div className="grid-2">
           <section className="panel">
-            <h2>Assigned users</h2>
-            <p className="hint">
-              Only users for the HR Admin portal (and Super Admin). Employees created in HR are not shown.
-            </p>
+            <h2>{t('assignedUsers')}</h2>
+            <p className="hint">{t('assignedHint')}</p>
             <div style={{ overflowX: 'auto' }}>
               <table>
                 <thead>
                   <tr>
-                    <th>User</th>
-                    <th>Role</th>
-                    <th>Portal access</th>
-                    <th>Status</th>
-                    <th>Actions</th>
+                    <th>{t('user')}</th>
+                    <th>{t('role')}</th>
+                    <th>{t('portalAccess')}</th>
+                    <th>{t('status')}</th>
+                    <th>{t('actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {users.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="muted">
-                        No portal users yet. Create one on the right.
+                        {t('emptyUsers')}
                       </td>
                     </tr>
                   ) : (
@@ -201,9 +209,11 @@ export default function UsersHome() {
                                 onChange={(e) => changeRole(row.id, e.target.value)}
                                 style={{
                                   padding: '7px 10px',
-                                  borderRadius: 8,
+                                  borderRadius: 6,
                                   border: '1px solid var(--line)',
-                                  background: '#fff',
+                                  background: 'var(--chip-bg)',
+                                  color: 'var(--ink)',
+                                  fontFamily: 'var(--font)',
                                 }}
                               >
                                 {assignableRoles.map((r) => (
@@ -216,21 +226,21 @@ export default function UsersHome() {
                           </td>
                           <td>
                             <span className={`badge ${row.portal === 'users' ? 'users' : 'admin'}`}>
-                              {row.portal === 'users' ? 'Users portal' : 'HR Admin portal'}
+                              {row.portal === 'users' ? t('usersPortal') : t('hrAdminPortal')}
                             </span>
                           </td>
                           <td>
                             <span className={`badge ${row.isActive ? 'admin' : 'off'}`}>
-                              {row.isActive ? 'Active' : 'Off'}
+                              {row.isActive ? t('active') : t('off')}
                             </span>
                           </td>
                           <td>
                             {!isSa ? (
                               <button type="button" className="btn btn-ghost" onClick={() => toggleActive(row)}>
-                                {row.isActive ? 'Deactivate' : 'Activate'}
+                                {row.isActive ? t('deactivate') : t('activate')}
                               </button>
                             ) : (
-                              <span className="muted">Protected</span>
+                              <span className="muted">{t('protected')}</span>
                             )}
                           </td>
                         </tr>
@@ -243,11 +253,11 @@ export default function UsersHome() {
           </section>
 
           <section className="panel">
-            <h2>Create portal user</h2>
-            <p className="hint">Assign Admin or Manager — they sign in to the existing HR Admin portal.</p>
+            <h2>{t('createUser')}</h2>
+            <p className="hint">{t('createHint')}</p>
             <form className="form" onSubmit={createUser}>
               <label>
-                Display name
+                {t('displayName')}
                 <input
                   value={form.displayName}
                   onChange={(e) => setForm({ ...form, displayName: e.target.value })}
@@ -255,7 +265,7 @@ export default function UsersHome() {
                 />
               </label>
               <label>
-                Email
+                {t('email')}
                 <input
                   type="email"
                   required
@@ -265,18 +275,17 @@ export default function UsersHome() {
                 />
               </label>
               <label>
-                Temporary password
+                {t('tempPassword')}
                 <input
                   type="password"
                   required
                   minLength={6}
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  placeholder="Min 6 characters"
                 />
               </label>
               <label>
-                Role
+                {t('role')}
                 <select
                   required
                   value={form.roleCode}
@@ -290,7 +299,7 @@ export default function UsersHome() {
                 </select>
               </label>
               <button className="btn btn-primary" type="submit" disabled={busy}>
-                {busy ? 'Creating…' : 'Create & assign role'}
+                {busy ? t('creating') : t('createAssign')}
               </button>
             </form>
           </section>

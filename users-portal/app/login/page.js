@@ -3,9 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, isSuperAdmin, session } from '@/lib/api';
+import { useLocale } from '@/lib/LocaleContext';
+import ThemeToggle from '@/components/ThemeToggle';
+import LanguageToggle from '@/components/LanguageToggle';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { t } = useLocale();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -39,20 +43,24 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="login-page">
+    <div className="login-page" style={{ position: 'relative' }}>
+      <div className="login-tools">
+        <LanguageToggle />
+        <ThemeToggle />
+      </div>
       <div className="login-card">
         <div className="login-brand">
           <div className="mark">
             GOCs <span>Users</span>
           </div>
-          <div className="subtag">Super Admin · UAE</div>
+          <div className="subtag">Users Portal · UAE</div>
         </div>
-        <h1>Users Portal</h1>
-        <p className="lead">Sign in to create portal users and assign HR Admin roles</p>
+        <h1>{t('loginTitle')}</h1>
+        <p className="lead">{t('loginLead')}</p>
         {error ? <div className="error-box">{error}</div> : null}
         <form className="form" onSubmit={submit}>
           <label>
-            Email
+            {t('email')}
             <input
               type="email"
               value={email}
@@ -63,7 +71,7 @@ export default function LoginPage() {
             />
           </label>
           <label>
-            Password
+            {t('password')}
             <input
               type="password"
               value={password}
@@ -73,7 +81,7 @@ export default function LoginPage() {
             />
           </label>
           <button className="btn btn-primary" type="submit" disabled={busy} style={{ width: '100%' }}>
-            {busy ? 'Signing in…' : 'Sign in'}
+            {busy ? t('signingIn') : t('signIn')}
           </button>
         </form>
       </div>
