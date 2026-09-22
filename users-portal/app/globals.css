@@ -308,8 +308,17 @@ th {
   color: #0b6e84;
 }
 .badge.admin { background: #ecfdf5; color: #047857; }
-.badge.users { background: #eef2ff; color: #4338ca; }
+.badge.users {
+  background: rgba(0, 184, 219, 0.14);
+  color: #007a94;
+  border: 1px solid rgba(0, 184, 219, 0.35);
+}
 .badge.off { background: #f3f4f6; color: #6b7280; }
+:root[data-theme='dark'] .badge.users {
+  background: rgba(0, 184, 219, 0.2);
+  color: #7adff2;
+  border-color: rgba(0, 184, 219, 0.45);
+}
 :root[data-theme='dark'] .badge.off {
   background: rgba(255,255,255,0.08);
   color: rgba(255,255,255,0.7);
