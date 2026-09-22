@@ -27,7 +27,7 @@ export default function LoginPage() {
       });
       const user = data.user || data.User;
       if (!isSuperAdmin(user)) {
-        throw new Error('Access restricted: Users portal is for Super Admin only.');
+        throw new Error('Access restricted: this portal is for Super Admin only.');
       }
       session.set({ token: data.token || data.Token, user });
       router.replace('/');
@@ -39,16 +39,16 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="login-wrap">
+    <div className="login-page">
       <div className="login-card">
-        <div className="brand" style={{ textAlign: 'center' }}>
-          GOCs <span>Users</span>
+        <div className="login-brand">
+          <div className="mark">
+            GOCs <span>Users</span>
+          </div>
+          <div className="subtag">Super Admin · UAE</div>
         </div>
-        <div className="brand-tag" style={{ textAlign: 'center', color: 'var(--muted)' }}>
-          Super Admin · RBAC
-        </div>
-        <h1>Sign in</h1>
-        <p className="sub">Manage users and assign portal roles</p>
+        <h1>Users Portal</h1>
+        <p className="lead">Sign in to create portal users and assign HR Admin roles</p>
         {error ? <div className="error-box">{error}</div> : null}
         <form className="form" onSubmit={submit}>
           <label>
@@ -72,7 +72,7 @@ export default function LoginPage() {
               autoComplete="current-password"
             />
           </label>
-          <button className="btn btn-primary" type="submit" disabled={busy}>
+          <button className="btn btn-primary" type="submit" disabled={busy} style={{ width: '100%' }}>
             {busy ? 'Signing in…' : 'Sign in'}
           </button>
         </form>

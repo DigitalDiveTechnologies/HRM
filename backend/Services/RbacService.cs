@@ -75,7 +75,15 @@ public sealed class RbacService
             LEFT JOIN roles r ON r.id = u.role_id
             LEFT JOIN roles r2 ON LOWER(r2.code) = LOWER(u.role)
             LEFT JOIN employees e ON e.id = u.employee_id
-            ORDER BY u.id
+            WHERE LOWER(u.role) <> 'employee'
+              AND COALESCE(r.portal, r2.portal, CASE
+                    WHEN LOWER(u.role) = 'super_admin' THEN 'users'
+                    WHEN LOWER(u.role) = 'employee' THEN 'employee'
+                    ELSE 'admin'
+                  END) IN ('users', 'admin')
+            ORDER BY
+              CASE LOWER(u.role) WHEN 'super_admin' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,
+              u.id
             """,
             conn);
 
@@ -112,8 +120,8 @@ public sealed class RbacService
             return (null, "Password must be at least 6 characters.");
         if (string.IsNullOrWhiteSpace(roleCode))
             return (null, "Role is required.");
-        if (roleCode == "super_admin")
-            return (null, "Cannot create another Super Admin from this portal.");
+        if (roleCode is "super_admin" or "employee")
+            return (null, "Users portal only assigns Admin / Manager roles for the HR portal.");
 
         await using var conn = _db.CreateConnection();
         await conn.OpenAsync(ct);
@@ -130,6 +138,9 @@ public sealed class RbacService
         var roleName = roleReader.GetString(1);
         var portal = roleReader.GetString(2);
         await roleReader.CloseAsync();
+
+        if (!string.Equals(portal, "admin", StringComparison.OrdinalIgnoreCase))
+            return (null, "Only HR Admin portal roles can be assigned here. Employees stay on the Employee portal.");
 
         await using var exists = new NpgsqlCommand(
             "SELECT 1 FROM users WHERE LOWER(email) = @email LIMIT 1", conn);
@@ -180,6 +191,9 @@ public sealed class RbacService
         var currentRole = curReader.GetString(0);
         await curReader.CloseAsync();
 
+        if (string.Equals(currentRole, "employee", StringComparison.OrdinalIgnoreCase))
+            return (null, "Employee accounts are managed from the HR Admin portal, not here.");
+
         if (string.Equals(currentRole, "super_admin", StringComparison.OrdinalIgnoreCase)
             && req.RoleCode is not null
             && !string.Equals(req.RoleCode.Trim(), "super_admin", StringComparison.OrdinalIgnoreCase))
@@ -195,8 +209,8 @@ public sealed class RbacService
         if (!string.IsNullOrWhiteSpace(req.RoleCode))
         {
             roleCode = req.RoleCode.Trim().ToLowerInvariant();
-            if (roleCode == "super_admin" && !string.Equals(currentRole, "super_admin", StringComparison.OrdinalIgnoreCase))
-                return (null, "Cannot promote a user to Super Admin from this portal.");
+            if (roleCode is "super_admin" or "employee")
+                return (null, "Users portal only assigns Admin / Manager roles for the HR portal.");
 
             await using var roleCmd = new NpgsqlCommand(
                 "SELECT id, name, portal FROM roles WHERE LOWER(code) = @code LIMIT 1", conn);
@@ -208,6 +222,9 @@ public sealed class RbacService
             roleName = roleReader.GetString(1);
             portal = roleReader.GetString(2);
             await roleReader.CloseAsync();
+
+            if (!string.Equals(portal, "admin", StringComparison.OrdinalIgnoreCase))
+                return (null, "Only HR Admin portal roles can be assigned here.");
         }
 
         if (!string.IsNullOrWhiteSpace(req.Password))
