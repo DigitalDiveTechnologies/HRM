@@ -17,6 +17,8 @@ export default function UsersHome() {
   const [users, setUsers] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [edit, setEdit] = useState(null);
+  const [showPass, setShowPass] = useState(false);
+  const [showEditPass, setShowEditPass] = useState(false);
   const [error, setError] = useState('');
   const [ok, setOk] = useState('');
   const [busy, setBusy] = useState(false);
@@ -34,8 +36,24 @@ export default function UsersHome() {
 
   const load = useCallback(async () => {
     const [roleRows, userRows] = await Promise.all([api('/rbac/roles'), api('/rbac/users')]);
-    setRoles(Array.isArray(roleRows) ? roleRows : []);
+    const rolesList = Array.isArray(roleRows) ? roleRows : [];
+    setRoles(rolesList);
     setUsers(Array.isArray(userRows) ? userRows : []);
+    const firstAssignable = rolesList.find((r) => {
+      const code = String(r.code || '').toLowerCase();
+      const portal = String(r.portal || '').toLowerCase();
+      return portal === 'admin' && code !== 'super_admin' && code !== 'employee';
+    });
+    if (firstAssignable) {
+      setForm((f) => {
+        const stillValid = rolesList.some(
+          (r) =>
+            String(r.code).toLowerCase() === String(f.roleCode).toLowerCase() &&
+            String(r.portal).toLowerCase() === 'admin',
+        );
+        return stillValid ? f : { ...f, roleCode: firstAssignable.code };
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -78,6 +96,7 @@ export default function UsersHome() {
         }),
       });
       setOk(t('createdOk'));
+      setShowPass(false);
       setForm({ ...emptyForm, roleCode: form.roleCode || 'admin' });
       await load();
     } catch (err) {
@@ -122,6 +141,7 @@ export default function UsersHome() {
 
   function openEdit(row) {
     if (String(row.role).toLowerCase() === 'super_admin') return;
+    setShowEditPass(false);
     setEdit({
       id: row.id,
       displayName: row.displayName || '',
@@ -308,13 +328,33 @@ export default function UsersHome() {
               </label>
               <label>
                 {t('password')}
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                />
+                <div className="password-field">
+                  <input
+                    type={showPass ? 'text' : 'password'}
+                    required
+                    minLength={6}
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  />
+                  <button
+                    type="button"
+                    className="password-eye"
+                    aria-label={showPass ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowPass((v) => !v)}
+                  >
+                    {showPass ? (
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                        <line x1="1" y1="1" x2="23" y2="23" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </label>
               <label>
                 {t('role')}
@@ -370,12 +410,32 @@ export default function UsersHome() {
               </label>
               <label>
                 {t('newPasswordOptional')}
-                <input
-                  type="password"
-                  minLength={6}
-                  value={edit.password}
-                  onChange={(e) => setEdit({ ...edit, password: e.target.value })}
-                />
+                <div className="password-field">
+                  <input
+                    type={showEditPass ? 'text' : 'password'}
+                    minLength={6}
+                    value={edit.password}
+                    onChange={(e) => setEdit({ ...edit, password: e.target.value })}
+                  />
+                  <button
+                    type="button"
+                    className="password-eye"
+                    aria-label={showEditPass ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowEditPass((v) => !v)}
+                  >
+                    {showEditPass ? (
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                        <line x1="1" y1="1" x2="23" y2="23" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </label>
               <div className="modal-actions">
                 <button type="button" className="btn btn-ghost" onClick={() => setEdit(null)}>
