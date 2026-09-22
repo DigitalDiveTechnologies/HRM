@@ -464,9 +464,24 @@ public sealed class RbacService
             await pw.ExecuteNonQueryAsync(ct);
         }
 
+        string? email = null;
+        if (!string.IsNullOrWhiteSpace(req.Email))
+        {
+            email = req.Email.Trim().ToLowerInvariant();
+            if (!email.Contains('@'))
+                return (null, "A valid email is required.");
+            await using var emailTaken = new NpgsqlCommand(
+                "SELECT 1 FROM users WHERE LOWER(email) = @email AND id <> @id LIMIT 1", conn);
+            emailTaken.Parameters.AddWithValue("email", email);
+            emailTaken.Parameters.AddWithValue("id", userId);
+            if (await emailTaken.ExecuteScalarAsync(ct) is not null)
+                return (null, "A user with this email already exists.");
+        }
+
         await using var update = new NpgsqlCommand(
             """
             UPDATE users SET
+              email = COALESCE(@email, email),
               display_name = COALESCE(@display, display_name),
               role = COALESCE(@role, role),
               role_id = COALESCE(@roleId, role_id),
@@ -475,6 +490,7 @@ public sealed class RbacService
             """,
             conn);
         update.Parameters.AddWithValue("id", userId);
+        update.Parameters.AddWithValue("email", (object?)email ?? DBNull.Value);
         update.Parameters.AddWithValue("display",
             string.IsNullOrWhiteSpace(req.DisplayName) ? (object)DBNull.Value : req.DisplayName.Trim());
         update.Parameters.AddWithValue("role", (object?)roleCode ?? DBNull.Value);

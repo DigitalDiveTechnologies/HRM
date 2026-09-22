@@ -153,9 +153,13 @@ export default function SettingsUsersPage() {
     setOk('');
     try {
       const body = {
+        email: (edit.email || '').trim(),
         displayName: (edit.displayName || '').trim() || null,
         roleCode: String(edit.roleCode || '').trim().toLowerCase(),
       };
+      if (!body.email || !body.email.includes('@')) {
+        throw new Error('A valid email is required.');
+      }
       const pw = (edit.password || '').trim();
       if (pw) {
         if (pw.length < 6) throw new Error('Password must be at least 6 characters.');
@@ -191,7 +195,12 @@ export default function SettingsUsersPage() {
             </label>
             <label className="create-user-field">
               <span>Email</span>
-              <input type="email" value={edit.email} disabled readOnly />
+              <input
+                type="email"
+                required
+                value={edit.email}
+                onChange={(e) => setEdit({ ...edit, email: e.target.value })}
+              />
             </label>
             <label className="create-user-field">
               <span>New password (optional)</span>

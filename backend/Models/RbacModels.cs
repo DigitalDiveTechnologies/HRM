@@ -58,6 +58,7 @@ public sealed class CreateRbacUserRequest
 
 public sealed class UpdateRbacUserRequest
 {
+    public string? Email { get; set; }
     public string? DisplayName { get; set; }
     public string? RoleCode { get; set; }
     public bool? IsActive { get; set; }
