@@ -23,6 +23,8 @@ public sealed class UserDto
     public string? FullName { get; set; }
     public string? JobTitle { get; set; }
     public string PreferredLocale { get; set; } = "en";
+    /// <summary>Portal this role may use: users | admin | employee (from roles table).</summary>
+    public string? Portal { get; set; }
 }
 
 public sealed class UserRecord
@@ -35,6 +37,8 @@ public sealed class UserRecord
     public string? FullName { get; set; }
     public string? JobTitle { get; set; }
     public string PreferredLocale { get; set; } = "en";
+    public bool IsActive { get; set; } = true;
+    public string? Portal { get; set; }
 }
 
 public sealed class LocaleUpdateRequest

@@ -18,40 +18,75 @@ public sealed class AuthService
         await using var conn = _db.CreateConnection();
         await conn.OpenAsync(ct);
 
-        await using var cmd = new NpgsqlCommand(
-            """
-            SELECT u.id, u.email, u.password, u.role, u.employee_id, e.full_name, e.job_title
-            FROM users u
-            LEFT JOIN employees e ON e.id = u.employee_id
-            WHERE LOWER(u.email) = LOWER(@email)
-            LIMIT 1
-            """,
-            conn);
-
-        cmd.Parameters.AddWithValue("email", email.Trim());
-
-        password = password.Trim();
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct))
+        UserRecord? user = null;
+        try
         {
-            return null;
+            await using var cmd = new NpgsqlCommand(
+                """
+                SELECT u.id, u.email, u.password, u.role, u.employee_id, e.full_name, e.job_title,
+                       COALESCE(u.is_active, TRUE) AS is_active,
+                       COALESCE(NULLIF(u.display_name, ''), e.full_name) AS display_name
+                FROM users u
+                LEFT JOIN employees e ON e.id = u.employee_id
+                WHERE LOWER(u.email) = LOWER(@email)
+                LIMIT 1
+                """,
+                conn);
+            cmd.Parameters.AddWithValue("email", email.Trim());
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            if (await reader.ReadAsync(ct))
+            {
+                user = new UserRecord
+                {
+                    Id = reader.GetInt32(0),
+                    Email = reader.GetString(1),
+                    Password = reader.GetString(2),
+                    Role = reader.GetString(3),
+                    EmployeeId = reader.IsDBNull(4) ? null : reader.GetInt32(4),
+                    FullName = reader.IsDBNull(8) ? (reader.IsDBNull(5) ? null : reader.GetString(5)) : reader.GetString(8),
+                    JobTitle = reader.IsDBNull(6) ? null : reader.GetString(6),
+                    PreferredLocale = "en",
+                    IsActive = reader.GetBoolean(7),
+                };
+            }
+        }
+        catch (PostgresException ex) when (ex.SqlState == "42703")
+        {
+            // Pre-RBAC schema: is_active / display_name not yet applied
+            await using var cmd = new NpgsqlCommand(
+                """
+                SELECT u.id, u.email, u.password, u.role, u.employee_id, e.full_name, e.job_title
+                FROM users u
+                LEFT JOIN employees e ON e.id = u.employee_id
+                WHERE LOWER(u.email) = LOWER(@email)
+                LIMIT 1
+                """,
+                conn);
+            cmd.Parameters.AddWithValue("email", email.Trim());
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            if (await reader.ReadAsync(ct))
+            {
+                user = new UserRecord
+                {
+                    Id = reader.GetInt32(0),
+                    Email = reader.GetString(1),
+                    Password = reader.GetString(2),
+                    Role = reader.GetString(3),
+                    EmployeeId = reader.IsDBNull(4) ? null : reader.GetInt32(4),
+                    FullName = reader.IsDBNull(5) ? null : reader.GetString(5),
+                    JobTitle = reader.IsDBNull(6) ? null : reader.GetString(6),
+                    PreferredLocale = "en",
+                    IsActive = true,
+                };
+            }
         }
 
-        var user = new UserRecord
-        {
-            Id = reader.GetInt32(0),
-            Email = reader.GetString(1),
-            Password = reader.GetString(2),
-            Role = reader.GetString(3),
-            EmployeeId = reader.IsDBNull(4) ? null : reader.GetInt32(4),
-            FullName = reader.IsDBNull(5) ? null : reader.GetString(5),
-            JobTitle = reader.IsDBNull(6) ? null : reader.GetString(6),
-            PreferredLocale = "en",
-        };
+        if (user is null) return null;
+        password = password.Trim();
 
-        await reader.CloseAsync();
+        if (!user.IsActive) return null;
 
+        // Preferred locale + portal from roles (best-effort; missing columns/tables won't block login)
         try
         {
             await using var locCmd = new NpgsqlCommand(
@@ -63,6 +98,25 @@ public sealed class AuthService
         catch (PostgresException)
         {
             user.PreferredLocale = "en";
+        }
+
+        try
+        {
+            await using var portalCmd = new NpgsqlCommand(
+                """
+                SELECT portal FROM roles
+                WHERE id = (SELECT role_id FROM users WHERE id = @id)
+                   OR LOWER(code) = LOWER(@role)
+                LIMIT 1
+                """,
+                conn);
+            portalCmd.Parameters.AddWithValue("id", user.Id);
+            portalCmd.Parameters.AddWithValue("role", user.Role);
+            user.Portal = await portalCmd.ExecuteScalarAsync(ct) as string;
+        }
+        catch (PostgresException)
+        {
+            user.Portal = null;
         }
 
         if (!PasswordHasher.Verify(user.Password, password))

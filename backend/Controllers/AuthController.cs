@@ -59,6 +59,7 @@ public sealed class AuthController : ControllerBase
                 FullName = user.FullName,
                 JobTitle = user.JobTitle,
                 PreferredLocale = string.IsNullOrWhiteSpace(user.PreferredLocale) ? "en" : user.PreferredLocale,
+                Portal = user.Portal,
             }
         });
     }

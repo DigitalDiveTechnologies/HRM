@@ -77,6 +77,7 @@ var connectionString =
 
 builder.Services.AddSingleton(new Db(connectionString));
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<RbacService>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<EosbCalculatorService>();
 builder.Services.AddScoped<HrQueryService>();

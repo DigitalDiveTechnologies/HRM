@@ -56,11 +56,11 @@ export function hasSession() {
 
 export function normalizeRole(user) {
   const role = String(user?.role || 'employee').toLowerCase();
-  if (role === 'admin' || role === 'manager' || role === 'employee') return role;
+  if (role === 'super_admin' || role === 'admin' || role === 'manager' || role === 'employee') return role;
   return 'employee';
 }
 
-/** HR web portal — admin full HR; manager/employee self-service (Phase 3). */
+/** HR web portal — admin full HR; manager/employee self-service. Super Admin uses Users portal only. */
 export function canUsePortal(user) {
   const role = normalizeRole(user);
   return role === 'admin' || role === 'manager' || role === 'employee';
