@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
+  api,
   clearSession,
   getToken,
   getUser,
@@ -48,6 +49,11 @@ export default function AppShell({ title, subtitle, actions, children }) {
     }
     setUser(u);
     setReady(true);
+    // Enforce deactivate: inactive accounts lose portal access even with an old JWT
+    api('/auth/me').catch(() => {
+      clearSession();
+      router.replace('/');
+    });
   }, [pathname, router]);
 
   // Preserve sidebar scroll position and ensure active tab is vertically centered

@@ -372,6 +372,15 @@ th {
 }
 
 .form { display: grid; gap: 12px; }
+.form-create {
+  width: 100%;
+  max-width: none;
+}
+.btn-fit {
+  width: fit-content;
+  max-width: 100%;
+  align-self: start;
+}
 .form label {
   display: grid;
   gap: 6px;

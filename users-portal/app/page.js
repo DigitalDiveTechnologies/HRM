@@ -87,21 +87,6 @@ export default function UsersHome() {
     }
   }
 
-  async function changeRole(userId, roleCode) {
-    setError('');
-    setOk('');
-    try {
-      await api(`/rbac/users/${userId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ roleCode }),
-      });
-      setOk(t('roleUpdated'));
-      await load();
-    } catch (err) {
-      setError(err.message || 'Could not update role.');
-    }
-  }
-
   async function toggleActive(row) {
     if (String(row.role).toLowerCase() === 'super_admin') return;
     const confirmMsg = row.isActive ? t('confirmDeactivate') : t('confirmActivate');
@@ -261,24 +246,7 @@ export default function UsersHome() {
                             {isSa ? (
                               <span className="badge users">{row.roleName || row.role}</span>
                             ) : (
-                              <select
-                                value={row.role}
-                                onChange={(e) => changeRole(row.id, e.target.value)}
-                                style={{
-                                  padding: '7px 10px',
-                                  borderRadius: 6,
-                                  border: '1px solid var(--line)',
-                                  background: 'var(--chip-bg)',
-                                  color: 'var(--ink)',
-                                  fontFamily: 'var(--font)',
-                                }}
-                              >
-                                {assignableRoles.map((r) => (
-                                  <option key={r.code} value={r.code}>
-                                    {r.name}
-                                  </option>
-                                ))}
-                              </select>
+                              <span className="badge admin">{row.roleName || row.role}</span>
                             )}
                           </td>
                           <td>
@@ -319,7 +287,7 @@ export default function UsersHome() {
 
           <section className="panel">
             <h2>{t('createUser')}</h2>
-            <form className="form" onSubmit={createUser} style={{ maxWidth: 520 }}>
+            <form className="form form-create" onSubmit={createUser}>
               <label>
                 {t('displayName')}
                 <input
@@ -362,7 +330,7 @@ export default function UsersHome() {
                   ))}
                 </select>
               </label>
-              <button className="btn btn-primary" type="submit" disabled={busy}>
+              <button className="btn btn-primary btn-fit" type="submit" disabled={busy}>
                 {busy ? t('creating') : t('createAssign')}
               </button>
             </form>

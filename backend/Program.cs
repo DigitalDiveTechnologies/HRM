@@ -220,6 +220,27 @@ Directory.CreateDirectory(Path.Combine(app.Environment.ContentRootPath, "wwwroot
 
 app.UseCors("PortalClients");
 app.UseAuthentication();
+app.Use(async (ctx, next) =>
+{
+    if (ctx.User?.Identity?.IsAuthenticated == true)
+    {
+        var idRaw = ctx.User.FindFirst("sub")?.Value
+            ?? ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (int.TryParse(idRaw, out var userId))
+        {
+            var auth = ctx.RequestServices.GetRequiredService<AuthService>();
+            if (!await auth.IsUserActiveAsync(userId, ctx.RequestAborted))
+            {
+                ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                ctx.Response.ContentType = "application/json";
+                await ctx.Response.WriteAsync(
+                    System.Text.Json.JsonSerializer.Serialize(new { error = "Account is deactivated." }));
+                return;
+            }
+        }
+    }
+    await next();
+});
 app.UseAuthorization();
 app.MapControllers();
 

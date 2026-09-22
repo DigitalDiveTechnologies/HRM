@@ -139,6 +139,26 @@ public sealed class AuthService
         return user;
     }
 
+    public async Task<bool> IsUserActiveAsync(int userId, CancellationToken ct = default)
+    {
+        await using var conn = _db.CreateConnection();
+        await conn.OpenAsync(ct);
+        try
+        {
+            await using var cmd = new NpgsqlCommand(
+                "SELECT COALESCE(is_active, TRUE) FROM users WHERE id = @id", conn);
+            cmd.Parameters.AddWithValue("id", userId);
+            var result = await cmd.ExecuteScalarAsync(ct);
+            if (result is null || result is DBNull) return false;
+            return Convert.ToBoolean(result);
+        }
+        catch (PostgresException ex) when (ex.SqlState == "42703")
+        {
+            // Column missing — treat as active
+            return true;
+        }
+    }
+
     public async Task<(bool Ok, string? Error)> ChangePasswordAsync(
         int userId, string currentPassword, string newPassword, CancellationToken ct = default)
     {
