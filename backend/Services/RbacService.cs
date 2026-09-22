@@ -121,7 +121,7 @@ public sealed class RbacService
         if (string.IsNullOrWhiteSpace(roleCode))
             return (null, "Role is required.");
         if (roleCode is "super_admin" or "employee")
-            return (null, "Users portal only assigns Admin / Manager roles for the HR portal.");
+            return (null, "Cannot assign Super Admin or Employee from this portal.");
 
         await using var conn = _db.CreateConnection();
         await conn.OpenAsync(ct);
@@ -210,7 +210,7 @@ public sealed class RbacService
         {
             roleCode = req.RoleCode.Trim().ToLowerInvariant();
             if (roleCode is "super_admin" or "employee")
-                return (null, "Users portal only assigns Admin / Manager roles for the HR portal.");
+                return (null, "Cannot assign Super Admin or Employee from this portal.");
 
             await using var roleCmd = new NpgsqlCommand(
                 "SELECT id, name, portal FROM roles WHERE LOWER(code) = @code LIMIT 1", conn);
@@ -264,5 +264,26 @@ public sealed class RbacService
             user.Portal = portal ?? user.Portal;
         }
         return (user, user is null ? "User not found after update." : null);
+    }
+
+    public async Task<(bool Ok, string? Error)> DeleteUserAsync(int userId, CancellationToken ct = default)
+    {
+        await using var conn = _db.CreateConnection();
+        await conn.OpenAsync(ct);
+
+        await using var cur = new NpgsqlCommand(
+            "SELECT role FROM users WHERE id = @id", conn);
+        cur.Parameters.AddWithValue("id", userId);
+        var role = await cur.ExecuteScalarAsync(ct) as string;
+        if (role is null) return (false, "User not found.");
+        if (string.Equals(role, "super_admin", StringComparison.OrdinalIgnoreCase))
+            return (false, "Cannot delete the Super Admin account.");
+        if (string.Equals(role, "employee", StringComparison.OrdinalIgnoreCase))
+            return (false, "Employee accounts are managed from the HR Admin portal.");
+
+        await using var del = new NpgsqlCommand("DELETE FROM users WHERE id = @id", conn);
+        del.Parameters.AddWithValue("id", userId);
+        var n = await del.ExecuteNonQueryAsync(ct);
+        return n > 0 ? (true, null) : (false, "User not found.");
     }
 }

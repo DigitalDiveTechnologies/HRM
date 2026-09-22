@@ -16,6 +16,7 @@ export default function UsersHome() {
   const [roles, setRoles] = useState([]);
   const [users, setUsers] = useState([]);
   const [form, setForm] = useState(emptyForm);
+  const [edit, setEdit] = useState(null);
   const [error, setError] = useState('');
   const [ok, setOk] = useState('');
   const [busy, setBusy] = useState(false);
@@ -103,6 +104,8 @@ export default function UsersHome() {
 
   async function toggleActive(row) {
     if (String(row.role).toLowerCase() === 'super_admin') return;
+    const confirmMsg = row.isActive ? t('confirmDeactivate') : t('confirmActivate');
+    if (!window.confirm(confirmMsg)) return;
     setError('');
     setOk('');
     try {
@@ -114,6 +117,60 @@ export default function UsersHome() {
       await load();
     } catch (err) {
       setError(err.message || 'Could not update user.');
+    }
+  }
+
+  async function deleteUser(row) {
+    if (String(row.role).toLowerCase() === 'super_admin') return;
+    if (!window.confirm(t('confirmDelete'))) return;
+    setError('');
+    setOk('');
+    try {
+      await api(`/rbac/users/${row.id}`, { method: 'DELETE' });
+      setOk(t('deleted'));
+      if (edit?.id === row.id) setEdit(null);
+      await load();
+    } catch (err) {
+      setError(err.message || 'Could not delete user.');
+    }
+  }
+
+  function openEdit(row) {
+    if (String(row.role).toLowerCase() === 'super_admin') return;
+    setEdit({
+      id: row.id,
+      displayName: row.displayName || '',
+      email: row.email,
+      roleCode: row.role,
+      password: '',
+    });
+    setError('');
+    setOk('');
+  }
+
+  async function saveEdit(e) {
+    e.preventDefault();
+    if (!edit) return;
+    setError('');
+    setOk('');
+    setBusy(true);
+    try {
+      const body = {
+        displayName: edit.displayName.trim() || null,
+        roleCode: edit.roleCode,
+      };
+      if (edit.password.trim()) body.password = edit.password.trim();
+      await api(`/rbac/users/${edit.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      });
+      setOk(t('userUpdated'));
+      setEdit(null);
+      await load();
+    } catch (err) {
+      setError(err.message || 'Could not update user.');
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -169,7 +226,7 @@ export default function UsersHome() {
         {error ? <div className="error-box">{error}</div> : null}
         {ok ? <div className="ok-box">{ok}</div> : null}
 
-        <div className="grid-2">
+        <div className="stack">
           <section className="panel">
             <h2>{t('assignedUsers')}</h2>
             <p className="hint">{t('assignedHint')}</p>
@@ -236,9 +293,17 @@ export default function UsersHome() {
                           </td>
                           <td>
                             {!isSa ? (
-                              <button type="button" className="btn btn-ghost" onClick={() => toggleActive(row)}>
-                                {row.isActive ? t('deactivate') : t('activate')}
-                              </button>
+                              <div className="row-actions">
+                                <button type="button" className="btn btn-ghost" onClick={() => openEdit(row)}>
+                                  {t('edit')}
+                                </button>
+                                <button type="button" className="btn btn-ghost" onClick={() => toggleActive(row)}>
+                                  {row.isActive ? t('deactivate') : t('activate')}
+                                </button>
+                                <button type="button" className="btn btn-danger" onClick={() => deleteUser(row)}>
+                                  {t('delete')}
+                                </button>
+                              </div>
                             ) : (
                               <span className="muted">{t('protected')}</span>
                             )}
@@ -254,8 +319,7 @@ export default function UsersHome() {
 
           <section className="panel">
             <h2>{t('createUser')}</h2>
-            <p className="hint">{t('createHint')}</p>
-            <form className="form" onSubmit={createUser}>
+            <form className="form" onSubmit={createUser} style={{ maxWidth: 520 }}>
               <label>
                 {t('displayName')}
                 <input
@@ -275,7 +339,7 @@ export default function UsersHome() {
                 />
               </label>
               <label>
-                {t('tempPassword')}
+                {t('password')}
                 <input
                   type="password"
                   required
@@ -305,6 +369,58 @@ export default function UsersHome() {
           </section>
         </div>
       </main>
+
+      {edit ? (
+        <div className="modal-backdrop" onClick={() => setEdit(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <h3>{t('editUser')}</h3>
+            <form className="form" onSubmit={saveEdit}>
+              <label>
+                {t('displayName')}
+                <input
+                  value={edit.displayName}
+                  onChange={(e) => setEdit({ ...edit, displayName: e.target.value })}
+                />
+              </label>
+              <label>
+                {t('email')}
+                <input value={edit.email} disabled />
+              </label>
+              <label>
+                {t('role')}
+                <select
+                  required
+                  value={edit.roleCode}
+                  onChange={(e) => setEdit({ ...edit, roleCode: e.target.value })}
+                >
+                  {assignableRoles.map((r) => (
+                    <option key={r.code} value={r.code}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                {t('newPasswordOptional')}
+                <input
+                  type="password"
+                  minLength={6}
+                  value={edit.password}
+                  onChange={(e) => setEdit({ ...edit, password: e.target.value })}
+                />
+              </label>
+              <div className="modal-actions">
+                <button type="button" className="btn btn-ghost" onClick={() => setEdit(null)}>
+                  {t('cancel')}
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={busy}>
+                  {t('save')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

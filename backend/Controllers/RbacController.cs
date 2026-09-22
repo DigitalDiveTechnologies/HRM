@@ -38,4 +38,12 @@ public sealed class RbacController : ControllerBase
         if (error is not null) return BadRequest(new { error });
         return Ok(user);
     }
+
+    [HttpDelete("users/{id:int}")]
+    public async Task<IActionResult> DeleteUser(int id, CancellationToken ct)
+    {
+        var (ok, error) = await _rbac.DeleteUserAsync(id, ct);
+        if (!ok) return BadRequest(new { error });
+        return Ok(new { message = "User deleted." });
+    }
 }

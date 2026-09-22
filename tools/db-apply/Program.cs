@@ -22,6 +22,7 @@ var files = args.Length > 0
         "schema-phase5-scale.sql",
         "schema-rbac.sql",
         "seed-rbac.sql",
+        "seed-rbac-extra-roles.sql",
     };
 
 string? FindApiDir()

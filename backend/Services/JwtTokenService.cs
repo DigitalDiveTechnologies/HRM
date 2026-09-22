@@ -23,12 +23,19 @@ public sealed class JwtTokenService
             Encoding.UTF8.GetBytes(jwt["Key"] ?? "DigitalDive-HR-Dev-Key-Change-In-Production-Min-32-Chars"));
 
         // Short claim types only — matches MapInboundClaims=false + RoleClaimType="role"
+        var role = (user.Role ?? string.Empty).Trim().ToLowerInvariant();
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email),
             new("role", user.Role),
         };
+
+        // Extra Admin-portal RBAC roles still need API access gated by [Authorize(Roles="admin")]
+        if (role is "hr_officer" or "finance" or "viewer")
+        {
+            claims.Add(new Claim("role", "admin"));
+        }
 
         if (user.EmployeeId.HasValue)
         {
