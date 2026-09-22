@@ -1676,14 +1676,11 @@ html[dir='rtl'] .row-actions {
 
 
 
-/* Settings → Create portal user (image-2 layout) */
+/* Settings → Create portal user */
 .create-user-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  box-shadow: var(--shadow);
-  padding: 20px 22px 22px;
-  max-width: 560px;
+  max-width: none;
+  width: 100%;
+  box-sizing: border-box;
 }
 .create-user-title {
   margin: 0 0 16px;
@@ -1694,11 +1691,13 @@ html[dir='rtl'] .row-actions {
 .create-user-form {
   display: grid;
   gap: 14px;
+  width: 100%;
 }
 .create-user-field {
   display: grid;
   gap: 6px;
   margin: 0;
+  width: 100%;
 }
 .create-user-field > span {
   font-size: 0.9rem;
@@ -1775,13 +1774,25 @@ html[dir='rtl'] .row-actions {
   color: var(--danger);
 }
 .perm-matrix-card { overflow: hidden; }
-.perm-matrix-wrap { overflow-x: auto; }
-.perm-matrix { width: 100%; border-collapse: collapse; min-width: 720px; }
+.perm-matrix-wrap {
+  overflow-x: auto;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.perm-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  min-width: 720px;
+}
 .perm-matrix th,
 .perm-matrix td {
-  border-bottom: 1px solid var(--line);
+  border: 0 !important;
+  border-bottom: 1px solid var(--line) !important;
   padding: 10px 12px;
   vertical-align: middle;
+  background-clip: padding-box;
 }
 .perm-matrix thead th {
   background: var(--table-head);
@@ -1789,6 +1800,7 @@ html[dir='rtl'] .row-actions {
   top: 0;
   z-index: 1;
   font-size: 0.85rem;
+  border-bottom: 1px solid var(--line) !important;
 }
 .perm-col-name { text-align: start; min-width: 220px; }
 .perm-col-role { text-align: center; min-width: 96px; }
@@ -1799,6 +1811,7 @@ html[dir='rtl'] .row-actions {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
+  border-bottom: 1px solid var(--line) !important;
 }
 .perm-indent-1 { padding-inline-start: 28px !important; }
 .perm-indent-2 { padding-inline-start: 44px !important; color: var(--muted); }
@@ -1822,4 +1835,12 @@ html[dir='rtl'] .row-actions {
   padding-top: 16px;
   margin-top: 8px;
   border-top: 1px solid var(--line);
+}
+.perm-save-banner {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(31, 122, 76, 0.12);
+  color: var(--ok);
+  font-weight: 600;
 }

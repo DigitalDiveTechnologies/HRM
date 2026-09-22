@@ -195,44 +195,74 @@ public sealed class RbacService
 
         try
         {
+            // Resolve role ids once
+            var roleIds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            await using (var roleCmd = new NpgsqlCommand(
+                "SELECT id, LOWER(code) FROM roles WHERE LOWER(code) <> 'super_admin'", conn, tx))
+            await using (var roleReader = await roleCmd.ExecuteReaderAsync(ct))
+            {
+                while (await roleReader.ReadAsync(ct))
+                    roleIds[roleReader.GetString(1)] = roleReader.GetInt32(0);
+            }
+
+            // Resolve permission codes → ids once
+            var permIds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            await using (var permCmd = new NpgsqlCommand("SELECT id, code FROM permissions", conn, tx))
+            await using (var permReader = await permCmd.ExecuteReaderAsync(ct))
+            {
+                while (await permReader.ReadAsync(ct))
+                    permIds[permReader.GetString(1)] = permReader.GetInt32(0);
+            }
+
+            var pairs = new List<(int RoleId, int PermId)>();
+            var touchedRoleIds = new HashSet<int>();
+
             foreach (var (roleCodeRaw, codes) in req.Grants)
             {
                 var roleCode = (roleCodeRaw ?? string.Empty).Trim().ToLowerInvariant();
                 if (string.IsNullOrEmpty(roleCode) || roleCode == "super_admin")
                     continue;
-
-                await using var roleCmd = new NpgsqlCommand(
-                    "SELECT id FROM roles WHERE LOWER(code) = @code LIMIT 1", conn, tx);
-                roleCmd.Parameters.AddWithValue("code", roleCode);
-                var roleIdObj = await roleCmd.ExecuteScalarAsync(ct);
-                if (roleIdObj is null || roleIdObj is DBNull)
+                if (!roleIds.TryGetValue(roleCode, out var roleId))
                     return (false, $"Unknown role: {roleCode}");
-                var roleId = Convert.ToInt32(roleIdObj);
 
-                await using var del = new NpgsqlCommand(
-                    "DELETE FROM role_permissions WHERE role_id = @roleId", conn, tx);
-                del.Parameters.AddWithValue("roleId", roleId);
-                await del.ExecuteNonQueryAsync(ct);
-
-                var unique = (codes ?? new List<string>())
-                    .Select(c => (c ?? string.Empty).Trim())
-                    .Where(c => c.Length > 0)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-
-                foreach (var permCode in unique)
+                touchedRoleIds.Add(roleId);
+                foreach (var raw in codes ?? new List<string>())
                 {
-                    await using var ins = new NpgsqlCommand(
-                        """
-                        INSERT INTO role_permissions (role_id, permission_id)
-                        SELECT @roleId, p.id FROM permissions p WHERE LOWER(p.code) = LOWER(@code)
-                        ON CONFLICT DO NOTHING
-                        """,
-                        conn, tx);
-                    ins.Parameters.AddWithValue("roleId", roleId);
-                    ins.Parameters.AddWithValue("code", permCode);
-                    await ins.ExecuteNonQueryAsync(ct);
+                    var permCode = (raw ?? string.Empty).Trim();
+                    if (permCode.Length == 0) continue;
+                    if (!permIds.TryGetValue(permCode, out var permId))
+                    {
+                        // case-insensitive fallback
+                        var hit = permIds.FirstOrDefault(kv =>
+                            string.Equals(kv.Key, permCode, StringComparison.OrdinalIgnoreCase));
+                        if (hit.Key is null) continue;
+                        permId = hit.Value;
+                    }
+                    pairs.Add((roleId, permId));
                 }
+            }
+
+            if (touchedRoleIds.Count > 0)
+            {
+                await using var del = new NpgsqlCommand(
+                    "DELETE FROM role_permissions WHERE role_id = ANY(@ids)", conn, tx);
+                del.Parameters.AddWithValue("ids", touchedRoleIds.ToArray());
+                await del.ExecuteNonQueryAsync(ct);
+            }
+
+            if (pairs.Count > 0)
+            {
+                var distinct = pairs.Distinct().ToList();
+                await using var ins = new NpgsqlCommand(
+                    """
+                    INSERT INTO role_permissions (role_id, permission_id)
+                    SELECT * FROM UNNEST(@roleIds, @permIds)
+                    ON CONFLICT DO NOTHING
+                    """,
+                    conn, tx);
+                ins.Parameters.AddWithValue("roleIds", distinct.Select(p => p.RoleId).ToArray());
+                ins.Parameters.AddWithValue("permIds", distinct.Select(p => p.PermId).ToArray());
+                await ins.ExecuteNonQueryAsync(ct);
             }
 
             await tx.CommitAsync(ct);

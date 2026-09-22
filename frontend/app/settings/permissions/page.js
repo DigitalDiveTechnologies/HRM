@@ -81,17 +81,17 @@ export default function SettingsPermissionsPage() {
       for (const role of roles) {
         payload.grants[role.code] = grants[role.code] || [];
       }
-      const data = await api('/rbac/permission-matrix', {
+      await api('/rbac/permission-matrix', {
         method: 'PUT',
         body: JSON.stringify(payload),
       });
-      setRoles(Array.isArray(data.roles) ? data.roles : roles);
-      setPermissions(Array.isArray(data.permissions) ? data.permissions : permissions);
-      setGrants(data.grants && typeof data.grants === 'object' ? data.grants : grants);
       setOk('Permissions saved.');
+      // Reload so matrix + nav reflect saved grants clearly
+      window.setTimeout(() => {
+        window.location.reload();
+      }, 350);
     } catch (err) {
       setError(err.message || 'Could not save permissions.');
-    } finally {
       setBusy(false);
     }
   }
@@ -105,7 +105,7 @@ export default function SettingsPermissionsPage() {
   return (
     <AppShell title="Permissions" subtitle="Tick = assigned · Cross = denied. Save to apply for each role.">
       {error ? <div className="error">{error}</div> : null}
-      {ok ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{ok}</div> : null}
+      {ok ? <div className="perm-save-banner">{ok}</div> : null}
 
       <div className="card perm-matrix-card">
         {loading ? (

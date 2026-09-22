@@ -32,7 +32,7 @@ public sealed class RbacController : ControllerBase
     {
         var (ok, error) = await _rbac.SavePermissionMatrixAsync(body, ct);
         if (!ok) return BadRequest(new { error });
-        return Ok(await _rbac.GetPermissionMatrixAsync(ct));
+        return Ok(new { message = "Permissions saved." });
     }
 
     [HttpGet("users")]
