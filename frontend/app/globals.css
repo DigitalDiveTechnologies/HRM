@@ -1833,6 +1833,75 @@ html[dir='rtl'] .row-actions {
   color: var(--ink);
   font-weight: 600;
 }
+.roles-name-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.roles-delete-btn {
+  border: 0;
+  background: transparent;
+  color: var(--danger);
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  padding: 2px;
+  line-height: 0;
+  opacity: 0.85;
+}
+.roles-delete-btn:hover { opacity: 1; }
+
+/* Users — status toggle (same activate/deactivate API) */
+.status-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  margin: 0;
+}
+.status-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+.status-toggle-ui {
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+.status-toggle-ui::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s ease;
+}
+.status-toggle input:checked + .status-toggle-ui {
+  background: var(--ok);
+}
+.status-toggle input:checked + .status-toggle-ui::after {
+  transform: translateX(18px);
+}
+.status-toggle-text {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.status-toggle input:checked ~ .status-toggle-text {
+  color: var(--ok);
+}
 
 .perm-matrix-card {
   overflow: hidden;

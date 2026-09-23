@@ -48,6 +48,13 @@ public sealed class RbacUserDto
     public int? EmployeeId { get; set; }
 }
 
+public sealed class CreateRoleRequest
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Code { get; set; }
+    public string? Description { get; set; }
+}
+
 public sealed class CreateRbacUserRequest
 {
     public string Email { get; set; } = string.Empty;

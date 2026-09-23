@@ -55,33 +55,13 @@ export function hasSession() {
 }
 
 export function normalizeRole(user) {
-  const role = String(user?.role || 'employee').toLowerCase();
-  if (
-    role === 'super_admin' ||
-    role === 'admin' ||
-    role === 'manager' ||
-    role === 'employee' ||
-    role === 'hr_officer' ||
-    role === 'finance' ||
-    role === 'viewer'
-  ) {
-    return role;
-  }
-  return 'employee';
+  return String(user?.role || 'employee').toLowerCase();
 }
 
-/** HR web portal — Super Admin + admin staff + manager/employee self-service. */
+/** HR web portal — admin staff, custom roles, manager/employee self-service. */
 export function canUsePortal(user) {
   const role = normalizeRole(user);
-  return (
-    role === 'super_admin' ||
-    role === 'admin' ||
-    role === 'manager' ||
-    role === 'employee' ||
-    role === 'hr_officer' ||
-    role === 'finance' ||
-    role === 'viewer'
-  );
+  return Boolean(role);
 }
 
 export function homeForRole(user) {

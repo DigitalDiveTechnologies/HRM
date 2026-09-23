@@ -20,7 +20,7 @@ export default function SettingsUsersPage() {
   const editRef = useRef(null);
 
   const assignableRoles = useMemo(() => {
-    const preferred = ['admin', 'finance', 'hr_officer', 'manager', 'viewer'];
+    const preferred = ['admin', 'manager', 'hr_officer', 'finance', 'viewer'];
     const filtered = roles.filter((r) => {
       const code = String(r.code || '').toLowerCase();
       const portal = String(r.portal || '').toLowerCase();
@@ -31,7 +31,7 @@ export default function SettingsUsersPage() {
       const bc = String(b.code || '').toLowerCase();
       const ai = preferred.indexOf(ac);
       const bi = preferred.indexOf(bc);
-      if (ai === -1 && bi === -1) return String(a.name).localeCompare(String(b.name));
+      if (ai === -1 && bi === -1) return String(a.name || '').localeCompare(String(b.name || ''));
       if (ai === -1) return 1;
       if (bi === -1) return -1;
       return ai - bi;
@@ -271,9 +271,21 @@ export default function SettingsUsersPage() {
                           <span className="badge">{row.roleName || row.role}</span>
                         </td>
                         <td>
-                          <span className={`badge ${row.isActive ? '' : 'off'}`}>
-                            {row.isActive ? 'Active' : 'Inactive'}
-                          </span>
+                          {isSa ? (
+                            <span className={`badge ${row.isActive ? '' : 'off'}`}>
+                              {row.isActive ? 'Active' : 'Inactive'}
+                            </span>
+                          ) : (
+                            <label className="status-toggle" title={row.isActive ? 'Active — click to deactivate' : 'Inactive — click to activate'}>
+                              <input
+                                type="checkbox"
+                                checked={Boolean(row.isActive)}
+                                onChange={() => toggleActive(row)}
+                              />
+                              <span className="status-toggle-ui" aria-hidden="true" />
+                              <span className="status-toggle-text">{row.isActive ? 'Active' : 'Inactive'}</span>
+                            </label>
+                          )}
                         </td>
                         <td>
                           {isSa ? (
@@ -281,9 +293,6 @@ export default function SettingsUsersPage() {
                           ) : (
                             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                               <button type="button" className="btn secondary" onClick={() => openEdit(row)}>Edit</button>
-                              <button type="button" className="btn secondary" onClick={() => toggleActive(row)}>
-                                {row.isActive ? 'Deactivate' : 'Activate'}
-                              </button>
                               <button type="button" className="btn danger" onClick={() => deleteUser(row)}>Delete</button>
                             </div>
                           )}
@@ -354,7 +363,7 @@ export default function SettingsUsersPage() {
             </select>
           </label>
           <button type="submit" className="btn btn-fit create-user-submit" disabled={busy || !assignableRoles.length}>
-            Create &amp; assign role
+            Create User
           </button>
         </form>
       </div>

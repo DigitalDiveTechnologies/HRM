@@ -19,6 +19,22 @@ public sealed class RbacController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<RoleDto>>> ListRoles(CancellationToken ct)
         => Ok(await _rbac.ListRolesAsync(ct));
 
+    [HttpPost("roles")]
+    public async Task<ActionResult<RoleDto>> CreateRole([FromBody] CreateRoleRequest body, CancellationToken ct)
+    {
+        var (role, error) = await _rbac.CreateRoleAsync(body, ct);
+        if (error is not null) return BadRequest(new { error });
+        return Ok(role);
+    }
+
+    [HttpDelete("roles/{id:int}")]
+    public async Task<IActionResult> DeleteRole(int id, CancellationToken ct)
+    {
+        var (ok, error) = await _rbac.DeleteRoleAsync(id, ct);
+        if (!ok) return BadRequest(new { error });
+        return Ok(new { message = "Role deleted." });
+    }
+
     [HttpGet("permissions")]
     public async Task<ActionResult<IReadOnlyList<PermissionDto>>> ListPermissions(CancellationToken ct)
         => Ok(await _rbac.ListPermissionsAsync(ct));

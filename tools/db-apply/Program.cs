@@ -27,6 +27,7 @@ var files = args.Length > 0
         "seed-rbac-extra-roles.sql",
         "schema-rbac-permissions.sql",
         "seed-rbac-permissions.sql",
+        "schema-rbac-custom-roles.sql",
     };
 
 string? FindApiDir()

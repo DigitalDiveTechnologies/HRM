@@ -114,6 +114,107 @@ public sealed class RbacService
         return list;
     }
 
+    static string SlugifyRoleCode(string name)
+    {
+        var raw = (name ?? string.Empty).Trim().ToLowerInvariant();
+        var chars = raw.Select(ch => char.IsLetterOrDigit(ch) ? ch : '_').ToArray();
+        var slug = new string(chars);
+        while (slug.Contains("__", StringComparison.Ordinal))
+            slug = slug.Replace("__", "_", StringComparison.Ordinal);
+        return slug.Trim('_');
+    }
+
+    public async Task<(RoleDto? Role, string? Error)> CreateRoleAsync(
+        CreateRoleRequest req, CancellationToken ct = default)
+    {
+        var name = (req.Name ?? string.Empty).Trim();
+        if (name.Length < 2)
+            return (null, "Role name is required.");
+
+        var code = string.IsNullOrWhiteSpace(req.Code)
+            ? SlugifyRoleCode(name)
+            : SlugifyRoleCode(req.Code);
+        if (string.IsNullOrWhiteSpace(code))
+            return (null, "Could not build a valid role code from the name.");
+        if (code is "super_admin" or "employee" or "admin")
+            return (null, "This role code is reserved.");
+
+        var description = string.IsNullOrWhiteSpace(req.Description) ? null : req.Description.Trim();
+
+        await using var conn = _db.CreateConnection();
+        await conn.OpenAsync(ct);
+
+        await using var exists = new NpgsqlCommand(
+            "SELECT 1 FROM roles WHERE LOWER(code) = @code LIMIT 1", conn);
+        exists.Parameters.AddWithValue("code", code);
+        if (await exists.ExecuteScalarAsync(ct) is not null)
+            return (null, "A role with this code already exists.");
+
+        await using var insert = new NpgsqlCommand(
+            """
+            INSERT INTO roles (code, name, description, portal, is_system)
+            VALUES (@code, @name, @description, 'admin', FALSE)
+            RETURNING id, code, name, description, portal, is_system
+            """,
+            conn);
+        insert.Parameters.AddWithValue("code", code);
+        insert.Parameters.AddWithValue("name", name);
+        insert.Parameters.AddWithValue("description", (object?)description ?? DBNull.Value);
+
+        await using var reader = await insert.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
+            return (null, "Could not create role.");
+        return (new RoleDto
+        {
+            Id = reader.GetInt32(0),
+            Code = reader.GetString(1),
+            Name = reader.GetString(2),
+            Description = reader.IsDBNull(3) ? null : reader.GetString(3),
+            Portal = reader.GetString(4),
+            IsSystem = reader.GetBoolean(5),
+        }, null);
+    }
+
+    public async Task<(bool Ok, string? Error)> DeleteRoleAsync(int roleId, CancellationToken ct = default)
+    {
+        await using var conn = _db.CreateConnection();
+        await conn.OpenAsync(ct);
+
+        await using var cur = new NpgsqlCommand(
+            "SELECT code, is_system FROM roles WHERE id = @id", conn);
+        cur.Parameters.AddWithValue("id", roleId);
+        await using var reader = await cur.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
+            return (false, "Role not found.");
+        var code = reader.GetString(0);
+        var isSystem = reader.GetBoolean(1);
+        await reader.CloseAsync();
+
+        if (isSystem)
+            return (false, "System roles cannot be deleted.");
+        if (string.Equals(code, "super_admin", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(code, "employee", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(code, "admin", StringComparison.OrdinalIgnoreCase))
+            return (false, "This role cannot be deleted.");
+
+        await using var inUse = new NpgsqlCommand(
+            """
+            SELECT 1 FROM users
+            WHERE role_id = @id OR LOWER(role) = LOWER(@code)
+            LIMIT 1
+            """,
+            conn);
+        inUse.Parameters.AddWithValue("id", roleId);
+        inUse.Parameters.AddWithValue("code", code);
+        if (await inUse.ExecuteScalarAsync(ct) is not null)
+            return (false, "Cannot delete a role that is still assigned to users. Reassign users first.");
+
+        await using var del = new NpgsqlCommand("DELETE FROM roles WHERE id = @id AND is_system = FALSE", conn);
+        del.Parameters.AddWithValue("id", roleId);
+        var n = await del.ExecuteNonQueryAsync(ct);
+        return n > 0 ? (true, null) : (false, "Role not found.");
+    }
+
     public async Task<IReadOnlyList<PermissionDto>> ListPermissionsAsync(CancellationToken ct = default)
     {
         await using var conn = _db.CreateConnection();
