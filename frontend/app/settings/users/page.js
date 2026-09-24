@@ -313,6 +313,8 @@ export default function SettingsUsersPage() {
                   </tr>
                 ) : (
                   users.map((row) => {
+                    const roleCode = String(row.role || row.Role || '').toLowerCase();
+                    const isProtectedAdmin = roleCode === 'admin';
                     return (
                       <tr key={row.id}>
                         <td>
@@ -323,10 +325,20 @@ export default function SettingsUsersPage() {
                           <span className="badge">{row.roleName || row.role}</span>
                         </td>
                         <td>
-                          <label className="status-toggle" title={row.isActive ? 'Active — click to deactivate' : 'Inactive — click to activate'}>
+                          <label
+                            className="status-toggle"
+                            title={
+                              isProtectedAdmin
+                                ? 'Admin stays active'
+                                : row.isActive
+                                  ? 'Active — click to deactivate'
+                                  : 'Inactive — click to activate'
+                            }
+                          >
                             <input
                               type="checkbox"
                               checked={Boolean(row.isActive)}
+                              disabled={isProtectedAdmin}
                               onChange={() => toggleActive(row)}
                             />
                             <span className="status-toggle-ui" aria-hidden="true" />
@@ -336,7 +348,9 @@ export default function SettingsUsersPage() {
                         <td>
                           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                             <button type="button" className="btn secondary" onClick={() => openEdit(row)}>Edit</button>
-                            <button type="button" className="btn danger" onClick={() => deleteUser(row)}>Delete</button>
+                            {isProtectedAdmin ? null : (
+                              <button type="button" className="btn danger" onClick={() => deleteUser(row)}>Delete</button>
+                            )}
                           </div>
                         </td>
                       </tr>

@@ -203,9 +203,11 @@ public sealed class RbacService
         var code = reader.GetString(0);
         await reader.CloseAsync();
 
-        // Employee portal role must stay — all other roles (including Super Admin) can be deleted
+        // Protected roles: employee (ESS portal) + admin (must always remain)
         if (string.Equals(code, "employee", StringComparison.OrdinalIgnoreCase))
             return (false, "The Employee role cannot be deleted.");
+        if (string.Equals(code, "admin", StringComparison.OrdinalIgnoreCase))
+            return (false, "The Admin role cannot be deleted.");
 
         // Detach users from this role row (keep users.role text so existing logins still work)
         await using var detach = new NpgsqlCommand(
@@ -522,6 +524,9 @@ public sealed class RbacService
 
         if (string.Equals(currentRole, "employee", StringComparison.OrdinalIgnoreCase))
             return (null, "Employee accounts are managed from Employees, not Settings → Users.");
+        if (string.Equals(currentRole, "admin", StringComparison.OrdinalIgnoreCase)
+            && req.IsActive == false)
+            return (null, "Admin users cannot be deactivated.");
 
         string? roleCode = null;
         int? roleId = null;
@@ -632,6 +637,8 @@ public sealed class RbacService
         if (role is null) return (false, "User not found.");
         if (string.Equals(role, "employee", StringComparison.OrdinalIgnoreCase))
             return (false, "Employee accounts are managed from Employees.");
+        if (string.Equals(role, "admin", StringComparison.OrdinalIgnoreCase))
+            return (false, "Admin users cannot be deleted.");
 
         await using var del = new NpgsqlCommand("DELETE FROM users WHERE id = @id", conn);
         del.Parameters.AddWithValue("id", userId);

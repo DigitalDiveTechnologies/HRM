@@ -168,7 +168,8 @@ export default function SettingsRolesPage() {
                   </tr>
                 ) : (
                   adminRoles.map((r) => {
-                    const canDelete = String(r.code || '').toLowerCase() !== 'employee';
+                    const code = String(r.code || '').toLowerCase();
+                    const canDelete = code !== 'employee' && code !== 'admin';
                     return (
                       <tr key={r.id}>
                         <td className="roles-name">
