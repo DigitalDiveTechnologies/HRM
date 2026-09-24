@@ -149,8 +149,6 @@ export default function SettingsUsersPage() {
   }
 
   async function toggleActive(row) {
-    if (String(row.role).toLowerCase() === 'super_admin') return;
-    if (!window.confirm(row.isActive ? 'Deactivate this user? They will not be able to sign in.' : 'Activate this user?')) return;
     setError('');
     setOk('');
     try {
@@ -171,7 +169,6 @@ export default function SettingsUsersPage() {
 
   async function deleteUser(row) {
     if (String(row.role).toLowerCase() === 'super_admin') return;
-    if (!window.confirm('Delete this user permanently?')) return;
     setError('');
     setOk('');
     try {
@@ -327,21 +324,15 @@ export default function SettingsUsersPage() {
                           <span className="badge">{row.roleName || row.role}</span>
                         </td>
                         <td>
-                          {isSa ? (
-                            <span className={`badge ${row.isActive ? '' : 'off'}`}>
-                              {row.isActive ? 'Active' : 'Inactive'}
-                            </span>
-                          ) : (
-                            <label className="status-toggle" title={row.isActive ? 'Active — click to deactivate' : 'Inactive — click to activate'}>
-                              <input
-                                type="checkbox"
-                                checked={Boolean(row.isActive)}
-                                onChange={() => toggleActive(row)}
-                              />
-                              <span className="status-toggle-ui" aria-hidden="true" />
-                              <span className="status-toggle-text">{row.isActive ? 'Active' : 'Inactive'}</span>
-                            </label>
-                          )}
+                          <label className="status-toggle" title={row.isActive ? 'Active — click to deactivate' : 'Inactive — click to activate'}>
+                            <input
+                              type="checkbox"
+                              checked={Boolean(row.isActive)}
+                              onChange={() => toggleActive(row)}
+                            />
+                            <span className="status-toggle-ui" aria-hidden="true" />
+                            <span className="status-toggle-text">{row.isActive ? 'Active' : 'Inactive'}</span>
+                          </label>
                         </td>
                         <td>
                           {isSa ? (

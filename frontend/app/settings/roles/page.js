@@ -96,7 +96,6 @@ export default function SettingsRolesPage() {
 
   async function deleteRole(row) {
     if (String(row.code || '').toLowerCase() === 'employee') return;
-    if (!window.confirm(`Delete role “${row.name}”? This cannot be undone.`)) return;
     setError('');
     setOk('');
     try {
