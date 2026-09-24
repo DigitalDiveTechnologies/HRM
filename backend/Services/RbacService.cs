@@ -514,19 +514,20 @@ public sealed class RbacService
         await conn.OpenAsync(ct);
 
         await using var cur = new NpgsqlCommand(
-            "SELECT role, COALESCE(is_active, TRUE) FROM users WHERE id = @id", conn);
+            "SELECT role, COALESCE(is_active, TRUE), LOWER(email) FROM users WHERE id = @id", conn);
         cur.Parameters.AddWithValue("id", userId);
         await using var curReader = await cur.ExecuteReaderAsync(ct);
         if (!await curReader.ReadAsync(ct))
             return (null, "User not found.");
         var currentRole = curReader.GetString(0);
+        var currentEmail = curReader.IsDBNull(2) ? "" : curReader.GetString(2);
         await curReader.CloseAsync();
 
         if (string.Equals(currentRole, "employee", StringComparison.OrdinalIgnoreCase))
             return (null, "Employee accounts are managed from Employees, not Settings → Users.");
-        if (string.Equals(currentRole, "admin", StringComparison.OrdinalIgnoreCase)
+        if (string.Equals(currentEmail, "admin@digitaldive.net", StringComparison.OrdinalIgnoreCase)
             && req.IsActive == false)
-            return (null, "Admin users cannot be deactivated.");
+            return (null, "The primary Admin account cannot be deactivated.");
 
         string? roleCode = null;
         int? roleId = null;
@@ -637,8 +638,13 @@ public sealed class RbacService
         if (role is null) return (false, "User not found.");
         if (string.Equals(role, "employee", StringComparison.OrdinalIgnoreCase))
             return (false, "Employee accounts are managed from Employees.");
-        if (string.Equals(role, "admin", StringComparison.OrdinalIgnoreCase))
-            return (false, "Admin users cannot be deleted.");
+
+        await using var emailCmd = new NpgsqlCommand(
+            "SELECT LOWER(email) FROM users WHERE id = @id", conn);
+        emailCmd.Parameters.AddWithValue("id", userId);
+        var email = await emailCmd.ExecuteScalarAsync(ct) as string;
+        if (string.Equals(email, "admin@digitaldive.net", StringComparison.OrdinalIgnoreCase))
+            return (false, "The primary Admin account cannot be deleted.");
 
         await using var del = new NpgsqlCommand("DELETE FROM users WHERE id = @id", conn);
         del.Parameters.AddWithValue("id", userId);

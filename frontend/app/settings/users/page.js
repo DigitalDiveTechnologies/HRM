@@ -313,8 +313,8 @@ export default function SettingsUsersPage() {
                   </tr>
                 ) : (
                   users.map((row) => {
-                    const roleCode = String(row.role || row.Role || '').toLowerCase();
-                    const isProtectedAdmin = roleCode === 'admin';
+                    const email = String(row.email || row.Email || '').toLowerCase();
+                    const isPrimaryAdmin = email === 'admin@digitaldive.net';
                     return (
                       <tr key={row.id}>
                         <td>
@@ -328,8 +328,8 @@ export default function SettingsUsersPage() {
                           <label
                             className="status-toggle"
                             title={
-                              isProtectedAdmin
-                                ? 'Admin stays active'
+                              isPrimaryAdmin
+                                ? 'Primary Admin stays active'
                                 : row.isActive
                                   ? 'Active — click to deactivate'
                                   : 'Inactive — click to activate'
@@ -338,7 +338,7 @@ export default function SettingsUsersPage() {
                             <input
                               type="checkbox"
                               checked={Boolean(row.isActive)}
-                              disabled={isProtectedAdmin}
+                              disabled={isPrimaryAdmin}
                               onChange={() => toggleActive(row)}
                             />
                             <span className="status-toggle-ui" aria-hidden="true" />
@@ -348,7 +348,7 @@ export default function SettingsUsersPage() {
                         <td>
                           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                             <button type="button" className="btn secondary" onClick={() => openEdit(row)}>Edit</button>
-                            {isProtectedAdmin ? null : (
+                            {isPrimaryAdmin ? null : (
                               <button type="button" className="btn danger" onClick={() => deleteUser(row)}>Delete</button>
                             )}
                           </div>
