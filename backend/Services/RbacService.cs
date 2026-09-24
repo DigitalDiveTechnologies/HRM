@@ -150,7 +150,7 @@ public sealed class RbacService
             : SlugifyRoleCode(req.Code);
         if (string.IsNullOrWhiteSpace(code))
             return (null, "Could not build a valid role code from the name.");
-        if (code is "super_admin" or "employee" or "admin")
+        if (code is "super_admin" or "employee")
             return (null, "This role code is reserved.");
 
         var description = string.IsNullOrWhiteSpace(req.Description) ? null : req.Description.Trim();

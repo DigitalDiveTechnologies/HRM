@@ -4,7 +4,7 @@
  */
 
 /** When false, Settings → Users / Roles are hidden and routes are blocked. */
-export const SETTINGS_USERS_ROLES_ENABLED = false;
+export const SETTINGS_USERS_ROLES_ENABLED = true;
 
 export const NAV = [
   {
