@@ -144,28 +144,23 @@ export default function AppShell({ title, subtitle, actions, children }) {
     });
   }, []);
 
-  // Preserve sidebar scroll position and ensure active tab is vertically centered
+  // Preserve sidebar scroll position (do not jump/recenter on every navigation)
   useEffect(() => {
     if (typeof window === 'undefined' || !ready) return;
     const sidebar = document.getElementById('sidebar');
     if (!sidebar) return;
 
+    const saved = sessionStorage.getItem('gocs_sidebar_scroll');
+    if (saved != null) {
+      const y = Number(saved);
+      if (!Number.isNaN(y)) sidebar.scrollTop = y;
+    }
+
     const onScroll = () => {
       sessionStorage.setItem('gocs_sidebar_scroll', String(sidebar.scrollTop));
     };
     sidebar.addEventListener('scroll', onScroll, { passive: true });
-
-    const timer = setTimeout(() => {
-      const activeLink = sidebar.querySelector('a.active');
-      if (activeLink) {
-        activeLink.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
-      }
-    }, 100);
-
-    return () => {
-      clearTimeout(timer);
-      sidebar.removeEventListener('scroll', onScroll);
-    };
+    return () => sidebar.removeEventListener('scroll', onScroll);
   }, [pathname, ready]);
 
   const { badgeFor, clearBadge, menuCategories, toast, dismissToast } = usePortalAlerts(pathname, ready && Boolean(user));
