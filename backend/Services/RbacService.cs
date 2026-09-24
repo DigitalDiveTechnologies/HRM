@@ -203,9 +203,11 @@ public sealed class RbacService
         var code = reader.GetString(0);
         await reader.CloseAsync();
 
-        // Employee portal role must stay — everything else (including former system roles) can be deleted
+        // Employee portal role must stay — Super Admin is master, not a managed role
         if (string.Equals(code, "employee", StringComparison.OrdinalIgnoreCase))
             return (false, "The Employee role cannot be deleted.");
+        if (string.Equals(code, "super_admin", StringComparison.OrdinalIgnoreCase))
+            return (false, "Super Admin is the master login and cannot be deleted.");
 
         // Detach users from this role row (keep users.role text so existing logins still work)
         await using var detach = new NpgsqlCommand(
@@ -408,12 +410,13 @@ public sealed class RbacService
             LEFT JOIN roles r2 ON LOWER(r2.code) = LOWER(u.role)
             LEFT JOIN employees e ON e.id = u.employee_id
             WHERE LOWER(u.role) <> 'employee'
+              AND LOWER(u.role) <> 'super_admin'
               AND COALESCE(r.portal, r2.portal, CASE
                     WHEN LOWER(u.role) = 'employee' THEN 'employee'
                     ELSE 'admin'
                   END) IN ('admin', 'users')
             ORDER BY
-              CASE LOWER(u.role) WHEN 'super_admin' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,
+              CASE LOWER(u.role) WHEN 'admin' THEN 0 ELSE 1 END,
               u.id
             """,
             conn);
@@ -523,6 +526,8 @@ public sealed class RbacService
 
         if (string.Equals(currentRole, "employee", StringComparison.OrdinalIgnoreCase))
             return (null, "Employee accounts are managed from Employees, not Settings → Users.");
+        if (string.Equals(currentRole, "super_admin", StringComparison.OrdinalIgnoreCase))
+            return (null, "Super Admin is the master login and is not editable here.");
 
         string? roleCode = null;
         int? roleId = null;
@@ -633,6 +638,8 @@ public sealed class RbacService
         if (role is null) return (false, "User not found.");
         if (string.Equals(role, "employee", StringComparison.OrdinalIgnoreCase))
             return (false, "Employee accounts are managed from Employees.");
+        if (string.Equals(role, "super_admin", StringComparison.OrdinalIgnoreCase))
+            return (false, "Super Admin is the master login and cannot be deleted.");
 
         await using var del = new NpgsqlCommand("DELETE FROM users WHERE id = @id", conn);
         del.Parameters.AddWithValue("id", userId);

@@ -300,7 +300,9 @@ export default function SettingsUsersPage() {
 
       <div className="card" style={{ marginBottom: 16 }}>
         <h2 style={{ marginTop: 0, fontSize: '1.05rem' }}>Assigned users</h2>
-        <p className="muted" style={{ marginTop: 0 }}>Only Super Admin and Admin portal users. Employees are not listed here.</p>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Portal users you create. Super Admin is the master login and is not listed here — delete all here can go to 0.
+        </p>
         {loading ? (
           <p className="muted">Loading…</p>
         ) : (
