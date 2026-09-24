@@ -55,6 +55,12 @@ public sealed class CreateRoleRequest
     public string? Description { get; set; }
 }
 
+public sealed class UpdateRoleRequest
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+}
+
 public sealed class CreateRbacUserRequest
 {
     public string Email { get; set; } = string.Empty;

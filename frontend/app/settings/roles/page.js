@@ -25,6 +25,7 @@ export default function SettingsRolesPage() {
   const [busy, setBusy] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState('');
+  const [edit, setEdit] = useState(null);
 
   const load = useCallback(async () => {
     const rows = await api('/rbac/roles');
@@ -94,13 +95,52 @@ export default function SettingsRolesPage() {
     }
   }
 
+  function openEdit(row) {
+    setShowAdd(false);
+    setError('');
+    setOk('');
+    setEdit({
+      id: row.id,
+      name: String(row.name || ''),
+    });
+  }
+
+  async function saveEdit(e) {
+    e.preventDefault();
+    if (!edit?.id) return;
+    setBusy(true);
+    setError('');
+    setOk('');
+    try {
+      const updated = await api(`/rbac/roles/${edit.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: String(edit.name || '').trim() }),
+      });
+      if (updated?.id) {
+        setRoles((prev) => prev.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)));
+      } else {
+        await load();
+      }
+      setEdit(null);
+      setOk('Role updated.');
+      notifySettingsRbacChanged({ type: 'role_updated', role: updated });
+    } catch (err) {
+      setError(err.message || 'Could not update role.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function deleteRole(row) {
-    if (String(row.code || '').toLowerCase() === 'employee') return;
+    const code = String(row.code || '').toLowerCase();
+    if (code === 'employee' || code === 'admin') return;
+    if (!window.confirm(`Delete role “${row.name}”? Users keep their login; re-assign a role if needed.`)) return;
     setError('');
     setOk('');
     try {
       await api(`/rbac/roles/${row.id}`, { method: 'DELETE' });
       setRoles((prev) => prev.filter((r) => r.id !== row.id));
+      if (edit?.id === row.id) setEdit(null);
       setOk('Role deleted.');
       notifySettingsRbacChanged({ type: 'role_deleted', roleId: row.id, code: row.code });
     } catch (err) {
@@ -111,9 +151,18 @@ export default function SettingsRolesPage() {
   return (
     <AppShell
       title="Roles"
-      subtitle="Portal roles list. Add a role or delete any role."
+      subtitle="Add, rename, or delete portal roles."
       actions={(
-        <button type="button" className="btn btn-fit" onClick={() => { setShowAdd(true); setError(''); setOk(''); }}>
+        <button
+          type="button"
+          className="btn btn-fit"
+          onClick={() => {
+            setEdit(null);
+            setShowAdd(true);
+            setError('');
+            setOk('');
+          }}
+        >
           Add New Role
         </button>
       )}
@@ -150,6 +199,29 @@ export default function SettingsRolesPage() {
         </div>
       ) : null}
 
+      {edit ? (
+        <div className="card create-user-card" style={{ marginBottom: 16 }}>
+          <h2 className="create-user-title">Edit Role</h2>
+          <form className="create-user-form" onSubmit={saveEdit} autoComplete="off">
+            <label className="create-user-field">
+              <span>Role name</span>
+              <input
+                required
+                minLength={2}
+                value={edit.name}
+                onChange={(e) => setEdit({ ...edit, name: e.target.value })}
+              />
+            </label>
+            <div className="create-user-actions">
+              <button type="submit" className="btn btn-fit" disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
+              <button type="button" className="btn secondary btn-fit" onClick={() => setEdit(null)} disabled={busy}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+
       <div className="card roles-card">
         {loading ? (
           <p className="muted" style={{ padding: 16, margin: 0 }}>Loading…</p>
@@ -159,12 +231,13 @@ export default function SettingsRolesPage() {
               <thead>
                 <tr>
                   <th>Role</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {adminRoles.length === 0 ? (
                   <tr>
-                    <td className="muted">No admin portal roles found.</td>
+                    <td colSpan={2} className="muted">No admin portal roles found.</td>
                   </tr>
                 ) : (
                   adminRoles.map((r) => {
@@ -172,26 +245,18 @@ export default function SettingsRolesPage() {
                     const canDelete = code !== 'employee' && code !== 'admin';
                     return (
                       <tr key={r.id}>
-                        <td className="roles-name">
-                          <span className="roles-name-row">
-                            {r.name}
+                        <td className="roles-name">{r.name}</td>
+                        <td>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            <button type="button" className="btn secondary" onClick={() => openEdit(r)}>
+                              Edit
+                            </button>
                             {canDelete ? (
-                              <button
-                                type="button"
-                                className="roles-delete-btn"
-                                title="Delete role"
-                                aria-label={`Delete ${r.name}`}
-                                onClick={() => deleteRole(r)}
-                              >
-                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <polyline points="3 6 5 6 21 6" />
-                                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                                  <path d="M10 11v6M14 11v6" />
-                                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                                </svg>
+                              <button type="button" className="btn danger" onClick={() => deleteRole(r)}>
+                                Delete
                               </button>
                             ) : null}
-                          </span>
+                          </div>
                         </td>
                       </tr>
                     );

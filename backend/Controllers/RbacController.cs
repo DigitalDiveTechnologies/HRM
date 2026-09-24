@@ -27,6 +27,14 @@ public sealed class RbacController : ControllerBase
         return Ok(role);
     }
 
+    [HttpPatch("roles/{id:int}")]
+    public async Task<ActionResult<RoleDto>> UpdateRole(int id, [FromBody] UpdateRoleRequest body, CancellationToken ct)
+    {
+        var (role, error) = await _rbac.UpdateRoleAsync(id, body, ct);
+        if (error is not null) return BadRequest(new { error });
+        return Ok(role);
+    }
+
     [HttpDelete("roles/{id:int}")]
     public async Task<IActionResult> DeleteRole(int id, CancellationToken ct)
     {

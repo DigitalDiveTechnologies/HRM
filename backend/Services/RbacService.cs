@@ -195,6 +195,68 @@ public sealed class RbacService
         }, null);
     }
 
+    public async Task<(RoleDto? Role, string? Error)> UpdateRoleAsync(
+        int roleId, UpdateRoleRequest req, CancellationToken ct = default)
+    {
+        var name = (req.Name ?? string.Empty).Trim();
+        if (name.Length < 2)
+            return (null, "Role name is required.");
+
+        var description = string.IsNullOrWhiteSpace(req.Description) ? null : req.Description.Trim();
+
+        await using var conn = _db.CreateConnection();
+        await conn.OpenAsync(ct);
+
+        await using var cur = new NpgsqlCommand(
+            "SELECT code FROM roles WHERE id = @id", conn);
+        cur.Parameters.AddWithValue("id", roleId);
+        var codeObj = await cur.ExecuteScalarAsync(ct);
+        if (codeObj is null || codeObj is DBNull)
+            return (null, "Role not found.");
+        var code = Convert.ToString(codeObj) ?? string.Empty;
+
+        if (string.Equals(code, "employee", StringComparison.OrdinalIgnoreCase))
+            return (null, "The Employee role cannot be edited here.");
+
+        await using var nameExists = new NpgsqlCommand(
+            """
+            SELECT 1 FROM roles
+            WHERE LOWER(TRIM(name)) = LOWER(@name) AND id <> @id
+            LIMIT 1
+            """,
+            conn);
+        nameExists.Parameters.AddWithValue("name", name);
+        nameExists.Parameters.AddWithValue("id", roleId);
+        if (await nameExists.ExecuteScalarAsync(ct) is not null)
+            return (null, "A role with this name already exists. Each role name must be unique.");
+
+        await using var update = new NpgsqlCommand(
+            """
+            UPDATE roles
+            SET name = @name,
+                description = COALESCE(@description, description)
+            WHERE id = @id
+            RETURNING id, code, name, description, portal, is_system
+            """,
+            conn);
+        update.Parameters.AddWithValue("id", roleId);
+        update.Parameters.AddWithValue("name", name);
+        update.Parameters.AddWithValue("description", (object?)description ?? DBNull.Value);
+
+        await using var reader = await update.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
+            return (null, "Role not found.");
+        return (new RoleDto
+        {
+            Id = reader.GetInt32(0),
+            Code = reader.GetString(1),
+            Name = reader.GetString(2),
+            Description = reader.IsDBNull(3) ? null : reader.GetString(3),
+            Portal = reader.GetString(4),
+            IsSystem = reader.GetBoolean(5),
+        }, null);
+    }
+
     public async Task<(bool Ok, string? Error)> DeleteRoleAsync(int roleId, CancellationToken ct = default)
     {
         await using var conn = _db.CreateConnection();
@@ -213,7 +275,7 @@ public sealed class RbacService
         if (string.Equals(code, "employee", StringComparison.OrdinalIgnoreCase))
             return (false, "The Employee role cannot be deleted.");
         if (string.Equals(code, "admin", StringComparison.OrdinalIgnoreCase))
-            return (false, "The Admin role cannot be deleted.");
+            return (false, "The Super Admin role cannot be deleted.");
 
         // Detach users from this role row (keep users.role text so existing logins still work)
         await using var detach = new NpgsqlCommand(
