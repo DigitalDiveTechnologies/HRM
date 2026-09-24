@@ -42,6 +42,7 @@ export default function LoginPage() {
       if (!canUsePortal(user)) {
         throw new Error(t('login_portal_only_hint'));
       }
+      clearSession();
       setSession(data);
       const pref = user?.preferredLocale || user?.preferred_locale;
       if (pref === 'ar' || pref === 'en') setLocale(pref);
@@ -71,9 +72,6 @@ export default function LoginPage() {
         </div>
         <h1>{BRAND.portalHeading}</h1>
         <p>{BRAND.portalSubtitle}</p>
-        <p className="muted" style={{ fontSize: '0.82rem', marginBottom: 12 }}>
-          {BRAND.demoNotice}
-        </p>
         {error ? (
           <div className="error" style={{ display: 'block' }}>
             {error}

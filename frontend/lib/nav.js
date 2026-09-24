@@ -3,6 +3,9 @@
  * Super Admin always sees Settings; other roles filtered by granted permissions.
  */
 
+/** When false, Settings → Users / Roles are hidden and routes are blocked. */
+export const SETTINGS_USERS_ROLES_ENABLED = false;
+
 export const NAV = [
   {
     titleKey: 'nav_overview',
@@ -70,13 +73,17 @@ export const NAV = [
     titleKey: 'nav_settings',
     settingsSection: true,
     links: [
-      { href: '/settings/users', label: 'Users', roles: ['super_admin', 'admin'] },
-      { href: '/settings/roles', label: 'Roles', roles: ['super_admin', 'admin'] },
+      // Temporarily disabled — re-enable by setting SETTINGS_USERS_ROLES_ENABLED = true
+      ...(SETTINGS_USERS_ROLES_ENABLED
+        ? [
+            { href: '/settings/users', label: 'Users', roles: ['super_admin', 'admin'] },
+            { href: '/settings/roles', label: 'Roles', roles: ['super_admin', 'admin'] },
+          ]
+        : []),
       { href: '/settings/permissions', label: 'Permissions', roles: ['super_admin', 'admin'] },
     ],
   },
 ];
-
 /** Match current route to nav link (handles trailing slashes from static export). */
 export function isNavActive(pathname, href) {
   const norm = (p) => {
@@ -115,11 +122,17 @@ function linkAllowed(link, role, permissions) {
 
 export function canAccessPath(pathname, role, permissions) {
   const path = pathname.startsWith('/') ? pathname : `/${pathname}`;
-  const base = path.split('?')[0];
+  const base = path.split('?')[0].replace(/\/$/, '') || '/';
 
   if (base.startsWith('/settings')) {
+    if (!SETTINGS_USERS_ROLES_ENABLED && (base === '/settings/users' || base === '/settings/roles')) {
+      return false;
+    }
     return role === 'super_admin' || role === 'admin';
   }
+
+  // Empty-permission landing — any signed-in role may open this page
+  if (base === '/no-access') return true;
 
   for (const group of NAV) {
     if (group.settingsSection) continue;
@@ -139,6 +152,38 @@ export function canAccessPath(pathname, role, permissions) {
 
   // Admin / super_admin can open anything else in the portal
   return role === 'admin' || role === 'super_admin';
+}
+
+/** First sidebar path this role may open (any role — never assume /mss or /dashboard). */
+export function firstAllowedPath(role, permissions) {
+  const seen = new Set();
+  const candidates = [];
+  const push = (href) => {
+    if (!href || seen.has(href)) return;
+    seen.add(href);
+    candidates.push(href);
+  };
+
+  if (role === 'manager') {
+    ['/mss', '/approvals', '/leave', '/attendance', '/notifications'].forEach(push);
+  } else if (role === 'employee') {
+    ['/ess', '/leave', '/attendance', '/documents', '/notifications'].forEach(push);
+  } else {
+    ['/dashboard', '/notifications', '/employees', '/payroll'].forEach(push);
+  }
+
+  for (const group of NAV) {
+    if (group.settingsSection) continue;
+    for (const link of group.links) {
+      push(link.href);
+      for (const child of link.children || []) push(child.href);
+    }
+  }
+
+  for (const href of candidates) {
+    if (canAccessPath(href, role, permissions)) return href;
+  }
+  return null;
 }
 
 export function navForRole(role, permissions) {

@@ -34,10 +34,10 @@ public sealed class AuthController : ControllerBase
             return BadRequest(new { error = "Email and password are required." });
         }
 
-        var user = await _auth.ValidateLoginAsync(request.Email, request.Password, ct);
+        var (user, loginError) = await _auth.ValidateLoginAsync(request.Email, request.Password, ct);
         if (user is null)
         {
-            return Unauthorized(new { error = "Invalid email or password." });
+            return Unauthorized(new { error = loginError ?? "Invalid email or password." });
         }
 
         if (string.Equals(user.Role, "employee", StringComparison.OrdinalIgnoreCase) && user.EmployeeId is null)

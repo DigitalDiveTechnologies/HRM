@@ -78,35 +78,46 @@ function Send-FtpFile([string]$LocalFile, [string]$RemotePath) {
 # Ensure remote root exists
 New-FtpDirectory $RemoteRoot | Out-Null
 
-# Take IIS app offline so DLLs are not locked during upload
-Write-Host "Taking app offline (app_offline.htm)..."
-Send-FtpText "$RemoteRoot/app_offline.htm" "<!DOCTYPE html><html><body><p>Updating API...</p></body></html>"
-Start-Sleep -Seconds 12
-
-$files = Get-ChildItem $LocalDir -Recurse -File | Sort-Object {
-  if ($_.Name -eq 'web.config') { 0 }
-  elseif ($_.Extension -eq '.dll') { 2 }
-  else { 1 }
+$files = Get-ChildItem $LocalDir -Recurse -File
+$lockedExt = @('.dll', '.exe', '.pdb')
+$staticFiles = $files | Where-Object { $lockedExt -notcontains $_.Extension.ToLowerInvariant() } | Sort-Object {
+  if ($_.Name -eq 'web.config') { 0 } else { 1 }
 }
-$createdDirs = @{}
-foreach ($f in $files) {
-  $rel = $f.FullName.Substring($LocalDir.Length).TrimStart("\","/")
-  $remote = "$RemoteRoot/$($rel -replace '\\','/')"
-  $remoteDir = ($remote -replace '/[^/]+$','')
-  if ($remoteDir -and -not $createdDirs.ContainsKey($remoteDir)) {
-    $parts = $remoteDir.Trim("/").Split("/")
-    $acc = ""
-    foreach ($p in $parts) {
-      $acc += "/$p"
-      New-FtpDirectory $acc | Out-Null
+$binFiles = $files | Where-Object { $lockedExt -contains $_.Extension.ToLowerInvariant() } | Sort-Object Name
+
+function Upload-Batch($batch) {
+  $createdDirs = @{}
+  foreach ($f in $batch) {
+    $rel = $f.FullName.Substring($LocalDir.Length).TrimStart("\","/")
+    $remote = "$RemoteRoot/$($rel -replace '\\','/')"
+    $remoteDir = ($remote -replace '/[^/]+$','')
+    if ($remoteDir -and -not $createdDirs.ContainsKey($remoteDir)) {
+      $parts = $remoteDir.Trim("/").Split("/")
+      $acc = ""
+      foreach ($p in $parts) {
+        $acc += "/$p"
+        New-FtpDirectory $acc | Out-Null
+      }
+      $createdDirs[$remoteDir] = $true
     }
-    $createdDirs[$remoteDir] = $true
+    Write-Host "UP $rel"
+    Send-FtpFile $f.FullName $remote
   }
-  Write-Host "UP $rel"
-  Send-FtpFile $f.FullName $remote
 }
 
-Write-Host "Bringing app back online..."
-Delete-FtpFile "$RemoteRoot/app_offline.htm"
+# Keep API online while uploading configs/static assets
+Write-Host "Uploading non-binary files (API stays online)..."
+Upload-Batch $staticFiles
+
+# Brief offline window only for locked binaries
+Write-Host "Taking app offline for binaries..."
+Send-FtpText "$RemoteRoot/app_offline.htm" "<!DOCTYPE html><html><body><p>Updating…</p></body></html>"
+Start-Sleep -Seconds 3
+try {
+  Upload-Batch $binFiles
+} finally {
+  Write-Host "Bringing app back online..."
+  Delete-FtpFile "$RemoteRoot/app_offline.htm"
+}
 
 Write-Host "Done. Uploaded $($files.Count) files to ftp://$FtpHost$RemoteRoot"

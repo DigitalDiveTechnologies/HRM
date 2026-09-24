@@ -974,20 +974,20 @@ export default function EmployeeMasterForm({
                       required
                       type="email"
                       style={inputStyle}
-                      placeholder="e.g. john@digitaldive.demo"
+                      placeholder="e.g. name@company.com"
                       value={form.email || ''}
                       onChange={(e) => set('email', e.target.value)}
                     />
                   </FieldRow>
 
                   {!isEdit ? (
-                    <FieldRow label="Initial App Password" helper="Default: demo123 (min 6 characters)">
+                    <FieldRow label="Initial App Password" helper="Min 6 characters">
                       <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                         <input
                           type={showPassword ? 'text' : 'password'}
                           style={{ ...inputStyle, paddingRight: '42px' }}
-                          placeholder="demo123"
-                          value={form.password !== undefined && form.password !== null ? form.password : (form.appPassword || 'demo123')}
+                          placeholder="Set a password"
+                          value={form.password !== undefined && form.password !== null ? form.password : (form.appPassword || '')}
                           onChange={(e) => {
                             set('password', e.target.value);
                             set('appPassword', e.target.value);

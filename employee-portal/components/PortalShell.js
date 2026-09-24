@@ -120,6 +120,12 @@ export default function PortalShell({ title, subtitle, actions, children }) {
   }
 
   const displayName = user.fullName || user.email || 'Employee';
+  const initials = String(displayName)
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() || '')
+    .join('') || 'E';
 
   return (
     <div className="shell">
@@ -186,7 +192,6 @@ export default function PortalShell({ title, subtitle, actions, children }) {
           <div className="topbar-right">
             {actions}
 
-            {/* Language Toggle Button */}
             <button
               type="button"
               className="lang-toggle"
@@ -197,17 +202,18 @@ export default function PortalShell({ title, subtitle, actions, children }) {
               {locale === 'en' ? 'ع' : 'EN'}
             </button>
 
-            {/* Theme Toggle Button */}
             <ThemeToggle />
 
-            {/* User Chip: [Name] · employee */}
             <div className="user-chip">
-              {displayName} · {locale === 'ar' ? 'موظف' : 'employee'}
+              <span className="user-avatar" aria-hidden="true">{initials}</span>
+              <span className="user-chip-meta">
+                <span className="user-chip-name">{displayName}</span>
+                <span className="user-chip-role">· {locale === 'ar' ? 'موظف' : 'employee'}</span>
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Page Content */}
         {children}
       </main>
     </div>

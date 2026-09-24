@@ -4,24 +4,39 @@ namespace DigitalDive.Hr.Api.Helpers;
 
 public static class CurrentUser
 {
+    /// <summary>
+    /// Prefer real app roles over the synthetic JWT "admin" companion claim
+    /// (added so finance / hr_officer / custom roles pass [Authorize(Roles="admin")]).
+    /// </summary>
     private static readonly string[] RolePreference =
     {
-        "super_admin", "admin", "manager", "hr_officer", "finance", "viewer", "employee"
+        "super_admin", "hr_officer", "finance", "viewer", "manager", "employee", "admin"
     };
 
     public static string Role(ClaimsPrincipal user)
     {
+        // Dedicated claim wins (never the synthetic admin companion)
+        var appRole = user.FindFirstValue("app_role");
+        if (!string.IsNullOrWhiteSpace(appRole))
+            return appRole.Trim();
+
         var roles = user.FindAll("role").Select(c => c.Value)
             .Concat(user.FindAll(ClaimTypes.Role).Select(c => c.Value))
             .Where(r => !string.IsNullOrWhiteSpace(r))
+            .Select(r => r.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         if (roles.Count == 0) return "employee";
+
         foreach (var preferred in RolePreference)
         {
             var hit = roles.FirstOrDefault(r => string.Equals(r, preferred, StringComparison.OrdinalIgnoreCase));
             if (hit is not null) return hit;
         }
-        return roles[0];
+
+        // Custom role + synthetic admin → keep the custom code, not "admin"
+        var nonAdmin = roles.FirstOrDefault(r => !string.Equals(r, "admin", StringComparison.OrdinalIgnoreCase));
+        return nonAdmin ?? roles[0];
     }
 
     public static string? Email(ClaimsPrincipal user) =>
@@ -45,9 +60,7 @@ public static class CurrentUser
     }
 
     public static bool IsAdmin(ClaimsPrincipal user) =>
-        user.IsInRole("admin")
-        || user.IsInRole("super_admin")
-        || string.Equals(Role(user), "admin", StringComparison.OrdinalIgnoreCase)
+        string.Equals(Role(user), "admin", StringComparison.OrdinalIgnoreCase)
         || string.Equals(Role(user), "super_admin", StringComparison.OrdinalIgnoreCase);
 
     public static bool IsManager(ClaimsPrincipal user) =>

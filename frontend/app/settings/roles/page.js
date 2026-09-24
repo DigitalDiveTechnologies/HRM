@@ -1,10 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import AppShell from '../../../components/AppShell';
 import { api } from '../../../lib/auth';
-
-const emptyRole = { name: '', code: '', description: '' };
+import { SETTINGS_USERS_ROLES_ENABLED } from '../../../lib/nav';
 
 function slugify(name) {
   return String(name || '')
@@ -16,13 +16,14 @@ function slugify(name) {
 }
 
 export default function SettingsRolesPage() {
+  const router = useRouter();
   const [roles, setRoles] = useState([]);
   const [error, setError] = useState('');
   const [ok, setOk] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState(emptyRole);
+  const [name, setName] = useState('');
 
   const load = useCallback(async () => {
     const rows = await api('/rbac/roles');
@@ -30,11 +31,15 @@ export default function SettingsRolesPage() {
   }, []);
 
   useEffect(() => {
+    if (!SETTINGS_USERS_ROLES_ENABLED) {
+      router.replace('/settings/permissions');
+      return;
+    }
     setLoading(true);
     load()
       .catch((err) => setError(err.message || 'Failed to load roles.'))
       .finally(() => setLoading(false));
-  }, [load]);
+  }, [load, router]);
 
   const adminRoles = useMemo(
     () =>
@@ -52,18 +57,17 @@ export default function SettingsRolesPage() {
     setError('');
     setOk('');
     try {
-      const code = form.code.trim() || slugify(form.name);
+      const trimmed = name.trim();
       await api('/rbac/roles', {
         method: 'POST',
         body: JSON.stringify({
-          name: form.name.trim(),
-          code: code || null,
-          description: form.description.trim() || null,
+          name: trimmed,
+          code: slugify(trimmed) || null,
         }),
       });
-      setForm(emptyRole);
+      setName('');
       setShowAdd(false);
-      setOk('Role created. Assign permissions under Settings → Permissions, then use it in Users.');
+      setOk('Role created.');
       await load();
     } catch (err) {
       setError(err.message || 'Could not create role.');
@@ -73,7 +77,7 @@ export default function SettingsRolesPage() {
   }
 
   async function deleteRole(row) {
-    if (row.isSystem) return;
+    if (String(row.code || '').toLowerCase() === 'employee') return;
     if (!window.confirm(`Delete role “${row.name}”? This cannot be undone.`)) return;
     setError('');
     setOk('');
@@ -89,7 +93,7 @@ export default function SettingsRolesPage() {
   return (
     <AppShell
       title="Roles"
-      subtitle="Create roles and control what each role can access on the HR Admin portal."
+      subtitle="Portal roles list. Add a role or delete any role."
       actions={(
         <button type="button" className="btn btn-fit" onClick={() => { setShowAdd(true); setError(''); setOk(''); }}>
           Add New Role
@@ -109,32 +113,8 @@ export default function SettingsRolesPage() {
                 required
                 minLength={2}
                 placeholder="e.g. Auditor"
-                value={form.name}
-                onChange={(e) => {
-                  const name = e.target.value;
-                  setForm((f) => ({
-                    ...f,
-                    name,
-                    code: f.codeLocked ? f.code : slugify(name),
-                  }));
-                }}
-              />
-            </label>
-            <label className="create-user-field">
-              <span>Code</span>
-              <input
-                required
-                placeholder="e.g. auditor"
-                value={form.code}
-                onChange={(e) => setForm({ ...form, code: slugify(e.target.value), codeLocked: true })}
-              />
-            </label>
-            <label className="create-user-field">
-              <span>Description (optional)</span>
-              <input
-                placeholder="Short description"
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
               />
             </label>
             <div className="create-user-actions">
@@ -143,7 +123,7 @@ export default function SettingsRolesPage() {
                 type="button"
                 className="btn secondary btn-fit"
                 disabled={busy}
-                onClick={() => { setShowAdd(false); setForm(emptyRole); }}
+                onClick={() => { setShowAdd(false); setName(''); }}
               >
                 Cancel
               </button>
@@ -156,60 +136,51 @@ export default function SettingsRolesPage() {
         {loading ? (
           <p className="muted" style={{ padding: 16, margin: 0 }}>Loading…</p>
         ) : (
-          <>
-            <div className="table-wrap roles-table-wrap">
-              <table className="roles-table">
-                <thead>
+          <div className="table-wrap roles-table-wrap">
+            <table className="roles-table">
+              <thead>
+                <tr>
+                  <th>Role</th>
+                </tr>
+              </thead>
+              <tbody>
+                {adminRoles.length === 0 ? (
                   <tr>
-                    <th>Role</th>
-                    <th>Code</th>
-                    <th>Description</th>
+                    <td className="muted">No admin portal roles found.</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {adminRoles.length === 0 ? (
-                    <tr>
-                      <td colSpan={3} className="muted">No admin portal roles found.</td>
-                    </tr>
-                  ) : (
-                    adminRoles.map((r) => {
-                      const custom = !r.isSystem;
-                      return (
-                        <tr key={r.id}>
-                          <td className="roles-name">
-                            <span className="roles-name-row">
-                              {r.name}
-                              {custom ? (
-                                <button
-                                  type="button"
-                                  className="roles-delete-btn"
-                                  title="Delete role"
-                                  aria-label={`Delete ${r.name}`}
-                                  onClick={() => deleteRole(r)}
-                                >
-                                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <polyline points="3 6 5 6 21 6" />
-                                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                                    <path d="M10 11v6M14 11v6" />
-                                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                                  </svg>
-                                </button>
-                              ) : null}
-                            </span>
-                          </td>
-                          <td><span className="badge">{r.code}</span></td>
-                          <td className="roles-desc">{r.description || '—'}</td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-            <p className="roles-hint">
-              Set access under <strong>Settings → Permissions</strong>. Create logins under <strong>Settings → Users</strong>.
-            </p>
-          </>
+                ) : (
+                  adminRoles.map((r) => {
+                    const canDelete = String(r.code || '').toLowerCase() !== 'employee';
+                    return (
+                      <tr key={r.id}>
+                        <td className="roles-name">
+                          <span className="roles-name-row">
+                            {r.name}
+                            {canDelete ? (
+                              <button
+                                type="button"
+                                className="roles-delete-btn"
+                                title="Delete role"
+                                aria-label={`Delete ${r.name}`}
+                                onClick={() => deleteRole(r)}
+                              >
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <polyline points="3 6 5 6 21 6" />
+                                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                                  <path d="M10 11v6M14 11v6" />
+                                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                                </svg>
+                              </button>
+                            ) : null}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </AppShell>

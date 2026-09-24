@@ -43,30 +43,64 @@ export default function AppShell({ title, subtitle, actions, children }) {
       router.replace('/');
       return;
     }
+
     const role = normalizeRole(u);
     const permissions = getPermissions(u);
-    if (!canAccessPath(pathname, role, permissions)) {
-      router.replace(homeForRole(u));
-      return;
-    }
+    const norm = (p) => {
+      const s = (p || '/').split('?')[0];
+      return (s.length > 1 && s.endsWith('/') ? s.slice(0, -1) : s) || '/';
+    };
+    const here = norm(pathname);
+
+    // Always mark ready with a valid session — never leave any role stuck on Loading.
     setUser(u);
     setReady(true);
-    // Enforce deactivate + refresh permissions from server
+
+    if (!canAccessPath(pathname, role, permissions)) {
+      const home = homeForRole(u);
+      if (home && norm(home) !== here) {
+        router.replace(home);
+      }
+    }
+
+    // Refresh permissions from server (deactivate / matrix changes) — keep login role, never promote to admin
     api('/auth/me')
       .then((me) => {
-        if (me && Array.isArray(me.permissions)) {
-          const next = { ...u, permissions: me.permissions };
-          try {
-            localStorage.setItem('hr_user', JSON.stringify(next));
-          } catch {
-            /* ignore */
-          }
-          setUser(next);
+        if (!me) return;
+        const loginRole = normalizeRole(u);
+        const meRole = String(me.role || me.Role || loginRole).toLowerCase();
+        // Ignore bogus "admin" from old JWTs when this session logged in as another role
+        const role =
+          meRole === 'admin' && loginRole && loginRole !== 'admin' && loginRole !== 'super_admin'
+            ? loginRole
+            : meRole || loginRole;
+        const perms = Array.isArray(me.permissions)
+          ? me.permissions
+          : Array.isArray(me.Permissions)
+            ? me.Permissions
+            : getPermissions(u);
+        const next = {
+          ...u,
+          role,
+          permissions: perms,
+          email: me.email || me.Email || u.email,
+          fullName: me.fullName || me.FullName || u.fullName || u.full_name,
+        };
+        try {
+          localStorage.setItem('hr_user', JSON.stringify(next));
+        } catch {
+          /* ignore */
+        }
+        setUser(next);
+        const nextRole = normalizeRole(next);
+        const nextPerms = getPermissions(next);
+        if (!canAccessPath(pathname, nextRole, nextPerms)) {
+          const home = homeForRole(next);
+          if (home && norm(home) !== here) router.replace(home);
         }
       })
       .catch(() => {
-        clearSession();
-        router.replace('/');
+        /* keep session — never logout into a Loading loop */
       });
   }, [pathname, router]);
 
@@ -108,6 +142,9 @@ export default function AppShell({ title, subtitle, actions, children }) {
   const role = normalizeRole(user);
   const permissions = getPermissions(user);
   const filteredNav = navForRole(role, permissions);
+  const pathAllowed = canAccessPath(pathname, role, permissions);
+  const noPages = filteredNav.length === 0;
+  const showPage = pathAllowed && !noPages;
 
   function logout() {
     clearSession();
@@ -116,6 +153,11 @@ export default function AppShell({ title, subtitle, actions, children }) {
 
   const companyLogo = selectedCompany?.logo_url || selectedCompany?.logoUrl || '';
   const companyName = selectedCompany?.name || '';
+  const headerTitle = noPages || !pathAllowed ? 'No access' : title;
+  const headerSubtitle =
+    noPages || !pathAllowed
+      ? 'This role has no portal pages assigned yet.'
+      : subtitle || '';
 
   return (
     <>
@@ -285,8 +327,8 @@ export default function AppShell({ title, subtitle, actions, children }) {
                 ) : null}
               </span>
               <div>
-                <h2>{title}</h2>
-                <p>{subtitle || ''}</p>
+                <h2>{headerTitle}</h2>
+                <p>{headerSubtitle}</p>
               </div>
             </div>
             <div className="topbar-right">
@@ -298,7 +340,19 @@ export default function AppShell({ title, subtitle, actions, children }) {
               </div>
             </div>
           </div>
-          <div id="content">{children}</div>
+          <div id="content">
+            {showPage ? (
+              children
+            ) : (
+              <div className="card" style={{ padding: '28px 24px', maxWidth: 560 }}>
+                <p style={{ margin: 0, lineHeight: 1.5 }}>
+                  No portal pages are assigned to your role. Ask Super Admin to open{' '}
+                  <strong>Settings → Permissions</strong>, tick the pages this role should see, Save, then sign in
+                  again.
+                </p>
+              </div>
+            )}
+          </div>
         </main>
       </div>
       {toast ? (

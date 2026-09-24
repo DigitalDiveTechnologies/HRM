@@ -29,28 +29,22 @@ public sealed class RbacService
         // Super Admin always has every catalog permission + Settings (client-side)
         if (code == "super_admin")
         {
-            await using var connAll = _db.CreateConnection();
-            await connAll.OpenAsync(ct);
-            try
-            {
-                await using var all = new NpgsqlCommand(
-                    "SELECT code FROM permissions ORDER BY sort_order, id", connAll);
-                var list = new List<string>();
-                await using var reader = await all.ExecuteReaderAsync(ct);
-                while (await reader.ReadAsync(ct))
-                    list.Add(reader.GetString(0));
-                return list;
-            }
-            catch (PostgresException ex) when (ex.SqlState == "42P01")
-            {
-                return Array.Empty<string>();
-            }
+            return await ListAllPermissionCodesAsync(ct);
         }
 
         await using var conn = _db.CreateConnection();
         await conn.OpenAsync(ct);
         try
         {
+            await using var existsCmd = new NpgsqlCommand(
+                "SELECT 1 FROM roles WHERE LOWER(code) = @code LIMIT 1", conn);
+            existsCmd.Parameters.AddWithValue("code", code);
+            var roleExists = await existsCmd.ExecuteScalarAsync(ct) is not null;
+
+            // Admin keeps full portal access if the admin role row was removed (Users/Roles temporarily off)
+            if (!roleExists && code == "admin")
+                return await ListAllPermissionCodesAsync(ct);
+
             await using var cmd = new NpgsqlCommand(
                 """
                 SELECT p.code
@@ -64,6 +58,26 @@ public sealed class RbacService
             cmd.Parameters.AddWithValue("code", code);
             var list = new List<string>();
             await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+                list.Add(reader.GetString(0));
+            return list;
+        }
+        catch (PostgresException ex) when (ex.SqlState == "42P01")
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    private async Task<IReadOnlyList<string>> ListAllPermissionCodesAsync(CancellationToken ct)
+    {
+        await using var connAll = _db.CreateConnection();
+        await connAll.OpenAsync(ct);
+        try
+        {
+            await using var all = new NpgsqlCommand(
+                "SELECT code FROM permissions ORDER BY sort_order, id", connAll);
+            var list = new List<string>();
+            await using var reader = await all.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
                 list.Add(reader.GetString(0));
             return list;
@@ -187,29 +201,19 @@ public sealed class RbacService
         if (!await reader.ReadAsync(ct))
             return (false, "Role not found.");
         var code = reader.GetString(0);
-        var isSystem = reader.GetBoolean(1);
         await reader.CloseAsync();
 
-        if (isSystem)
-            return (false, "System roles cannot be deleted.");
-        if (string.Equals(code, "super_admin", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(code, "employee", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(code, "admin", StringComparison.OrdinalIgnoreCase))
-            return (false, "This role cannot be deleted.");
+        // Employee portal role must stay — everything else (including former system roles) can be deleted
+        if (string.Equals(code, "employee", StringComparison.OrdinalIgnoreCase))
+            return (false, "The Employee role cannot be deleted.");
 
-        await using var inUse = new NpgsqlCommand(
-            """
-            SELECT 1 FROM users
-            WHERE role_id = @id OR LOWER(role) = LOWER(@code)
-            LIMIT 1
-            """,
-            conn);
-        inUse.Parameters.AddWithValue("id", roleId);
-        inUse.Parameters.AddWithValue("code", code);
-        if (await inUse.ExecuteScalarAsync(ct) is not null)
-            return (false, "Cannot delete a role that is still assigned to users. Reassign users first.");
+        // Detach users from this role row (keep users.role text so existing logins still work)
+        await using var detach = new NpgsqlCommand(
+            "UPDATE users SET role_id = NULL WHERE role_id = @id", conn);
+        detach.Parameters.AddWithValue("id", roleId);
+        await detach.ExecuteNonQueryAsync(ct);
 
-        await using var del = new NpgsqlCommand("DELETE FROM roles WHERE id = @id AND is_system = FALSE", conn);
+        await using var del = new NpgsqlCommand("DELETE FROM roles WHERE id = @id", conn);
         del.Parameters.AddWithValue("id", roleId);
         var n = await del.ExecuteNonQueryAsync(ct);
         return n > 0 ? (true, null) : (false, "Role not found.");

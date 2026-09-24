@@ -1,12 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import AppShell from '../../../components/AppShell';
 import { api, normalizeRole, getUser } from '../../../lib/auth';
+import { SETTINGS_USERS_ROLES_ENABLED } from '../../../lib/nav';
 
 const emptyForm = { email: '', password: '', displayName: '', roleCode: 'admin' };
 
 export default function SettingsUsersPage() {
+  const router = useRouter();
   const [roles, setRoles] = useState([]);
   const [users, setUsers] = useState([]);
   const [form, setForm] = useState(emptyForm);
@@ -59,6 +62,10 @@ export default function SettingsUsersPage() {
   }, []);
 
   useEffect(() => {
+    if (!SETTINGS_USERS_ROLES_ENABLED) {
+      router.replace('/settings/permissions');
+      return;
+    }
     const me = getUser();
     const role = normalizeRole(me);
     if (role !== 'super_admin' && role !== 'admin') return;
@@ -66,7 +73,7 @@ export default function SettingsUsersPage() {
     load()
       .catch((err) => setError(err.message || 'Failed to load users.'))
       .finally(() => setLoading(false));
-  }, [load]);
+  }, [load, router]);
 
   useEffect(() => {
     if (!edit || !editRef.current) return;

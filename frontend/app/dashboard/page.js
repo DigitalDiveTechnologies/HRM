@@ -485,7 +485,7 @@ export default function DashboardPage() {
   const activeEmployees = Math.max(0, totalEmployees - todayOnLeave);
   const activePercent = totalEmployees > 0 ? Math.round((activeEmployees / totalEmployees) * 100) : 0;
   const leavePercent = totalEmployees > 0 ? Math.round((todayOnLeave / totalEmployees) * 100) : 0;
-  const expiringPercent = totalEmployees > 0 ? Math.round((expiringDocs / totalEmployees) * 100) : (selectedCompanyId ? 0 : 23);
+  const expiringPercent = totalEmployees > 0 ? Math.round((expiringDocs / totalEmployees) * 100) : 0;
 
 
   // Dynamic 12-month workforce attendance statistics computed from real DB logs & approved leaves

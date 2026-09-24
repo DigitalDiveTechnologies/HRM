@@ -1,0 +1,14 @@
+---
+description: Always commit and push to GitHub when deploying to Vercel or FTP
+alwaysApply: true
+---
+
+# Deploy + GitHub together
+
+Whenever you deploy to Vercel (`npx vercel deploy`) or upload/publish the API (FTP / `dotnet publish` for production):
+
+1. **Commit** all related real code changes first (or immediately after) — do not leave pending work uncommitted.
+2. **Push** to `origin` on the current branch (`git push`).
+3. Do **not** commit junk: `publish_out/`, `bin/`, `obj/`, `node_modules/`, `*- Copy.*` duplicate files, `.env`, credentials, or large build artifacts.
+4. If the user only asked for a deploy, still sync git so GitHub matches what went live.
+5. Use a clear commit message that matches the repo style (feat/fix/chore).

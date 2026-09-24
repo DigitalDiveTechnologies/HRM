@@ -13,7 +13,8 @@ public sealed class AuthService
         _db = db;
     }
 
-    public async Task<UserRecord?> ValidateLoginAsync(string email, string password, CancellationToken ct = default)
+    public async Task<(UserRecord? User, string? Error)> ValidateLoginAsync(
+        string email, string password, CancellationToken ct = default)
     {
         await using var conn = _db.CreateConnection();
         await conn.OpenAsync(ct);
@@ -81,10 +82,16 @@ public sealed class AuthService
             }
         }
 
-        if (user is null) return null;
+        if (user is null)
+            return (null, "Invalid email or password.");
+
         password = password.Trim();
 
-        if (!user.IsActive) return null;
+        if (!PasswordHasher.Verify(user.Password, password))
+            return (null, "Invalid email or password.");
+
+        if (!user.IsActive)
+            return (null, "This account is inactive. Ask your admin to activate it again.");
 
         // Preferred locale + portal from roles (best-effort; missing columns/tables won't block login)
         try
@@ -124,11 +131,6 @@ public sealed class AuthService
             user.Portal = null;
         }
 
-        if (!PasswordHasher.Verify(user.Password, password))
-        {
-            return null;
-        }
-
         // Upgrade legacy plaintext passwords to BCrypt after successful login.
         if (!PasswordHasher.IsHashed(user.Password))
         {
@@ -141,7 +143,7 @@ public sealed class AuthService
             user.Password = hash;
         }
 
-        return user;
+        return (user, null);
     }
 
     public async Task<bool> IsUserActiveAsync(int userId, CancellationToken ct = default)

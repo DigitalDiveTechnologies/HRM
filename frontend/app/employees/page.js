@@ -1684,7 +1684,7 @@ function EmployeesContent() {
                           <div className="emp-row-label">App Password</div>
                           <div className="emp-row-val" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span style={{ fontFamily: showProfilePassword ? 'inherit' : 'monospace', fontSize: showProfilePassword ? '13px' : '15px', fontWeight: 600, color: 'var(--ink, #0f172a)', letterSpacing: showProfilePassword ? 'normal' : '2px' }}>
-                              {showProfilePassword ? (v(selected, 'password') || selectedMd.password || 'demo123') : '••••••••'}
+                              {showProfilePassword ? (v(selected, 'password') || selectedMd.password || '—') : '••••••••'}
                             </span>
                             <button
                               type="button"

@@ -1,6 +1,5 @@
 /**
- * GOCs client branding — swap logo/colors here when client assets arrive (Phase 1B).
- * Demo logins and data stay unchanged (digitaldive.demo).
+ * GOCs client branding — swap logo/colors here when client assets arrive.
  */
 export const BRAND = {
   clientName: 'GOCs Global',
@@ -12,7 +11,6 @@ export const BRAND = {
   sidebarAccent: 'HR',
   sidebarTag: 'HR Portal · UAE',
   loginTagline: 'Workforce Management · UAE',
-  demoNotice: 'Demo environment · sample data',
   poweredBy: 'Built by Digital Dive Technologies',
   logoSrc: '/media/logo.webp',
   logoAlt: 'GOCs Global',

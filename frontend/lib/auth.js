@@ -1,3 +1,5 @@
+import { firstAllowedPath } from './nav';
+
 /** Live backend on sir's FTP host — used when portal runs on Vercel/stage (not localhost). */
 const PRODUCTION_API = 'https://digitaldivetech-001-site4.gtempurl.com/HRMDevelopment';
 
@@ -64,11 +66,11 @@ export function canUsePortal(user) {
   return Boolean(role);
 }
 
+/** Landing path from granted permissions — /no-access if role has no portal pages. */
 export function homeForRole(user) {
   const role = normalizeRole(user);
-  if (role === 'manager') return '/mss';
-  if (role === 'employee') return '/ess';
-  return '/dashboard';
+  const permissions = getPermissions(user);
+  return firstAllowedPath(role, permissions) || '/no-access';
 }
 
 export function getPermissions(user) {
@@ -85,7 +87,40 @@ function statusMessage(status, data) {
   if (data?.error || data?.title) return data.error || data.title;
   if (status === 401) return 'Session expired — please sign in again.';
   if (status === 403) return 'You do not have permission for this action.';
+  if (status === 502 || status === 503 || status === 504) {
+    return 'Service is updating. Please try again in a moment.';
+  }
   return `Request failed (${status})`;
+}
+
+const REACHABILITY_ERROR = 'Service is updating. Please try again in a moment.';
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableStatus(status) {
+  return status === 502 || status === 503 || status === 504 || status === 408;
+}
+
+/** Retry when API is briefly offline (IIS app_offline / recycle during deploy). */
+async function fetchWithRetry(url, init, { retries = 8, delayMs = 1500 } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, init);
+      if (isRetryableStatus(res.status) && attempt < retries) {
+        await sleep(delayMs);
+        continue;
+      }
+      return res;
+    } catch (err) {
+      lastErr = err;
+      if (attempt >= retries) break;
+      await sleep(delayMs);
+    }
+  }
+  throw lastErr || new Error(REACHABILITY_ERROR);
 }
 
 const inflightGetRequests = new Map();
@@ -113,7 +148,7 @@ export async function api(path, options = {}) {
 
 async function executeApi(path, options = {}) {
   const skipAuth = options.skipAuth === true || path.startsWith('/auth/login');
-  const { skipAuth: _omit, ...fetchOptions } = options;
+  const { skipAuth: _omit, retries, delayMs, ...fetchOptions } = options;
   const token = skipAuth ? null : getToken();
   const headers = {
     'Content-Type': 'application/json',
@@ -123,12 +158,13 @@ async function executeApi(path, options = {}) {
 
   let res;
   try {
-    res = await fetch(`${getApiBase()}/api${path}`, {
-      ...fetchOptions,
-      headers,
-    });
+    res = await fetchWithRetry(
+      `${getApiBase()}/api${path}`,
+      { ...fetchOptions, headers },
+      { retries: retries ?? 8, delayMs: delayMs ?? 1500 },
+    );
   } catch {
-    throw new Error('Cannot reach the HR API. Check that the backend is running and CORS allows this portal URL.');
+    throw new Error(REACHABILITY_ERROR);
   }
 
   const data = await res.json().catch(() => ({}));
@@ -146,13 +182,13 @@ export async function apiUpload(path, formData) {
 
   let res;
   try {
-    res = await fetch(`${getApiBase()}/api${path}`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
+    res = await fetchWithRetry(
+      `${getApiBase()}/api${path}`,
+      { method: 'POST', headers, body: formData },
+      { retries: 6, delayMs: 1500 },
+    );
   } catch {
-    throw new Error('Cannot reach the HR API. Check that the backend is running and CORS allows this portal URL.');
+    throw new Error(REACHABILITY_ERROR);
   }
 
   const data = await res.json().catch(() => ({}));
@@ -171,11 +207,13 @@ export async function apiBlob(path) {
 
   let res;
   try {
-    res = await fetch(`${getApiBase()}/api${path}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    res = await fetchWithRetry(
+      `${getApiBase()}/api${path}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+      { retries: 6, delayMs: 1500 },
+    );
   } catch {
-    throw new Error('Cannot reach the HR API. Check that the backend is running and CORS allows this portal URL.');
+    throw new Error(REACHABILITY_ERROR);
   }
 
   if (!res.ok) {

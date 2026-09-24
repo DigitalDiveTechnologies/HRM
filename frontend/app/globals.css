@@ -1816,23 +1816,6 @@ html[dir='rtl'] .row-actions {
   color: var(--ink);
   min-width: 140px;
 }
-.roles-desc {
-  color: var(--muted);
-  font-size: 0.92rem;
-  line-height: 1.4;
-}
-.roles-hint {
-  margin: 0;
-  padding: 14px 16px 16px;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 0.88rem;
-  line-height: 1.45;
-}
-.roles-hint strong {
-  color: var(--ink);
-  font-weight: 600;
-}
 .roles-name-row {
   display: inline-flex;
   align-items: center;
