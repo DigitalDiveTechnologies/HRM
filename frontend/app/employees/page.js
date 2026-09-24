@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import AppShell, { Badge } from '../../components/AppShell';
 import EmployeeMasterForm from '../../components/EmployeeMasterForm';
-import { api, apiBlob, apiUpload, getApiBase, getUser, normalizeRole } from '../../lib/auth';
+import { api, apiBlob, apiUpload, getApiBase, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
 import {
   emptyMasterForm,
   masterFormFromEmployee,
@@ -33,7 +33,7 @@ function getInitials(name) {
 
 function EmployeesContent() {
   const role = normalizeRole(getUser());
-  const isAdmin = role === 'admin';
+  const isAdmin = isAdminRole(role);
   const [rows, setRows] = useState(() => {
     if (typeof window !== 'undefined') {
       try {

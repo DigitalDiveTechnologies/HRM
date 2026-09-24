@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, getUser, normalizeRole } from '../../lib/auth';
+import { api, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
 import { formatDate, todayISO, v } from '../../lib/format';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
 
 export default function PerformancePage() {
   const role = normalizeRole(getUser());
-  const isAdmin = role === 'admin';
+  const isAdmin = isAdminRole(role);
   const { filteredEmpIds } = useCompanyFilter();
 
   const [goals, setGoals] = useState([]);
@@ -37,7 +37,7 @@ export default function PerformancePage() {
     setError('');
     const roleNow = normalizeRole(getUser());
     const reqs = [api('/performance/goals'), api('/performance/reviews')];
-    if (roleNow === 'admin' || roleNow === 'manager') reqs.push(api('/employees'));
+    if (isAdminRole(roleNow) || roleNow === 'manager') reqs.push(api('/employees'));
     Promise.all(reqs)
       .then(([g, r, emps]) => {
         setGoals(g || []);

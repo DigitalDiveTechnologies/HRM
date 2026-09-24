@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, getUser, normalizeRole } from '../../lib/auth';
+import { api, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
 import { formatDate, todayISO, v } from '../../lib/format';
 
 export default function ExitPage() {
   const role = normalizeRole(getUser());
-  const isAdmin = role === 'admin';
+  const isAdmin = isAdminRole(role);
 
   const [rows, setRows] = useState([]);
   const [employees, setEmployees] = useState([]);

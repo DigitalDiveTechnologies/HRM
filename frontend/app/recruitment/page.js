@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, normalizeRole, getUser } from '../../lib/auth';
+import { api, normalizeRole, getUser, isAdminRole } from '../../lib/auth';
 import { formatDate, money, v } from '../../lib/format';
 
 export default function RecruitmentPage() {
   const role = normalizeRole(getUser());
-  const isAdmin = role === 'admin';
+  const isAdmin = isAdminRole(role);
 
   const [jobs, setJobs] = useState([]);
   const [candidates, setCandidates] = useState([]);

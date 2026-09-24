@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, getPermissions, getUser, normalizeRole } from '../../lib/auth';
+import { api, getPermissions, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
 import { hasPermission } from '../../lib/nav';
 import { v } from '../../lib/format';
 
@@ -19,8 +19,8 @@ export default function MastersPage() {
   const [msg, setMsg] = useState('');
   const perms = getPermissions(getUser());
   const role = normalizeRole(getUser());
-  const canDes = role === 'super_admin' || hasPermission(perms, 'masters.designations') || (!perms.length && role === 'admin');
-  const canEmp = role === 'super_admin' || hasPermission(perms, 'masters.employment_types') || (!perms.length && role === 'admin');
+  const canDes = isAdminRole(role) || hasPermission(perms, 'masters.designations');
+  const canEmp = isAdminRole(role) || hasPermission(perms, 'masters.employment_types');
 
   useEffect(() => {
     if (canDes && !canEmp) setTab('designations');

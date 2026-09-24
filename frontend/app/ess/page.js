@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, getUser, normalizeRole } from '../../lib/auth';
+import { api, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
 import { downloadDocumentFile, formatDate, money, v } from '../../lib/format';
 import { useLocale } from '../../lib/i18n/LocaleContext';
 
@@ -24,6 +24,12 @@ export default function EssPage() {
     if (!user) return;
     const eid = user.employeeId || user.employee_id;
     if (!eid) {
+      // Super Admin / Admin can open ESS without a linked employee profile
+      if (isAdminRole(user)) {
+        setData({ profile: {}, leaves: [], payslips: [], attendance: [], documents: [] });
+        setError('');
+        return;
+      }
       setError(t('ess_no_link'));
       return;
     }
@@ -38,6 +44,10 @@ export default function EssPage() {
   async function savePhone(e) {
     e.preventDefault();
     const eid = user?.employeeId || user?.employee_id;
+    if (!eid) {
+      setError(t('ess_no_link'));
+      return;
+    }
     setMsg('');
     try {
       await api(`/ess/${eid}/profile`, {
@@ -102,7 +112,7 @@ export default function EssPage() {
                 <Link className="btn secondary" href="/training">
                   Training
                 </Link>
-                {role === 'admin' ? (
+                {isAdminRole(role) ? (
                   <Link className="btn secondary" href="/employees">
                     Directory
                   </Link>

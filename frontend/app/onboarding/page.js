@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, getUser, normalizeRole } from '../../lib/auth';
+import { api, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
 import { formatDate, todayISO, v } from '../../lib/format';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
 
@@ -16,7 +16,7 @@ export default function OnboardingPage() {
     return null;
   });
   const role = normalizeRole(user);
-  const isAdmin = role === 'admin';
+  const isAdmin = isAdminRole(role);
   const { filteredEmpIds } = useCompanyFilter();
 
   const [employees, setEmployees] = useState([]);

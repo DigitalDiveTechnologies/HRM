@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, getUser, normalizeRole } from '../../lib/auth';
+import { api, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
 import { formatDate, v } from '../../lib/format';
 
 
 export default function AssetsPage() {
   const role = normalizeRole(getUser());
-  const isAdmin = role === 'admin';
+  const isAdmin = isAdminRole(role);
 
   const [assets, setAssets] = useState([]);
   const [assignments, setAssignments] = useState([]);

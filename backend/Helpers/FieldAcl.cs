@@ -23,7 +23,7 @@ public static class FieldAcl
     public static bool CanViewCompensation(string? role, int? viewerEmployeeId, int? subjectEmployeeId)
     {
         var r = (role ?? "").Trim().ToLowerInvariant();
-        if (r is "admin" or "hr") return true;
+        if (r is "admin" or "super_admin" or "hr") return true;
         if (viewerEmployeeId is > 0 && subjectEmployeeId is > 0 && viewerEmployeeId == subjectEmployeeId)
             return true;
         return false;

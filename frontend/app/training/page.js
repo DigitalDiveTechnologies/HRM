@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, getUser, normalizeRole } from '../../lib/auth';
+import { api, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
 import { formatDate, todayISO, v } from '../../lib/format';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
 
 export default function TrainingPage() {
   const role = normalizeRole(getUser());
-  const isAdmin = role === 'admin';
+  const isAdmin = isAdminRole(role);
   const { filteredEmpIds } = useCompanyFilter();
 
   const [courses, setCourses] = useState([]);
@@ -50,7 +50,7 @@ export default function TrainingPage() {
       api('/training/certifications'),
       api('/training/calendar'),
     ];
-    if (roleNow === 'admin' || roleNow === 'manager') {
+    if (isAdminRole(roleNow) || roleNow === 'manager') {
       reqs.push(api('/org/skills').catch(() => []));
       reqs.push(api('/org/employee-skills').catch(() => []));
       reqs.push(api('/employees').catch(() => []));

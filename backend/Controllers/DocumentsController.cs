@@ -39,7 +39,8 @@ public sealed class DocumentsController : ControllerBase
             return Ok(await _hr.DocumentsForEmployeeAsync(id.Value, ct));
         }
 
-        if (role is not ("admin" or "manager")) return Forbid();
+        if (!CurrentUser.IsAdmin(User) && !CurrentUser.IsManager(User))
+            return Forbid();
         return Ok(await _hr.DocumentsAsync(ct));
     }
 
@@ -137,7 +138,7 @@ public sealed class DocumentsController : ControllerBase
             if (!myId.HasValue || docEid != myId.Value.ToString())
                 return Forbid();
         }
-        else if (role is not ("admin" or "manager"))
+        else if (!CurrentUser.IsAdmin(User) && !CurrentUser.IsManager(User))
         {
             return Forbid();
         }

@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, apiUpload, getUser, normalizeRole } from '../../lib/auth';
+import { api, apiUpload, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
 import { downloadDocumentFile, formatDate, todayISO, v } from '../../lib/format';
 import { applyEmpFilter, useCompanyFilter } from '../../lib/useCompanyFilter';
 
 export default function DocumentsPage() {
   const role = normalizeRole(getUser());
-  const isAdmin = role === 'admin';
+  const isAdmin = isAdminRole(role);
   const { filteredEmpIds } = useCompanyFilter();
 
   const [rows, setRows] = useState([]);
@@ -33,7 +33,7 @@ export default function DocumentsPage() {
     setError('');
     const role = normalizeRole(getUser());
     const tasks = [api('/documents')];
-    if (role === 'admin') tasks.push(api('/employees'));
+    if (isAdminRole(role)) tasks.push(api('/employees'));
     Promise.all(tasks)
       .then(([docs, emps]) => {
         setRows(docs || []);

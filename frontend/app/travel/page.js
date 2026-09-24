@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, getUser, normalizeRole } from '../../lib/auth';
+import { api, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
 import { formatDate, money, currencyCode, todayISO, v } from '../../lib/format';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
 
 export default function TravelPage() {
   const role = normalizeRole(getUser());
-  const isAdmin = role === 'admin';
+  const isAdmin = isAdminRole(role);
 
   const [travel, setTravel] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -50,7 +50,7 @@ export default function TravelPage() {
     load();
   }, [load]);
 
-  const canCreateTravel = role === 'admin' || role === 'manager' || role === 'employee';
+  const canCreateTravel = isAdminRole(role) || role === 'manager' || role === 'employee';
   const selfId = getUser()?.employeeId || getUser()?.employee_id;
 
   async function createTravel(e) {

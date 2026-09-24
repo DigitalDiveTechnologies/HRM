@@ -29,7 +29,15 @@ public sealed class MssController : ControllerBase
 
         var self = CurrentUser.EmployeeId(User);
         if (self is null or <= 0)
+        {
+            // Super Admin / Admin can open MSS without a linked employee — empty team view
+            if (CurrentUser.IsAdmin(User))
+            {
+                managerId = 0;
+                return null;
+            }
             return BadRequest(new { error = "manager employee profile required" });
+        }
 
         managerId = self.Value;
         return null;

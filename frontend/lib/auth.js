@@ -60,6 +60,14 @@ export function normalizeRole(user) {
   return String(user?.role || 'employee').toLowerCase();
 }
 
+/** Admin portal power users — Super Admin has full access everywhere. */
+export function isAdminRole(userOrRole) {
+  const role = typeof userOrRole === 'string'
+    ? String(userOrRole || '').toLowerCase()
+    : normalizeRole(userOrRole);
+  return role === 'admin' || role === 'super_admin';
+}
+
 /** HR web portal — admin staff, custom roles, manager/employee self-service. */
 export function canUsePortal(user) {
   const role = normalizeRole(user);
