@@ -668,18 +668,17 @@ export default function DashboardPage() {
         </div>
       ) : null}
 
-      {data && !hasAnyWidget ? (
-        <div className="card" style={{ padding: 28, marginTop: 8 }}>
-          <h3 style={{ marginTop: 0, marginBottom: 8 }}>Dashboard</h3>
-          <p className="muted" style={{ margin: 0, lineHeight: 1.5 }}>
-            Your role can open this page. Other widgets stay hidden until matching permissions are granted
-            in Settings → Permissions (Employees, Leave, Attendance, Documents, Notifications, Company, …).
-          </p>
-        </div>
-      ) : null}
-
-      {data && hasAnyWidget ? (
+      {data ? (
         <div className="dash-container">
+          {!hasAnyWidget ? (
+            <div className="card" style={{ padding: '36px 28px', marginTop: 4 }}>
+              <h3 style={{ marginTop: 0, marginBottom: 8, fontSize: '1.15rem' }}>Welcome</h3>
+              <p className="muted" style={{ margin: 0, lineHeight: 1.55, maxWidth: 520 }}>
+                This is your dashboard. Overview metrics will appear here when your role includes those areas.
+              </p>
+            </div>
+          ) : null}
+
           {/* =========================================================================
               ZONE 0: Company Selector / Filter Bar
              ========================================================================= */}
