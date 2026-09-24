@@ -208,3 +208,25 @@ export function hasPermission(permissions, code) {
   if (!rolePerms.length) return false;
   return rolePerms.map((c) => String(c).toLowerCase()).includes(String(code).toLowerCase());
 }
+
+/**
+ * Feature gate for page widgets (same rules as sidebar links).
+ * - super_admin: always
+ * - role with granted permissions list: must include code
+ * - admin with empty grants: full access (legacy / full admin)
+ * - other roles with empty grants: deny
+ */
+export function canUsePermission(role, permissions, code) {
+  if (!code) return true;
+  const r = String(role || '').toLowerCase();
+  if (r === 'super_admin') return true;
+  if (permissions && permissions.length) {
+    return hasPermission(permissions, code);
+  }
+  return r === 'admin';
+}
+
+export function canUseAnyPermission(role, permissions, codes) {
+  const list = Array.isArray(codes) ? codes : [codes];
+  return list.some((c) => canUsePermission(role, permissions, c));
+}

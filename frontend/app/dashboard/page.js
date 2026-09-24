@@ -4,13 +4,31 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api } from '../../lib/auth';
+import { api, getPermissions, getUser, normalizeRole } from '../../lib/auth';
 import { formatDate, formatLate, v } from '../../lib/format';
+import { canUseAnyPermission, canUsePermission } from '../../lib/nav';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'July', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+const COMPANY_PERMS = [
+  'company.create',
+  'company.organisation',
+  'company.structure',
+];
+
 export default function DashboardPage() {
   const router = useRouter();
+  const role = normalizeRole(getUser());
+  const permissions = getPermissions(getUser());
+  const canEmployees = canUsePermission(role, permissions, 'employees.list');
+  const canLeave = canUsePermission(role, permissions, 'leave.view');
+  const canDocuments = canUsePermission(role, permissions, 'documents.view');
+  const canNotifications = canUsePermission(role, permissions, 'notifications.view');
+  const canAttendance = canUsePermission(role, permissions, 'attendance.view');
+  const canCompanies = canUseAnyPermission(role, permissions, COMPANY_PERMS);
+  const canCreateCompany = canUsePermission(role, permissions, 'company.create');
+  const hasAnyWidget =
+    canEmployees || canLeave || canDocuments || canNotifications || canAttendance || canCompanies;
   const [data, setData] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -145,19 +163,33 @@ export default function DashboardPage() {
 
   const loadData = useCallback(() => {
     setError('');
-    Promise.all([
-      api('/dashboard'),
-      api('/employees'),
-      api('/notifications').catch(() => []),
-      api('/divisions').catch(() => []),
-      api('/leave').catch(() => []),
-      api('/attendance').catch(() => []),
-    ])
+    const u = getUser();
+    const roleNow = normalizeRole(u);
+    const permsNow = getPermissions(u);
+    const allowEmployees = canUsePermission(roleNow, permsNow, 'employees.list');
+    const allowLeave = canUsePermission(roleNow, permsNow, 'leave.view');
+    const allowNotifications = canUsePermission(roleNow, permsNow, 'notifications.view');
+    const allowCompanies = canUseAnyPermission(roleNow, permsNow, COMPANY_PERMS);
+    const allowAttendance = canUsePermission(roleNow, permsNow, 'attendance.view');
+
+    const tasks = [api('/dashboard').catch(() => ({}))];
+    tasks.push(allowEmployees ? api('/employees').catch(() => []) : Promise.resolve([]));
+    tasks.push(allowNotifications ? api('/notifications').catch(() => []) : Promise.resolve([]));
+    tasks.push(allowCompanies ? api('/divisions').catch(() => []) : Promise.resolve([]));
+    tasks.push(allowLeave ? api('/leave').catch(() => []) : Promise.resolve([]));
+    tasks.push(allowAttendance ? api('/attendance').catch(() => []) : Promise.resolve([]));
+
+    Promise.all(tasks)
       .then(([dash, emps, notifs, divs, leaveRows, attRows]) => {
-        const cleanEmps = Array.isArray(emps) ? emps : [];
-        const cleanDivs = Array.isArray(divs) ? divs : [];
-        const cleanLeaves = Array.isArray(leaveRows) ? leaveRows : [];
-        const cleanAtt = Array.isArray(attRows) && attRows.length ? attRows : (dash?.recentAttendance || []);
+        const cleanEmps = allowEmployees && Array.isArray(emps) ? emps : [];
+        const cleanDivs = allowCompanies && Array.isArray(divs) ? divs : [];
+        const cleanLeaves = allowLeave && Array.isArray(leaveRows) ? leaveRows : [];
+        const cleanAtt =
+          allowAttendance && Array.isArray(attRows) && attRows.length
+            ? attRows
+            : allowAttendance
+              ? dash?.recentAttendance || []
+              : [];
 
         setData(dash || {});
         setEmployees(cleanEmps);
@@ -166,7 +198,7 @@ export default function DashboardPage() {
         setAttendanceList(cleanAtt);
 
         const feed = [];
-        if (Array.isArray(notifs) && notifs.length) {
+        if (allowNotifications && Array.isArray(notifs) && notifs.length) {
           notifs.forEach((n) => {
             feed.push({
               id: `notif-${v(n, 'id')}`,
@@ -177,7 +209,7 @@ export default function DashboardPage() {
           });
         }
 
-        if (feed.length < 5 && dash?.recentAttendance?.length) {
+        if (allowAttendance && feed.length < 5 && dash?.recentAttendance?.length) {
           dash.recentAttendance.slice(0, 5).forEach((a, idx) => {
             feed.push({
               id: `att-${idx}`,
@@ -188,7 +220,7 @@ export default function DashboardPage() {
           });
         }
 
-        const finalFeed = feed.slice(0, 10);
+        const finalFeed = allowNotifications || allowAttendance ? feed.slice(0, 10) : [];
         setActivities(finalFeed);
 
         try {
@@ -214,6 +246,15 @@ export default function DashboardPage() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  // Drop cached widgets the current role is not allowed to see
+  useEffect(() => {
+    if (!canEmployees) setEmployees([]);
+    if (!canCompanies) setCompanies([]);
+    if (!canLeave) setLeaves([]);
+    if (!canAttendance) setAttendanceList([]);
+    if (!canNotifications && !canAttendance) setActivities([]);
+  }, [canEmployees, canCompanies, canLeave, canAttendance, canNotifications]);
 
   async function handleCreateCompany(e) {
     e.preventDefault();
@@ -583,24 +624,30 @@ export default function DashboardPage() {
   return (
     <AppShell
       title="Dashboard"
-      subtitle={selectedCompany ? `Workforce overview for ${v(selectedCompany, 'name')}` : "Workforce overview, live statistics and operational metrics"}
+      subtitle={
+        canCompanies && selectedCompany
+          ? `Workforce overview for ${v(selectedCompany, 'name')}`
+          : 'Workforce overview, live statistics and operational metrics'
+      }
       actions={
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <select
-            value={selectedCompanyId}
-            onChange={(e) => setSelectedCompanyId(e.target.value)}
-            className="topbar-select"
-            style={selectedCompanyId ? { borderColor: '#00b8db', borderWidth: '1.5px' } : undefined}
-            title="Filter dashboard by company"
-          >
-            <option value="">🏢 All Companies ({companies.length})</option>
-            {companies.map((c) => (
-              <option key={v(c, 'id')} value={String(v(c, 'id'))}>
-                {v(c, 'name')} {v(c, 'code') ? `(${v(c, 'code')})` : ''}
-              </option>
-            ))}
-          </select>
-        </div>
+        canCompanies ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <select
+              value={selectedCompanyId}
+              onChange={(e) => setSelectedCompanyId(e.target.value)}
+              className="topbar-select"
+              style={selectedCompanyId ? { borderColor: '#00b8db', borderWidth: '1.5px' } : undefined}
+              title="Filter dashboard by company"
+            >
+              <option value="">🏢 All Companies ({companies.length})</option>
+              {companies.map((c) => (
+                <option key={v(c, 'id')} value={String(v(c, 'id'))}>
+                  {v(c, 'name')} {v(c, 'code') ? `(${v(c, 'code')})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null
       }
     >
       {error ? <div className="error" style={{ marginBottom: 14 }}>{error}</div> : null}
@@ -621,11 +668,22 @@ export default function DashboardPage() {
         </div>
       ) : null}
 
-      {data ? (
+      {data && !hasAnyWidget ? (
+        <div className="card" style={{ padding: 28, marginTop: 8 }}>
+          <h3 style={{ marginTop: 0, marginBottom: 8 }}>Dashboard</h3>
+          <p className="muted" style={{ margin: 0, lineHeight: 1.5 }}>
+            Your role can open this page. Other widgets stay hidden until matching permissions are granted
+            in Settings → Permissions (Employees, Leave, Attendance, Documents, Notifications, Company, …).
+          </p>
+        </div>
+      ) : null}
+
+      {data && hasAnyWidget ? (
         <div className="dash-container">
           {/* =========================================================================
               ZONE 0: Company Selector / Filter Bar
              ========================================================================= */}
+          {canCompanies ? (
           <div
             className="dash-company-filter-bar"
             style={{
@@ -738,12 +796,15 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
+          ) : null}
 
           {/* =========================================================================
               ZONE 1: 4 Vibrant Cards (Row Direction, Proper Height & Generous Padding)
              ========================================================================= */}
+          {(canEmployees || canLeave || canDocuments || canNotifications) ? (
           <div className="dash-kpi-grid">
             {/* Card 1: Emerald Teal (Dynamic Active Rate) */}
+            {canEmployees ? (
             <Link
               href={selectedCompanyId ? `/employees?company=${selectedCompanyId}#all-employees` : "/employees#all-employees"}
               className="dash-kpi-card"
@@ -783,8 +844,10 @@ export default function DashboardPage() {
                 </svg>
               </div>
             </Link>
+            ) : null}
 
             {/* Card 2: Amber Yellow/Orange (Pending Leave + Today on leave) */}
+            {canLeave ? (
             <Link
               href="/leave"
               className="dash-kpi-card"
@@ -824,8 +887,10 @@ export default function DashboardPage() {
                 </svg>
               </div>
             </Link>
+            ) : null}
 
             {/* Card 3: Coral Red (Duplicate 3 hidden from circle ring) */}
+            {canDocuments ? (
             <Link
               href="/documents"
               className="dash-kpi-card"
@@ -877,8 +942,10 @@ export default function DashboardPage() {
                 </svg>
               </div>
             </Link>
+            ) : null}
 
             {/* Card 4: Royal Blue */}
+            {canNotifications ? (
             <Link
               href="/notifications"
               className="dash-kpi-card"
@@ -918,11 +985,14 @@ export default function DashboardPage() {
                 </svg>
               </div>
             </Link>
+            ) : null}
           </div>
+          ) : null}
 
           {/* =========================================================================
               ZONE 2: Middle Section (Image 4 Stats Chart + Recent Attendance Table)
              ========================================================================= */}
+          {canAttendance ? (
           <div className="dash-middle-grid">
             {/* Left Box: Workforce Attendance Statistics (Exact Image 4 Floating Bars) */}
             <div className="card dash-card">
@@ -1063,12 +1133,15 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
+          ) : null}
 
           {/* =========================================================================
               ZONE 3: Bottom Section (Activity Feed + All Employees Numbered List)
              ========================================================================= */}
+          {(canNotifications || canEmployees) ? (
           <div className="dash-bottom-grid">
             {/* Left Box: Activity Feed (No Badges on Left, Cyan Button, Scrollable) */}
+            {canNotifications ? (
             <div className="card dash-card">
               <div className="dash-card-header">
                 <div>
@@ -1118,8 +1191,10 @@ export default function DashboardPage() {
                 )}
               </div>
             </div>
+            ) : null}
 
             {/* Right Box: All Employees (Cyan Button, No Manage Button, Scrollable) */}
+            {canEmployees ? (
             <div className="card dash-card">
               <div className="dash-card-header">
                 <div>
@@ -1209,11 +1284,14 @@ export default function DashboardPage() {
                 </table>
               </div>
             </div>
+            ) : null}
           </div>
+          ) : null}
 
           {/* =========================================================================
               ZONE 4: Companies Section (Corporate Entities & Add Company Option)
              ========================================================================= */}
+          {canCompanies ? (
           <div className="card dash-card">
             <div className="dash-card-header">
               <div>
@@ -1221,6 +1299,7 @@ export default function DashboardPage() {
                 <div className="dash-card-subtitle">Corporate entities & payroll divisions</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                {canCreateCompany ? (
                 <button
                   type="button"
                   onClick={() => setShowAddCompany((prev) => !prev)}
@@ -1237,6 +1316,7 @@ export default function DashboardPage() {
                 >
                   {showAddCompany ? 'Close' : '+ Add Company'}
                 </button>
+                ) : null}
                 <Link
                   href="/divisions"
                   style={{
@@ -1263,7 +1343,7 @@ export default function DashboardPage() {
             ) : null}
 
             {/* Quick Add Company Form (Expandable directly from Dashboard) */}
-            {showAddCompany ? (
+            {canCreateCompany && showAddCompany ? (
               <form onSubmit={handleCreateCompany} style={{
                 background: 'var(--surface-alt)',
                 border: '1px solid var(--line)',
@@ -1613,6 +1693,7 @@ export default function DashboardPage() {
               </div>
             ) : null}
           </div>
+          ) : null}
         </div>
       ) : null}
 
