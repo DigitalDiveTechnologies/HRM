@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import AppShell from '../../../components/AppShell';
 import { api } from '../../../lib/auth';
+import { notifySettingsRbacChanged, subscribeSettingsRbacChanged } from '../../../lib/settingsSync';
 
 function CheckIcon() {
   return (
@@ -43,6 +44,15 @@ export default function SettingsPermissionsPage() {
     load()
       .catch((err) => setError(err.message || 'Failed to load permissions.'))
       .finally(() => setLoading(false));
+  }, [load]);
+
+  useEffect(() => {
+    return subscribeSettingsRbacChanged((detail) => {
+      const t = String(detail?.type || '');
+      if (t.startsWith('role_') || t === 'rbac_reload') {
+        load().catch(() => {});
+      }
+    });
   }, [load]);
 
   const groups = useMemo(() => {
@@ -86,12 +96,11 @@ export default function SettingsPermissionsPage() {
         body: JSON.stringify(payload),
       });
       setOk('Permissions saved.');
-      // Reload so matrix + nav reflect saved grants clearly
-      window.setTimeout(() => {
-        window.location.reload();
-      }, 350);
+      await load();
+      notifySettingsRbacChanged({ type: 'permissions_saved' });
     } catch (err) {
       setError(err.message || 'Could not save permissions.');
+    } finally {
       setBusy(false);
     }
   }

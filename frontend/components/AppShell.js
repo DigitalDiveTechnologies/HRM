@@ -20,6 +20,7 @@ import LanguageToggle from './LanguageToggle';
 import { usePortalAlerts } from './usePortalAlerts';
 import { useLocale } from '../lib/i18n/LocaleContext';
 import { useCompanyFilter } from '../lib/useCompanyFilter';
+import { subscribeSettingsRbacChanged } from '../lib/settingsSync';
 
 export default function AppShell({ title, subtitle, actions, children }) {
   const pathname = usePathname();
@@ -103,6 +104,45 @@ export default function AppShell({ title, subtitle, actions, children }) {
         /* keep session — never logout into a Loading loop */
       });
   }, [pathname, router]);
+
+  // Soft-refresh session when Settings RBAC changes (no full page reload)
+  useEffect(() => {
+    return subscribeSettingsRbacChanged((detail) => {
+      const t = String(detail?.type || '');
+      if (t !== 'permissions_saved' && t !== 'rbac_reload') return;
+      const u = getUser();
+      if (!u) return;
+      api('/auth/me')
+        .then((me) => {
+          if (!me) return;
+          const loginRole = normalizeRole(u);
+          const meRole = String(me.role || me.Role || loginRole).toLowerCase();
+          const role =
+            meRole === 'admin' && loginRole && loginRole !== 'admin' && loginRole !== 'super_admin'
+              ? loginRole
+              : meRole || loginRole;
+          const perms = Array.isArray(me.permissions)
+            ? me.permissions
+            : Array.isArray(me.Permissions)
+              ? me.Permissions
+              : getPermissions(u);
+          const next = {
+            ...u,
+            role,
+            permissions: perms,
+            email: me.email || me.Email || u.email,
+            fullName: me.fullName || me.FullName || u.fullName || u.full_name,
+          };
+          try {
+            localStorage.setItem('hr_user', JSON.stringify(next));
+          } catch {
+            /* ignore */
+          }
+          setUser(next);
+        })
+        .catch(() => {});
+    });
+  }, []);
 
   // Preserve sidebar scroll position and ensure active tab is vertically centered
   useEffect(() => {

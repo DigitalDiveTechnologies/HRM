@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import AppShell from '../../../components/AppShell';
 import { api, normalizeRole, getUser } from '../../../lib/auth';
 import { SETTINGS_USERS_ROLES_ENABLED } from '../../../lib/nav';
+import { notifySettingsRbacChanged, subscribeSettingsRbacChanged } from '../../../lib/settingsSync';
 
 const emptyForm = { email: '', password: '', displayName: '', roleCode: 'admin' };
 
@@ -80,13 +81,52 @@ export default function SettingsUsersPage() {
     editRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [edit]);
 
+  useEffect(() => {
+    return subscribeSettingsRbacChanged((detail) => {
+      const t = String(detail?.type || '');
+      if (t.startsWith('role_') || t === 'rbac_reload') {
+        // Soft-refresh roles for the dropdown — no loading flash
+        api('/rbac/roles')
+          .then((roleRows) => {
+            const rolesList = Array.isArray(roleRows) ? roleRows : [];
+            setRoles(rolesList);
+            const firstAssignable = rolesList.find((r) => {
+              const code = String(r.code || '').toLowerCase();
+              const portal = String(r.portal || '').toLowerCase();
+              return (portal === 'admin' || portal === 'users') && code !== 'super_admin' && code !== 'employee';
+            });
+            if (firstAssignable) {
+              setForm((f) => {
+                const stillValid = rolesList.some(
+                  (r) => String(r.code).toLowerCase() === String(f.roleCode).toLowerCase(),
+                );
+                return stillValid ? f : { ...f, roleCode: firstAssignable.code };
+              });
+            }
+          })
+          .catch(() => {});
+      }
+    });
+  }, []);
+
+  function upsertUser(row) {
+    if (!row?.id) return;
+    setUsers((prev) => {
+      const i = prev.findIndex((u) => u.id === row.id);
+      if (i === -1) return [...prev, row];
+      const next = prev.slice();
+      next[i] = { ...prev[i], ...row };
+      return next;
+    });
+  }
+
   async function createUser(e) {
     e.preventDefault();
     setBusy(true);
     setError('');
     setOk('');
     try {
-      await api('/rbac/users', {
+      const created = await api('/rbac/users', {
         method: 'POST',
         body: JSON.stringify({
           email: form.email.trim(),
@@ -95,10 +135,12 @@ export default function SettingsUsersPage() {
           roleCode: form.roleCode,
         }),
       });
+      if (created?.id) upsertUser(created);
+      else await load();
       setShowPass(false);
       setForm({ ...emptyForm, roleCode: form.roleCode || 'admin' });
       setOk('User created.');
-      await load();
+      notifySettingsRbacChanged({ type: 'user_created', user: created });
     } catch (err) {
       setError(err.message || 'Could not create user.');
     } finally {
@@ -112,12 +154,16 @@ export default function SettingsUsersPage() {
     setError('');
     setOk('');
     try {
-      await api(`/rbac/users/${row.id}`, {
+      const updated = await api(`/rbac/users/${row.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ isActive: !row.isActive }),
       });
+      if (updated?.id) upsertUser(updated);
+      else {
+        setUsers((prev) => prev.map((u) => (u.id === row.id ? { ...u, isActive: !row.isActive } : u)));
+      }
       setOk(row.isActive ? 'User deactivated.' : 'User activated.');
-      await load();
+      notifySettingsRbacChanged({ type: 'user_updated', user: updated });
     } catch (err) {
       setError(err.message || 'Could not update user.');
     }
@@ -130,9 +176,10 @@ export default function SettingsUsersPage() {
     setOk('');
     try {
       await api(`/rbac/users/${row.id}`, { method: 'DELETE' });
+      setUsers((prev) => prev.filter((u) => u.id !== row.id));
       setOk('User deleted.');
       if (edit?.id === row.id) setEdit(null);
-      await load();
+      notifySettingsRbacChanged({ type: 'user_deleted', userId: row.id });
     } catch (err) {
       setError(err.message || 'Could not delete user.');
     }
@@ -172,10 +219,12 @@ export default function SettingsUsersPage() {
         if (pw.length < 6) throw new Error('Password must be at least 6 characters.');
         body.password = pw;
       }
-      await api(`/rbac/users/${edit.id}`, { method: 'PATCH', body: JSON.stringify(body) });
+      const updated = await api(`/rbac/users/${edit.id}`, { method: 'PATCH', body: JSON.stringify(body) });
+      if (updated?.id) upsertUser(updated);
+      else await load();
       setEdit(null);
       setOk('User updated.');
-      await load();
+      notifySettingsRbacChanged({ type: 'user_updated', user: updated });
     } catch (err) {
       setError(err.message || 'Could not update user.');
     } finally {

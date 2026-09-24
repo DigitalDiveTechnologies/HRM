@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import AppShell from '../../../components/AppShell';
 import { api } from '../../../lib/auth';
 import { SETTINGS_USERS_ROLES_ENABLED } from '../../../lib/nav';
+import { notifySettingsRbacChanged, subscribeSettingsRbacChanged } from '../../../lib/settingsSync';
 
 function slugify(name) {
   return String(name || '')
@@ -41,6 +42,15 @@ export default function SettingsRolesPage() {
       .finally(() => setLoading(false));
   }, [load, router]);
 
+  useEffect(() => {
+    return subscribeSettingsRbacChanged((detail) => {
+      const t = String(detail?.type || '');
+      if (t.startsWith('role_') || t === 'rbac_reload') {
+        load().catch(() => {});
+      }
+    });
+  }, [load]);
+
   const adminRoles = useMemo(
     () =>
       roles.filter((r) => {
@@ -58,17 +68,25 @@ export default function SettingsRolesPage() {
     setOk('');
     try {
       const trimmed = name.trim();
-      await api('/rbac/roles', {
+      const created = await api('/rbac/roles', {
         method: 'POST',
         body: JSON.stringify({
           name: trimmed,
           code: slugify(trimmed) || null,
         }),
       });
+      if (created?.id) {
+        setRoles((prev) => {
+          if (prev.some((r) => r.id === created.id)) return prev;
+          return [...prev, created];
+        });
+      } else {
+        await load();
+      }
       setName('');
       setShowAdd(false);
       setOk('Role created.');
-      await load();
+      notifySettingsRbacChanged({ type: 'role_created', role: created });
     } catch (err) {
       setError(err.message || 'Could not create role.');
     } finally {
@@ -83,8 +101,9 @@ export default function SettingsRolesPage() {
     setOk('');
     try {
       await api(`/rbac/roles/${row.id}`, { method: 'DELETE' });
+      setRoles((prev) => prev.filter((r) => r.id !== row.id));
       setOk('Role deleted.');
-      await load();
+      notifySettingsRbacChanged({ type: 'role_deleted', roleId: row.id, code: row.code });
     } catch (err) {
       setError(err.message || 'Could not delete role.');
     }
