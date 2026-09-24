@@ -524,38 +524,42 @@ public sealed class RbacService
         if (string.Equals(currentRole, "employee", StringComparison.OrdinalIgnoreCase))
             return (null, "Employee accounts are managed from Employees, not Settings → Users.");
 
-        if (string.Equals(currentRole, "super_admin", StringComparison.OrdinalIgnoreCase)
-            && req.RoleCode is not null
-            && !string.Equals(req.RoleCode.Trim(), "super_admin", StringComparison.OrdinalIgnoreCase))
-        {
-            return (null, "Cannot change the Super Admin role.");
-        }
-
         string? roleCode = null;
         int? roleId = null;
         string? roleName = null;
         string? portal = null;
+        var clearRoleId = false;
 
         if (!string.IsNullOrWhiteSpace(req.RoleCode))
         {
             roleCode = req.RoleCode.Trim().ToLowerInvariant();
-            if (roleCode is "super_admin" or "employee")
-                return (null, "Cannot assign Super Admin or Employee from Settings → Users.");
+            if (roleCode is "employee")
+                return (null, "Cannot assign Employee from Settings → Users.");
 
-            await using var roleCmd = new NpgsqlCommand(
-                "SELECT id, name, portal FROM roles WHERE LOWER(code) = @code LIMIT 1", conn);
-            roleCmd.Parameters.AddWithValue("code", roleCode);
-            await using var roleReader = await roleCmd.ExecuteReaderAsync(ct);
-            if (!await roleReader.ReadAsync(ct))
-                return (null, "Unknown role. Roles must exist in the database.");
-            roleId = roleReader.GetInt32(0);
-            roleName = roleReader.GetString(1);
-            portal = roleReader.GetString(2);
-            await roleReader.CloseAsync();
+            if (roleCode is "super_admin")
+            {
+                // Super Admin may not exist in roles table — keep role text, clear role_id
+                roleName = "Super Admin";
+                portal = "admin";
+                clearRoleId = true;
+            }
+            else
+            {
+                await using var roleCmd = new NpgsqlCommand(
+                    "SELECT id, name, portal FROM roles WHERE LOWER(code) = @code LIMIT 1", conn);
+                roleCmd.Parameters.AddWithValue("code", roleCode);
+                await using var roleReader = await roleCmd.ExecuteReaderAsync(ct);
+                if (!await roleReader.ReadAsync(ct))
+                    return (null, "Unknown role. Roles must exist in the database.");
+                roleId = roleReader.GetInt32(0);
+                roleName = roleReader.GetString(1);
+                portal = roleReader.GetString(2);
+                await roleReader.CloseAsync();
 
-            if (!string.Equals(portal, "admin", StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(portal, "users", StringComparison.OrdinalIgnoreCase))
-                return (null, "Only Admin portal roles can be assigned here.");
+                if (!string.Equals(portal, "admin", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(portal, "users", StringComparison.OrdinalIgnoreCase))
+                    return (null, "Only Admin portal roles can be assigned here.");
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(req.Password))
@@ -589,7 +593,10 @@ public sealed class RbacService
               email = COALESCE(@email, email),
               display_name = COALESCE(@display, display_name),
               role = COALESCE(@role, role),
-              role_id = COALESCE(@roleId, role_id),
+              role_id = CASE
+                WHEN @clearRoleId THEN NULL
+                ELSE COALESCE(@roleId, role_id)
+              END,
               is_active = COALESCE(@active, is_active)
             WHERE id = @id
             """,
@@ -600,6 +607,7 @@ public sealed class RbacService
             string.IsNullOrWhiteSpace(req.DisplayName) ? (object)DBNull.Value : req.DisplayName.Trim());
         update.Parameters.AddWithValue("role", (object?)roleCode ?? DBNull.Value);
         update.Parameters.AddWithValue("roleId", (object?)roleId ?? DBNull.Value);
+        update.Parameters.AddWithValue("clearRoleId", clearRoleId);
         update.Parameters.AddWithValue("active", req.IsActive.HasValue ? req.IsActive.Value : (object)DBNull.Value);
         await update.ExecuteNonQueryAsync(ct);
 
@@ -623,8 +631,6 @@ public sealed class RbacService
         cur.Parameters.AddWithValue("id", userId);
         var role = await cur.ExecuteScalarAsync(ct) as string;
         if (role is null) return (false, "User not found.");
-        if (string.Equals(role, "super_admin", StringComparison.OrdinalIgnoreCase))
-            return (false, "Cannot delete the Super Admin account.");
         if (string.Equals(role, "employee", StringComparison.OrdinalIgnoreCase))
             return (false, "Employee accounts are managed from Employees.");
 

@@ -42,6 +42,15 @@ export default function SettingsUsersPage() {
     });
   }, [roles]);
 
+  const editRoleOptions = useMemo(() => {
+    const list = [...assignableRoles];
+    if (edit && String(edit.roleCode).toLowerCase() === 'super_admin'
+      && !list.some((r) => String(r.code).toLowerCase() === 'super_admin')) {
+      list.unshift({ code: 'super_admin', name: edit.roleName || 'Super Admin' });
+    }
+    return list;
+  }, [assignableRoles, edit]);
+
   const load = useCallback(async () => {
     const [roleRows, userRows] = await Promise.all([api('/rbac/roles'), api('/rbac/users')]);
     const rolesList = Array.isArray(roleRows) ? roleRows : [];
@@ -168,7 +177,6 @@ export default function SettingsUsersPage() {
   }
 
   async function deleteUser(row) {
-    if (String(row.role).toLowerCase() === 'super_admin') return;
     setError('');
     setOk('');
     try {
@@ -183,13 +191,13 @@ export default function SettingsUsersPage() {
   }
 
   function openEdit(row) {
-    if (String(row.role).toLowerCase() === 'super_admin') return;
     setShowEditPass(false);
     setEdit({
       id: row.id,
       displayName: row.displayName || row.DisplayName || '',
       email: row.email || row.Email || '',
       roleCode: String(row.role || row.Role || 'admin').toLowerCase(),
+      roleName: row.roleName || row.RoleName || row.role || '',
       password: '',
     });
     setError('');
@@ -277,7 +285,7 @@ export default function SettingsUsersPage() {
                 value={edit.roleCode}
                 onChange={(e) => setEdit({ ...edit, roleCode: e.target.value })}
               >
-                {assignableRoles.map((r) => (
+                {editRoleOptions.map((r) => (
                   <option key={r.code} value={String(r.code).toLowerCase()}>{r.name}</option>
                 ))}
               </select>
@@ -313,7 +321,6 @@ export default function SettingsUsersPage() {
                   </tr>
                 ) : (
                   users.map((row) => {
-                    const isSa = String(row.role).toLowerCase() === 'super_admin';
                     return (
                       <tr key={row.id}>
                         <td>
@@ -335,14 +342,10 @@ export default function SettingsUsersPage() {
                           </label>
                         </td>
                         <td>
-                          {isSa ? (
-                            <span className="muted">—</span>
-                          ) : (
-                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                              <button type="button" className="btn secondary" onClick={() => openEdit(row)}>Edit</button>
-                              <button type="button" className="btn danger" onClick={() => deleteUser(row)}>Delete</button>
-                            </div>
-                          )}
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            <button type="button" className="btn secondary" onClick={() => openEdit(row)}>Edit</button>
+                            <button type="button" className="btn danger" onClick={() => deleteUser(row)}>Delete</button>
+                          </div>
                         </td>
                       </tr>
                     );
