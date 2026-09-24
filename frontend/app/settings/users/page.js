@@ -329,7 +329,7 @@ export default function SettingsUsersPage() {
                             className="status-toggle"
                             title={
                               isPrimaryAdmin
-                                ? 'Primary Admin stays active'
+                                ? 'Primary Super Admin stays active'
                                 : row.isActive
                                   ? 'Active — click to deactivate'
                                   : 'Inactive — click to activate'
@@ -347,7 +347,9 @@ export default function SettingsUsersPage() {
                         </td>
                         <td>
                           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            <button type="button" className="btn secondary" onClick={() => openEdit(row)}>Edit</button>
+                            {isPrimaryAdmin ? null : (
+                              <button type="button" className="btn secondary" onClick={() => openEdit(row)}>Edit</button>
+                            )}
                             {isPrimaryAdmin ? null : (
                               <button type="button" className="btn danger" onClick={() => deleteUser(row)}>Delete</button>
                             )}
