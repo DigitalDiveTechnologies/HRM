@@ -105,18 +105,27 @@ function linkAllowed(link, role, permissions) {
   if (permissions && permissions.length && codes.length) {
     return hasAnyPermission(permissions, codes);
   }
+  // No permission matrix grants → fall back to role allow-list on the link
+  if (permissions && permissions.length && !codes.length) {
+    return false;
+  }
   return linkRoles(link).includes(role);
 }
 
 export function canAccessPath(pathname, role, permissions) {
   const path = pathname.startsWith('/') ? pathname : `/${pathname}`;
   const base = path.split('?')[0].replace(/\/$/, '') || '/';
+  const r = String(role || '').toLowerCase();
+  const grants = Array.isArray(permissions) ? permissions : [];
+
+  // Super Admin: full portal
+  if (r === 'super_admin') return true;
 
   if (base.startsWith('/settings')) {
     if (!SETTINGS_USERS_ROLES_ENABLED && (base === '/settings/users' || base === '/settings/roles')) {
       return false;
     }
-    return role === 'super_admin' || role === 'admin';
+    return r === 'admin';
   }
 
   // Empty-permission landing — any signed-in role may open this page
@@ -126,20 +135,35 @@ export function canAccessPath(pathname, role, permissions) {
     if (group.settingsSection) continue;
     for (const link of group.links) {
       if (link.href === base || (base.startsWith(`${link.href}/`) && link.href !== '/')) {
-        if (linkAllowed(link, role, permissions)) return true;
+        if (linkAllowed(link, r, grants)) return true;
       }
       if (link.children) {
         for (const child of link.children) {
           if (child.href === base || base.startsWith(`${child.href}/`)) {
-            if (linkAllowed(child, role, permissions)) return true;
+            if (linkAllowed(child, r, grants)) return true;
           }
         }
       }
     }
   }
 
-  // Admin / super_admin can open anything else in the portal
-  return role === 'admin' || role === 'super_admin';
+  // Company / divisions (opened from dashboard; may not be a top-level nav row)
+  if (base === '/divisions' || base.startsWith('/divisions/')) {
+    if (grants.length) {
+      return canUseAnyPermission(r, grants, [
+        'company.create',
+        'company.organisation',
+        'company.structure',
+      ]);
+    }
+    return r === 'admin';
+  }
+
+  // Role has an explicit permission matrix → only granted paths (already matched above)
+  if (grants.length) return false;
+
+  // Legacy full Admin (no matrix rows) keeps full portal
+  return r === 'admin';
 }
 
 /** First sidebar path this role may open (any role — never assume /mss or /dashboard). */
