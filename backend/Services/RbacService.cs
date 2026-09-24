@@ -150,7 +150,7 @@ public sealed class RbacService
             : SlugifyRoleCode(req.Code);
         if (string.IsNullOrWhiteSpace(code))
             return (null, "Could not build a valid role code from the name.");
-        if (code is "super_admin" or "employee")
+        if (code is "employee")
             return (null, "This role code is reserved.");
 
         var description = string.IsNullOrWhiteSpace(req.Description) ? null : req.Description.Trim();
@@ -203,11 +203,9 @@ public sealed class RbacService
         var code = reader.GetString(0);
         await reader.CloseAsync();
 
-        // Employee portal role must stay — Super Admin is master, not a managed role
+        // Employee portal role must stay — all other roles (including Super Admin) can be deleted
         if (string.Equals(code, "employee", StringComparison.OrdinalIgnoreCase))
             return (false, "The Employee role cannot be deleted.");
-        if (string.Equals(code, "super_admin", StringComparison.OrdinalIgnoreCase))
-            return (false, "Super Admin is the master login and cannot be deleted.");
 
         // Detach users from this role row (keep users.role text so existing logins still work)
         await using var detach = new NpgsqlCommand(
@@ -249,8 +247,7 @@ public sealed class RbacService
             .Where(r =>
             {
                 var code = r.Code;
-                return !string.Equals(code, "super_admin", StringComparison.OrdinalIgnoreCase)
-                    && !string.Equals(code, "employee", StringComparison.OrdinalIgnoreCase);
+                return !string.Equals(code, "employee", StringComparison.OrdinalIgnoreCase);
             })
             .ToList();
         var permissions = await ListPermissionsAsync(ct);
@@ -264,7 +261,7 @@ public sealed class RbacService
             FROM role_permissions rp
             JOIN roles r ON r.id = rp.role_id
             JOIN permissions p ON p.id = rp.permission_id
-            WHERE LOWER(r.code) NOT IN ('super_admin', 'employee')
+            WHERE LOWER(r.code) <> 'employee'
             ORDER BY r.code, p.sort_order
             """,
             conn);
@@ -310,7 +307,7 @@ public sealed class RbacService
             // Resolve role ids once
             var roleIds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             await using (var roleCmd = new NpgsqlCommand(
-                "SELECT id, LOWER(code) FROM roles WHERE LOWER(code) NOT IN ('super_admin', 'employee')", conn, tx))
+                "SELECT id, LOWER(code) FROM roles WHERE LOWER(code) <> 'employee'", conn, tx))
             await using (var roleReader = await roleCmd.ExecuteReaderAsync(ct))
             {
                 while (await roleReader.ReadAsync(ct))
@@ -332,7 +329,7 @@ public sealed class RbacService
             foreach (var (roleCodeRaw, codes) in req.Grants)
             {
                 var roleCode = (roleCodeRaw ?? string.Empty).Trim().ToLowerInvariant();
-                if (string.IsNullOrEmpty(roleCode) || roleCode is "super_admin" or "employee")
+                if (string.IsNullOrEmpty(roleCode) || roleCode is "employee")
                     continue;
                 if (!roleIds.TryGetValue(roleCode, out var roleId))
                     return (false, $"Unknown role: {roleCode}");
@@ -410,13 +407,12 @@ public sealed class RbacService
             LEFT JOIN roles r2 ON LOWER(r2.code) = LOWER(u.role)
             LEFT JOIN employees e ON e.id = u.employee_id
             WHERE LOWER(u.role) <> 'employee'
-              AND LOWER(u.role) <> 'super_admin'
               AND COALESCE(r.portal, r2.portal, CASE
                     WHEN LOWER(u.role) = 'employee' THEN 'employee'
                     ELSE 'admin'
                   END) IN ('admin', 'users')
             ORDER BY
-              CASE LOWER(u.role) WHEN 'admin' THEN 0 ELSE 1 END,
+              CASE LOWER(u.role) WHEN 'super_admin' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,
               u.id
             """,
             conn);
@@ -454,8 +450,8 @@ public sealed class RbacService
             return (null, "Password must be at least 6 characters.");
         if (string.IsNullOrWhiteSpace(roleCode))
             return (null, "Role is required.");
-        if (roleCode is "super_admin" or "employee")
-            return (null, "Cannot assign Super Admin or Employee from Settings → Users.");
+        if (roleCode is "employee")
+            return (null, "Cannot assign Employee from Settings → Users.");
 
         await using var conn = _db.CreateConnection();
         await conn.OpenAsync(ct);
@@ -526,8 +522,6 @@ public sealed class RbacService
 
         if (string.Equals(currentRole, "employee", StringComparison.OrdinalIgnoreCase))
             return (null, "Employee accounts are managed from Employees, not Settings → Users.");
-        if (string.Equals(currentRole, "super_admin", StringComparison.OrdinalIgnoreCase))
-            return (null, "Super Admin is the master login and is not editable here.");
 
         string? roleCode = null;
         int? roleId = null;
@@ -638,8 +632,6 @@ public sealed class RbacService
         if (role is null) return (false, "User not found.");
         if (string.Equals(role, "employee", StringComparison.OrdinalIgnoreCase))
             return (false, "Employee accounts are managed from Employees.");
-        if (string.Equals(role, "super_admin", StringComparison.OrdinalIgnoreCase))
-            return (false, "Super Admin is the master login and cannot be deleted.");
 
         await using var del = new NpgsqlCommand("DELETE FROM users WHERE id = @id", conn);
         del.Parameters.AddWithValue("id", userId);

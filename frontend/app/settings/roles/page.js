@@ -56,9 +56,7 @@ export default function SettingsRolesPage() {
       roles.filter((r) => {
         const code = String(r.code || '').toLowerCase();
         const portal = String(r.portal || '').toLowerCase();
-        return code !== 'employee'
-          && code !== 'super_admin'
-          && (portal === 'admin' || portal === 'users');
+        return code !== 'employee' && (portal === 'admin' || portal === 'users' || code === 'super_admin');
       }),
     [roles],
   );

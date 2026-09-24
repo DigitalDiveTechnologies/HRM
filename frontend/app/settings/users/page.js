@@ -24,11 +24,11 @@ export default function SettingsUsersPage() {
   const editRef = useRef(null);
 
   const assignableRoles = useMemo(() => {
-    const preferred = ['admin', 'manager', 'hr_officer', 'finance', 'viewer'];
+    const preferred = ['super_admin', 'admin', 'manager', 'hr_officer', 'finance', 'viewer'];
     const filtered = roles.filter((r) => {
       const code = String(r.code || '').toLowerCase();
       const portal = String(r.portal || '').toLowerCase();
-      return (portal === 'admin' || portal === 'users') && code !== 'super_admin' && code !== 'employee';
+      return code !== 'employee' && (portal === 'admin' || portal === 'users' || code === 'super_admin');
     });
     return filtered.sort((a, b) => {
       const ac = String(a.code || '').toLowerCase();
@@ -42,14 +42,7 @@ export default function SettingsUsersPage() {
     });
   }, [roles]);
 
-  const editRoleOptions = useMemo(() => {
-    const list = [...assignableRoles];
-    if (edit && String(edit.roleCode).toLowerCase() === 'super_admin'
-      && !list.some((r) => String(r.code).toLowerCase() === 'super_admin')) {
-      list.unshift({ code: 'super_admin', name: edit.roleName || 'Super Admin' });
-    }
-    return list;
-  }, [assignableRoles, edit]);
+  const editRoleOptions = useMemo(() => assignableRoles, [assignableRoles]);
 
   const load = useCallback(async () => {
     const [roleRows, userRows] = await Promise.all([api('/rbac/roles'), api('/rbac/users')]);
@@ -59,7 +52,7 @@ export default function SettingsUsersPage() {
     const firstAssignable = rolesList.find((r) => {
       const code = String(r.code || '').toLowerCase();
       const portal = String(r.portal || '').toLowerCase();
-      return (portal === 'admin' || portal === 'users') && code !== 'super_admin' && code !== 'employee';
+      return code !== 'employee' && (portal === 'admin' || portal === 'users' || code === 'super_admin');
     });
     if (firstAssignable) {
       setForm((f) => {
@@ -102,7 +95,7 @@ export default function SettingsUsersPage() {
             const firstAssignable = rolesList.find((r) => {
               const code = String(r.code || '').toLowerCase();
               const portal = String(r.portal || '').toLowerCase();
-              return (portal === 'admin' || portal === 'users') && code !== 'super_admin' && code !== 'employee';
+              return code !== 'employee' && (portal === 'admin' || portal === 'users' || code === 'super_admin');
             });
             if (firstAssignable) {
               setForm((f) => {
@@ -300,9 +293,6 @@ export default function SettingsUsersPage() {
 
       <div className="card" style={{ marginBottom: 16 }}>
         <h2 style={{ marginTop: 0, fontSize: '1.05rem' }}>Assigned users</h2>
-        <p className="muted" style={{ marginTop: 0 }}>
-          Portal users you create. Super Admin is the master login and is not listed here — delete all here can go to 0.
-        </p>
         {loading ? (
           <p className="muted">Loading…</p>
         ) : (
