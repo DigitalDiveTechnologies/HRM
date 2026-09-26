@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
+import { api, getUser, getPermissions, isAdminRole, normalizeRole } from '../../lib/auth';
+import { canUsePermission } from '../../lib/nav';
 import { downloadDocumentFile, formatDate, money, v } from '../../lib/format';
 import { useLocale } from '../../lib/i18n/LocaleContext';
 
@@ -11,6 +12,8 @@ export default function EssPage() {
   const { t } = useLocale();
   const [user, setUser] = useState(null);
   const role = normalizeRole(user);
+  const permissions = getPermissions(user);
+  const canViewDirectory = canUsePermission(role, permissions, 'employees.list');
   const [data, setData] = useState(null);
   const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
@@ -112,7 +115,7 @@ export default function EssPage() {
                 <Link className="btn secondary" href="/training">
                   Training
                 </Link>
-                {isAdminRole(role) ? (
+                {canViewDirectory ? (
                   <Link className="btn secondary" href="/employees">
                     Directory
                   </Link>

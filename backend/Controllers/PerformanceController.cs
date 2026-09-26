@@ -28,8 +28,13 @@ public sealed class PerformanceController : ControllerBase
     };
 
     private readonly HrQueryService _hr;
+    private readonly RbacService _rbac;
 
-    public PerformanceController(HrQueryService hr) => _hr = hr;
+    public PerformanceController(HrQueryService hr, RbacService rbac)
+    {
+        _hr = hr;
+        _rbac = rbac;
+    }
 
     [HttpGet("goals")]
     public async Task<IActionResult> Goals(CancellationToken ct)
@@ -41,9 +46,9 @@ public sealed class PerformanceController : ControllerBase
     }
 
     [HttpPost("goals")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> CreateGoal([FromBody] PerformanceGoalCreateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "performance.view")) return Forbid();
         if (body.EmployeeId <= 0)
             return BadRequest(new { error = "employeeId required" });
         if (string.IsNullOrWhiteSpace(body.Title))
@@ -60,7 +65,6 @@ public sealed class PerformanceController : ControllerBase
     }
 
     [HttpPatch("goals/{id:int}")]
-    [Authorize(Roles = "admin,employee")]
     public async Task<IActionResult> UpdateGoal(int id, [FromBody] PerformanceGoalUpdateRequest body, CancellationToken ct)
     {
         if (body.ProgressPct is null && string.IsNullOrWhiteSpace(body.Status))
@@ -80,6 +84,7 @@ public sealed class PerformanceController : ControllerBase
             return row is null ? NotFound() : Ok(row);
         }
 
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "performance.view")) return Forbid();
         var updated = await _hr.UpdatePerformanceGoalAsync(id, body.ProgressPct, body.Status?.Trim(), ct);
         return updated is null ? NotFound() : Ok(updated);
     }
@@ -94,9 +99,9 @@ public sealed class PerformanceController : ControllerBase
     }
 
     [HttpPost("reviews")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> CreateReview([FromBody] PerformanceReviewCreateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "performance.view")) return Forbid();
         if (body.EmployeeId <= 0)
             return BadRequest(new { error = "employeeId required" });
 
@@ -115,7 +120,6 @@ public sealed class PerformanceController : ControllerBase
     }
 
     [HttpPatch("reviews/{id:int}")]
-    [Authorize(Roles = "admin,employee")]
     public async Task<IActionResult> UpdateReviewStatus(int id, [FromBody] StatusUpdateRequest body, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(body.Status))
@@ -131,6 +135,10 @@ public sealed class PerformanceController : ControllerBase
                 return Forbid();
             if (!string.Equals(body.Status.Trim(), "acknowledged", StringComparison.OrdinalIgnoreCase))
                 return BadRequest(new { error = "employees may only acknowledge reviews" });
+        }
+        else if (!await PermissionGate.HasAsync(_rbac, User, ct, "performance.view"))
+        {
+            return Forbid();
         }
 
         var row = await _hr.UpdatePerformanceReviewStatusAsync(id, body.Status.Trim(), ct);

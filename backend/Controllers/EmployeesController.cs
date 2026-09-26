@@ -49,23 +49,25 @@ public sealed class EmployeesController : ControllerBase
             perms.Any(p => string.Equals(p, code, StringComparison.OrdinalIgnoreCase)));
     }
 
-    /// <summary>Admin/manager: full ops list. Employee: self only (for forms). Salary ACL applied.</summary>
+    /// <summary>Admin/manager/custom roles with employees.list: full ops list. Employee: self only (for forms). Salary ACL applied.</summary>
     [HttpGet]
-    [Authorize(Roles = "admin,manager,employee")]
     public async Task<IActionResult> List(CancellationToken ct)
     {
         var role = CurrentUser.Role(User).ToLowerInvariant();
         var viewerEid = CurrentUser.EmployeeId(User);
-        var rows = await _hr.EmployeesAsync(ct);
         if (role == "employee")
         {
             var id = viewerEid;
             if (!id.HasValue) return Ok(Array.Empty<object>());
+            var rows = await _hr.EmployeesAsync(ct);
             var self = rows.Where(r => Convert.ToInt32(r["id"]) == id.Value).ToList();
             return Ok(FieldAcl.ApplyAll(self, role, viewerEid));
         }
 
-        return Ok(FieldAcl.ApplyAll(rows, role, viewerEid));
+        if (!await HasEmployeePermAsync(ct, "employees.list", "employees.create"))
+            return Forbid();
+
+        return Ok(FieldAcl.ApplyAll(await _hr.EmployeesAsync(ct), role, viewerEid));
     }
 
     [HttpGet("departments")]
@@ -330,13 +332,18 @@ public sealed class EmployeesController : ControllerBase
     }
 
     [HttpGet("{id:int}")]
-    [Authorize(Roles = "admin,manager,employee")]
     public async Task<IActionResult> Get(int id, CancellationToken ct)
     {
         var role = CurrentUser.Role(User).ToLowerInvariant();
         var viewerEid = CurrentUser.EmployeeId(User);
-        if (role == "employee" && (viewerEid is null || viewerEid.Value != id))
+        if (role == "employee")
+        {
+            if (viewerEid is null || viewerEid.Value != id) return Forbid();
+        }
+        else if (!await HasEmployeePermAsync(ct, "employees.list", "employees.create"))
+        {
             return Forbid();
+        }
 
         var row = await _hr.EmployeeByIdAsync(id, ct);
         if (row is null) return NotFound(new { error = "Not found" });

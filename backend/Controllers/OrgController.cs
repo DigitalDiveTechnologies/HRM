@@ -1,3 +1,4 @@
+using DigitalDive.Hr.Api.Helpers;
 using DigitalDive.Hr.Api.Models;
 using DigitalDive.Hr.Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -8,15 +9,17 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "Org")]
 [Route("api/org")]
-[Authorize(Roles = "admin,manager")]
+[Authorize]
 public sealed class OrgController : ControllerBase
 {
     private readonly HrQueryService _hr;
     private readonly OrgFoundationService _org;
-    public OrgController(HrQueryService hr, OrgFoundationService org)
+    private readonly RbacService _rbac;
+    public OrgController(HrQueryService hr, OrgFoundationService org, RbacService rbac)
     {
         _hr = hr;
         _org = org;
+        _rbac = rbac;
     }
 
     /// <summary>Position-based org chart (Blueprint v1.1). Falls back to employee manager_id chart if no positions.</summary>
@@ -33,9 +36,9 @@ public sealed class OrgController : ControllerBase
         Ok(await _hr.EmploymentHistoryAsync(employeeId, ct));
 
     [HttpPost("history")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> CreateHistory([FromBody] EmploymentHistoryCreateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "company.organisation")) return Forbid();
         if (body.EmployeeId <= 0 || string.IsNullOrWhiteSpace(body.JobTitle) || string.IsNullOrWhiteSpace(body.StartDate))
             return BadRequest(new { error = "employeeId, jobTitle, startDate required" });
         var row = await _hr.CreateEmploymentHistoryAsync(
@@ -51,9 +54,9 @@ public sealed class OrgController : ControllerBase
     public async Task<IActionResult> EmployeeSkills(CancellationToken ct) => Ok(await _hr.EmployeeSkillsAsync(ct));
 
     [HttpPost("employee-skills")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> AssignSkill([FromBody] EmployeeSkillAssignRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "company.organisation")) return Forbid();
         if (body.EmployeeId <= 0 || body.SkillId <= 0)
             return BadRequest(new { error = "employeeId and skillId required" });
         await _hr.AssignEmployeeSkillAsync(body.EmployeeId, body.SkillId, body.Level, ct);

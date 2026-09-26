@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, getApiBase, getToken } from '../../lib/auth';
+import { api, getApiBase, getToken, getUser, getPermissions, normalizeRole } from '../../lib/auth';
+import { canUsePermission } from '../../lib/nav';
 import { formatDate, v } from '../../lib/format';
 import { useCompanyFilter, applyEmpFilter } from '../../lib/useCompanyFilter';
 
@@ -18,6 +19,9 @@ function typeLabel(row) {
 }
 
 export default function CertificatesPage() {
+  const role = normalizeRole(getUser());
+  const permissions = getPermissions(getUser());
+  const canManage = canUsePermission(role, permissions, 'certificates.view');
   const [rows, setRows] = useState([]);
   const { filteredEmpIds } = useCompanyFilter();
   const [error, setError] = useState('');
@@ -112,6 +116,7 @@ export default function CertificatesPage() {
         Issued certificates embed a QR to <code>/verify/certificate?id=…&amp;emp=…</code> for public authenticity checks.
       </p>
 
+      {canManage ? (
       <div className="card" style={{ marginBottom: 16 }}>
         <h3 style={{ marginTop: 0 }}>Pending queue ({pending.length})</h3>
         <p className="muted" style={{ marginTop: 0 }}>
@@ -194,6 +199,7 @@ export default function CertificatesPage() {
           </div>
         )}
       </div>
+      ) : null}
 
       <div className="card">
         <h3 style={{ marginTop: 0 }}>All requests</h3>
@@ -223,7 +229,7 @@ export default function CertificatesPage() {
                     <td>{formatDate(v(r, 'createdAt', 'created_at'))}</td>
                     <td>{formatDate(v(r, 'issuedAt', 'issued_at'))}</td>
                     <td>
-                      {status === 'approved' ? (
+                      {status === 'approved' && canManage ? (
                         <button type="button" className="btn secondary" disabled={busyId === id} onClick={() => issue(id)}>
                           Generate
                         </button>

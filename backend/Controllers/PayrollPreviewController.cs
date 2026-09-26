@@ -1,4 +1,5 @@
 using DigitalDive.Hr.Api.Data;
+using DigitalDive.Hr.Api.Helpers;
 using DigitalDive.Hr.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -9,18 +10,20 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "PayrollPreview")]
 [Route("api/payroll")]
-[Authorize(Roles = "admin")]
+[Authorize]
 public sealed class PayrollPreviewController : ControllerBase
 {
     private readonly EosbCalculatorService _eosb;
     private readonly WpsSifPreviewService _sif;
     private readonly HrQueryService _hr;
+    private readonly RbacService _rbac;
 
-    public PayrollPreviewController(EosbCalculatorService eosb, WpsSifPreviewService sif, HrQueryService hr)
+    public PayrollPreviewController(EosbCalculatorService eosb, WpsSifPreviewService sif, HrQueryService hr, RbacService rbac)
     {
         _eosb = eosb;
         _sif = sif;
         _hr = hr;
+        _rbac = rbac;
     }
 
     public sealed class EosbPreviewRequest
@@ -34,6 +37,7 @@ public sealed class PayrollPreviewController : ControllerBase
     [HttpPost("eosb/preview")]
     public async Task<IActionResult> EosbPreview([FromBody] EosbPreviewRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "payroll.view")) return Forbid();
         var result = await _eosb.CalculatePreviewAsync(
             body.BasicSalary, body.ServiceYears, body.UnpaidLeaveDays, body.JurisdictionProfile, ct);
         return Ok(result);
@@ -46,6 +50,7 @@ public sealed class PayrollPreviewController : ControllerBase
         [FromQuery] int? legalEntityId,
         CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "payroll.view")) return Forbid();
         if (year < 2000 || month is < 1 or > 12)
             return BadRequest(new { error = "year and month required", isPreview = true });
 

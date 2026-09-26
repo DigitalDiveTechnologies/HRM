@@ -1,3 +1,4 @@
+using DigitalDive.Hr.Api.Helpers;
 using DigitalDive.Hr.Api.Models;
 using DigitalDive.Hr.Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -8,7 +9,7 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "Compliance")]
 [Route("api/compliance")]
-[Authorize(Roles = "admin,manager")]
+[Authorize]
 public sealed class ComplianceController : ControllerBase
 {
     private static readonly HashSet<string> Categories = new(StringComparer.OrdinalIgnoreCase)
@@ -22,17 +23,25 @@ public sealed class ComplianceController : ControllerBase
     };
 
     private readonly HrQueryService _hr;
+    private readonly RbacService _rbac;
 
-    public ComplianceController(HrQueryService hr) => _hr = hr;
+    public ComplianceController(HrQueryService hr, RbacService rbac)
+    {
+        _hr = hr;
+        _rbac = rbac;
+    }
 
     [HttpGet]
-    public async Task<IActionResult> List(CancellationToken ct) =>
-        Ok(await _hr.ComplianceItemsAsync(ct));
+    public async Task<IActionResult> List(CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "compliance.view")) return Forbid();
+        return Ok(await _hr.ComplianceItemsAsync(ct));
+    }
 
     [HttpPost]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> Create([FromBody] ComplianceItemCreateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "compliance.view")) return Forbid();
         if (string.IsNullOrWhiteSpace(body.Title))
             return BadRequest(new { error = "title required" });
 
@@ -56,9 +65,9 @@ public sealed class ComplianceController : ControllerBase
     }
 
     [HttpPatch("{id:int}")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> UpdateStatus(int id, [FromBody] StatusUpdateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "compliance.view")) return Forbid();
         if (string.IsNullOrWhiteSpace(body.Status))
             return BadRequest(new { error = "status required" });
         if (!Statuses.Contains(body.Status.Trim()))

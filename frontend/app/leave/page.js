@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
+import { api, getUser, getPermissions, normalizeRole } from '../../lib/auth';
+import { canUseAnyPermission } from '../../lib/nav';
 import { formatDate, todayISO, v } from '../../lib/format';
 import { UAE_HOLIDAYS_2026 } from '../../lib/holidays';
 import { useCompanyFilter, buildLocalEmpIds } from '../../lib/useCompanyFilter';
@@ -18,7 +19,8 @@ export default function LeavePage() {
   });
   const role = normalizeRole(user);
   const isEmployee = role === 'employee';
-  const canApprove = isAdminRole(role);
+  const permissions = getPermissions(user);
+  const canApprove = canUseAnyPermission(role, permissions, ['leave.view', 'approvals.view']);
   const { selectedCompanyId, filteredEmpIds } = useCompanyFilter();
 
   // Instant local cache hydration (eliminates "0 records" and "No data" flash)

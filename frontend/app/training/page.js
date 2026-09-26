@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
+import { api, getUser, getPermissions, normalizeRole } from '../../lib/auth';
+import { canUsePermission } from '../../lib/nav';
 import { formatDate, todayISO, v } from '../../lib/format';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
 
 export default function TrainingPage() {
   const role = normalizeRole(getUser());
-  const isAdmin = isAdminRole(role);
+  const permissions = getPermissions(getUser());
+  const canManage = canUsePermission(role, permissions, 'training.view');
   const { filteredEmpIds } = useCompanyFilter();
 
   const [courses, setCourses] = useState([]);
@@ -44,13 +46,14 @@ export default function TrainingPage() {
   const load = useCallback(() => {
     setError('');
     const roleNow = normalizeRole(getUser());
+    const permsNow = getPermissions(getUser());
     const reqs = [
       api('/training/courses'),
       api('/training/enrollments'),
       api('/training/certifications'),
       api('/training/calendar'),
     ];
-    if (isAdminRole(roleNow) || roleNow === 'manager') {
+    if (canUsePermission(roleNow, permsNow, 'training.view')) {
       reqs.push(api('/org/skills').catch(() => []));
       reqs.push(api('/org/employee-skills').catch(() => []));
       reqs.push(api('/employees').catch(() => []));
@@ -190,7 +193,7 @@ export default function TrainingPage() {
         <div className="panel-title">
           <h3>Skills matrix</h3>
         </div>
-        {isAdmin ? (
+        {canManage ? (
           <form
             className="stack"
             style={{ marginBottom: 12 }}
@@ -279,7 +282,7 @@ export default function TrainingPage() {
         </div>
       </div>
 
-      {isAdmin ? (
+      {canManage ? (
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="panel-title">
             <h3>Add course</h3>
@@ -350,7 +353,7 @@ export default function TrainingPage() {
         </div>
       </div>
 
-      {isAdmin ? (
+      {canManage ? (
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="panel-title">
             <h3>Assign enrollment</h3>
@@ -421,7 +424,7 @@ export default function TrainingPage() {
                       <Badge status={status} />
                     </td>
                     <td>
-                      {(isAdmin || role === 'employee') && status !== 'completed' && status !== 'cancelled' ? (
+                      {(canManage || role === 'employee') && status !== 'completed' && status !== 'cancelled' ? (
                         <div className="row-actions">
                           {status === 'assigned' ? (
                             <button type="button" className="btn secondary" onClick={() => setEnrollmentStatus(v(row, 'id'), 'in_progress')}>
@@ -449,7 +452,7 @@ export default function TrainingPage() {
         </div>
       </div>
 
-      {isAdmin ? (
+      {canManage ? (
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="panel-title">
             <h3>Add certification</h3>

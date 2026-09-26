@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import AppShell, { Badge } from '../../components/AppShell';
 import EmployeeMasterForm from '../../components/EmployeeMasterForm';
-import { api, apiBlob, apiUpload, getApiBase, getPermissions, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
+import { api, apiBlob, apiUpload, getApiBase, getPermissions, getUser, normalizeRole } from '../../lib/auth';
 import {
   emptyMasterForm,
   masterFormFromEmployee,
@@ -66,7 +66,6 @@ function displayAppPassword(emp, md = {}) {
 function EmployeesContent() {
   const role = normalizeRole(getUser());
   const permissions = getPermissions(getUser());
-  const isAdmin = isAdminRole(role);
   const canCreateEmployee = canUsePermission(role, permissions, 'employees.create');
   const canEditEmployee = canCreateEmployee || canUsePermission(role, permissions, 'employees.list');
   const [rows, setRows] = useState(() => {
@@ -293,7 +292,7 @@ function EmployeesContent() {
 
     // Must return a Promise — saveEmployeeEdit awaits load().catch(...)
     return Promise.all([empsP, mastersP]);
-  }, [isAdmin]);
+  }, []);
 
   useEffect(() => {
     load();

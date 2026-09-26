@@ -13,11 +13,13 @@ public sealed class NotificationsController : ControllerBase
 {
     private readonly HrQueryService _hr;
     private readonly OpsScaleService _ops;
+    private readonly RbacService _rbac;
 
-    public NotificationsController(HrQueryService hr, OpsScaleService ops)
+    public NotificationsController(HrQueryService hr, OpsScaleService ops, RbacService rbac)
     {
         _hr = hr;
         _ops = ops;
+        _rbac = rbac;
     }
 
     [HttpGet]
@@ -43,9 +45,9 @@ public sealed class NotificationsController : ControllerBase
     }
 
     [HttpPost("generate")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> Generate(CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "notifications.view")) return Forbid();
         var jobId = await _ops.BeginJobAsync("notifications.generate", CurrentUser.Email(User), ct);
         try
         {

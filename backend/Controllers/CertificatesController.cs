@@ -14,11 +14,13 @@ public sealed class CertificatesController : ControllerBase
 {
     private readonly HrQueryService _hr;
     private readonly IWebHostEnvironment _env;
+    private readonly RbacService _rbac;
 
-    public CertificatesController(HrQueryService hr, IWebHostEnvironment env)
+    public CertificatesController(HrQueryService hr, IWebHostEnvironment env, RbacService rbac)
     {
         _hr = hr;
         _env = env;
+        _rbac = rbac;
     }
 
     [HttpGet("types")]
@@ -76,9 +78,9 @@ public sealed class CertificatesController : ControllerBase
     }
 
     [HttpPatch("{id:int}")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> Decide(int id, [FromBody] CertificateDecisionRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "certificates.view")) return Forbid();
         if (string.IsNullOrWhiteSpace(body.Status))
             return BadRequest(new { error = "status required" });
 
@@ -91,9 +93,9 @@ public sealed class CertificatesController : ControllerBase
     }
 
     [HttpPost("{id:int}/issue")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> Issue(int id, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "certificates.view")) return Forbid();
         var row = await _hr.IssueCertificateAsync(id, _env.ContentRootPath, ct);
         return row is null
             ? NotFound(new { error = "Request not found or cannot be issued." })

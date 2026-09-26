@@ -28,8 +28,13 @@ public sealed class TrainingController : ControllerBase
     };
 
     private readonly HrQueryService _hr;
+    private readonly RbacService _rbac;
 
-    public TrainingController(HrQueryService hr) => _hr = hr;
+    public TrainingController(HrQueryService hr, RbacService rbac)
+    {
+        _hr = hr;
+        _rbac = rbac;
+    }
 
     [HttpGet("courses")]
     public async Task<IActionResult> Courses(CancellationToken ct) =>
@@ -40,9 +45,9 @@ public sealed class TrainingController : ControllerBase
         Ok(await _hr.TrainingCalendarAsync(ct));
 
     [HttpPost("courses")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> CreateCourse([FromBody] CourseCreateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "training.view")) return Forbid();
         if (string.IsNullOrWhiteSpace(body.Title))
             return BadRequest(new { error = "title required" });
 
@@ -56,9 +61,9 @@ public sealed class TrainingController : ControllerBase
     }
 
     [HttpPatch("courses/{id:int}")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> UpdateCourseStatus(int id, [FromBody] StatusUpdateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "training.view")) return Forbid();
         if (string.IsNullOrWhiteSpace(body.Status) || !CourseStatuses.Contains(body.Status.Trim()))
             return BadRequest(new { error = "invalid status" });
         var row = await _hr.UpdateCourseStatusAsync(id, body.Status.Trim(), ct);
@@ -75,9 +80,9 @@ public sealed class TrainingController : ControllerBase
     }
 
     [HttpPost("enrollments")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> CreateEnrollment([FromBody] EnrollmentCreateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "training.view")) return Forbid();
         if (body.CourseId <= 0 || body.EmployeeId <= 0)
             return BadRequest(new { error = "courseId and employeeId required" });
 
@@ -97,7 +102,6 @@ public sealed class TrainingController : ControllerBase
     }
 
     [HttpPatch("enrollments/{id:int}")]
-    [Authorize(Roles = "admin,employee")]
     public async Task<IActionResult> UpdateEnrollment(int id, [FromBody] StatusUpdateRequest body, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(body.Status) || !EnrollmentStatuses.Contains(body.Status.Trim()))
@@ -112,6 +116,10 @@ public sealed class TrainingController : ControllerBase
             var st = body.Status.Trim().ToLowerInvariant();
             if (st is not ("in_progress" or "completed"))
                 return BadRequest(new { error = "employees may set in_progress or completed only" });
+        }
+        else if (!await PermissionGate.HasAsync(_rbac, User, ct, "training.view"))
+        {
+            return Forbid();
         }
 
         var row = await _hr.UpdateEnrollmentStatusAsync(id, body.Status.Trim(), ct);
@@ -128,9 +136,9 @@ public sealed class TrainingController : ControllerBase
     }
 
     [HttpPost("certifications")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> CreateCertification([FromBody] CertificationCreateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "training.view")) return Forbid();
         if (body.EmployeeId <= 0)
             return BadRequest(new { error = "employeeId required" });
         if (string.IsNullOrWhiteSpace(body.Name))
@@ -146,9 +154,9 @@ public sealed class TrainingController : ControllerBase
     }
 
     [HttpPatch("certifications/{id:int}")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> UpdateCertification(int id, [FromBody] StatusUpdateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "training.view")) return Forbid();
         if (string.IsNullOrWhiteSpace(body.Status) || !CertStatuses.Contains(body.Status.Trim()))
             return BadRequest(new { error = "invalid status" });
         var row = await _hr.UpdateCertificationStatusAsync(id, body.Status.Trim(), ct);

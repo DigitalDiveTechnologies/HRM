@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, normalizeRole, getUser, isAdminRole } from '../../lib/auth';
+import { api, normalizeRole, getUser, getPermissions } from '../../lib/auth';
+import { canUsePermission } from '../../lib/nav';
 import { formatDate, money, v } from '../../lib/format';
 
 export default function RecruitmentPage() {
   const role = normalizeRole(getUser());
-  const isAdmin = isAdminRole(role);
+  const permissions = getPermissions(getUser());
+  const canManage = canUsePermission(role, permissions, 'recruitment.view');
 
   const [jobs, setJobs] = useState([]);
   const [candidates, setCandidates] = useState([]);
@@ -206,7 +208,7 @@ export default function RecruitmentPage() {
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
 
-      {isAdmin ? (
+      {canManage ? (
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="panel-title"><h3>Create job posting</h3></div>
           <form className="stack" onSubmit={createJob}>
@@ -222,7 +224,7 @@ export default function RecruitmentPage() {
         </div>
       ) : null}
 
-      {isAdmin ? (
+      {canManage ? (
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="panel-title"><h3>Add candidate</h3></div>
           <form className="stack" onSubmit={createCandidate}>
@@ -272,7 +274,7 @@ export default function RecruitmentPage() {
                     <Badge status={v(j, 'status')} />
                   </td>
                   <td>
-                    {isAdmin && String(v(j, 'status')).toLowerCase() === 'open' ? (
+                    {canManage && String(v(j, 'status')).toLowerCase() === 'open' ? (
                       <button type="button" className="btn secondary" onClick={() => setJobStatus(v(j, 'id'), 'closed')}>
                         Close
                       </button>
@@ -425,7 +427,7 @@ export default function RecruitmentPage() {
               Letter ref
               <input value={offerForm.letterRef} onChange={(e) => setOfferForm({ ...offerForm, letterRef: e.target.value })} />
             </label>
-            <button className="btn" type="submit" disabled={!isAdmin}>
+            <button className="btn" type="submit" disabled={!canManage}>
               Create offer
             </button>
           </form>
@@ -493,7 +495,7 @@ export default function RecruitmentPage() {
                       <Badge status={v(o, 'status')} />
                     </td>
                     <td>
-                      {isAdmin && ['pending', 'sent'].includes(String(v(o, 'status')).toLowerCase()) ? (
+                      {canManage && ['pending', 'sent'].includes(String(v(o, 'status')).toLowerCase()) ? (
                         <div className="row-actions">
                           <button type="button" className="btn ok" onClick={() => setOfferStatus(v(o, 'id'), 'accepted')}>Accept</button>
                           <button type="button" className="btn danger" onClick={() => setOfferStatus(v(o, 'id'), 'declined')}>Decline</button>

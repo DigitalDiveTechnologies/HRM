@@ -28,7 +28,6 @@ public sealed class OrgBrandController : ControllerBase
     }
 
     [HttpPut]
-    [Authorize(Roles = "admin,super_admin")]
     public async Task<IActionResult> Put([FromBody] OrgBrandUpdateRequest body, CancellationToken ct)
     {
         var role = CurrentUser.Role(User);

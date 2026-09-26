@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
+import { api, getUser, getPermissions, normalizeRole } from '../../lib/auth';
+import { canUsePermission } from '../../lib/nav';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
 import { formatDate, todayISO, v } from '../../lib/format';
 
 export default function ExitPage() {
   const role = normalizeRole(getUser());
-  const isAdmin = isAdminRole(role);
+  const permissions = getPermissions(getUser());
+  const canManage = canUsePermission(role, permissions, 'exit.view');
 
   const [rows, setRows] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -126,7 +128,7 @@ export default function ExitPage() {
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
 
-      {isAdmin ? (
+      {canManage ? (
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="panel-title">
             <h3>Open exit case</h3>
@@ -220,12 +222,12 @@ export default function ExitPage() {
                       <button type="button" className="btn secondary" onClick={() => openChecklist(v(r, 'id'))}>
                         Checklist
                       </button>
-                      {isAdmin ? (
+                      {canManage ? (
                         <button type="button" className="btn secondary" onClick={() => runSettlement(v(r, 'id'))}>
                           Settlement
                         </button>
                       ) : null}
-                      {isAdmin && String(v(r, 'status')) !== 'completed' ? (
+                      {canManage && String(v(r, 'status')) !== 'completed' ? (
                         <button type="button" className="btn ok" onClick={() => setCaseStatus(v(r, 'id'), 'completed')}>
                           Complete
                         </button>

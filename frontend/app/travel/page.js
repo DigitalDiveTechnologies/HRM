@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
+import { api, getUser, getPermissions, normalizeRole } from '../../lib/auth';
+import { canUsePermission } from '../../lib/nav';
 import { formatDate, money, currencyCode, todayISO, v } from '../../lib/format';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
 
 export default function TravelPage() {
   const role = normalizeRole(getUser());
-  const isAdmin = isAdminRole(role);
+  const permissions = getPermissions(getUser());
+  const canManage = canUsePermission(role, permissions, 'travel.view');
 
   const [travel, setTravel] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -50,7 +52,7 @@ export default function TravelPage() {
     load();
   }, [load]);
 
-  const canCreateTravel = isAdminRole(role) || role === 'manager' || role === 'employee';
+  const canCreateTravel = canManage || role === 'manager' || role === 'employee';
   const selfId = getUser()?.employeeId || getUser()?.employee_id;
 
   async function createTravel(e) {
@@ -243,7 +245,7 @@ export default function TravelPage() {
                       <Badge status={status} />
                     </td>
                     <td>
-                      {isAdmin && status === 'pending' ? (
+                      {canManage && status === 'pending' ? (
                         <div className="row-actions">
                           <button
                             type="button"
@@ -279,7 +281,7 @@ export default function TravelPage() {
         </div>
       </div>
 
-      {isAdmin ? (
+      {canManage ? (
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="panel-title">
             <h3>New expense claim</h3>
@@ -357,7 +359,7 @@ export default function TravelPage() {
                       <Badge status={status} />
                     </td>
                     <td>
-                      {isAdmin && status === 'pending' ? (
+                      {canManage && status === 'pending' ? (
                         <div className="row-actions">
                           <button type="button" className="btn ok" disabled={!!busyKey} onClick={() => setExpenseStatus(id, 'approved')}>
                             Approve
@@ -369,7 +371,7 @@ export default function TravelPage() {
                             Mark paid
                           </button>
                         </div>
-                      ) : isAdmin && status === 'approved' ? (
+                      ) : canManage && status === 'approved' ? (
                         <button type="button" className="btn secondary" disabled={!!busyKey} onClick={() => setExpenseStatus(id, 'paid')}>
                           Mark paid
                         </button>

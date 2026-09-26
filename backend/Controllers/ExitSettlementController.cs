@@ -1,3 +1,4 @@
+using DigitalDive.Hr.Api.Helpers;
 using DigitalDive.Hr.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -7,12 +8,17 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "ExitSettlement")]
 [Route("api/exit")]
-[Authorize(Roles = "admin")]
+[Authorize]
 public sealed class ExitSettlementController : ControllerBase
 {
     private readonly ExitSettlementService _svc;
+    private readonly RbacService _rbac;
 
-    public ExitSettlementController(ExitSettlementService svc) => _svc = svc;
+    public ExitSettlementController(ExitSettlementService svc, RbacService rbac)
+    {
+        _svc = svc;
+        _rbac = rbac;
+    }
 
     public sealed class SettlementRequest
     {
@@ -25,6 +31,7 @@ public sealed class ExitSettlementController : ControllerBase
     [HttpPost("{id:int}/settlement")]
     public async Task<IActionResult> Calculate(int id, [FromBody] SettlementRequest? body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "exit.view")) return Forbid();
         body ??= new SettlementRequest();
         var email = User.FindFirst("email")?.Value;
         var (result, error) = await _svc.CalculateForExitCaseAsync(
@@ -36,6 +43,7 @@ public sealed class ExitSettlementController : ControllerBase
     [HttpGet("{id:int}/settlement")]
     public async Task<IActionResult> Get(int id, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "exit.view")) return Forbid();
         var row = await _svc.GetSettlementAsync(id, ct);
         return row is null ? NotFound(new { error = "No settlement yet", isPreview = true }) : Ok(row);
     }

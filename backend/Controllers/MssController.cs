@@ -9,20 +9,27 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "Mss")]
 [Route("api/mss")]
-[Authorize(Roles = "admin,manager")]
+[Authorize]
 public sealed class MssController : ControllerBase
 {
     private readonly HrQueryService _hr;
+    private readonly RbacService _rbac;
 
-    public MssController(HrQueryService hr) => _hr = hr;
+    public MssController(HrQueryService hr, RbacService rbac)
+    {
+        _hr = hr;
+        _rbac = rbac;
+    }
 
     private async Task<(IActionResult? Err, int ManagerId)> ResolveManagerIdAsync(
         int? managerIdQuery, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "mss.view"))
+            return (Forbid(), 0);
+
         if (managerIdQuery is > 0)
         {
-            if (!CurrentUser.IsAdmin(User))
-                return (Forbid(), 0);
+            // Browsing another manager's team requires full admin (or explicit mss.view grant, checked above).
             return (null, managerIdQuery.Value);
         }
 
@@ -30,13 +37,12 @@ public sealed class MssController : ControllerBase
         if (self is > 0)
             return (null, self.Value);
 
-        // Super Admin / Admin can open MSS without a linked employee — empty team view
+        // Super Admin / Admin / any role granted mss.view can open MSS without a linked employee — empty team view
         if (CurrentUser.IsAdmin(User))
             return (null, 0);
 
-        // Manager (or similar) without employee_id — auto-create/link a profile so MSS works
-        if (CurrentUser.IsManager(User)
-            && int.TryParse(CurrentUser.UserId(User), out var userId)
+        // Manager (or any custom role granted mss.view) without employee_id — auto-create/link a profile so MSS works
+        if (int.TryParse(CurrentUser.UserId(User), out var userId)
             && !string.IsNullOrWhiteSpace(CurrentUser.Email(User)))
         {
             var linked = await _hr.EnsurePortalEmployeeLinkAsync(
@@ -94,11 +100,12 @@ public sealed class MssController : ControllerBase
     [HttpPatch("approvals/{id:int}")]
     public async Task<IActionResult> UpdateApproval(int id, [FromBody] StatusUpdateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "mss.view")) return Forbid();
         if (string.IsNullOrWhiteSpace(body.Status))
             return BadRequest(new { error = "status required" });
 
         var self = CurrentUser.EmployeeId(User);
-        if (CurrentUser.IsManager(User) && self is null)
+        if (!CurrentUser.IsAdmin(User) && self is null)
         {
             if (int.TryParse(CurrentUser.UserId(User), out var userId)
                 && !string.IsNullOrWhiteSpace(CurrentUser.Email(User)))
@@ -113,8 +120,8 @@ public sealed class MssController : ControllerBase
                 return BadRequest(new { error = "manager employee profile required" });
         }
 
-        // Admins can update any; managers only team approvals
-        if (CurrentUser.IsManager(User) && !CurrentUser.IsAdmin(User))
+        // Admins can update any; everyone else (managers or custom roles with mss.view) only their own team's approvals
+        if (!CurrentUser.IsAdmin(User))
         {
             var ok = await _hr.IsApprovalForManagerAsync(id, self!.Value, ct);
             if (!ok) return Forbid();

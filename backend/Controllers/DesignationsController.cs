@@ -1,3 +1,4 @@
+using DigitalDive.Hr.Api.Helpers;
 using DigitalDive.Hr.Api.Models;
 using DigitalDive.Hr.Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -12,17 +13,22 @@ namespace DigitalDive.Hr.Api.Controllers;
 public sealed class DesignationsController : ControllerBase
 {
     private readonly HrQueryService _hr;
+    private readonly RbacService _rbac;
 
-    public DesignationsController(HrQueryService hr) => _hr = hr;
+    public DesignationsController(HrQueryService hr, RbacService rbac)
+    {
+        _hr = hr;
+        _rbac = rbac;
+    }
 
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] bool activeOnly = false, CancellationToken ct = default) =>
         Ok(await _hr.DesignationsAsync(activeOnly, ct));
 
     [HttpPost]
-    [Authorize(Roles = "admin,super_admin")]
     public async Task<IActionResult> Create([FromBody] CreateDesignationRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "masters.designations")) return Forbid();
         var (row, error) = await _hr.CreateDesignationAsync(
             body.Name, body.Code, body.JobFamily, body.Grade, body.SkillLevel, body.DefaultReportingDesignationId, ct);
         if (error is not null) return BadRequest(new { error });
@@ -30,9 +36,9 @@ public sealed class DesignationsController : ControllerBase
     }
 
     [HttpPatch("{id:int}")]
-    [Authorize(Roles = "admin,super_admin")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateMasterRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "masters.designations")) return Forbid();
         var (row, error) = await _hr.UpdateDesignationAsync(
             id, body.Name, body.Status, body.Code, body.JobFamily, body.Grade, body.SkillLevel, body.DefaultReportingDesignationId, ct);
         if (error is not null)

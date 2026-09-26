@@ -1,3 +1,4 @@
+using DigitalDive.Hr.Api.Helpers;
 using DigitalDive.Hr.Api.Models;
 using DigitalDive.Hr.Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -22,8 +23,13 @@ public sealed class TravelExpenseController : ControllerBase
     };
 
     private readonly HrQueryService _hr;
+    private readonly RbacService _rbac;
 
-    public TravelExpenseController(HrQueryService hr) => _hr = hr;
+    public TravelExpenseController(HrQueryService hr, RbacService rbac)
+    {
+        _hr = hr;
+        _rbac = rbac;
+    }
 
     [HttpGet("requests")]
     public async Task<IActionResult> TravelRequests(CancellationToken ct) =>
@@ -55,9 +61,9 @@ public sealed class TravelExpenseController : ControllerBase
     }
 
     [HttpPatch("requests/{id:int}")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> UpdateTravel(int id, [FromBody] StatusUpdateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "travel.view")) return Forbid();
         if (string.IsNullOrWhiteSpace(body.Status) || !TravelStatuses.Contains(body.Status.Trim()))
             return BadRequest(new { error = "invalid status" });
         var row = await _hr.UpdateTravelStatusAsync(id, body.Status.Trim(), ct);
@@ -69,9 +75,9 @@ public sealed class TravelExpenseController : ControllerBase
         Ok(await _hr.ExpenseClaimsAsync(ct));
 
     [HttpPost("expenses")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> CreateExpense([FromBody] ExpenseClaimCreateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "travel.view")) return Forbid();
         if (body.EmployeeId <= 0)
             return BadRequest(new { error = "employeeId required" });
         if (string.IsNullOrWhiteSpace(body.Title))
@@ -86,9 +92,9 @@ public sealed class TravelExpenseController : ControllerBase
     }
 
     [HttpPatch("expenses/{id:int}")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> UpdateExpense(int id, [FromBody] StatusUpdateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "travel.view")) return Forbid();
         if (string.IsNullOrWhiteSpace(body.Status) || !ExpenseStatuses.Contains(body.Status.Trim()))
             return BadRequest(new { error = "invalid status" });
         var row = await _hr.UpdateExpenseStatusAsync(id, body.Status.Trim(), ct);

@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
+import { api, getUser, getPermissions, normalizeRole } from '../../lib/auth';
+import { canUsePermission } from '../../lib/nav';
 import { formatDate, todayISO, v } from '../../lib/format';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
 
 export default function PerformancePage() {
   const role = normalizeRole(getUser());
-  const isAdmin = isAdminRole(role);
+  const permissions = getPermissions(getUser());
+  const canManage = canUsePermission(role, permissions, 'performance.view');
   const { filteredEmpIds } = useCompanyFilter();
 
   const [goals, setGoals] = useState([]);
@@ -36,8 +38,9 @@ export default function PerformancePage() {
   const load = useCallback(() => {
     setError('');
     const roleNow = normalizeRole(getUser());
+    const permsNow = getPermissions(getUser());
     const reqs = [api('/performance/goals'), api('/performance/reviews')];
-    if (isAdminRole(roleNow) || roleNow === 'manager') reqs.push(api('/employees'));
+    if (canUsePermission(roleNow, permsNow, 'performance.view')) reqs.push(api('/employees'));
     Promise.all(reqs)
       .then(([g, r, emps]) => {
         setGoals(g || []);
@@ -144,7 +147,7 @@ export default function PerformancePage() {
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
 
-      {isAdmin ? (
+      {canManage ? (
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="panel-title">
             <h3>Add goal</h3>
@@ -225,7 +228,7 @@ export default function PerformancePage() {
                     <Badge status={v(g, 'status')} />
                   </td>
                   <td>
-                    {(isAdmin || role === 'employee') && String(v(g, 'status')) === 'active' ? (
+                    {(canManage || role === 'employee') && String(v(g, 'status')) === 'active' ? (
                       <button type="button" className="btn secondary" onClick={() => bumpProgress(v(g, 'id'), v(g, 'progressPct', 'progress_pct'))}>
                         +10%
                       </button>
@@ -245,7 +248,7 @@ export default function PerformancePage() {
         </div>
       </div>
 
-      {isAdmin ? (
+      {canManage ? (
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="panel-title">
             <h3>Add review</h3>
@@ -330,11 +333,11 @@ export default function PerformancePage() {
                       <Badge status={status} />
                     </td>
                     <td>
-                      {isAdmin && status === 'draft' ? (
+                      {canManage && status === 'draft' ? (
                         <button type="button" className="btn ok" onClick={() => setReviewStatus(v(r, 'id'), 'submitted')}>
                           Submit
                         </button>
-                      ) : (isAdmin || role === 'employee') && status === 'submitted' ? (
+                      ) : (canManage || role === 'employee') && status === 'submitted' ? (
                         <button type="button" className="btn secondary" onClick={() => setReviewStatus(v(r, 'id'), 'acknowledged')}>
                           Acknowledge
                         </button>

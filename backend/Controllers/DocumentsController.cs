@@ -20,15 +20,16 @@ public sealed class DocumentsController : ControllerBase
 
     private readonly HrQueryService _hr;
     private readonly IWebHostEnvironment _env;
+    private readonly RbacService _rbac;
 
-    public DocumentsController(HrQueryService hr, IWebHostEnvironment env)
+    public DocumentsController(HrQueryService hr, IWebHostEnvironment env, RbacService rbac)
     {
         _hr = hr;
         _env = env;
+        _rbac = rbac;
     }
 
     [HttpGet]
-    [Authorize(Roles = "admin,manager,employee")]
     public async Task<IActionResult> List(CancellationToken ct)
     {
         var role = CurrentUser.Role(User).ToLowerInvariant();
@@ -39,15 +40,16 @@ public sealed class DocumentsController : ControllerBase
             return Ok(await _hr.DocumentsForEmployeeAsync(id.Value, ct));
         }
 
-        if (!CurrentUser.IsAdmin(User) && !CurrentUser.IsManager(User))
+        // Custom roles / managers with documents.view can see the full list too — not admin-only.
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "documents.view"))
             return Forbid();
         return Ok(await _hr.DocumentsAsync(ct));
     }
 
     [HttpPost]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> Create([FromBody] DocumentCreateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "documents.view")) return Forbid();
         if (body.EmployeeId <= 0)
             return BadRequest(new { error = "employeeId required" });
         if (string.IsNullOrWhiteSpace(body.DocType) || string.IsNullOrWhiteSpace(body.Title))
@@ -66,7 +68,6 @@ public sealed class DocumentsController : ControllerBase
     }
 
     [HttpPost("upload")]
-    [Authorize(Roles = "admin")]
     [RequestSizeLimit(20_000_000)]
     [RequestFormLimits(MultipartBodyLengthLimit = 20_000_000)]
     public async Task<IActionResult> Upload(
@@ -78,6 +79,7 @@ public sealed class DocumentsController : ControllerBase
         IFormFile? file,
         CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "documents.view")) return Forbid();
         if (employeeId <= 0)
             return BadRequest(new { error = "employeeId required" });
         if (string.IsNullOrWhiteSpace(docType) || string.IsNullOrWhiteSpace(title))
@@ -124,7 +126,6 @@ public sealed class DocumentsController : ControllerBase
     }
 
     [HttpGet("{id:int}/file")]
-    [Authorize(Roles = "admin,manager,employee")]
     public async Task<IActionResult> DownloadFile(int id, CancellationToken ct)
     {
         var doc = await _hr.DocumentByIdAsync(id, ct);
@@ -138,7 +139,7 @@ public sealed class DocumentsController : ControllerBase
             if (!myId.HasValue || docEid != myId.Value.ToString())
                 return Forbid();
         }
-        else if (!CurrentUser.IsAdmin(User) && !CurrentUser.IsManager(User))
+        else if (!await PermissionGate.HasAsync(_rbac, User, ct, "documents.view"))
         {
             return Forbid();
         }

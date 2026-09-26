@@ -1,3 +1,4 @@
+using DigitalDive.Hr.Api.Helpers;
 using DigitalDive.Hr.Api.Models;
 using DigitalDive.Hr.Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -8,24 +9,31 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "Payroll")]
 [Route("api/payroll")]
-[Authorize(Roles = "admin")]
+[Authorize]
 public sealed class PayrollController : ControllerBase
 {
     private readonly HrQueryService _hr;
     private readonly PayrollControlService _control;
+    private readonly RbacService _rbac;
 
-    public PayrollController(HrQueryService hr, PayrollControlService control)
+    public PayrollController(HrQueryService hr, PayrollControlService control, RbacService rbac)
     {
         _hr = hr;
         _control = control;
+        _rbac = rbac;
     }
 
     [HttpGet]
-    public async Task<IActionResult> List(CancellationToken ct) => Ok(await _hr.PayrollAsync(ct));
+    public async Task<IActionResult> List(CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "payroll.view")) return Forbid();
+        return Ok(await _hr.PayrollAsync(ct));
+    }
 
     [HttpPost("run")]
     public async Task<IActionResult> Run([FromBody] PayrollRunRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "payroll.view")) return Forbid();
         if (string.IsNullOrWhiteSpace(body.PeriodLabel))
             return BadRequest(new { error = "periodLabel required (e.g. 2026-08)" });
         // Phase 2: generate payslips + payroll_runs control record
@@ -39,6 +47,7 @@ public sealed class PayrollController : ControllerBase
     [HttpGet("summary")]
     public async Task<IActionResult> Summary([FromQuery] string period, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "payroll.view")) return Forbid();
         if (string.IsNullOrWhiteSpace(period))
             return BadRequest(new { error = "period required (YYYY-MM)" });
         return Ok(await _hr.PayrollSummaryAsync(period.Trim(), ct));
@@ -47,6 +56,7 @@ public sealed class PayrollController : ControllerBase
     [HttpGet("wps")]
     public async Task<IActionResult> Wps([FromQuery] string? period, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "payroll.view")) return Forbid();
         var (fileName, csv) = await _hr.BuildWpsCsvAsync(period, ct);
         return File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", fileName);
     }
@@ -54,6 +64,7 @@ public sealed class PayrollController : ControllerBase
     [HttpGet("bank-transfer")]
     public async Task<IActionResult> BankTransfer([FromQuery] string? period, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "payroll.view")) return Forbid();
         var (fileName, csv) = await _hr.BuildBankTransferCsvAsync(period, ct);
         return File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", fileName);
     }

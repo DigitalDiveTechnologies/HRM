@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AppShell from '../../components/AppShell';
-import { api, getToken, getApiBase, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
+import { api, getToken, getApiBase, getUser, getPermissions, normalizeRole } from '../../lib/auth';
+import { canUsePermission } from '../../lib/nav';
 import { money, v } from '../../lib/format';
 
 async function downloadReportCsv(reportKey) {
@@ -30,7 +31,8 @@ async function downloadReportCsv(reportKey) {
 
 export default function ReportsPage() {
   const role = normalizeRole(getUser());
-  const isAdmin = isAdminRole(role);
+  const permissions = getPermissions(getUser());
+  const canManage = canUsePermission(role, permissions, 'reports.view');
   const [data, setData] = useState(null);
   const [pack, setPack] = useState(null);
   const [error, setError] = useState('');
@@ -44,7 +46,9 @@ export default function ReportsPage() {
 
   useEffect(() => {
     const reqs = [api('/reports'), api('/reports/dashboard')];
-    if (isAdminRole(getUser())) reqs.push(api('/reports/pack').catch(() => null));
+    if (canUsePermission(normalizeRole(getUser()), getPermissions(getUser()), 'reports.view')) {
+      reqs.push(api('/reports/pack').catch(() => null));
+    }
     Promise.all(reqs)
       .then(([r, dash, p]) => {
         setData({ ...(r || {}), widgets: dash?.widgets || {} });
@@ -115,7 +119,7 @@ export default function ReportsPage() {
       {exportMsg ? <div style={{ color: 'var(--ok)', marginBottom: 12 }}>{exportMsg}</div> : null}
       {loading ? <div className="muted" style={{ padding: '24px 0' }}>Loading analytical reports…</div> : null}
 
-      {!loading && data && isAdmin ? (
+      {!loading && data && canManage ? (
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="panel-title">
             <h3>Scale analytics pack</h3>

@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, apiUpload, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
+import { api, apiUpload, getUser, getPermissions, normalizeRole } from '../../lib/auth';
+import { canUsePermission } from '../../lib/nav';
 import { downloadDocumentFile, formatDate, todayISO, v } from '../../lib/format';
 import { applyEmpFilter, useCompanyFilter } from '../../lib/useCompanyFilter';
 
 export default function DocumentsPage() {
   const role = normalizeRole(getUser());
-  const isAdmin = isAdminRole(role);
+  const permissions = getPermissions(getUser());
+  const canManage = canUsePermission(role, permissions, 'documents.view');
   const { filteredEmpIds } = useCompanyFilter();
 
   const [rows, setRows] = useState([]);
@@ -32,8 +34,9 @@ export default function DocumentsPage() {
   const load = useCallback(() => {
     setError('');
     const role = normalizeRole(getUser());
+    const permissions = getPermissions(getUser());
     const tasks = [api('/documents')];
-    if (isAdminRole(role)) tasks.push(api('/employees'));
+    if (canUsePermission(role, permissions, 'documents.view')) tasks.push(api('/employees'));
     Promise.all(tasks)
       .then(([docs, emps]) => {
         setRows(docs || []);
@@ -109,7 +112,7 @@ export default function DocumentsPage() {
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
 
-      {isAdmin ? (
+      {canManage ? (
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="panel-title">
             <h3>Upload document</h3>

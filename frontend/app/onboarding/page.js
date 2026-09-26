@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
+import { api, getUser, getPermissions, normalizeRole } from '../../lib/auth';
+import { canUsePermission } from '../../lib/nav';
 import { formatDate, todayISO, v } from '../../lib/format';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
 
@@ -16,7 +17,8 @@ export default function OnboardingPage() {
     return null;
   });
   const role = normalizeRole(user);
-  const isAdmin = isAdminRole(role);
+  const permissions = getPermissions(user);
+  const canManage = canUsePermission(role, permissions, 'onboarding.view');
   const { filteredEmpIds } = useCompanyFilter();
 
   const [employees, setEmployees] = useState([]);
@@ -222,6 +224,7 @@ export default function OnboardingPage() {
           </div>
 
           {/* Action Button */}
+          {canManage ? (
           <div>
             <button
               type="button"
@@ -240,12 +243,13 @@ export default function OnboardingPage() {
               {showAddForm ? '✕ Close Form' : '+ Assign Device'}
             </button>
           </div>
+          ) : null}
         </div>
 
         {/* =========================================================================
             2. ASSIGN DEVICE FORM (Clean Collapsible Card)
            ========================================================================= */}
-        {showAddForm ? (
+        {canManage && showAddForm ? (
           <div className="card" style={{ padding: '22px', borderRadius: 12, border: '1px solid #00b8db' }}>
             <h3 style={{ margin: '0 0 14px', fontSize: '15.5px', fontWeight: 700, color: 'var(--ink)' }}>
               Assign Onboarding Device to Employee
@@ -485,7 +489,7 @@ export default function OnboardingPage() {
                         <Badge status={isDone ? 'done' : 'pending'} />
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        {!isDone ? (
+                        {!isDone && canManage ? (
                           <button
                             type="button"
                             className="btn ok"
@@ -494,6 +498,8 @@ export default function OnboardingPage() {
                           >
                             Mark Handover
                           </button>
+                        ) : !isDone ? (
+                          <span className="muted" style={{ fontSize: '11.5px' }}>Pending</span>
                         ) : (
                           <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--ok, #10b981)' }}>
                             ✓ Acknowledged

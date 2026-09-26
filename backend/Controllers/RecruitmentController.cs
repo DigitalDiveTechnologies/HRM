@@ -1,3 +1,4 @@
+using DigitalDive.Hr.Api.Helpers;
 using DigitalDive.Hr.Api.Models;
 using DigitalDive.Hr.Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -8,21 +9,29 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "Recruitment")]
 [Route("api/recruitment")]
-[Authorize(Roles = "admin,manager")]
+[Authorize]
 public sealed class RecruitmentController : ControllerBase
 {
     private readonly HrQueryService _hr;
+    private readonly RbacService _rbac;
 
-    public RecruitmentController(HrQueryService hr) => _hr = hr;
+    public RecruitmentController(HrQueryService hr, RbacService rbac)
+    {
+        _hr = hr;
+        _rbac = rbac;
+    }
 
     [HttpGet("jobs")]
-    public async Task<IActionResult> Jobs(CancellationToken ct) =>
-        Ok(await _hr.JobPostingsAsync(ct));
+    public async Task<IActionResult> Jobs(CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "recruitment.view")) return Forbid();
+        return Ok(await _hr.JobPostingsAsync(ct));
+    }
 
     [HttpPost("jobs")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> CreateJob([FromBody] JobPostingCreateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "recruitment.view")) return Forbid();
         if (string.IsNullOrWhiteSpace(body.Title))
             return BadRequest(new { error = "title required" });
 
@@ -33,9 +42,9 @@ public sealed class RecruitmentController : ControllerBase
     }
 
     [HttpPatch("jobs/{id:int}")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> UpdateJob(int id, [FromBody] StatusUpdateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "recruitment.view")) return Forbid();
         if (string.IsNullOrWhiteSpace(body.Status))
             return BadRequest(new { error = "status required" });
         var row = await _hr.UpdateJobStatusAsync(id, body.Status, ct);
@@ -43,12 +52,16 @@ public sealed class RecruitmentController : ControllerBase
     }
 
     [HttpGet("candidates")]
-    public async Task<IActionResult> Candidates([FromQuery] int? jobId, CancellationToken ct) =>
-        Ok(await _hr.CandidatesAsync(jobId, ct));
+    public async Task<IActionResult> Candidates([FromQuery] int? jobId, CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "recruitment.view")) return Forbid();
+        return Ok(await _hr.CandidatesAsync(jobId, ct));
+    }
 
     [HttpPost("candidates")]
     public async Task<IActionResult> CreateCandidate([FromBody] CandidateCreateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "recruitment.view")) return Forbid();
         if (string.IsNullOrWhiteSpace(body.FullName) || string.IsNullOrWhiteSpace(body.Email))
             return BadRequest(new { error = "fullName and email required" });
 
@@ -61,6 +74,7 @@ public sealed class RecruitmentController : ControllerBase
     [HttpPatch("candidates/{id:int}")]
     public async Task<IActionResult> UpdateCandidate(int id, [FromBody] CandidateStageUpdateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "recruitment.view")) return Forbid();
         if (string.IsNullOrWhiteSpace(body.Stage))
             return BadRequest(new { error = "stage required" });
         var row = await _hr.UpdateCandidateStageAsync(id, body.Stage, body.Notes, ct);
@@ -68,12 +82,16 @@ public sealed class RecruitmentController : ControllerBase
     }
 
     [HttpGet("interviews")]
-    public async Task<IActionResult> Interviews(CancellationToken ct) =>
-        Ok(await _hr.InterviewsAsync(ct));
+    public async Task<IActionResult> Interviews(CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "recruitment.view")) return Forbid();
+        return Ok(await _hr.InterviewsAsync(ct));
+    }
 
     [HttpPost("interviews")]
     public async Task<IActionResult> CreateInterview([FromBody] InterviewCreateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "recruitment.view")) return Forbid();
         if (body.CandidateId <= 0 || string.IsNullOrWhiteSpace(body.ScheduledAt))
             return BadRequest(new { error = "candidateId and scheduledAt required" });
 
@@ -83,13 +101,16 @@ public sealed class RecruitmentController : ControllerBase
     }
 
     [HttpGet("offers")]
-    public async Task<IActionResult> Offers(CancellationToken ct) =>
-        Ok(await _hr.OffersAsync(ct));
+    public async Task<IActionResult> Offers(CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "recruitment.view")) return Forbid();
+        return Ok(await _hr.OffersAsync(ct));
+    }
 
     [HttpPost("offers")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> CreateOffer([FromBody] OfferCreateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "recruitment.view")) return Forbid();
         if (body.CandidateId <= 0)
             return BadRequest(new { error = "candidateId required" });
 
@@ -99,9 +120,9 @@ public sealed class RecruitmentController : ControllerBase
     }
 
     [HttpPatch("offers/{id:int}")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> UpdateOffer(int id, [FromBody] StatusUpdateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "recruitment.view")) return Forbid();
         if (string.IsNullOrWhiteSpace(body.Status))
             return BadRequest(new { error = "status required" });
         var row = await _hr.UpdateOfferStatusAsync(id, body.Status, ct);
@@ -111,6 +132,7 @@ public sealed class RecruitmentController : ControllerBase
     [HttpPost("candidates/{id:int}/screen")]
     public async Task<IActionResult> Screen(int id, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "recruitment.view")) return Forbid();
         try
         {
             return Ok(await _hr.ScreenResumeAsync(id, ct));

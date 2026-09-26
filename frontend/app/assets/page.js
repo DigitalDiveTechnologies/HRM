@@ -2,14 +2,16 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
+import { api, getPermissions, getUser, normalizeRole } from '../../lib/auth';
+import { canUsePermission } from '../../lib/nav';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
 import { formatDate, v } from '../../lib/format';
 
 
 export default function AssetsPage() {
   const role = normalizeRole(getUser());
-  const isAdmin = isAdminRole(role);
+  const permissions = getPermissions(getUser());
+  const canManage = canUsePermission(role, permissions, 'assets.view');
 
   const [assets, setAssets] = useState([]);
   const [assignments, setAssignments] = useState([]);
@@ -101,7 +103,7 @@ export default function AssetsPage() {
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
 
-      {isAdmin ? (
+      {canManage ? (
         <>
           <div className="card" style={{ marginBottom: 14 }}>
             <div className="panel-title">
@@ -211,7 +213,7 @@ export default function AssetsPage() {
                     <Badge status={v(a, 'status')} />
                   </td>
                   <td>
-                    {isAdmin ? (
+                    {canManage ? (
                       <div className="row-actions">
                         {v(a, 'assignmentId', 'assignment_id') ? (
                           <button type="button" className="btn secondary" onClick={() => returnAsset(v(a, 'assignmentId', 'assignment_id'))}>

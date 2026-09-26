@@ -1,3 +1,4 @@
+using DigitalDive.Hr.Api.Helpers;
 using DigitalDive.Hr.Api.Models;
 using DigitalDive.Hr.Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -8,19 +9,29 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "Approvals")]
 [Route("api/approvals")]
-[Authorize(Roles = "admin,manager")]
+[Authorize]
 public sealed class ApprovalsController : ControllerBase
 {
     private readonly HrQueryService _hr;
+    private readonly RbacService _rbac;
 
-    public ApprovalsController(HrQueryService hr) => _hr = hr;
+    public ApprovalsController(HrQueryService hr, RbacService rbac)
+    {
+        _hr = hr;
+        _rbac = rbac;
+    }
 
     [HttpGet]
-    public async Task<IActionResult> List(CancellationToken ct) => Ok(await _hr.ApprovalsAsync(ct));
+    public async Task<IActionResult> List(CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "approvals.view")) return Forbid();
+        return Ok(await _hr.ApprovalsAsync(ct));
+    }
 
     [HttpPatch("{id:int}")]
     public async Task<IActionResult> Update(int id, [FromBody] StatusUpdateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "approvals.view")) return Forbid();
         if (string.IsNullOrWhiteSpace(body.Status)) return BadRequest(new { error = "status required" });
         var row = await _hr.UpdateApprovalAsync(id, body.Status, ct);
         return row is null ? NotFound() : Ok(row);

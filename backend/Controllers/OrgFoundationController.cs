@@ -1,3 +1,4 @@
+using DigitalDive.Hr.Api.Helpers;
 using DigitalDive.Hr.Api.Models;
 using DigitalDive.Hr.Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -8,16 +9,18 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "Organisation")]
 [Route("api/org")]
-[Authorize(Roles = "admin,manager")]
+[Authorize]
 public sealed class OrgFoundationController : ControllerBase
 {
     private readonly OrgFoundationService _org;
     private readonly HrQueryService _hr;
+    private readonly RbacService _rbac;
 
-    public OrgFoundationController(OrgFoundationService org, HrQueryService hr)
+    public OrgFoundationController(OrgFoundationService org, HrQueryService hr, RbacService rbac)
     {
         _org = org;
         _hr = hr;
+        _rbac = rbac;
     }
 
     [HttpGet("legal-entities")]
@@ -25,9 +28,9 @@ public sealed class OrgFoundationController : ControllerBase
         Ok(await _org.LegalEntitiesAsync(ct));
 
     [HttpPost("legal-entities")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> CreateLegalEntity([FromBody] LegalEntityCreateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "company.organisation")) return Forbid();
         var (row, error) = await _org.CreateLegalEntityAsync(body, ct);
         if (error is not null) return BadRequest(new { error });
         await _hr.WriteAuditAsync(User.FindFirst("email")?.Value, User.FindFirst("role")?.Value,
@@ -40,9 +43,9 @@ public sealed class OrgFoundationController : ControllerBase
         Ok(await _org.BranchesAsync(legalEntityId, ct));
 
     [HttpPost("branches")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> CreateBranch([FromBody] BranchCreateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "company.organisation")) return Forbid();
         var (row, error) = await _org.CreateBranchAsync(body, ct);
         if (error is not null) return BadRequest(new { error });
         return StatusCode(StatusCodes.Status201Created, row);
@@ -53,9 +56,9 @@ public sealed class OrgFoundationController : ControllerBase
         Ok(await _org.PositionsAsync(legalEntityId, status, ct));
 
     [HttpPost("positions")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> CreatePosition([FromBody] PositionCreateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "company.organisation")) return Forbid();
         var (row, error) = await _org.CreatePositionAsync(body, ct);
         if (error is not null) return BadRequest(new { error });
         await _hr.WriteAuditAsync(User.FindFirst("email")?.Value, User.FindFirst("role")?.Value,
@@ -64,9 +67,9 @@ public sealed class OrgFoundationController : ControllerBase
     }
 
     [HttpPatch("positions/{id:int}")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> UpdatePosition(int id, [FromBody] PositionUpdateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "company.organisation")) return Forbid();
         var (row, error) = await _org.UpdatePositionAsync(id, body, ct);
         if (error is not null)
             return error.Contains("not found", StringComparison.OrdinalIgnoreCase)
@@ -82,9 +85,9 @@ public sealed class OrgFoundationController : ControllerBase
         Ok(await _org.AssignmentsAsync(openOnly, ct));
 
     [HttpPost("assignments")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> CreateAssignment([FromBody] AssignmentCreateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "company.organisation")) return Forbid();
         var (row, error) = await _org.CreateAssignmentAsync(body, ct);
         if (error is not null) return BadRequest(new { error });
         await _hr.WriteAuditAsync(User.FindFirst("email")?.Value, User.FindFirst("role")?.Value,
@@ -94,9 +97,9 @@ public sealed class OrgFoundationController : ControllerBase
     }
 
     [HttpPost("assignments/{id:int}/end")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> EndAssignment(int id, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "company.organisation")) return Forbid();
         var (row, error) = await _org.EndAssignmentAsync(id, ct);
         if (error is not null) return BadRequest(new { error });
         await _hr.WriteAuditAsync(User.FindFirst("email")?.Value, User.FindFirst("role")?.Value,

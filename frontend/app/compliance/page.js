@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
+import { api, getUser, getPermissions, normalizeRole } from '../../lib/auth';
+import { canUsePermission } from '../../lib/nav';
 import { formatDate, todayISO, v } from '../../lib/format';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
 
 export default function CompliancePage() {
   const role = normalizeRole(getUser());
-  const isAdmin = isAdminRole(role);
+  const permissions = getPermissions(getUser());
+  const canManage = canUsePermission(role, permissions, 'compliance.view');
 
   const [rows, setRows] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
@@ -115,7 +117,7 @@ export default function CompliancePage() {
             {' · '}GPSSA eligible {emiratisation.gpssaEligible}
             {' · '}Nafis {emiratisation.nafisRegistered}
           </p>
-          {isAdmin ? (
+          {canManage ? (
             <button type="button" className="btn secondary" onClick={syncRenewals}>
               Sync document renewal tasks
             </button>
@@ -123,7 +125,7 @@ export default function CompliancePage() {
         </div>
       ) : null}
 
-      {isAdmin ? (
+      {canManage ? (
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="panel-title">
             <h3>Add compliance item</h3>
@@ -257,7 +259,7 @@ export default function CompliancePage() {
                       <Badge status={status} />
                     </td>
                     <td>
-                      {isAdmin && status !== 'compliant' && status !== 'closed' ? (
+                      {canManage && status !== 'compliant' && status !== 'closed' ? (
                         <div className="row-actions">
                           <button type="button" className="btn ok" onClick={() => setStatus(id, 'compliant')}>
                             Compliant

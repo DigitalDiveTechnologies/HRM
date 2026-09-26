@@ -1,3 +1,4 @@
+using DigitalDive.Hr.Api.Helpers;
 using DigitalDive.Hr.Api.Models;
 using DigitalDive.Hr.Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -8,7 +9,7 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "Assets")]
 [Route("api/assets")]
-[Authorize(Roles = "admin,manager")]
+[Authorize]
 public sealed class AssetsController : ControllerBase
 {
     private static readonly HashSet<string> Categories = new(StringComparer.OrdinalIgnoreCase)
@@ -22,21 +23,32 @@ public sealed class AssetsController : ControllerBase
     };
 
     private readonly HrQueryService _hr;
+    private readonly RbacService _rbac;
 
-    public AssetsController(HrQueryService hr) => _hr = hr;
+    public AssetsController(HrQueryService hr, RbacService rbac)
+    {
+        _hr = hr;
+        _rbac = rbac;
+    }
 
     [HttpGet]
-    public async Task<IActionResult> List(CancellationToken ct) =>
-        Ok(await _hr.AssetsAsync(ct));
+    public async Task<IActionResult> List(CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "assets.view")) return Forbid();
+        return Ok(await _hr.AssetsAsync(ct));
+    }
 
     [HttpGet("assignments")]
-    public async Task<IActionResult> Assignments(CancellationToken ct) =>
-        Ok(await _hr.AssetAssignmentsAsync(ct));
+    public async Task<IActionResult> Assignments(CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "assets.view")) return Forbid();
+        return Ok(await _hr.AssetAssignmentsAsync(ct));
+    }
 
     [HttpPost]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> Create([FromBody] AssetCreateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "assets.view")) return Forbid();
         if (string.IsNullOrWhiteSpace(body.AssetTag) || string.IsNullOrWhiteSpace(body.Name))
             return BadRequest(new { error = "assetTag and name required" });
 
@@ -60,9 +72,9 @@ public sealed class AssetsController : ControllerBase
     }
 
     [HttpPost("{id:int}/assign")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> Assign(int id, [FromBody] AssetAssignRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "assets.view")) return Forbid();
         if (body.EmployeeId <= 0)
             return BadRequest(new { error = "employeeId required" });
 
@@ -71,17 +83,17 @@ public sealed class AssetsController : ControllerBase
     }
 
     [HttpPatch("assignments/{id:int}/return")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> ReturnAssignment(int id, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "assets.view")) return Forbid();
         var row = await _hr.ReturnAssetAssignmentAsync(id, ct);
         return row is null ? NotFound() : Ok(row);
     }
 
     [HttpPatch("{id:int}/status")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> UpdateStatus(int id, [FromBody] StatusUpdateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "assets.view")) return Forbid();
         if (string.IsNullOrWhiteSpace(body.Status) || !Statuses.Contains(body.Status.Trim()))
             return BadRequest(new { error = "invalid status" });
         var row = await _hr.UpdateAssetStatusAsync(id, body.Status.Trim(), ct);

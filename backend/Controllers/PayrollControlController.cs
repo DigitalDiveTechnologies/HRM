@@ -1,3 +1,4 @@
+using DigitalDive.Hr.Api.Helpers;
 using DigitalDive.Hr.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -7,12 +8,17 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "PayrollControl")]
 [Route("api/payroll/runs")]
-[Authorize(Roles = "admin")]
+[Authorize]
 public sealed class PayrollControlController : ControllerBase
 {
     private readonly PayrollControlService _svc;
+    private readonly RbacService _rbac;
 
-    public PayrollControlController(PayrollControlService svc) => _svc = svc;
+    public PayrollControlController(PayrollControlService svc, RbacService rbac)
+    {
+        _svc = svc;
+        _rbac = rbac;
+    }
 
     public sealed class CalculateRequest
     {
@@ -28,11 +34,16 @@ public sealed class PayrollControlController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> List(CancellationToken ct) => Ok(await _svc.ListRunsAsync(ct));
+    public async Task<IActionResult> List(CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "payroll.view")) return Forbid();
+        return Ok(await _svc.ListRunsAsync(ct));
+    }
 
     [HttpGet("{id:int}")]
     public async Task<IActionResult> Get(int id, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "payroll.view")) return Forbid();
         var run = await _svc.GetRunAsync(id, ct);
         if (run is null) return NotFound();
         var lines = await _svc.GetLinesAsync(id, ct);
@@ -42,6 +53,7 @@ public sealed class PayrollControlController : ControllerBase
     [HttpPost("calculate")]
     public async Task<IActionResult> Calculate([FromBody] CalculateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "payroll.view")) return Forbid();
         var email = User.FindFirst("email")?.Value;
         var (result, error) = await _svc.CalculateAsync(body.PeriodLabel, body.OtRatePerHour, body.LegalEntityId, email, ct);
         if (error is not null) return BadRequest(new { error, isPreview = true });
@@ -51,6 +63,7 @@ public sealed class PayrollControlController : ControllerBase
     [HttpPost("{id:int}/transition")]
     public async Task<IActionResult> Transition(int id, [FromBody] TransitionRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "payroll.view")) return Forbid();
         if (string.IsNullOrWhiteSpace(body.Action))
             return BadRequest(new { error = "action required" });
         var email = User.FindFirst("email")?.Value;
@@ -70,6 +83,7 @@ public sealed class PayrollControlController : ControllerBase
     [HttpGet("{id:int}/sif")]
     public async Task<IActionResult> Sif(int id, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "payroll.view")) return Forbid();
         var (content, fileName, error, isPreview) = await _svc.BuildSifFromRunAsync(id, ct);
         if (error is not null) return BadRequest(new { error, isPreview = true });
         Response.Headers["X-GOCs-Payroll-Preview"] = isPreview ? "true" : "false";
@@ -77,6 +91,9 @@ public sealed class PayrollControlController : ControllerBase
     }
 
     [HttpGet("~/api/payroll/emiratisation")]
-    public async Task<IActionResult> Emiratisation(CancellationToken ct) =>
-        Ok(await _svc.EmiratisationGpssaReportAsync(ct));
+    public async Task<IActionResult> Emiratisation(CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "payroll.view")) return Forbid();
+        return Ok(await _svc.EmiratisationGpssaReportAsync(ct));
+    }
 }

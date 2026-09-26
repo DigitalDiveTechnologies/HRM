@@ -13,8 +13,13 @@ namespace DigitalDive.Hr.Api.Controllers;
 public sealed class LeaveController : ControllerBase
 {
     private readonly HrQueryService _hr;
+    private readonly RbacService _rbac;
 
-    public LeaveController(HrQueryService hr) => _hr = hr;
+    public LeaveController(HrQueryService hr, RbacService rbac)
+    {
+        _hr = hr;
+        _rbac = rbac;
+    }
 
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct)
@@ -93,9 +98,9 @@ public sealed class LeaveController : ControllerBase
     }
 
     [HttpPatch("{id:int}")]
-    [Authorize(Roles = "admin,manager")]
     public async Task<IActionResult> Update(int id, [FromBody] StatusUpdateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "leave.view", "approvals.view")) return Forbid();
         if (string.IsNullOrWhiteSpace(body.Status)) return BadRequest(new { error = "status required" });
         var row = await _hr.UpdateLeaveAsync(id, body.Status, ct);
         return row is null ? NotFound() : Ok(row);

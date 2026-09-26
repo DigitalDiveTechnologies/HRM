@@ -13,8 +13,13 @@ namespace DigitalDive.Hr.Api.Controllers;
 public sealed class OnboardingController : ControllerBase
 {
     private readonly HrQueryService _hr;
+    private readonly RbacService _rbac;
 
-    public OnboardingController(HrQueryService hr) => _hr = hr;
+    public OnboardingController(HrQueryService hr, RbacService rbac)
+    {
+        _hr = hr;
+        _rbac = rbac;
+    }
 
     public sealed class OnboardingCreateRequest
     {
@@ -26,8 +31,11 @@ public sealed class OnboardingController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Roles = "admin")]
-    public async Task<IActionResult> List(CancellationToken ct) => Ok(await _hr.OnboardingAsync(ct));
+    public async Task<IActionResult> List(CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "onboarding.view")) return Forbid();
+        return Ok(await _hr.OnboardingAsync(ct));
+    }
 
     /// <summary>Employee portal: return only the onboarding tasks assigned to the signed-in employee.</summary>
     [HttpGet("my")]
@@ -40,9 +48,9 @@ public sealed class OnboardingController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> Create([FromBody] OnboardingCreateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "onboarding.view")) return Forbid();
         var (row, error) = await _hr.CreateOnboardingAsync(
             body.EmployeeId, body.Title, body.Category, body.TagNo, body.DueDate, ct);
         if (error is not null) return BadRequest(new { error });
@@ -52,9 +60,9 @@ public sealed class OnboardingController : ControllerBase
     }
 
     [HttpPatch("{id:int}")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> Update(int id, [FromBody] StatusUpdateRequest body, CancellationToken ct)
     {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "onboarding.view")) return Forbid();
         if (string.IsNullOrWhiteSpace(body.Status)) return BadRequest(new { error = "status required" });
         var row = await _hr.UpdateOnboardingAsync(id, body.Status, ct);
         return row is null ? NotFound() : Ok(row);
