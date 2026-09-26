@@ -66,7 +66,7 @@ export default function DashboardPage() {
         const empCache = localStorage.getItem('gocs_cached_employees');
         if (empCache) {
           const parsedEmp = JSON.parse(empCache);
-          if (Array.isArray(parsedEmp) && parsedEmp.length > 1) return parsedEmp;
+          if (Array.isArray(parsedEmp) && parsedEmp.length > 0) return parsedEmp;
         }
       } catch {}
     }
@@ -239,6 +239,9 @@ export default function DashboardPage() {
         setActivities(finalFeed);
 
         try {
+          if (cleanEmps.length > 0) {
+            localStorage.setItem('gocs_cached_employees', JSON.stringify(cleanEmps));
+          }
           localStorage.setItem(
             'gocs_cached_dashboard',
             JSON.stringify({

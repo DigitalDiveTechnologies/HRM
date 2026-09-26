@@ -75,7 +75,7 @@ public sealed class HrQueryService
             LEFT JOIN designations dg ON dg.id = e.designation_id
             LEFT JOIN employment_types et ON et.id = e.employment_type_id
             WHERE e.in_hr_ops = TRUE
-            ORDER BY e.emp_code
+            ORDER BY e.id DESC
             """, ct);
         foreach (var row in rows)
             AttachAppPasswordFromMaster(row);
@@ -2963,7 +2963,7 @@ public sealed class HrQueryService
             LEFT JOIN departments d ON d.id = e.department_id
             JOIN v_employee_reporting_manager rm ON rm.employee_id = e.id
             WHERE rm.manager_employee_id = @mid AND e.in_hr_ops = TRUE AND e.status != 'exited'
-            ORDER BY e.emp_code
+            ORDER BY e.id DESC
             """, ct, ("mid", managerId));
 
     public Task<List<Dictionary<string, object?>>> MssLeaveAsync(int managerId, CancellationToken ct) =>

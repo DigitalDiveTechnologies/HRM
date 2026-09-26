@@ -165,14 +165,10 @@ export default function CreateEmployeePage() {
               : Array.isArray(managers) && managers.length > 0
                 ? managers
                 : [];
-          if (baseList.length > 0) {
-            const next = [res.employee, ...baseList.filter((r) => v(r, 'id') !== id)];
-            localStorage.setItem('gocs_cached_employees', JSON.stringify(next));
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('gocs_employees_updated', { detail: next }));
-            }
-          } else {
-            localStorage.removeItem('gocs_cached_employees');
+          const next = [res.employee, ...baseList.filter((r) => v(r, 'id') !== id)];
+          localStorage.setItem('gocs_cached_employees', JSON.stringify(next));
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('gocs_employees_updated', { detail: next }));
           }
 
           const dashCached = localStorage.getItem('gocs_cached_dashboard');

@@ -71,6 +71,21 @@ function formatCompensation(val) {
   return isNaN(num) ? str : `AED ${num.toLocaleString()}`;
 }
 
+function sortEmployeesDesc(list) {
+  if (!Array.isArray(list)) return [];
+  return [...list].sort((a, b) => {
+    const idA = Number(v(a, 'id') || 0);
+    const idB = Number(v(b, 'id') || 0);
+    if (idA !== idB && !isNaN(idA) && !isNaN(idB)) return idB - idA;
+    const codeA = parseInt(String(v(a, 'empCode', 'emp_code') || '').replace(/\D/g, ''), 10) || 0;
+    const codeB = parseInt(String(v(b, 'empCode', 'emp_code') || '').replace(/\D/g, ''), 10) || 0;
+    if (codeA !== codeB) return codeB - codeA;
+    const tA = new Date(v(a, 'createdAt', 'created_at', 'joinDate', 'join_date') || 0).getTime();
+    const tB = new Date(v(b, 'createdAt', 'created_at', 'joinDate', 'join_date') || 0).getTime();
+    return tB - tA;
+  });
+}
+
 function EmployeesContent() {
   const router = useRouter();
   const role = normalizeRole(getUser());
@@ -90,18 +105,8 @@ function EmployeesContent() {
         const cached = localStorage.getItem('gocs_cached_employees');
         if (cached) {
           const parsed = JSON.parse(cached);
-          let expectedMore = false;
-          try {
-            const dashCached = localStorage.getItem('gocs_cached_dashboard');
-            if (dashCached) {
-              const d = JSON.parse(dashCached);
-              if ((d?.dash?.headcount || 0) > 1 || (d?.dash?.totalEmployees || 0) > 1) {
-                expectedMore = true;
-              }
-            }
-          } catch {}
-          if (Array.isArray(parsed) && (!expectedMore || parsed.length > 1)) {
-            return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return sortEmployeesDesc(parsed);
           }
         }
       } catch {}
@@ -114,11 +119,11 @@ function EmployeesContent() {
         const cached = localStorage.getItem('gocs_cached_employees');
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 1) return false;
+          if (Array.isArray(parsed) && parsed.length > 0) return false;
         }
       } catch {}
     }
-    return true;
+    return false;
   });
   const [departments, setDepartments] = useState([]);
   const [divisions, setDivisions] = useState([]);
@@ -272,19 +277,19 @@ function EmployeesContent() {
   };
 
   const load = useCallback(() => {
-    setLoadingEmps((prev) => (rows.length ? false : true));
     // 1. Prioritized immediate load for Employees table
     const empsP = api('/employees')
       .then((emps) => {
         const list = Array.isArray(emps) ? emps : [];
-        setRows(list);
+        const sorted = sortEmployeesDesc(list);
+        setRows(sorted);
         setLoadingEmps(false);
         try {
-          localStorage.setItem('gocs_cached_employees', JSON.stringify(list));
+          localStorage.setItem('gocs_cached_employees', JSON.stringify(sorted));
         } catch {}
         setCreateForm((prev) => ({
           ...prev,
-          empCode: prev.empCode || calculateNextCode(list),
+          empCode: prev.empCode || calculateNextCode(sorted),
         }));
       })
       .catch((e) => {
@@ -346,15 +351,15 @@ function EmployeesContent() {
   useEffect(() => {
     const handleUpdate = (evt) => {
       if (evt?.detail && Array.isArray(evt.detail)) {
-        setRows(evt.detail);
+        setRows(sortEmployeesDesc(evt.detail));
         setLoadingEmps(false);
       } else {
         try {
           const cached = localStorage.getItem('gocs_cached_employees');
           if (cached) {
             const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed) && parsed.length > 1) {
-              setRows((prev) => (Array.isArray(prev) && prev.length > parsed.length ? prev : parsed));
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setRows(sortEmployeesDesc(parsed));
               setLoadingEmps(false);
             }
           }
@@ -546,7 +551,7 @@ function EmployeesContent() {
       if (res?.employee) {
         setRows((prev) => {
           const id = v(res.employee, 'id');
-          const next = [res.employee, ...(Array.isArray(prev) ? prev.filter((r) => v(r, 'id') !== id) : [])];
+          const next = sortEmployeesDesc([res.employee, ...(Array.isArray(prev) ? prev.filter((r) => v(r, 'id') !== id) : [])]);
           try {
             localStorage.setItem('gocs_cached_employees', JSON.stringify(next));
             if (typeof window !== 'undefined') {
@@ -801,17 +806,7 @@ function EmployeesContent() {
   const safePage = Math.min(Math.max(1, empPage), totalEmpPages);
   const paginatedEmployees = useMemo(() => {
     const list = Array.isArray(filteredRows) ? filteredRows : [];
-    const sorted = [...list].sort((a, b) => {
-      const tA = new Date(v(a, 'createdAt', 'created_at') || 0).getTime();
-      const tB = new Date(v(b, 'createdAt', 'created_at') || 0).getTime();
-      if (!isNaN(tA) && !isNaN(tB) && tA !== tB && tA > 0 && tB > 0) return tB - tA;
-      const idA = Number(v(a, 'id') || 0);
-      const idB = Number(v(b, 'id') || 0);
-      if (idA !== idB && !isNaN(idA) && !isNaN(idB)) return idB - idA;
-      const codeA = parseInt(String(v(a, 'empCode', 'emp_code') || '').replace(/\D/g, ''), 10) || 0;
-      const codeB = parseInt(String(v(b, 'empCode', 'emp_code') || '').replace(/\D/g, ''), 10) || 0;
-      return codeB - codeA;
-    });
+    const sorted = sortEmployeesDesc(list);
     const start = (safePage - 1) * EMP_PAGE_SIZE;
     return sorted.slice(start, start + EMP_PAGE_SIZE);
   }, [filteredRows, safePage]);
