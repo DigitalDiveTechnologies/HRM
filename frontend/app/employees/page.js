@@ -205,7 +205,7 @@ function EmployeesContent() {
 
   const load = useCallback(() => {
     // 1. Prioritized immediate load for Employees table
-    api('/employees')
+    const empsP = api('/employees')
       .then((emps) => {
         const list = emps || [];
         setRows(list);
@@ -224,7 +224,7 @@ function EmployeesContent() {
       });
 
     // Load masters for create form — allSettled so one failure does not empty every dropdown
-    Promise.allSettled([
+    const mastersP = Promise.allSettled([
       api('/employees/departments'),
       api('/divisions?activeOnly=true'),
       api('/designations?activeOnly=true'),
@@ -238,6 +238,9 @@ function EmployeesContent() {
         setError(divRes.reason?.message || 'Could not load companies for the create form.');
       }
     });
+
+    // Must return a Promise — saveEmployeeEdit awaits load().catch(...)
+    return Promise.all([empsP, mastersP]);
   }, [isAdmin]);
 
   useEffect(() => {
