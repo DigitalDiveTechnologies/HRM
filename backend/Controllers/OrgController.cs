@@ -56,7 +56,7 @@ public sealed class OrgController : ControllerBase
     [HttpPost("employee-skills")]
     public async Task<IActionResult> AssignSkill([FromBody] EmployeeSkillAssignRequest body, CancellationToken ct)
     {
-        if (!await PermissionGate.HasAsync(_rbac, User, ct, "company.organisation")) return Forbid();
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "company.organisation", "training.view")) return Forbid();
         if (body.EmployeeId <= 0 || body.SkillId <= 0)
             return BadRequest(new { error = "employeeId and skillId required" });
         await _hr.AssignEmployeeSkillAsync(body.EmployeeId, body.SkillId, body.Level, ct);

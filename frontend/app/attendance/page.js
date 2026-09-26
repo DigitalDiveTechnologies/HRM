@@ -5,6 +5,7 @@ import AppShell, { Badge } from '../../components/AppShell';
 import { api, getUser, normalizeRole } from '../../lib/auth';
 import { formatDate, formatLate, todayISO, v } from '../../lib/format';
 import { applyEmpFilter, useCompanyFilter } from '../../lib/useCompanyFilter';
+import { getInstantEmployees, loadEmployeesFast } from '../../lib/employeeCache';
 
 export default function AttendancePage() {
   const [user, setUser] = useState(null);
@@ -13,7 +14,7 @@ export default function AttendancePage() {
   const { filteredEmpIds } = useCompanyFilter();
 
   const [rows, setRows] = useState([]);
-  const [employees, setEmployees] = useState([]);
+  const [employees, setEmployees] = useState(() => getInstantEmployees());
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [form, setForm] = useState({
@@ -32,10 +33,10 @@ export default function AttendancePage() {
 
   const load = useCallback(async () => {
     if (!user) return;
+    loadEmployeesFast(setEmployees);
     try {
-      const [att, emps] = await Promise.all([api('/attendance'), api('/employees')]);
-      setRows(att);
-      setEmployees(emps);
+      const att = await api('/attendance');
+      setRows(att || []);
       if (normalizeRole(user) === 'employee' && user?.employeeId) {
         setForm((f) => ({ ...f, employeeId: String(user.employeeId) }));
       }

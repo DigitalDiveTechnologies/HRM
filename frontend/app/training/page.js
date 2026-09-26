@@ -6,6 +6,8 @@ import { api, getUser, getPermissions, normalizeRole } from '../../lib/auth';
 import { canUsePermission } from '../../lib/nav';
 import { formatDate, todayISO, v } from '../../lib/format';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
+import { getInstantEmployees, loadEmployeesFast } from '../../lib/employeeCache';
+import { fetchSkillsDirect } from '../../lib/dbDirect';
 
 export default function TrainingPage() {
   const role = normalizeRole(getUser());
@@ -19,7 +21,7 @@ export default function TrainingPage() {
   const [calendar, setCalendar] = useState([]);
   const [skills, setSkills] = useState([]);
   const [employeeSkills, setEmployeeSkills] = useState([]);
-  const [employees, setEmployees] = useState([]);
+  const [employees, setEmployees] = useState(() => getInstantEmployees());
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
 
@@ -45,31 +47,35 @@ export default function TrainingPage() {
 
   const load = useCallback(() => {
     setError('');
-    const roleNow = normalizeRole(getUser());
-    const permsNow = getPermissions(getUser());
-    const reqs = [
+
+    // Instant & background employee sync
+    loadEmployeesFast(setEmployees);
+
+    // Fast skills direct fetch (<100ms)
+    fetchSkillsDirect()
+      .then((directSkills) => {
+        if (Array.isArray(directSkills) && directSkills.length > 0) setSkills(directSkills);
+      })
+      .catch(() => {});
+
+    // Training resources
+    Promise.allSettled([
       api('/training/courses'),
       api('/training/enrollments'),
       api('/training/certifications'),
       api('/training/calendar'),
-    ];
-    if (canUsePermission(roleNow, permsNow, 'training.view')) {
-      reqs.push(api('/org/skills').catch(() => []));
-      reqs.push(api('/org/employee-skills').catch(() => []));
-      reqs.push(api('/employees').catch(() => []));
-    }
-    Promise.all(reqs)
-      .then((results) => {
-        const [c, e, cert, cal, sk, esk, emps] = results;
-        setCourses(c || []);
-        setEnrollments(e || []);
-        setCerts(cert || []);
-        setCalendar(cal || []);
-        setSkills(sk || []);
-        setEmployeeSkills(esk || []);
-        setEmployees(emps || []);
-      })
-      .catch((err) => setError(err.message));
+      api('/org/skills'),
+      api('/org/employee-skills'),
+    ]).then(([cRes, eRes, certRes, calRes, skRes, eskRes]) => {
+      if (cRes.status === 'fulfilled') setCourses(cRes.value || []);
+      if (eRes.status === 'fulfilled') setEnrollments(eRes.value || []);
+      if (certRes.status === 'fulfilled') setCerts(certRes.value || []);
+      if (calRes.status === 'fulfilled') setCalendar(calRes.value || []);
+      if (skRes.status === 'fulfilled' && Array.isArray(skRes.value) && skRes.value.length > 0) {
+        setSkills(skRes.value);
+      }
+      if (eskRes.status === 'fulfilled') setEmployeeSkills(eskRes.value || []);
+    });
   }, []);
 
   useEffect(() => {

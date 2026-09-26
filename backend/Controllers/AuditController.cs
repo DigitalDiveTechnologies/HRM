@@ -9,7 +9,7 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "Audit")]
 [Route("api/audit")]
-[Authorize(Roles = "admin,manager")]
+[Authorize]
 public sealed class AuditController : ControllerBase
 {
     private readonly HrQueryService _hr;

@@ -6,6 +6,7 @@ import { api, apiUpload, getUser, getPermissions, normalizeRole } from '../../li
 import { canUsePermission } from '../../lib/nav';
 import { downloadDocumentFile, formatDate, todayISO, v } from '../../lib/format';
 import { applyEmpFilter, useCompanyFilter } from '../../lib/useCompanyFilter';
+import { getInstantEmployees, loadEmployeesFast } from '../../lib/employeeCache';
 
 export default function DocumentsPage() {
   const role = normalizeRole(getUser());
@@ -14,7 +15,7 @@ export default function DocumentsPage() {
   const { filteredEmpIds } = useCompanyFilter();
 
   const [rows, setRows] = useState([]);
-  const [employees, setEmployees] = useState([]);
+  const [employees, setEmployees] = useState(() => getInstantEmployees());
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
@@ -33,15 +34,9 @@ export default function DocumentsPage() {
 
   const load = useCallback(() => {
     setError('');
-    const role = normalizeRole(getUser());
-    const permissions = getPermissions(getUser());
-    const tasks = [api('/documents')];
-    if (canUsePermission(role, permissions, 'documents.view')) tasks.push(api('/employees'));
-    Promise.all(tasks)
-      .then(([docs, emps]) => {
-        setRows(docs || []);
-        setEmployees(emps || []);
-      })
+    loadEmployeesFast(setEmployees);
+    api('/documents')
+      .then((docs) => setRows(docs || []))
       .catch((e) => setError(e.message));
   }, []);
 

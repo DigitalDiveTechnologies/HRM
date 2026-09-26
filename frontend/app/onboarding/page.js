@@ -6,6 +6,8 @@ import { api, getUser, getPermissions, normalizeRole } from '../../lib/auth';
 import { canUsePermission } from '../../lib/nav';
 import { formatDate, todayISO, v } from '../../lib/format';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
+import { getInstantEmployees, loadEmployeesFast } from '../../lib/employeeCache';
+import { fetchOnboardingDirect } from '../../lib/dbDirect';
 
 export default function OnboardingPage() {
   const [user, setUser] = useState(() => {
@@ -21,8 +23,19 @@ export default function OnboardingPage() {
   const canManage = canUsePermission(role, permissions, 'onboarding.view');
   const { filteredEmpIds } = useCompanyFilter();
 
-  const [employees, setEmployees] = useState([]);
-  const [rows, setRows] = useState([]);
+  const [employees, setEmployees] = useState(() => getInstantEmployees());
+  const [rows, setRows] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_onboarding');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
 
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -40,18 +53,33 @@ export default function OnboardingPage() {
     dueDate: todayISO(),
   });
 
-  const load = useCallback(async () => {
+  const load = useCallback(() => {
     setError('');
-    try {
-      const [onboardRes, empsRes] = await Promise.all([
-        api('/onboarding'),
-        api('/employees'),
-      ]);
-      setEmployees(empsRes || []);
-      setRows(onboardRes || []);
-    } catch (e) {
-      setError(e.message);
-    }
+
+    // Instant & fast background employee sync
+    loadEmployeesFast(setEmployees);
+
+    // Direct DB fetch for onboarding records (<150ms)
+    fetchOnboardingDirect().then((directTasks) => {
+      if (Array.isArray(directTasks) && directTasks.length > 0) {
+        setRows(directTasks);
+        try {
+          localStorage.setItem('gocs_cached_onboarding', JSON.stringify(directTasks));
+        } catch {}
+      }
+    }).catch(() => {});
+
+    // Backend endpoint sync
+    api('/onboarding')
+      .then((onboardRes) => {
+        if (Array.isArray(onboardRes)) {
+          setRows(onboardRes);
+          try {
+            localStorage.setItem('gocs_cached_onboarding', JSON.stringify(onboardRes));
+          } catch {}
+        }
+      })
+      .catch((e) => setError(e.message));
   }, []);
 
   useEffect(() => {

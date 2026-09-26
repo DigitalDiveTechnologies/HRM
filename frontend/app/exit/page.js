@@ -6,14 +6,27 @@ import { api, getUser, getPermissions, normalizeRole } from '../../lib/auth';
 import { canUsePermission } from '../../lib/nav';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
 import { formatDate, todayISO, v } from '../../lib/format';
+import { getInstantEmployees, loadEmployeesFast } from '../../lib/employeeCache';
+import { fetchExitCasesDirect } from '../../lib/dbDirect';
 
 export default function ExitPage() {
   const role = normalizeRole(getUser());
   const permissions = getPermissions(getUser());
   const canManage = canUsePermission(role, permissions, 'exit.view');
 
-  const [rows, setRows] = useState([]);
-  const [employees, setEmployees] = useState([]);
+  const [rows, setRows] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_exit_cases');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
+  const [employees, setEmployees] = useState(() => getInstantEmployees());
   const { filteredEmpIds } = useCompanyFilter();
   const [checklist, setChecklist] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -30,10 +43,29 @@ export default function ExitPage() {
 
   const load = useCallback(() => {
     setError('');
-    Promise.all([api('/exit'), api('/employees')])
-      .then(([exits, emps]) => {
-        setRows(exits || []);
-        setEmployees(emps || []);
+
+    // Instant & fast background employee sync
+    loadEmployeesFast(setEmployees);
+
+    // Direct DB fetch for exit cases (<150ms)
+    fetchExitCasesDirect().then((directExits) => {
+      if (Array.isArray(directExits) && directExits.length > 0) {
+        setRows(directExits);
+        try {
+          localStorage.setItem('gocs_cached_exit_cases', JSON.stringify(directExits));
+        } catch {}
+      }
+    }).catch(() => {});
+
+    // Backend endpoint sync
+    api('/exit')
+      .then((exits) => {
+        if (Array.isArray(exits)) {
+          setRows(exits);
+          try {
+            localStorage.setItem('gocs_cached_exit_cases', JSON.stringify(exits));
+          } catch {}
+        }
       })
       .catch((e) => setError(e.message));
   }, []);

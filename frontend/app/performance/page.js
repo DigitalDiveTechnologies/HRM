@@ -6,6 +6,7 @@ import { api, getUser, getPermissions, normalizeRole } from '../../lib/auth';
 import { canUsePermission } from '../../lib/nav';
 import { formatDate, todayISO, v } from '../../lib/format';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
+import { getInstantEmployees, loadEmployeesFast } from '../../lib/employeeCache';
 
 export default function PerformancePage() {
   const role = normalizeRole(getUser());
@@ -15,7 +16,7 @@ export default function PerformancePage() {
 
   const [goals, setGoals] = useState([]);
   const [reviews, setReviews] = useState([]);
-  const [employees, setEmployees] = useState([]);
+  const [employees, setEmployees] = useState(() => getInstantEmployees());
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [goalForm, setGoalForm] = useState({
@@ -37,15 +38,14 @@ export default function PerformancePage() {
 
   const load = useCallback(() => {
     setError('');
-    const roleNow = normalizeRole(getUser());
-    const permsNow = getPermissions(getUser());
-    const reqs = [api('/performance/goals'), api('/performance/reviews')];
-    if (canUsePermission(roleNow, permsNow, 'performance.view')) reqs.push(api('/employees'));
-    Promise.all(reqs)
-      .then(([g, r, emps]) => {
-        setGoals(g || []);
-        setReviews(r || []);
-        setEmployees(emps || []);
+
+    // Instant & background employee sync for dropdowns
+    loadEmployeesFast(setEmployees);
+
+    Promise.allSettled([api('/performance/goals'), api('/performance/reviews')])
+      .then(([gRes, rRes]) => {
+        if (gRes.status === 'fulfilled') setGoals(gRes.value || []);
+        if (rRes.status === 'fulfilled') setReviews(rRes.value || []);
       })
       .catch((e) => setError(e.message));
   }, []);

@@ -14,6 +14,8 @@ import {
 } from '../../lib/employeeMaster';
 import { formatDate, v } from '../../lib/format';
 import { canUsePermission } from '../../lib/nav';
+import { getInstantEmployees, writeEmployeesCache } from '../../lib/employeeCache';
+import { fetchEmployeesDirect } from '../../lib/dbDirect';
 
 function getEmployeePhotoUrl(emp) {
   if (!emp) return null;
@@ -100,60 +102,10 @@ function EmployeesContent() {
     }
   }, [canListEmployees, canCreateEmployee, router]);
   const [rows, setRows] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem('gocs_cached_employees');
-        let expectedCount = 0;
-        try {
-          const dashCached = localStorage.getItem('gocs_cached_dashboard');
-          if (dashCached) {
-            const d = JSON.parse(dashCached);
-            expectedCount = Number(d?.dash?.headcount || d?.dash?.totalEmployees || 0);
-            if (Array.isArray(d?.employees) && d.employees.length > 1) {
-              return sortEmployeesDesc(d.employees);
-            }
-          }
-        } catch {}
-
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed)) {
-            if (parsed.length === 1 && expectedCount > 1) {
-              return [];
-            }
-            if (parsed.length > 0) {
-              return sortEmployeesDesc(parsed);
-            }
-          }
-        }
-      } catch {}
-    }
-    return [];
+    const instant = getInstantEmployees();
+    return instant.length > 0 ? sortEmployeesDesc(instant) : [];
   });
-  const [loadingEmps, setLoadingEmps] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem('gocs_cached_employees');
-        let expectedCount = 0;
-        try {
-          const dashCached = localStorage.getItem('gocs_cached_dashboard');
-          if (dashCached) {
-            const d = JSON.parse(dashCached);
-            expectedCount = Number(d?.dash?.headcount || d?.dash?.totalEmployees || 0);
-            if (Array.isArray(d?.employees) && d.employees.length > 1) return false;
-          }
-        } catch {}
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            if (parsed.length === 1 && expectedCount > 1) return true;
-            return false;
-          }
-        }
-      } catch {}
-    }
-    return true;
-  });
+  const [loadingEmps, setLoadingEmps] = useState(false);
   const [departments, setDepartments] = useState([]);
   const [divisions, setDivisions] = useState([]);
   const [designations, setDesignations] = useState([]);
@@ -306,6 +258,16 @@ function EmployeesContent() {
   };
 
   const load = useCallback(() => {
+    // 0. Ultra-fast direct DB query (<150ms)
+    fetchEmployeesDirect().then((direct) => {
+      if (Array.isArray(direct) && direct.length > 0) {
+        const sorted = sortEmployeesDesc(direct);
+        setRows(sorted);
+        setLoadingEmps(false);
+        writeEmployeesCache(sorted);
+      }
+    }).catch(() => {});
+
     // 1. Prioritized immediate load for Employees table
     const empsP = api('/employees')
       .then((emps) => {

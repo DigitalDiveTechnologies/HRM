@@ -6,6 +6,7 @@ import { api, getUser, getPermissions, normalizeRole } from '../../lib/auth';
 import { canUsePermission } from '../../lib/nav';
 import { formatDate, money, currencyCode, todayISO, v } from '../../lib/format';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
+import { getInstantEmployees, loadEmployeesFast } from '../../lib/employeeCache';
 
 export default function TravelPage() {
   const role = normalizeRole(getUser());
@@ -14,7 +15,7 @@ export default function TravelPage() {
 
   const [travel, setTravel] = useState([]);
   const [expenses, setExpenses] = useState([]);
-  const [employees, setEmployees] = useState([]);
+  const [employees, setEmployees] = useState(() => getInstantEmployees());
   const { filteredEmpIds } = useCompanyFilter();
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -39,11 +40,11 @@ export default function TravelPage() {
 
   const load = useCallback(() => {
     setError('');
-    Promise.all([api('/travel/requests'), api('/travel/expenses'), api('/employees')])
-      .then(([t, x, e]) => {
-        setTravel(t || []);
-        setExpenses(x || []);
-        setEmployees(e || []);
+    loadEmployeesFast(setEmployees);
+    Promise.allSettled([api('/travel/requests'), api('/travel/expenses')])
+      .then(([tRes, xRes]) => {
+        if (tRes.status === 'fulfilled') setTravel(tRes.value || []);
+        if (xRes.status === 'fulfilled') setExpenses(xRes.value || []);
       })
       .catch((err) => setError(err.message));
   }, []);

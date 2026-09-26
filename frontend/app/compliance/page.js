@@ -6,6 +6,7 @@ import { api, getUser, getPermissions, normalizeRole } from '../../lib/auth';
 import { canUsePermission } from '../../lib/nav';
 import { formatDate, todayISO, v } from '../../lib/format';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
+import { getInstantEmployees, loadEmployeesFast } from '../../lib/employeeCache';
 
 export default function CompliancePage() {
   const role = normalizeRole(getUser());
@@ -15,7 +16,7 @@ export default function CompliancePage() {
   const [rows, setRows] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const { filteredEmpIds } = useCompanyFilter();
-  const [employees, setEmployees] = useState([]);
+  const [employees, setEmployees] = useState(() => getInstantEmployees());
   const [emiratisation, setEmiratisation] = useState(null);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -30,19 +31,22 @@ export default function CompliancePage() {
 
   const load = useCallback(() => {
     setError('');
-    Promise.all([
-      api('/compliance'),
-      api('/employees'),
-      api('/audit'),
-      api('/payroll/emiratisation').catch(() => null),
-    ])
-      .then(([items, emps, logs, emi]) => {
-        setRows(items || []);
-        setEmployees(emps || []);
-        setAuditLogs(logs || []);
-        setEmiratisation(emi);
-      })
+
+    // Instant & background employee sync
+    loadEmployeesFast(setEmployees);
+
+    // Resilient parallel loads
+    api('/compliance')
+      .then((items) => setRows(items || []))
       .catch((e) => setError(e.message));
+
+    api('/audit')
+      .then((logs) => setAuditLogs(Array.isArray(logs) ? logs : []))
+      .catch(() => setAuditLogs([]));
+
+    api('/payroll/emiratisation')
+      .then((emi) => setEmiratisation(emi))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {

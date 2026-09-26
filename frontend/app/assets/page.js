@@ -6,7 +6,7 @@ import { api, getPermissions, getUser, normalizeRole } from '../../lib/auth';
 import { canUsePermission } from '../../lib/nav';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
 import { formatDate, v } from '../../lib/format';
-
+import { getInstantEmployees, loadEmployeesFast } from '../../lib/employeeCache';
 
 export default function AssetsPage() {
   const role = normalizeRole(getUser());
@@ -15,7 +15,7 @@ export default function AssetsPage() {
 
   const [assets, setAssets] = useState([]);
   const [assignments, setAssignments] = useState([]);
-  const [employees, setEmployees] = useState([]);
+  const [employees, setEmployees] = useState(() => getInstantEmployees());
   const { filteredEmpIds } = useCompanyFilter();
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -29,11 +29,11 @@ export default function AssetsPage() {
 
   const load = useCallback(() => {
     setError('');
-    Promise.all([api('/assets'), api('/assets/assignments'), api('/employees')])
-      .then(([a, asg, e]) => {
-        setAssets(a || []);
-        setAssignments(asg || []);
-        setEmployees(e || []);
+    loadEmployeesFast(setEmployees);
+    Promise.allSettled([api('/assets'), api('/assets/assignments')])
+      .then(([aRes, asgRes]) => {
+        if (aRes.status === 'fulfilled') setAssets(aRes.value || []);
+        if (asgRes.status === 'fulfilled') setAssignments(asgRes.value || []);
       })
       .catch((err) => setError(err.message));
   }, []);

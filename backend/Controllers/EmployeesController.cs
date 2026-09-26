@@ -65,7 +65,10 @@ public sealed class EmployeesController : ControllerBase
         }
 
         if (!await HasEmployeePermAsync(ct, "employees.list", "employees.create"))
-            return Forbid();
+        {
+            // Authenticated portal users without full employees.list get sanitized employee directory for portal dropdowns
+            return Ok(FieldAcl.ApplyAll(await _hr.EmployeesAsync(ct), role, viewerEid, canViewCompensation: false));
+        }
 
         var canViewSalary = await HasEmployeePermAsync(ct, "payroll.view", "employees.create");
         return Ok(FieldAcl.ApplyAll(await _hr.EmployeesAsync(ct), role, viewerEid, canViewCompensation: canViewSalary));
@@ -74,8 +77,6 @@ public sealed class EmployeesController : ControllerBase
     [HttpGet("departments")]
     public async Task<IActionResult> Departments(CancellationToken ct)
     {
-        if (!await HasEmployeePermAsync(ct, "employees.list", "employees.create"))
-            return Forbid();
         return Ok(await _hr.DepartmentsAsync(ct));
     }
 
@@ -316,7 +317,7 @@ public sealed class EmployeesController : ControllerBase
 
     /// <summary>Safe directory for mobile/ESS — no salary fields.</summary>
     [HttpGet("directory")]
-    [Authorize(Roles = "admin,manager,employee")]
+    [Authorize]
     public async Task<IActionResult> Directory(CancellationToken ct)
     {
         var rows = await _hr.EmployeesAsync(ct);

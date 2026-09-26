@@ -9,7 +9,7 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "Performance")]
 [Route("api/performance")]
-[Authorize(Roles = "admin,manager,employee")]
+[Authorize]
 public sealed class PerformanceController : ControllerBase
 {
     private static readonly HashSet<string> GoalStatuses = new(StringComparer.OrdinalIgnoreCase)

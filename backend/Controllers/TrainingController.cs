@@ -9,7 +9,7 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "Training")]
 [Route("api/training")]
-[Authorize(Roles = "admin,manager,employee")]
+[Authorize]
 public sealed class TrainingController : ControllerBase
 {
     private static readonly HashSet<string> CourseStatuses = new(StringComparer.OrdinalIgnoreCase)

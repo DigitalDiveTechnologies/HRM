@@ -7,6 +7,7 @@ import { canUseAnyPermission } from '../../lib/nav';
 import { formatDate, todayISO, v } from '../../lib/format';
 import { UAE_HOLIDAYS_2026 } from '../../lib/holidays';
 import { useCompanyFilter, buildLocalEmpIds } from '../../lib/useCompanyFilter';
+import { getInstantEmployees, loadEmployeesFast } from '../../lib/employeeCache';
 
 export default function LeavePage() {
   const [user, setUser] = useState(() => {
@@ -55,18 +56,8 @@ export default function LeavePage() {
   });
 
   const [employees, setEmployees] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem('gocs_cached_employees');
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed.filter((e) => !String(v(e, 'fullName', 'full_name')).toLowerCase().includes('ayan'));
-          }
-        }
-      } catch {}
-    }
-    return [];
+    const instant = getInstantEmployees();
+    return instant.filter((e) => !String(v(e, 'fullName', 'full_name')).toLowerCase().includes('ayan'));
   });
 
   // Build filteredEmpIds from locally-loaded employees (more reliable than cache-based hook)
