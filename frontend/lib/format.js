@@ -10,6 +10,24 @@ export function formatDate(value) {
   return String(value).slice(0, 10);
 }
 
+export function formatDateTime(value) {
+  if (!value) return '-';
+  try {
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return String(value).slice(0, 16);
+    return d.toLocaleString('en-US', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return String(value).slice(0, 16);
+  }
+}
+
 /** Map IANA timezone → country (where the user actually is). */
 function countryFromTimezone(tz) {
   const t = String(tz || '');

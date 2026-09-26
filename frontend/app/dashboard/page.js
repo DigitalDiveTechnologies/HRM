@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api, getPermissions, getUser, normalizeRole } from '../../lib/auth';
 import { upsertCompanyInCache, writeCompaniesCache } from '../../lib/companyCache';
-import { formatDate, formatLate, v } from '../../lib/format';
+import { formatDate, formatDateTime, formatLate, v } from '../../lib/format';
 import { LOGO_ACCEPT, readLogoFileAsDataUrl, validateLogoFile } from '../../lib/logoUpload';
 import { canUseAnyPermission, canUsePermission } from '../../lib/nav';
 
@@ -17,6 +17,18 @@ const COMPANY_PERMS = [
   'company.organisation',
   'company.structure',
 ];
+
+function sortCompaniesLatest(list) {
+  if (!Array.isArray(list)) return [];
+  return [...list].sort((a, b) => {
+    const rawA = a?.created_at || a?.createdAt;
+    const rawB = b?.created_at || b?.createdAt;
+    const timeA = rawA ? new Date(rawA).getTime() : 0;
+    const timeB = rawB ? new Date(rawB).getTime() : 0;
+    if (timeB !== timeA) return timeB - timeA;
+    return (Number(b?.id || 0) || 0) - (Number(a?.id || 0) || 0);
+  });
+}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -78,12 +90,12 @@ export default function DashboardPage() {
         const cached = localStorage.getItem('gocs_cached_dashboard');
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (parsed && Array.isArray(parsed.companies) && parsed.companies.length) return parsed.companies;
+          if (parsed && Array.isArray(parsed.companies) && parsed.companies.length) return sortCompaniesLatest(parsed.companies);
         }
         const divCache = localStorage.getItem('gocs_cached_divisions');
         if (divCache) {
           const parsedDiv = JSON.parse(divCache);
-          if (Array.isArray(parsedDiv)) return parsedDiv;
+          if (Array.isArray(parsedDiv)) return sortCompaniesLatest(parsedDiv);
         }
       } catch {}
     }
@@ -185,7 +197,7 @@ export default function DashboardPage() {
     Promise.all(tasks)
       .then(([dash, emps, notifs, divs, leaveRows, attRows]) => {
         const cleanEmps = allowEmployees && Array.isArray(emps) ? emps : [];
-        const cleanDivs = allowCompanies && Array.isArray(divs) ? divs : [];
+        const cleanDivs = allowCompanies && Array.isArray(divs) ? sortCompaniesLatest(divs) : [];
         const cleanLeaves = allowLeave && Array.isArray(leaveRows) ? leaveRows : [];
         const cleanAtt =
           allowAttendance && Array.isArray(attRows) && attRows.length
@@ -275,7 +287,11 @@ export default function DashboardPage() {
         }),
       });
       // Instant list: use create response first (avoid waiting on full GET with heavy logos)
-      const next = upsertCompanyInCache(created, companies);
+      const createdWithTimestamp = {
+        ...created,
+        created_at: created?.created_at || created?.createdAt || new Date().toISOString(),
+      };
+      const next = sortCompaniesLatest(upsertCompanyInCache(createdWithTimestamp, companies));
       setCompanies(next);
       setCompanyPage(1);
       setCompanyMsg('Company created successfully.');
@@ -284,7 +300,7 @@ export default function DashboardPage() {
       // Background refresh — don't block UI
       api('/divisions')
         .then((d) => {
-          const cleanDivs = Array.isArray(d) ? d : [];
+          const cleanDivs = Array.isArray(d) ? sortCompaniesLatest(d) : [];
           setCompanies(cleanDivs);
           writeCompaniesCache(cleanDivs);
         })
@@ -316,7 +332,7 @@ export default function DashboardPage() {
       });
       setCompanyMsg('Company logo updated successfully.');
       const d = await api('/divisions');
-      const cleanDivs = Array.isArray(d) ? d : [];
+      const cleanDivs = Array.isArray(d) ? sortCompaniesLatest(d) : [];
       setCompanies(cleanDivs);
       writeCompaniesCache(cleanDivs);
     } catch (err) {
@@ -330,10 +346,12 @@ export default function DashboardPage() {
     loadData();
   }, [loadData]);
 
+  const sortedCompanies = useMemo(() => sortCompaniesLatest(companies), [companies]);
+
   const selectedCompany = useMemo(() => {
     if (!selectedCompanyId) return null;
-    return (companies || []).find((c) => String(v(c, 'id')) === String(selectedCompanyId)) || null;
-  }, [companies, selectedCompanyId]);
+    return (sortedCompanies || []).find((c) => String(v(c, 'id')) === String(selectedCompanyId)) || null;
+  }, [sortedCompanies, selectedCompanyId]);
 
   const selectedCompanyName = useMemo(() => {
     return selectedCompany ? String(v(selectedCompany, 'name') || '').toLowerCase().trim() : '';
@@ -1425,20 +1443,22 @@ export default function DashboardPage() {
               <table className="dash-table">
                 <thead>
                   <tr>
-                    <th style={{ width: '14%' }}>Logo</th>
-                    <th style={{ width: '48%' }}>Company Name</th>
-                    <th style={{ width: '18%' }}>Status</th>
-                    <th style={{ width: '20%', textAlign: 'right' }}>Action</th>
+                    <th style={{ width: '10%' }}>Logo</th>
+                    <th style={{ width: '36%' }}>Company Name</th>
+                    <th style={{ width: '24%' }}>Created Date & Time</th>
+                    <th style={{ width: '15%' }}>Status</th>
+                    <th style={{ width: '15%', textAlign: 'right' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {companies.length ? (
-                    companies
+                  {sortedCompanies.length ? (
+                    sortedCompanies
                       .slice((companyPage - 1) * 10, companyPage * 10)
                       .map((comp) => {
                         const name = v(comp, 'name') || '—';
                         const status = v(comp, 'status') || 'active';
                         const logo = comp.logo_url || comp.logoUrl || '';
+                        const createdAt = v(comp, 'created_at', 'createdAt');
                         const isCurrentSelected = String(v(comp, 'id')) === String(selectedCompanyId);
 
                         return (
@@ -1528,6 +1548,9 @@ export default function DashboardPage() {
                                 </span>
                               ) : null}
                             </td>
+                            <td style={{ fontSize: '12px', color: 'var(--muted, #64748b)', whiteSpace: 'nowrap' }}>
+                              {formatDateTime(createdAt)}
+                            </td>
                             <td>
                               <Badge status={status} />
                             </td>
@@ -1555,7 +1578,7 @@ export default function DashboardPage() {
                       })
                   ) : (
                     <tr>
-                      <td colSpan={4} className="muted" style={{ textAlign: 'center', padding: '24px 0' }}>
+                      <td colSpan={5} className="muted" style={{ textAlign: 'center', padding: '24px 0' }}>
                         No companies registered yet.
                       </td>
                     </tr>
@@ -1565,7 +1588,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Pagination Bar (< 1, 2, 3... >) */}
-            {companies.length > 0 ? (
+            {sortedCompanies.length > 0 ? (
               <div
                 style={{
                   display: 'flex',
@@ -1579,7 +1602,7 @@ export default function DashboardPage() {
                 }}
               >
                 <div className="muted" style={{ fontSize: '11.5px' }}>
-                  Showing {(companyPage - 1) * 10 + 1}–{Math.min(companyPage * 10, companies.length)} of {companies.length} companies
+                  Showing {(companyPage - 1) * 10 + 1}–{Math.min(companyPage * 10, sortedCompanies.length)} of {sortedCompanies.length} companies
                 </div>
 
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -1610,7 +1633,7 @@ export default function DashboardPage() {
                   </button>
 
                   {/* Page Numbers */}
-                  {Array.from({ length: Math.ceil(companies.length / 10) || 1 }, (_, i) => i + 1).map((p) => {
+                  {Array.from({ length: Math.ceil(sortedCompanies.length / 10) || 1 }, (_, i) => i + 1).map((p) => {
                     const isActive = p === companyPage;
                     return (
                       <button
@@ -1642,8 +1665,8 @@ export default function DashboardPage() {
                   {/* Next > Icon Button */}
                   <button
                     type="button"
-                    disabled={companyPage >= Math.ceil(companies.length / 10)}
-                    onClick={() => setCompanyPage((p) => Math.min(Math.ceil(companies.length / 10), p + 1))}
+                    disabled={companyPage >= Math.ceil(sortedCompanies.length / 10)}
+                    onClick={() => setCompanyPage((p) => Math.min(Math.ceil(sortedCompanies.length / 10), p + 1))}
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -1653,9 +1676,9 @@ export default function DashboardPage() {
                       borderRadius: 6,
                       border: '1px solid var(--line, #cbd5e1)',
                       background: 'var(--surface, #ffffff)',
-                      color: companyPage >= Math.ceil(companies.length / 10) ? 'var(--muted, #94a3b8)' : 'var(--ink, #0f172a)',
-                      cursor: companyPage >= Math.ceil(companies.length / 10) ? 'not-allowed' : 'pointer',
-                      opacity: companyPage >= Math.ceil(companies.length / 10) ? 0.45 : 1,
+                      color: companyPage >= Math.ceil(sortedCompanies.length / 10) ? 'var(--muted, #94a3b8)' : 'var(--ink, #0f172a)',
+                      cursor: companyPage >= Math.ceil(sortedCompanies.length / 10) ? 'not-allowed' : 'pointer',
+                      opacity: companyPage >= Math.ceil(sortedCompanies.length / 10) ? 0.45 : 1,
                       transition: 'all 0.15s ease',
                     }}
                     title="Next page"
