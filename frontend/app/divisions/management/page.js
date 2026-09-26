@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import AppShell from '../../../components/AppShell';
 import { api } from '../../../lib/auth';
 import { upsertCompanyInCache } from '../../../lib/companyCache';
+import { LOGO_ACCEPT, readLogoFileAsDataUrl } from '../../../lib/logoUpload';
 
 const emptyForm = () => ({
   name: '',
@@ -101,13 +102,19 @@ export default function CompanyManagementPage() {
               <span>Company Logo (Optional)</span>
               <input
                 type="file"
-                accept="image/*"
-                onChange={(e) => {
+                accept={LOGO_ACCEPT}
+                onChange={async (e) => {
                   const file = e.target.files?.[0];
+                  e.target.value = '';
                   if (!file) return;
-                  const r = new FileReader();
-                  r.onload = () => setForm((prev) => ({ ...prev, logoUrl: String(r.result || '') }));
-                  r.readAsDataURL(file);
+                  try {
+                    const dataUrl = await readLogoFileAsDataUrl(file);
+                    setForm((prev) => ({ ...prev, logoUrl: dataUrl }));
+                    setError('');
+                  } catch (err) {
+                    setError(err.message || 'Invalid logo file.');
+                    setForm((prev) => ({ ...prev, logoUrl: '' }));
+                  }
                 }}
               />
             </label>

@@ -21,6 +21,7 @@ import { usePortalAlerts } from './usePortalAlerts';
 import { useLocale } from '../lib/i18n/LocaleContext';
 import { useCompanyFilter } from '../lib/useCompanyFilter';
 import { subscribeSettingsRbacChanged } from '../lib/settingsSync';
+import { LOGO_ACCEPT, readLogoFileAsDataUrl } from '../lib/logoUpload';
 
 const ORG_BRAND_CACHE = 'gocs_org_brand';
 
@@ -579,13 +580,18 @@ export default function AppShell({ title, subtitle, actions, children }) {
                 <span>Logo (optional)</span>
                 <input
                   type="file"
-                  accept="image/*"
-                  onChange={(e) => {
+                  accept={LOGO_ACCEPT}
+                  onChange={async (e) => {
                     const file = e.target.files?.[0];
+                    e.target.value = '';
                     if (!file) return;
-                    const r = new FileReader();
-                    r.onload = () => setBrandDraft((prev) => ({ ...prev, logoUrl: String(r.result || '') }));
-                    r.readAsDataURL(file);
+                    try {
+                      const dataUrl = await readLogoFileAsDataUrl(file);
+                      setBrandDraft((prev) => ({ ...prev, logoUrl: dataUrl }));
+                      setBrandError('');
+                    } catch (err) {
+                      setBrandError(err.message || 'Invalid logo file.');
+                    }
                   }}
                 />
                 {brandDraft.logoUrl ? (

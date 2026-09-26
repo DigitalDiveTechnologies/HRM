@@ -7,6 +7,7 @@ import AppShell, { Badge } from '../../components/AppShell';
 import { api, getPermissions, getUser, normalizeRole } from '../../lib/auth';
 import { upsertCompanyInCache, writeCompaniesCache } from '../../lib/companyCache';
 import { formatDate, formatLate, v } from '../../lib/format';
+import { LOGO_ACCEPT, readLogoFileAsDataUrl, validateLogoFile } from '../../lib/logoUpload';
 import { canUseAnyPermission, canUsePermission } from '../../lib/nav';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'July', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -297,33 +298,32 @@ export default function DashboardPage() {
 
   async function handleUploadCompanyLogo(companyId, file) {
     if (!file || !companyId) return;
-    if (!file.type.startsWith('image/')) {
-      setError('Please select a valid image file (PNG, JPG, SVG, WebP).');
+    const typeErr = validateLogoFile(file);
+    if (typeErr) {
+      setCompanyError(typeErr);
+      setCompanyMsg('');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const base64 = reader.result;
-      setCompanySaving(true);
-      setCompanyMsg('');
-      setError('');
-      try {
-        await api('/divisions/' + companyId, {
-          method: 'PATCH',
-          body: JSON.stringify({ logoUrl: base64 }),
-        });
-        setCompanyMsg('Company logo updated successfully.');
-        const d = await api('/divisions');
-        const cleanDivs = Array.isArray(d) ? d : [];
-        setCompanies(cleanDivs);
-        writeCompaniesCache(cleanDivs);
-      } catch (err) {
-        setError(err.message || 'Failed to update company logo.');
-      } finally {
-        setCompanySaving(false);
-      }
-    };
-    reader.readAsDataURL(file);
+    setCompanySaving(true);
+    setCompanyMsg('');
+    setCompanyError('');
+    setError('');
+    try {
+      const base64 = await readLogoFileAsDataUrl(file);
+      await api('/divisions/' + companyId, {
+        method: 'PATCH',
+        body: JSON.stringify({ logoUrl: base64 }),
+      });
+      setCompanyMsg('Company logo updated successfully.');
+      const d = await api('/divisions');
+      const cleanDivs = Array.isArray(d) ? d : [];
+      setCompanies(cleanDivs);
+      writeCompaniesCache(cleanDivs);
+    } catch (err) {
+      setCompanyError(err.message || 'Failed to update company logo.');
+    } finally {
+      setCompanySaving(false);
+    }
   }
 
   useEffect(() => {
@@ -1371,13 +1371,18 @@ export default function DashboardPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <input
                         type="file"
-                        accept="image/*"
-                        onChange={(e) => {
+                        accept={LOGO_ACCEPT}
+                        onChange={async (e) => {
                           const file = e.target.files?.[0];
-                          if (file) {
-                            const r = new FileReader();
-                            r.onload = () => setNewCompany((prev) => ({ ...prev, logoUrl: String(r.result || '') }));
-                            r.readAsDataURL(file);
+                          e.target.value = '';
+                          if (!file) return;
+                          try {
+                            const dataUrl = await readLogoFileAsDataUrl(file);
+                            setNewCompany((prev) => ({ ...prev, logoUrl: dataUrl }));
+                            setCompanyError('');
+                          } catch (err) {
+                            setCompanyError(err.message || 'Invalid logo file.');
+                            setNewCompany((prev) => ({ ...prev, logoUrl: '' }));
                           }
                         }}
                         style={{ fontSize: '11px', color: 'var(--ink)' }}
@@ -1511,10 +1516,11 @@ export default function DashboardPage() {
                                   📷
                                   <input
                                     type="file"
-                                    accept="image/*"
+                                    accept={LOGO_ACCEPT}
                                     style={{ display: 'none' }}
                                     onChange={(e) => {
                                       const file = e.target.files?.[0];
+                                      e.target.value = '';
                                       if (file) handleUploadCompanyLogo(v(comp, 'id'), file);
                                     }}
                                   />

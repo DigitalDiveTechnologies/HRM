@@ -149,6 +149,10 @@ public sealed class HrQueryService
         if (payrollType is not ("wps" or "bank_transfer"))
             return (null, "Payroll type must be wps or bank_transfer.");
 
+        var logoErr = ValidateCompanyLogoUrl(logoUrl);
+        if (logoErr is not null)
+            return (null, logoErr);
+
         await using var conn = await OpenAsync(ct);
 
         await using (var nameTaken = new NpgsqlCommand(
@@ -206,6 +210,35 @@ public sealed class HrQueryService
         return string.IsNullOrWhiteSpace(s) ? "CO" : s;
     }
 
+    /// <summary>PNG/JPG data-URL or empty; max ~5 MB decoded.</summary>
+    private static string? ValidateCompanyLogoUrl(string? logoUrl)
+    {
+        if (string.IsNullOrWhiteSpace(logoUrl))
+            return null;
+
+        var s = logoUrl.Trim();
+        const long maxBytes = 5L * 1024 * 1024;
+        var png = s.StartsWith("data:image/png;base64,", StringComparison.OrdinalIgnoreCase);
+        var jpg = s.StartsWith("data:image/jpeg;base64,", StringComparison.OrdinalIgnoreCase)
+                  || s.StartsWith("data:image/jpg;base64,", StringComparison.OrdinalIgnoreCase);
+        if (!png && !jpg)
+        {
+            // Allow relative/public paths already stored (not new uploads)
+            if (!s.StartsWith("data:", StringComparison.OrdinalIgnoreCase)
+                && (s.StartsWith('/') || s.StartsWith("http", StringComparison.OrdinalIgnoreCase)))
+                return null;
+            return "Company logo must be a PNG or JPG file.";
+        }
+
+        var comma = s.IndexOf(',');
+        var b64 = comma >= 0 ? s[(comma + 1)..] : s;
+        // base64 expands ~4/3; approximate decoded size
+        var approx = (long)(b64.Length * 3L / 4L);
+        if (approx > maxBytes)
+            return "Company logo must be 5 MB or smaller.";
+        return null;
+    }
+
     public async Task<(Dictionary<string, object?>? Row, string? Error)> UpdateDivisionAsync(
         int id, string? name, string? payrollType, string? status, string? logoUrl, CancellationToken ct)
     {
@@ -237,6 +270,13 @@ public sealed class HrQueryService
         if (nextStatus is not ("active" or "inactive"))
         {
             return (null, "Status must be active or inactive.");
+        }
+
+        if (logoUrl is not null)
+        {
+            var logoErr = ValidateCompanyLogoUrl(logoUrl);
+            if (logoErr is not null)
+                return (null, logoErr);
         }
 
         await using var connCheck = await OpenAsync(ct);

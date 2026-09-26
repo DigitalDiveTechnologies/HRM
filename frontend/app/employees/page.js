@@ -223,20 +223,21 @@ function EmployeesContent() {
         setLoadingEmps(false);
       });
 
-    // Load masters for create form (divisions must load even if role is not super_admin)
-    Promise.all([
+    // Load masters for create form — allSettled so one failure does not empty every dropdown
+    Promise.allSettled([
       api('/employees/departments'),
       api('/divisions?activeOnly=true'),
       api('/designations?activeOnly=true'),
       api('/employment-types?activeOnly=true'),
-    ])
-      .then(([depts, divs, desigs, empTypes]) => {
-        if (Array.isArray(depts)) setDepartments(depts);
-        if (Array.isArray(divs)) setDivisions(divs);
-        if (Array.isArray(desigs)) setDesignations(desigs);
-        if (Array.isArray(empTypes)) setEmploymentTypes(empTypes);
-      })
-      .catch(() => {});
+    ]).then(([deptRes, divRes, desRes, empTypeRes]) => {
+      if (deptRes.status === 'fulfilled' && Array.isArray(deptRes.value)) setDepartments(deptRes.value);
+      if (divRes.status === 'fulfilled' && Array.isArray(divRes.value)) setDivisions(divRes.value);
+      if (desRes.status === 'fulfilled' && Array.isArray(desRes.value)) setDesignations(desRes.value);
+      if (empTypeRes.status === 'fulfilled' && Array.isArray(empTypeRes.value)) setEmploymentTypes(empTypeRes.value);
+      if (divRes.status === 'rejected') {
+        setError(divRes.reason?.message || 'Could not load companies for the create form.');
+      }
+    });
   }, [isAdmin]);
 
   useEffect(() => {

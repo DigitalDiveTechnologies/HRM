@@ -43,6 +43,28 @@ public sealed class OrgBrandController : ControllerBase
         if (name.Length < 1)
             return BadRequest(new { error = "Brand name is required." });
 
+        if (body.LogoUrl is not null)
+        {
+            var logo = body.LogoUrl.Trim();
+            if (logo.Length > 0)
+            {
+                var png = logo.StartsWith("data:image/png;base64,", StringComparison.OrdinalIgnoreCase);
+                var jpg = logo.StartsWith("data:image/jpeg;base64,", StringComparison.OrdinalIgnoreCase)
+                          || logo.StartsWith("data:image/jpg;base64,", StringComparison.OrdinalIgnoreCase);
+                if (!png && !jpg
+                    && logo.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+                    return BadRequest(new { error = "Brand logo must be a PNG or JPG file." });
+                if (png || jpg)
+                {
+                    var comma = logo.IndexOf(',');
+                    var b64 = comma >= 0 ? logo[(comma + 1)..] : logo;
+                    var approx = (long)(b64.Length * 3L / 4L);
+                    if (approx > 5L * 1024 * 1024)
+                        return BadRequest(new { error = "Brand logo must be 5 MB or smaller." });
+                }
+            }
+        }
+
         var actor = CurrentUser.Email(User);
         await _ops.UpsertConfigAsync("org.display_name", name, "All Companies sidebar brand name", actor, ct);
         if (body.LogoUrl is not null)
