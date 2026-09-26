@@ -1,12 +1,39 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import AppShell from '../../../components/AppShell';
-import { api } from '../../../lib/auth';
+import { api, getPermissions, getUser, normalizeRole } from '../../../lib/auth';
+import { canUsePermission } from '../../../lib/nav';
 import { v } from '../../../lib/format';
 
 export default function OrganisationAdminPage() {
-  const [tab, setTab] = useState('entities');
+  const role = normalizeRole(getUser());
+  const permissions = getPermissions(getUser());
+  const hasOrgParent = canUsePermission(role, permissions, 'company.organisation');
+
+  const canEntities = hasOrgParent || canUsePermission(role, permissions, 'company.org.entities');
+  const canBranches = hasOrgParent || canUsePermission(role, permissions, 'company.org.branches');
+  const canPositions = hasOrgParent || canUsePermission(role, permissions, 'company.org.positions');
+  const canAssignments = hasOrgParent || canUsePermission(role, permissions, 'company.org.assignments');
+  const canHeadcount = hasOrgParent || canUsePermission(role, permissions, 'company.org.headcount');
+
+  const availableTabs = useMemo(() => {
+    const list = [];
+    if (canEntities) list.push(['entities', 'Legal entities']);
+    if (canBranches) list.push(['branches', 'Branches']);
+    if (canPositions) list.push(['positions', 'Positions']);
+    if (canAssignments) list.push(['assignments', 'Assignments']);
+    if (canHeadcount) list.push(['headcount', 'Headcount']);
+    return list.length ? list : [['entities', 'Legal entities']];
+  }, [canEntities, canBranches, canPositions, canAssignments, canHeadcount]);
+
+  const [tab, setTab] = useState(() => availableTabs[0]?.[0] || 'entities');
+
+  useEffect(() => {
+    if (availableTabs.length && !availableTabs.some(([k]) => k === tab)) {
+      setTab(availableTabs[0][0]);
+    }
+  }, [availableTabs, tab]);
   const [entities, setEntities] = useState([]);
   const [branches, setBranches] = useState([]);
   const [positions, setPositions] = useState([]);
@@ -186,13 +213,7 @@ export default function OrganisationAdminPage() {
 
       <div className="card" style={{ marginBottom: 14 }}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {[
-            ['entities', 'Legal entities'],
-            ['branches', 'Branches'],
-            ['positions', 'Positions'],
-            ['assignments', 'Assignments'],
-            ['headcount', 'Headcount'],
-          ].map(([key, label]) => (
+          {availableTabs.map(([key, label]) => (
             <button key={key} type="button" className={`btn${tab === key ? '' : ' secondary'}`} onClick={() => setTab(key)}>
               {label}
             </button>

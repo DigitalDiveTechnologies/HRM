@@ -20,6 +20,28 @@ export const NAV = [
     titleKey: 'nav_core_hr',
     links: [
       {
+        href: '/divisions',
+        label: 'Company',
+        roles: ['admin'],
+        children: [
+          { href: '/divisions/management', label: 'Create Company', permission: 'company.create', roles: ['admin'] },
+          {
+            href: '/divisions/organisation',
+            label: 'Organisation',
+            permissions: [
+              'company.organisation',
+              'company.org.entities',
+              'company.org.branches',
+              'company.org.positions',
+              'company.org.assignments',
+              'company.org.headcount',
+            ],
+            roles: ['admin'],
+          },
+          { href: '/divisions/structure', label: 'Company Structure', permission: 'company.structure', roles: ['admin'] },
+        ],
+      },
+      {
         href: '/employees',
         label: 'Employees',
         permission: 'employees.list',
@@ -161,6 +183,11 @@ export function canAccessPath(pathname, role, permissions) {
         'company.create',
         'company.organisation',
         'company.structure',
+        'company.org.entities',
+        'company.org.branches',
+        'company.org.positions',
+        'company.org.assignments',
+        'company.org.headcount',
       ]);
     }
     return r === 'admin';
