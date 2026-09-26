@@ -181,23 +181,29 @@ export default function AppShell({ title, subtitle, actions, children }) {
     });
   }, []);
 
-  // Preserve sidebar scroll position (do not jump/recenter on every navigation)
+  // Scroll active sidebar link into view (so thumb sits near Assets when Assets is active)
   useEffect(() => {
     if (typeof window === 'undefined' || !ready) return;
     const sidebar = document.getElementById('sidebar');
     if (!sidebar) return;
 
-    const saved = sessionStorage.getItem('gocs_sidebar_scroll');
-    if (saved != null) {
-      const y = Number(saved);
-      if (!Number.isNaN(y)) sidebar.scrollTop = y;
-    }
+    const scrollActiveIntoView = () => {
+      const active = sidebar.querySelector('a.active, a[aria-current="page"]');
+      if (active && typeof active.scrollIntoView === 'function') {
+        active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      }
+    };
+    // After paint so layout/heights are ready
+    const t = window.setTimeout(scrollActiveIntoView, 0);
 
     const onScroll = () => {
       sessionStorage.setItem('gocs_sidebar_scroll', String(sidebar.scrollTop));
     };
     sidebar.addEventListener('scroll', onScroll, { passive: true });
-    return () => sidebar.removeEventListener('scroll', onScroll);
+    return () => {
+      window.clearTimeout(t);
+      sidebar.removeEventListener('scroll', onScroll);
+    };
   }, [pathname, ready]);
 
   const { badgeFor, clearBadge, menuCategories, toast, dismissToast } = usePortalAlerts(pathname, ready && Boolean(user));
@@ -278,7 +284,7 @@ export default function AppShell({ title, subtitle, actions, children }) {
         <aside className={`sidebar${menuOpen ? ' open' : ''}`} id="sidebar">
           <div className="sidebar-top">
             <div>
-              <div className="logo" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <div className="logo" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap' }}>
                 {selectedCompany ? (
                   <>
                     {companyLogo ? (
@@ -332,8 +338,13 @@ export default function AppShell({ title, subtitle, actions, children }) {
                           padding: '2px 8px',
                           fontSize: 11,
                           fontWeight: 700,
-                          lineHeight: 1.2,
+                          lineHeight: 1,
                           minHeight: 0,
+                          height: 22,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          alignSelf: 'center',
+                          flexShrink: 0,
                         }}
                       >
                         Edit

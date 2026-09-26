@@ -148,6 +148,7 @@ export default function DashboardPage() {
   const [newCompany, setNewCompany] = useState({ name: '', payrollType: 'wps', logoUrl: '' });
   const [companySaving, setCompanySaving] = useState(false);
   const [companyMsg, setCompanyMsg] = useState('');
+  const [companyError, setCompanyError] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -262,7 +263,7 @@ export default function DashboardPage() {
     if (!newCompany.name.trim()) return;
     setCompanySaving(true);
     setCompanyMsg('');
-    setError('');
+    setCompanyError('');
     try {
       const created = await api('/divisions', {
         method: 'POST',
@@ -288,7 +289,7 @@ export default function DashboardPage() {
         })
         .catch(() => {});
     } catch (err) {
-      setError(err.message);
+      setCompanyError(err.message || 'Could not create company.');
     } finally {
       setCompanySaving(false);
     }
@@ -1293,7 +1294,11 @@ export default function DashboardPage() {
                 {canCreateCompany ? (
                 <button
                   type="button"
-                  onClick={() => setShowAddCompany((prev) => !prev)}
+                  onClick={() => {
+                    setShowAddCompany((prev) => !prev);
+                    setCompanyError('');
+                    setCompanyMsg('');
+                  }}
                   style={{
                     background: '#00b8db',
                     color: '#ffffff',
@@ -1327,6 +1332,11 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {companyError ? (
+              <div className="error" style={{ marginBottom: 12 }}>
+                {companyError}
+              </div>
+            ) : null}
             {companyMsg ? (
               <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>
                 {companyMsg}

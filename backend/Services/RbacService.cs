@@ -26,8 +26,8 @@ public sealed class RbacService
         var code = (roleCode ?? string.Empty).Trim().ToLowerInvariant();
         if (string.IsNullOrEmpty(code)) return Array.Empty<string>();
 
-        // Super Admin always has every catalog permission + Settings (client-side)
-        if (code == "super_admin")
+        // Super Admin + Admin always have every catalog permission
+        if (code == "super_admin" || code == "admin")
         {
             return await ListAllPermissionCodesAsync(ct);
         }
@@ -354,6 +354,17 @@ public sealed class RbacService
                 grants[role.Code] = new List<string>();
         }
 
+        // Admin column always shows every permission selected by default
+        var allCodes = permissions.Select(p => p.Code).ToList();
+        foreach (var role in matrixRoles)
+        {
+            if (string.Equals(role.Code, "admin", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(role.Code, "super_admin", StringComparison.OrdinalIgnoreCase))
+            {
+                grants[role.Code] = allCodes.ToList();
+            }
+        }
+
         return new PermissionMatrixDto
         {
             Roles = matrixRoles,
@@ -405,6 +416,15 @@ public sealed class RbacService
                     return (false, $"Unknown role: {roleCode}");
 
                 touchedRoleIds.Add(roleId);
+
+                // Admin always keeps every permission selected
+                if (roleCode is "admin" or "super_admin")
+                {
+                    foreach (var permId in permIds.Values)
+                        pairs.Add((roleId, permId));
+                    continue;
+                }
+
                 foreach (var raw in codes ?? new List<string>())
                 {
                     var permCode = (raw ?? string.Empty).Trim();

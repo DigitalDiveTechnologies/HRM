@@ -189,7 +189,6 @@ public sealed class OpsScaleService
                 FROM roles r
                 CROSS JOIN permissions p
                 WHERE LOWER(r.code) = 'admin'
-                  AND p.code = 'company.brand.edit'
                 ON CONFLICT DO NOTHING
                 """,
                 conn))

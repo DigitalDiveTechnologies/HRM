@@ -452,6 +452,22 @@ form > button,
   height: 100vh;
   overflow: auto;
   border-right: 1px solid var(--sidebar-border);
+  scrollbar-width: thin;
+  scrollbar-color: #00B8DB transparent;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 8px;
+}
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar::-webkit-scrollbar-thumb {
+  background: #00B8DB;
+  border-radius: 8px;
+}
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: #00a4c4;
 }
 
 .sidebar .logo {
