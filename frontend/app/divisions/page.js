@@ -4,9 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api } from '../../lib/auth';
-import { writeCompaniesCache } from '../../lib/companyCache';
+import { sortCompaniesLatest, writeCompaniesCache } from '../../lib/companyCache';
 import { fetchDivisionsDirect, updateDivisionStatusDirect } from '../../lib/dbDirect';
-import { v } from '../../lib/format';
+import { formatDateTime, v } from '../../lib/format';
 
 export default function DivisionsPage() {
   const [rows, setRows] = useState(() => {
@@ -15,7 +15,7 @@ export default function DivisionsPage() {
         const cached = localStorage.getItem('gocs_cached_divisions');
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) return sortCompaniesLatest(parsed);
         }
       } catch {}
     }
@@ -34,11 +34,12 @@ export default function DivisionsPage() {
     fetchDivisionsDirect().then((directData) => {
       if (!isMounted) return;
       if (directData && Array.isArray(directData) && directData.length > 0) {
-        setRows(directData);
+        const sorted = sortCompaniesLatest(directData);
+        setRows(sorted);
         setLoading(false);
         try {
-          localStorage.setItem('gocs_cached_divisions', JSON.stringify(directData));
-          writeCompaniesCache(directData);
+          localStorage.setItem('gocs_cached_divisions', JSON.stringify(sorted));
+          writeCompaniesCache(sorted);
         } catch {}
       }
     }).catch(() => {});
@@ -48,11 +49,12 @@ export default function DivisionsPage() {
       .then((data) => {
         if (!isMounted) return;
         if (data && Array.isArray(data) && data.length > 0) {
-          setRows(data);
+          const sorted = sortCompaniesLatest(data);
+          setRows(sorted);
           setLoading(false);
           try {
-            localStorage.setItem('gocs_cached_divisions', JSON.stringify(data));
-            writeCompaniesCache(data);
+            localStorage.setItem('gocs_cached_divisions', JSON.stringify(sorted));
+            writeCompaniesCache(sorted);
           } catch {}
         }
       })
@@ -67,6 +69,26 @@ export default function DivisionsPage() {
 
     return () => {
       isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      try {
+        const cached = localStorage.getItem('gocs_cached_divisions');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setRows(sortCompaniesLatest(parsed));
+          }
+        }
+      } catch {}
+    };
+    window.addEventListener('gocs_company_changed', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('gocs_company_changed', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
     };
   }, []);
 
@@ -147,36 +169,81 @@ export default function DivisionsPage() {
           <table>
             <thead>
               <tr>
-                <th>Name</th>
+                <th style={{ width: '44px' }}>Logo</th>
+                <th>Company Name</th>
+                <th>Created Date & Time</th>
                 <th>Employees</th>
                 <th>Status</th>
                 <th>Action</th>
               </tr>
             </thead>
             <tbody>
-              {paginatedRows.map((d) => (
-                <tr key={v(d, 'id')}>
-                  <td>{v(d, 'name')}</td>
-                  <td>{v(d, 'employeeCount', 'employee_count') ?? 0}</td>
-                  <td>
-                    <Badge status={v(d, 'status')} />
-                  </td>
-                  <td>
-                    {String(v(d, 'status')).toLowerCase() === 'active' ? (
-                      <button type="button" className="btn secondary" onClick={() => setStatus(v(d, 'id'), 'inactive')}>
-                        Deactivate
-                      </button>
-                    ) : (
-                      <button type="button" className="btn secondary" onClick={() => setStatus(v(d, 'id'), 'active')}>
-                        Reactivate
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {paginatedRows.map((d) => {
+                const name = v(d, 'name') || '—';
+                const logo = d.logo_url || d.logoUrl || '';
+                const createdAt = v(d, 'created_at', 'createdAt');
+                return (
+                  <tr key={v(d, 'id')}>
+                    <td>
+                      {logo ? (
+                        <img
+                          src={logo}
+                          alt={name}
+                          style={{
+                            height: 26,
+                            width: 26,
+                            objectFit: 'contain',
+                            borderRadius: 4,
+                            border: '1px solid var(--line, #cbd5e1)',
+                            background: '#ffffff',
+                            padding: '1px',
+                          }}
+                        />
+                      ) : (
+                        <span
+                          style={{
+                            width: 26,
+                            height: 26,
+                            borderRadius: 4,
+                            background: 'var(--surface-alt, #e2e8f0)',
+                            display: 'grid',
+                            placeItems: 'center',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            color: 'var(--muted, #64748b)',
+                          }}
+                        >
+                          {name.slice(0, 2).toUpperCase()}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <strong style={{ color: 'var(--ink)' }}>{name}</strong>
+                    </td>
+                    <td style={{ fontSize: '12.5px', color: 'var(--muted, #64748b)' }}>
+                      {createdAt ? formatDateTime(createdAt) : '—'}
+                    </td>
+                    <td>{v(d, 'employeeCount', 'employee_count') ?? 0}</td>
+                    <td>
+                      <Badge status={v(d, 'status')} />
+                    </td>
+                    <td>
+                      {String(v(d, 'status')).toLowerCase() === 'active' ? (
+                        <button type="button" className="btn secondary" onClick={() => setStatus(v(d, 'id'), 'inactive')}>
+                          Deactivate
+                        </button>
+                      ) : (
+                        <button type="button" className="btn secondary" onClick={() => setStatus(v(d, 'id'), 'active')}>
+                          Reactivate
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
               {!rows.length ? (
                 <tr>
-                    <td colSpan={4} style={{ textAlign: 'center', padding: '24px 16px', color: 'var(--muted, #64748b)' }}>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: '24px 16px', color: 'var(--muted, #64748b)' }}>
                     No companies yet.
                   </td>
                 </tr>

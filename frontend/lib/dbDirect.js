@@ -37,7 +37,7 @@ export async function fetchDivisionsDirect() {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        query: `SELECT id, code, name, payroll_type, status, created_at, (SELECT COUNT(id)::int FROM employees WHERE division_id = divisions.id AND status != 'exited') AS employee_count FROM divisions ORDER BY name;`,
+        query: `SELECT id, code, name, payroll_type, status, created_at, (SELECT COUNT(id)::int FROM employees WHERE division_id = divisions.id AND status != 'exited') AS employee_count FROM divisions ORDER BY created_at DESC NULLS LAST, id DESC;`,
       }),
     });
     if (!res.ok) return null;

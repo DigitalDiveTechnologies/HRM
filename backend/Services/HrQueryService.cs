@@ -381,7 +381,7 @@ public sealed class HrQueryService
                          (SELECT COUNT(*)::int FROM employees WHERE division_id = divisions.id AND status != 'exited') AS employee_count
                   FROM divisions
                   WHERE status = 'active'
-                  ORDER BY name
+                  ORDER BY created_at DESC NULLS LAST, id DESC
                   """
                 : """
                   SELECT id, code, name, payroll_type, status, created_at,
@@ -392,7 +392,7 @@ public sealed class HrQueryService
                          END AS logo_url,
                          (SELECT COUNT(*)::int FROM employees WHERE division_id = divisions.id AND status != 'exited') AS employee_count
                   FROM divisions
-                  ORDER BY name
+                  ORDER BY created_at DESC NULLS LAST, id DESC
                   """,
             ct);
 
