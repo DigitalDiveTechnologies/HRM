@@ -104,9 +104,14 @@ function linkAllowed(link, role, permissions) {
   // Dashboard is the default home for every portal role
   if (link.href === '/dashboard') return true;
   const codes = linkPermissionCodes(link);
-  if (permissions && permissions.length && codes.length) {
-    return hasAnyPermission(permissions, codes);
+  const childAllowed = Array.isArray(link.children) && link.children.some((c) => linkAllowed(c, role, permissions));
+
+  if (permissions && permissions.length) {
+    if (codes.length && hasAnyPermission(permissions, codes)) return true;
+    if (childAllowed) return true;
+    if (codes.length) return false;
   }
+  if (childAllowed) return true;
   // No permission matrix grants → fall back to role allow-list on the link
   if (permissions && permissions.length && !codes.length) {
     return false;
@@ -213,10 +218,21 @@ export function navForRole(role, permissions) {
       ...group,
       links: group.links
         .filter((l) => linkAllowed(l, role, permissions))
-        .map((l) => ({
-          ...l,
-          children: (l.children || []).filter((c) => linkAllowed(c, role, permissions)),
-        })),
+        .map((l) => {
+          const allowedChildren = (l.children || []).filter((c) => linkAllowed(c, role, permissions));
+          const parentDirectlyAllowed = hasAnyPermission(permissions, linkPermissionCodes(l)) || role === 'super_admin';
+          if (!parentDirectlyAllowed && allowedChildren.length === 1) {
+            return {
+              ...l,
+              ...allowedChildren[0],
+              children: [],
+            };
+          }
+          return {
+            ...l,
+            children: allowedChildren,
+          };
+        }),
     };
   }).filter((group) => group.links.length > 0);
 }

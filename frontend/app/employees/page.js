@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell, { Badge } from '../../components/AppShell';
 import EmployeeMasterForm from '../../components/EmployeeMasterForm';
 import { api, apiBlob, apiUpload, getApiBase, getPermissions, getUser, normalizeRole } from '../../lib/auth';
@@ -72,10 +72,18 @@ function formatCompensation(val) {
 }
 
 function EmployeesContent() {
+  const router = useRouter();
   const role = normalizeRole(getUser());
   const permissions = getPermissions(getUser());
+  const canListEmployees = canUsePermission(role, permissions, 'employees.list');
   const canCreateEmployee = canUsePermission(role, permissions, 'employees.create');
-  const canEditEmployee = canCreateEmployee || canUsePermission(role, permissions, 'employees.list');
+  const canEditEmployee = canCreateEmployee || canListEmployees;
+
+  useEffect(() => {
+    if (!canListEmployees && canCreateEmployee) {
+      router.replace('/employees/create');
+    }
+  }, [canListEmployees, canCreateEmployee, router]);
   const [rows, setRows] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
