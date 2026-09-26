@@ -7,7 +7,7 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "Dashboard")]
 [Route("api/dashboard")]
-[Authorize(Roles = "admin,manager")]
+[Authorize(Roles = "admin,manager,employee")]
 public sealed class DashboardController : ControllerBase
 {
     private readonly HrQueryService _hr;

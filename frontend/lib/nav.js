@@ -10,7 +10,7 @@ export const NAV = [
   {
     titleKey: 'nav_overview',
     links: [
-      { href: '/dashboard', labelKey: 'nav_dashboard', permission: 'dashboard.view', roles: ['admin'] },
+      { href: '/dashboard', labelKey: 'nav_dashboard', permission: 'dashboard.view', roles: ['admin', 'manager', 'employee'] },
       { href: '/reports', labelKey: 'nav_reports', permission: 'reports.view', roles: ['admin'] },
       { href: '/ops', label: 'Ops & Scale', permission: 'ops.view', roles: ['admin'] },
       { href: '/notifications', labelKey: 'nav_notifications', permission: 'notifications.view', roles: ['admin', 'manager', 'employee'] },
@@ -101,6 +101,8 @@ function hasAnyPermission(granted, codes) {
 
 function linkAllowed(link, role, permissions) {
   if (role === 'super_admin') return true;
+  // Dashboard is the default home for every portal role
+  if (link.href === '/dashboard') return true;
   const codes = linkPermissionCodes(link);
   if (permissions && permissions.length && codes.length) {
     return hasAnyPermission(permissions, codes);
@@ -128,8 +130,8 @@ export function canAccessPath(pathname, role, permissions) {
     return r === 'admin';
   }
 
-  // Empty-permission landing — any signed-in role may open this page
-  if (base === '/no-access') return true;
+  // Empty-permission landing + default home — any signed-in role may open these
+  if (base === '/no-access' || base === '/dashboard') return true;
 
   for (const group of NAV) {
     if (group.settingsSection) continue;
@@ -166,7 +168,7 @@ export function canAccessPath(pathname, role, permissions) {
   return r === 'admin';
 }
 
-/** First sidebar path this role may open (any role — never assume /mss or /dashboard). */
+/** Prefer Dashboard for every role (same as admin). Fall back to first granted page. */
 export function firstAllowedPath(role, permissions) {
   const seen = new Set();
   const candidates = [];
@@ -176,12 +178,15 @@ export function firstAllowedPath(role, permissions) {
     candidates.push(href);
   };
 
+  // Always land on Dashboard first when the role can open it (every portal role can)
+  push('/dashboard');
+
   if (role === 'manager') {
     ['/mss', '/approvals', '/leave', '/attendance', '/notifications'].forEach(push);
   } else if (role === 'employee') {
     ['/ess', '/leave', '/attendance', '/documents', '/notifications'].forEach(push);
   } else {
-    ['/dashboard', '/notifications', '/employees', '/payroll'].forEach(push);
+    ['/notifications', '/employees', '/payroll'].forEach(push);
   }
 
   for (const group of NAV) {
