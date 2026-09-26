@@ -99,6 +99,11 @@ export default function CreateEmployeePage() {
       if (empTypeRes.status === 'fulfilled' && Array.isArray(empTypeRes.value)) setEmploymentTypes(empTypeRes.value);
       if (empsRes.status === 'fulfilled' && Array.isArray(empsRes.value)) {
         setManagers(empsRes.value);
+        try {
+          if (empsRes.value.length) {
+            localStorage.setItem('gocs_cached_employees', JSON.stringify(empsRes.value));
+          }
+        } catch {}
       }
       if (posRes.status === 'fulfilled' && Array.isArray(posRes.value)) setVacantPositions(posRes.value);
     }
@@ -154,10 +159,37 @@ export default function CreateEmployeePage() {
           const cached = localStorage.getItem('gocs_cached_employees');
           const prev = cached ? JSON.parse(cached) : [];
           const id = v(res.employee, 'id');
-          const next = [res.employee, ...(Array.isArray(prev) ? prev.filter((r) => v(r, 'id') !== id) : [])];
-          localStorage.setItem('gocs_cached_employees', JSON.stringify(next));
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('gocs_employees_updated', { detail: next }));
+          const baseList =
+            Array.isArray(prev) && prev.length > 0
+              ? prev
+              : Array.isArray(managers) && managers.length > 0
+                ? managers
+                : [];
+          if (baseList.length > 0) {
+            const next = [res.employee, ...baseList.filter((r) => v(r, 'id') !== id)];
+            localStorage.setItem('gocs_cached_employees', JSON.stringify(next));
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('gocs_employees_updated', { detail: next }));
+            }
+          } else {
+            localStorage.removeItem('gocs_cached_employees');
+          }
+
+          const dashCached = localStorage.getItem('gocs_cached_dashboard');
+          if (dashCached) {
+            const parsedDash = JSON.parse(dashCached);
+            if (parsedDash && parsedDash.dash) {
+              const currentCount = Number(
+                parsedDash.dash.headcount || parsedDash.dash.totalEmployees || (baseList.length || 0)
+              );
+              const nextCount = currentCount + 1;
+              parsedDash.dash.headcount = nextCount;
+              parsedDash.dash.totalEmployees = nextCount;
+              if (Array.isArray(parsedDash.employees)) {
+                parsedDash.employees = [res.employee, ...parsedDash.employees.filter((r) => v(r, 'id') !== id)];
+              }
+              localStorage.setItem('gocs_cached_dashboard', JSON.stringify(parsedDash));
+            }
           }
         } catch {}
       }

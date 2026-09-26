@@ -90,13 +90,36 @@ function EmployeesContent() {
         const cached = localStorage.getItem('gocs_cached_employees');
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed)) return parsed;
+          let expectedMore = false;
+          try {
+            const dashCached = localStorage.getItem('gocs_cached_dashboard');
+            if (dashCached) {
+              const d = JSON.parse(dashCached);
+              if ((d?.dash?.headcount || 0) > 1 || (d?.dash?.totalEmployees || 0) > 1) {
+                expectedMore = true;
+              }
+            }
+          } catch {}
+          if (Array.isArray(parsed) && (!expectedMore || parsed.length > 1)) {
+            return parsed;
+          }
         }
       } catch {}
     }
     return [];
   });
-  const [loadingEmps, setLoadingEmps] = useState(false);
+  const [loadingEmps, setLoadingEmps] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_employees');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 1) return false;
+        }
+      } catch {}
+    }
+    return true;
+  });
   const [departments, setDepartments] = useState([]);
   const [divisions, setDivisions] = useState([]);
   const [designations, setDesignations] = useState([]);
@@ -249,6 +272,7 @@ function EmployeesContent() {
   };
 
   const load = useCallback(() => {
+    setLoadingEmps((prev) => (rows.length ? false : true));
     // 1. Prioritized immediate load for Employees table
     const empsP = api('/employees')
       .then((emps) => {
@@ -329,8 +353,8 @@ function EmployeesContent() {
           const cached = localStorage.getItem('gocs_cached_employees');
           if (cached) {
             const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed) && parsed.length) {
-              setRows(parsed);
+            if (Array.isArray(parsed) && parsed.length > 1) {
+              setRows((prev) => (Array.isArray(prev) && prev.length > parsed.length ? prev : parsed));
               setLoadingEmps(false);
             }
           }
@@ -531,6 +555,23 @@ function EmployeesContent() {
           } catch {}
           return next;
         });
+        try {
+          const dashCached = localStorage.getItem('gocs_cached_dashboard');
+          if (dashCached) {
+            const parsedDash = JSON.parse(dashCached);
+            if (parsedDash && parsedDash.dash) {
+              const currentCount = Number(parsedDash.dash.headcount || parsedDash.dash.totalEmployees || 0);
+              const nextCount = currentCount + 1;
+              parsedDash.dash.headcount = nextCount;
+              parsedDash.dash.totalEmployees = nextCount;
+              if (Array.isArray(parsedDash.employees)) {
+                const id = v(res.employee, 'id');
+                parsedDash.employees = [res.employee, ...parsedDash.employees.filter((r) => v(r, 'id') !== id)];
+              }
+              localStorage.setItem('gocs_cached_dashboard', JSON.stringify(parsedDash));
+            }
+          }
+        } catch {}
       }
       setLoadingEmps(false);
       load();
@@ -1316,7 +1357,14 @@ function EmployeesContent() {
               {!filteredRows.length ? (
                 <tr>
                   <td colSpan={10} style={{ textAlign: 'center', padding: '28px 16px', color: 'var(--muted, #64748b)' }}>
-                    No employees matching current filter.
+                    {loadingEmps ? (
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ width: 14, height: 14, border: '2px solid #00b8db', borderRightColor: 'transparent', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.75s linear infinite' }} />
+                        <span>Loading employees...</span>
+                      </div>
+                    ) : (
+                      'No employees matching current filter.'
+                    )}
                   </td>
                 </tr>
               ) : null}
