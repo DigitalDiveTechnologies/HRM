@@ -8,7 +8,7 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "Designations")]
 [Route("api/designations")]
-[Authorize(Roles = "admin")]
+[Authorize]
 public sealed class DesignationsController : ControllerBase
 {
     private readonly HrQueryService _hr;
@@ -20,6 +20,7 @@ public sealed class DesignationsController : ControllerBase
         Ok(await _hr.DesignationsAsync(activeOnly, ct));
 
     [HttpPost]
+    [Authorize(Roles = "admin,super_admin")]
     public async Task<IActionResult> Create([FromBody] CreateDesignationRequest body, CancellationToken ct)
     {
         var (row, error) = await _hr.CreateDesignationAsync(
@@ -29,6 +30,7 @@ public sealed class DesignationsController : ControllerBase
     }
 
     [HttpPatch("{id:int}")]
+    [Authorize(Roles = "admin,super_admin")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateMasterRequest body, CancellationToken ct)
     {
         var (row, error) = await _hr.UpdateDesignationAsync(

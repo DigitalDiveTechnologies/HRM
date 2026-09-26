@@ -61,8 +61,9 @@ public sealed class HrQueryService
         };
     }
 
-    public Task<List<Dictionary<string, object?>>> EmployeesAsync(CancellationToken ct) =>
-        QueryConnAsync(
+    public async Task<List<Dictionary<string, object?>>> EmployeesAsync(CancellationToken ct)
+    {
+        var rows = await QueryConnAsync(
             """
             SELECT e.*, d.name AS department_name, m.full_name AS manager_name,
                    dv.name AS division_name, dv.code AS division_code, dv.payroll_type AS division_payroll_type,
@@ -76,6 +77,10 @@ public sealed class HrQueryService
             WHERE e.in_hr_ops = TRUE
             ORDER BY e.emp_code
             """, ct);
+        foreach (var row in rows)
+            AttachAppPasswordFromMaster(row);
+        return rows;
+    }
 
     public async Task<Dictionary<string, object?>?> EmployeeByIdAsync(int id, CancellationToken ct)
     {
@@ -199,18 +204,9 @@ public sealed class HrQueryService
     {
         try
         {
-            var mdObj = row.GetValueOrDefault("masterData") ?? row.GetValueOrDefault("master_data");
-            var md = NormalizeMasterDict(mdObj);
-            var existingPlain = ReadMasterString(md, "appPassword")
-                ?? ReadMasterString(md, "password")
-                ?? ReadMasterString(md, "app_password");
-            if (!string.IsNullOrWhiteSpace(existingPlain))
-            {
-                md["appPassword"] = existingPlain;
-                row["masterData"] = md;
-                row["appPassword"] = existingPlain;
+            AttachAppPasswordFromMaster(row);
+            if (!string.IsNullOrWhiteSpace(Convert.ToString(row.GetValueOrDefault("appPassword"))))
                 return;
-            }
 
             var empId = ReadId(row);
             var email = Convert.ToString(row.GetValueOrDefault("email"))?.Trim();
@@ -274,6 +270,7 @@ public sealed class HrQueryService
                 await mdUpd.ExecuteNonQueryAsync(ct);
             }
 
+            var md = NormalizeMasterDict(row.GetValueOrDefault("masterData") ?? row.GetValueOrDefault("master_data"));
             md["appPassword"] = recovered;
             row["masterData"] = md;
             row["appPassword"] = recovered;
@@ -282,6 +279,20 @@ public sealed class HrQueryService
         {
             // Best-effort — never block employee detail on password enrich
         }
+    }
+
+    /// <summary>Expose master_data.appPassword on the row for list/detail UI (no hash guessing).</summary>
+    private static void AttachAppPasswordFromMaster(Dictionary<string, object?> row)
+    {
+        var md = NormalizeMasterDict(row.GetValueOrDefault("masterData") ?? row.GetValueOrDefault("master_data"));
+        var existingPlain = ReadMasterString(md, "appPassword")
+            ?? ReadMasterString(md, "password")
+            ?? ReadMasterString(md, "app_password");
+        if (string.IsNullOrWhiteSpace(existingPlain))
+            return;
+        md["appPassword"] = existingPlain;
+        row["masterData"] = md;
+        row["appPassword"] = existingPlain;
     }
 
     private static Dictionary<string, object?> NormalizeMasterDict(object? mdObj)

@@ -50,25 +50,59 @@ export default function CreateEmployeePage() {
   };
 
   useEffect(() => {
-    // Load dropdown masters
-    Promise.allSettled([
-      api('/employees/departments'),
-      api('/divisions?activeOnly=true'),
-      api('/designations?activeOnly=true'),
-      api('/employment-types?activeOnly=true'),
-      api('/employees'),
-      api('/org/positions?status=vacant'),
-    ]).then(([deptRes, divRes, desRes, empTypeRes, empsRes, posRes]) => {
+    async function loadMasters() {
+      const fromCache = () => {
+        try {
+          const dc = localStorage.getItem('gocs_cached_dashboard');
+          if (dc) {
+            const p = JSON.parse(dc);
+            if (Array.isArray(p.companies) && p.companies.length) return p.companies;
+          }
+          const divs = localStorage.getItem('gocs_cached_divisions');
+          if (divs) {
+            const arr = JSON.parse(divs);
+            if (Array.isArray(arr) && arr.length) return arr;
+          }
+        } catch {}
+        return [];
+      };
+
+      const cached = fromCache();
+      if (cached.length) setDivisions(cached);
+
+      const [deptRes, divRes, desRes, empTypeRes, empsRes, posRes] = await Promise.allSettled([
+        api('/employees/departments'),
+        api('/divisions?activeOnly=true'),
+        api('/designations?activeOnly=true'),
+        api('/employment-types?activeOnly=true'),
+        api('/employees'),
+        api('/org/positions?status=vacant'),
+      ]);
+
       if (deptRes.status === 'fulfilled' && Array.isArray(deptRes.value)) setDepartments(deptRes.value);
-      if (divRes.status === 'fulfilled' && Array.isArray(divRes.value)) setDivisions(divRes.value);
+
+      let companies = divRes.status === 'fulfilled' && Array.isArray(divRes.value) ? divRes.value : [];
+      if (!companies.length) {
+        const retry = await api('/divisions').catch(() => []);
+        if (Array.isArray(retry) && retry.length) companies = retry;
+      }
+      if (!companies.length && cached.length) companies = cached;
+      setDivisions(companies);
+      try {
+        if (companies.length) localStorage.setItem('gocs_cached_divisions', JSON.stringify(companies));
+      } catch {}
+      if (!companies.length) {
+        setError('Companies list could not be loaded. Refresh the page or check company permissions.');
+      }
+
       if (desRes.status === 'fulfilled' && Array.isArray(desRes.value)) setDesignations(desRes.value);
       if (empTypeRes.status === 'fulfilled' && Array.isArray(empTypeRes.value)) setEmploymentTypes(empTypeRes.value);
       if (empsRes.status === 'fulfilled' && Array.isArray(empsRes.value)) {
-        const list = empsRes.value;
-        setManagers(list);
+        setManagers(empsRes.value);
       }
       if (posRes.status === 'fulfilled' && Array.isArray(posRes.value)) setVacantPositions(posRes.value);
-    });
+    }
+    loadMasters();
   }, []);
 
   async function createEmployee(ev) {

@@ -8,7 +8,7 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "EmploymentTypes")]
 [Route("api/employment-types")]
-[Authorize(Roles = "admin")]
+[Authorize]
 public sealed class EmploymentTypesController : ControllerBase
 {
     private readonly HrQueryService _hr;
@@ -20,6 +20,7 @@ public sealed class EmploymentTypesController : ControllerBase
         Ok(await _hr.EmploymentTypesAsync(activeOnly, ct));
 
     [HttpPost]
+    [Authorize(Roles = "admin,super_admin")]
     public async Task<IActionResult> Create([FromBody] CreateMasterRequest body, CancellationToken ct)
     {
         var (row, error) = await _hr.CreateEmploymentTypeAsync(body.Name, ct);
@@ -28,6 +29,7 @@ public sealed class EmploymentTypesController : ControllerBase
     }
 
     [HttpPatch("{id:int}")]
+    [Authorize(Roles = "admin,super_admin")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateMasterRequest body, CancellationToken ct)
     {
         var (row, error) = await _hr.UpdateEmploymentTypeAsync(id, body.Name, body.Status, ct);

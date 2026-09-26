@@ -461,7 +461,9 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
     lastName: form.lastName?.trim() || '',
     fullName,
     email,
-    jobTitle: form.jobTitle?.trim() || (form.designationId ? '' : '—'),
+    jobTitle: form.jobTitle?.trim() && form.jobTitle.trim() !== '—' && form.jobTitle.trim() !== '-'
+      ? form.jobTitle.trim()
+      : (form.designationId ? '' : ''),
     phone,
     departmentId: form.departmentId ? Number(form.departmentId) : null,
     divisionId: form.divisionId ? Number(form.divisionId) : (form.companyIds?.[0] ? Number(form.companyIds[0]) : null),

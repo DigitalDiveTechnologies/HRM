@@ -1703,12 +1703,27 @@ export default function EmployeeMasterForm({
                 <FieldRow label="Designation / Job Title">
                   <select
                     style={inputStyle}
-                    value={form.jobTitle || ''}
-                    onChange={(e) => set('jobTitle', e.target.value)}
+                    value={
+                      form.designationId
+                        || (form.jobTitle
+                          ? String(designations.find((d) => v(d, 'name') === form.jobTitle)?.id || form.jobTitle)
+                          : '')
+                    }
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      const byId = designations.find((d) => String(v(d, 'id')) === String(raw));
+                      const byName = designations.find((d) => v(d, 'name') === raw);
+                      const hit = byId || byName;
+                      setForm((prev) => ({
+                        ...prev,
+                        designationId: hit ? String(v(hit, 'id')) : '',
+                        jobTitle: hit ? String(v(hit, 'name') || '') : raw,
+                      }));
+                    }}
                   >
                     <option value="">— Select Designation —</option>
                     {designations.map((d) => (
-                      <option key={v(d, 'id')} value={v(d, 'name')}>
+                      <option key={v(d, 'id')} value={v(d, 'id')}>
                         {v(d, 'name')}
                       </option>
                     ))}

@@ -31,6 +31,37 @@ function getInitials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+/** Treat placeholder dashes as empty; prefer designation name over bare job_title. */
+function displayDesignation(emp, md = {}) {
+  const candidates = [
+    v(emp, 'designationName', 'designation_name'),
+    md?.position,
+    md?.jobTitle,
+    v(emp, 'jobTitle', 'job_title'),
+  ];
+  for (const c of candidates) {
+    const s = String(c ?? '').trim();
+    if (s && s !== '-' && s !== '—' && s.toLowerCase() !== 'null' && s.toLowerCase() !== 'undefined') {
+      return s;
+    }
+  }
+  return '';
+}
+
+function displayAppPassword(emp, md = {}) {
+  const candidates = [
+    v(emp, 'appPassword', 'app_password', 'password'),
+    md?.appPassword,
+    md?.password,
+    md?.app_password,
+  ];
+  for (const c of candidates) {
+    const s = String(c ?? '').trim();
+    if (s && s !== '-' && s !== '—') return s;
+  }
+  return '';
+}
+
 function EmployeesContent() {
   const role = normalizeRole(getUser());
   const isAdmin = isAdminRole(role);
@@ -229,12 +260,29 @@ function EmployeesContent() {
       api('/divisions?activeOnly=true'),
       api('/designations?activeOnly=true'),
       api('/employment-types?activeOnly=true'),
-    ]).then(([deptRes, divRes, desRes, empTypeRes]) => {
+    ]).then(async ([deptRes, divRes, desRes, empTypeRes]) => {
       if (deptRes.status === 'fulfilled' && Array.isArray(deptRes.value)) setDepartments(deptRes.value);
-      if (divRes.status === 'fulfilled' && Array.isArray(divRes.value)) setDivisions(divRes.value);
+      let companies = divRes.status === 'fulfilled' && Array.isArray(divRes.value) ? divRes.value : [];
+      if (!companies.length) {
+        const retry = await api('/divisions').catch(() => []);
+        if (Array.isArray(retry)) companies = retry;
+      }
+      if (!companies.length) {
+        try {
+          const cached = localStorage.getItem('gocs_cached_divisions');
+          if (cached) {
+            const arr = JSON.parse(cached);
+            if (Array.isArray(arr)) companies = arr;
+          }
+        } catch {}
+      }
+      setDivisions(companies);
+      try {
+        if (companies.length) localStorage.setItem('gocs_cached_divisions', JSON.stringify(companies));
+      } catch {}
       if (desRes.status === 'fulfilled' && Array.isArray(desRes.value)) setDesignations(desRes.value);
       if (empTypeRes.status === 'fulfilled' && Array.isArray(empTypeRes.value)) setEmploymentTypes(empTypeRes.value);
-      if (divRes.status === 'rejected') {
+      if (divRes.status === 'rejected' && !companies.length) {
         setError(divRes.reason?.message || 'Could not load companies for the create form.');
       }
     });
@@ -258,14 +306,15 @@ function EmployeesContent() {
   async function openDetail(e) {
     if (!e) return;
     const empId = String(v(e, 'id'));
-    setSelected(e);
     setShowProfilePassword(false);
     setIsEditingProfile(false);
     setSelectedTab('Personal info');
+    setLoadingTabDetails(true);
+    // Keep list row for header/highlight, but wait for full detail before trusting password/designation
+    setSelected(e);
     try {
       setMasterForm(masterFormFromEmployee(e));
     } catch {}
-    setLoadingTabDetails(true);
 
     setTimeout(() => {
       try {
@@ -275,8 +324,16 @@ function EmployeesContent() {
     }, 60);
 
     try {
-      const [fullRes, histRes, payRes, docRes, leaveRes, balRes, attRes] = await Promise.allSettled([
-        api(`/employees/${empId}`),
+      // Fetch employee detail first so password/designation are not blank then flash in
+      const full = await api(`/employees/${empId}`).catch(() => null);
+      if (full && typeof full === 'object' && !full.error && v(full, 'id')) {
+        setSelected(full);
+        try {
+          setMasterForm(masterFormFromEmployee(full));
+        } catch {}
+      }
+
+      const [histRes, payRes, docRes, leaveRes, balRes, attRes] = await Promise.allSettled([
         api(`/org/history/${empId}`),
         api('/payroll'),
         api('/documents'),
@@ -285,18 +342,6 @@ function EmployeesContent() {
         api('/attendance'),
       ]);
 
-      if (
-        fullRes.status === 'fulfilled' &&
-        fullRes.value &&
-        typeof fullRes.value === 'object' &&
-        !fullRes.value.error &&
-        v(fullRes.value, 'id')
-      ) {
-        setSelected(fullRes.value);
-        try {
-          setMasterForm(masterFormFromEmployee(fullRes.value));
-        } catch {}
-      }
       if (histRes.status === 'fulfilled') {
         setHistory(Array.isArray(histRes.value) ? histRes.value : []);
       }
@@ -1387,7 +1432,7 @@ function EmployeesContent() {
                         {v(selected, 'fullName', 'full_name')}
                       </div>
                       <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)' }}>
-                        {v(selected, 'position') || selectedMd?.position || v(selected, 'jobTitle', 'job_title') || 'Employee'}
+                        {displayDesignation(selected, selectedMd) || 'Employee'}
                       </div>
                     </div>
                     <svg
@@ -1707,22 +1752,21 @@ function EmployeesContent() {
                           <div className="emp-row-label">App Password</div>
                           <div className="emp-row-val" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span style={{ fontFamily: showProfilePassword ? 'inherit' : 'monospace', fontSize: showProfilePassword ? '13px' : '15px', fontWeight: 600, color: 'var(--ink, #0f172a)', letterSpacing: showProfilePassword ? 'normal' : '2px' }}>
-                              {showProfilePassword
-                                ? (v(selected, 'appPassword', 'app_password', 'password')
-                                  || selectedMd.appPassword
-                                  || selectedMd.password
-                                  || selectedMd.app_password
-                                  || '—')
-                                : '••••••••'}
+                              {loadingTabDetails
+                                ? '…'
+                                : showProfilePassword
+                                  ? (displayAppPassword(selected, selectedMd) || 'Not stored for view')
+                                  : '••••••••'}
                             </span>
                             <button
                               type="button"
                               onClick={() => setShowProfilePassword((prev) => !prev)}
                               title={showProfilePassword ? 'Hide password' : 'Show password'}
+                              disabled={loadingTabDetails}
                               style={{
                                 background: 'transparent',
                                 border: 'none',
-                                cursor: 'pointer',
+                                cursor: loadingTabDetails ? 'wait' : 'pointer',
                                 padding: '2px 4px',
                                 color: 'var(--muted, #64748b)',
                                 display: 'inline-flex',
@@ -1748,7 +1792,7 @@ function EmployeesContent() {
                         <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', padding: '9px 0', alignItems: 'center' }}>
                           <div className="emp-row-label">Designation</div>
                           <div className="emp-row-val">
-                            {v(selected, 'jobTitle', 'job_title') || '—'}
+                            {loadingTabDetails ? '…' : (displayDesignation(selected, selectedMd) || '—')}
                           </div>
                         </div>
 
@@ -2145,7 +2189,7 @@ function EmployeesContent() {
 
                       <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Designation / Job Title</div>
-                        <div className="emp-row-val">{v(selected, 'jobTitle', 'job_title') || '—'}</div>
+                        <div className="emp-row-val">{loadingTabDetails ? '…' : (displayDesignation(selected, selectedMd) || '—')}</div>
                       </div>
 
                       <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
@@ -2197,7 +2241,7 @@ function EmployeesContent() {
                         Mobile App Security & Password Reset
                       </h4>
                       <p style={{ fontSize: '12.5px', color: 'var(--muted, #64748b)', margin: '0 0 16px' }}>
-                        Reset mobile app password for <strong>{v(selected, 'email')}</strong>:
+                        Optional — only if you want to change the app password for <strong>{v(selected, 'email')}</strong>. Viewing does not require a reset.
                       </p>
                       <form onSubmit={resetAppPassword} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                         <input

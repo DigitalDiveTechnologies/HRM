@@ -8,14 +8,14 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "Divisions")]
 [Route("api/divisions")]
-[Authorize(Roles = "admin,employee,manager")]
+[Authorize]
 public sealed class DivisionsController : ControllerBase
 {
     private readonly HrQueryService _hr;
 
     public DivisionsController(HrQueryService hr) => _hr = hr;
 
-    /// <summary>List divisions / companies. View does not require company.brand.edit.</summary>
+    /// <summary>List companies. Any authenticated portal user may view; brand.edit is separate.</summary>
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] bool activeOnly = false, CancellationToken ct = default) =>
         Ok(await _hr.DivisionsAsync(activeOnly, ct));
@@ -28,7 +28,7 @@ public sealed class DivisionsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "admin")]
+    [Authorize(Roles = "admin,super_admin")]
     public async Task<IActionResult> Create([FromBody] CreateDivisionRequest body, CancellationToken ct)
     {
         var (row, error) = await _hr.CreateDivisionAsync(body.Code, body.Name, body.PayrollType ?? "wps", body.LogoUrl, ct);
@@ -38,7 +38,7 @@ public sealed class DivisionsController : ControllerBase
 
     /// <summary>Update division fields. Set status=inactive to soft-delete (hard delete not allowed).</summary>
     [HttpPatch("{id:int}")]
-    [Authorize(Roles = "admin")]
+    [Authorize(Roles = "admin,super_admin")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateDivisionRequest body, CancellationToken ct)
     {
         var (row, error) = await _hr.UpdateDivisionAsync(id, body.Name, body.PayrollType, body.Status, body.LogoUrl, ct);
