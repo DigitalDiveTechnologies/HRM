@@ -256,7 +256,7 @@ export default function LeavePage() {
         } catch {}
       }
 
-      if (emps.length > 0) {
+      if (Array.isArray(emps) && emps.length > 0) {
         setEmployees(emps);
         try {
           localStorage.setItem('gocs_cached_employees', JSON.stringify(emps));

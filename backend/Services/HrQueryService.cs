@@ -341,8 +341,36 @@ public sealed class HrQueryService
         return int.TryParse(Convert.ToString(raw), out var id) ? id : null;
     }
 
-    public Task<List<Dictionary<string, object?>>> DepartmentsAsync(CancellationToken ct) =>
-        QueryConnAsync("SELECT id, name FROM departments ORDER BY name", ct);
+    public async Task<List<Dictionary<string, object?>>> DepartmentsAsync(CancellationToken ct)
+    {
+        var list = await QueryConnAsync("SELECT id, name FROM departments ORDER BY name", ct);
+        if (list.Count == 0)
+        {
+            await EnsureDefaultDepartmentsAsync(ct);
+            list = await QueryConnAsync("SELECT id, name FROM departments ORDER BY name", ct);
+        }
+        return list;
+    }
+
+    public async Task EnsureDefaultDepartmentsAsync(CancellationToken ct)
+    {
+        await using var conn = _db.CreateConnection();
+        await conn.OpenAsync(ct);
+        await using var cmd = new Npgsql.NpgsqlCommand(
+            """
+            INSERT INTO departments (id, name, status)
+            VALUES 
+              (1, 'Human Resources', 'active'),
+              (2, 'Engineering', 'active'),
+              (3, 'Finance', 'active'),
+              (4, 'Operations', 'active'),
+              (5, 'Executive', 'active')
+            ON CONFLICT (id) DO NOTHING;
+            SELECT setval('departments_id_seq', (SELECT COALESCE(MAX(id), 1) FROM departments));
+            """,
+            conn);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
 
     public Task<List<Dictionary<string, object?>>> DivisionsAsync(bool activeOnly, CancellationToken ct) =>
         QueryConnAsync(
@@ -667,7 +695,26 @@ public sealed class HrQueryService
                 ("id", departmentId.Value));
             if (deptOk == 0)
             {
-                return (null, "Selected department was not found.");
+                await using var seedCmd = new Npgsql.NpgsqlCommand(
+                    """
+                    INSERT INTO departments (id, name, status)
+                    VALUES 
+                      (1, 'Human Resources', 'active'),
+                      (2, 'Engineering', 'active'),
+                      (3, 'Finance', 'active'),
+                      (4, 'Operations', 'active'),
+                      (5, 'Executive', 'active')
+                    ON CONFLICT (id) DO NOTHING;
+                    """, conn, tx);
+                await seedCmd.ExecuteNonQueryAsync(ct);
+
+                deptOk = await ScalarIntTxAsync(conn, tx,
+                    "SELECT COUNT(*)::int FROM departments WHERE id = @id", ct,
+                    ("id", departmentId.Value));
+                if (deptOk == 0)
+                {
+                    return (null, "Selected department was not found.");
+                }
             }
         }
 
@@ -1055,7 +1102,14 @@ public sealed class HrQueryService
             var deptOk = await ScalarIntAsync(conn,
                 "SELECT COUNT(*)::int FROM departments WHERE id = @id", ct,
                 ("id", departmentId.Value));
-            if (deptOk == 0) return (null, "Selected department was not found.");
+            if (deptOk == 0)
+            {
+                await EnsureDefaultDepartmentsAsync(ct);
+                deptOk = await ScalarIntAsync(conn,
+                    "SELECT COUNT(*)::int FROM departments WHERE id = @id", ct,
+                    ("id", departmentId.Value));
+                if (deptOk == 0) return (null, "Selected department was not found.");
+            }
         }
 
         if (divisionId.HasValue)

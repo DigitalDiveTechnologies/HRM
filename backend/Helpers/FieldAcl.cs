@@ -30,10 +30,10 @@ public static class FieldAcl
     }
 
     public static Dictionary<string, object?> Apply(
-        Dictionary<string, object?> row, string? role, int? viewerEmployeeId, bool mask = true)
+        Dictionary<string, object?> row, string? role, int? viewerEmployeeId, bool mask = true, bool canViewCompensation = false)
     {
         var subjectId = ReadId(row);
-        if (CanViewCompensation(role, viewerEmployeeId, subjectId))
+        if (canViewCompensation || CanViewCompensation(role, viewerEmployeeId, subjectId))
             return row;
 
         var copy = new Dictionary<string, object?>(row, StringComparer.OrdinalIgnoreCase);
@@ -55,8 +55,8 @@ public static class FieldAcl
     }
 
     public static List<Dictionary<string, object?>> ApplyAll(
-        IEnumerable<Dictionary<string, object?>> rows, string? role, int? viewerEmployeeId, bool mask = true) =>
-        rows.Select(r => Apply(r, role, viewerEmployeeId, mask)).ToList();
+        IEnumerable<Dictionary<string, object?>> rows, string? role, int? viewerEmployeeId, bool mask = true, bool canViewCompensation = false) =>
+        rows.Select(r => Apply(r, role, viewerEmployeeId, mask, canViewCompensation)).ToList();
 
     private static int? ReadId(Dictionary<string, object?> row)
     {

@@ -32,25 +32,34 @@ export function useCompanyFilter() {
       let companies = [];
       try {
         const ec = localStorage.getItem('gocs_cached_employees');
-        if (ec) employees = JSON.parse(ec) || [];
+        if (ec) {
+          const parsed = JSON.parse(ec);
+          if (Array.isArray(parsed)) employees = parsed;
+        }
       } catch {}
       try {
         const dc = localStorage.getItem('gocs_cached_dashboard');
         if (dc) {
           const p = JSON.parse(dc);
-          if (Array.isArray(p.companies)) companies = p.companies;
-          if (!employees.length && Array.isArray(p.employees)) employees = p.employees;
+          if (Array.isArray(p?.companies)) companies = p.companies;
+          if (!employees.length && Array.isArray(p?.employees)) employees = p.employees;
         }
       } catch {}
       try {
         if (!companies.length) {
           const divs = localStorage.getItem('gocs_cached_divisions');
-          if (divs) companies = JSON.parse(divs) || [];
+          if (divs) {
+            const parsed = JSON.parse(divs);
+            if (Array.isArray(parsed)) companies = parsed;
+          }
         }
       } catch {}
 
-      const foundComp = id && companies.length
-        ? companies.find((c) => String(v(c, 'id')) === id) || null
+      const compList = Array.isArray(companies) ? companies : [];
+      const empList = Array.isArray(employees) ? employees : [];
+
+      const foundComp = id && compList.length
+        ? compList.find((c) => String(v(c, 'id')) === id) || null
         : null;
       setSelectedCompany(foundComp);
 
@@ -62,7 +71,7 @@ export function useCompanyFilter() {
       }
 
       // If no employee cache available, show everything (safe fallback)
-      if (!employees.length) {
+      if (!empList.length) {
         setFilteredEmpIds(null);
         setFilteredEmpCodes(null);
         return;
@@ -72,7 +81,7 @@ export function useCompanyFilter() {
       const targetCode = foundComp ? String(v(foundComp, 'code') || '').toLowerCase().trim() : '';
       const targetName = foundComp ? String(v(foundComp, 'name') || '').toLowerCase().trim() : '';
 
-      const matchingEmps = employees.filter((emp) => {
+      const matchingEmps = empList.filter((emp) => {
         if (!emp) return false;
         let md = {};
         try {

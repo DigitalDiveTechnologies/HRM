@@ -63,6 +63,14 @@ function displayAppPassword(emp, md = {}) {
   return '';
 }
 
+function formatCompensation(val) {
+  if (val === undefined || val === null || val === '') return '—';
+  const str = String(val).trim();
+  if (str.includes('•')) return str;
+  const num = Number(str);
+  return isNaN(num) ? str : `AED ${num.toLocaleString()}`;
+}
+
 function EmployeesContent() {
   const role = normalizeRole(getUser());
   const permissions = getPermissions(getUser());
@@ -72,7 +80,10 @@ function EmployeesContent() {
     if (typeof window !== 'undefined') {
       try {
         const cached = localStorage.getItem('gocs_cached_employees');
-        if (cached) return JSON.parse(cached);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) return parsed;
+        }
       } catch {}
     }
     return [];
@@ -81,7 +92,10 @@ function EmployeesContent() {
     if (typeof window !== 'undefined') {
       try {
         const cached = localStorage.getItem('gocs_cached_employees');
-        if (cached && JSON.parse(cached).length > 0) return false;
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return false;
+        }
       } catch {}
     }
     return true;
@@ -211,7 +225,7 @@ function EmployeesContent() {
   const queryId = searchParams ? searchParams.get('id') : null;
 
   useEffect(() => {
-    if (queryId && rows.length) {
+    if (queryId && Array.isArray(rows) && rows.length) {
       const found = rows.find((r) => String(v(r, 'id')) === String(queryId));
       if (found) {
         openDetail(found);
@@ -226,7 +240,7 @@ function EmployeesContent() {
   // Calculate next sequential employee code (e.g. DD-1015)
   const calculateNextCode = (list) => {
     let maxNum = 1000;
-    (list || []).forEach((e) => {
+    (Array.isArray(list) ? list : []).forEach((e) => {
       const code = String(v(e, 'empCode', 'emp_code') || '');
       const match = code.match(/(\d+)/);
       if (match) {
@@ -241,7 +255,7 @@ function EmployeesContent() {
     // 1. Prioritized immediate load for Employees table
     const empsP = api('/employees')
       .then((emps) => {
-        const list = emps || [];
+        const list = Array.isArray(emps) ? emps : [];
         setRows(list);
         setLoadingEmps(false);
         try {
@@ -253,8 +267,9 @@ function EmployeesContent() {
         }));
       })
       .catch((e) => {
-        setError(e.message);
+        setError(e.message || 'Failed to load employees.');
         setLoadingEmps(false);
+        setRows((prev) => (Array.isArray(prev) ? prev : []));
       });
 
     // Load masters for create form — allSettled so one failure does not empty every dropdown
@@ -643,15 +658,19 @@ function EmployeesContent() {
     const rawSearch = searchTerm.trim().toLowerCase();
     const searchTerms = rawSearch ? rawSearch.split(/\s+/).filter(Boolean) : [];
 
+    const divList = Array.isArray(divisions) ? divisions : [];
+    const deptList = Array.isArray(departments) ? departments : [];
+    const rowList = Array.isArray(rows) ? rows : [];
+
     // Find selected division and department names for reliable matching
-    const selectedDivObj = filterCompany ? divisions.find((d) => String(v(d, 'id')) === String(filterCompany)) : null;
+    const selectedDivObj = filterCompany ? divList.find((d) => String(v(d, 'id')) === String(filterCompany)) : null;
     const selectedDivName = selectedDivObj ? String(v(selectedDivObj, 'name') || '').toLowerCase().trim() : '';
     const selectedDivCode = selectedDivObj ? String(v(selectedDivObj, 'code') || '').toLowerCase().trim() : '';
 
-    const selectedDeptObj = filterDept ? departments.find((d) => String(v(d, 'id')) === String(filterDept)) : null;
+    const selectedDeptObj = filterDept ? deptList.find((d) => String(v(d, 'id')) === String(filterDept)) : null;
     const selectedDeptName = selectedDeptObj ? String(v(selectedDeptObj, 'name') || '').toLowerCase().trim() : '';
 
-    return rows.filter((e) => {
+    return rowList.filter((e) => {
       const md = pickMaster(v(e, 'masterData', 'master_data'));
       const code = String(v(e, 'empCode', 'emp_code') || '').toLowerCase();
       const fullName = String(v(e, 'fullName', 'full_name') || '').toLowerCase();
@@ -707,11 +726,12 @@ function EmployeesContent() {
     setEmpPage(1);
   }, [searchTerm, filterCompany, filterDept, filterStatus]);
 
-  const totalEmpPages = Math.ceil(filteredRows.length / EMP_PAGE_SIZE) || 1;
+  const totalEmpPages = Math.ceil((Array.isArray(filteredRows) ? filteredRows.length : 0) / EMP_PAGE_SIZE) || 1;
   const safePage = Math.min(Math.max(1, empPage), totalEmpPages);
   const paginatedEmployees = useMemo(() => {
+    const list = Array.isArray(filteredRows) ? filteredRows : [];
     const start = (safePage - 1) * EMP_PAGE_SIZE;
-    return filteredRows.slice(start, start + EMP_PAGE_SIZE);
+    return list.slice(start, start + EMP_PAGE_SIZE);
   }, [filteredRows, safePage]);
 
   // Selected Employee Master Data helper
@@ -1533,7 +1553,7 @@ function EmployeesContent() {
                           />
                         </div>
                         <div style={{ maxHeight: '280px', overflowY: 'auto' }}>
-                          {rows
+                          {(Array.isArray(rows) ? rows : [])
                             .filter((r) => {
                               if (!empSearch.trim()) return true;
                               const q = empSearch.toLowerCase();
@@ -1673,7 +1693,7 @@ function EmployeesContent() {
                 divisions={divisions}
                 designations={designations}
                 employmentTypes={employmentTypes}
-                managers={rows.filter((r) => String(v(r, 'id')) !== String(v(selected, 'id')))}
+                managers={(Array.isArray(rows) ? rows : []).filter((r) => String(v(r, 'id')) !== String(v(selected, 'id')))}
                 saving={savingEdit}
                 onSubmit={saveEmployeeEdit}
                 onCancel={() => setIsEditingProfile(false)}
@@ -2260,7 +2280,7 @@ function EmployeesContent() {
                             if (direct && String(direct).trim()) return direct;
                             const mgrId = v(selected, 'managerId', 'manager_id') || selectedMd?.managerId;
                             if (mgrId) {
-                              const found = rows.find((r) => String(v(r, 'id')) === String(mgrId));
+                              const found = (Array.isArray(rows) ? rows : []).find((r) => String(v(r, 'id')) === String(mgrId));
                               if (found) {
                                 const name = v(found, 'fullName', 'full_name');
                                 const role = v(found, 'position') || (found.masterData && found.masterData.position) || v(found, 'jobTitle', 'job_title');
@@ -2385,14 +2405,14 @@ function EmployeesContent() {
                       <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Basic Salary</div>
                         <div className="emp-row-val" style={{ fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
-                          {selectedMd.finance?.basicSalary ? `AED ${Number(selectedMd.finance.basicSalary).toLocaleString()}` : '—'}
+                          {formatCompensation(selectedMd.finance?.basicSalary)}
                         </div>
                       </div>
 
                       <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Housing & Transport Allowance</div>
                         <div className="emp-row-val" style={{ fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
-                          {selectedMd.finance?.allowances ? `AED ${Number(selectedMd.finance.allowances).toLocaleString()}` : '—'}
+                          {formatCompensation(selectedMd.finance?.allowances)}
                         </div>
                       </div>
 
@@ -2400,8 +2420,8 @@ function EmployeesContent() {
                         <div className="emp-row-label">Gross Monthly Remuneration</div>
                         <div className="emp-row-val" style={{ fontWeight: 700, color: '#008fa8' }}>
                           {selectedMd.finance?.grossSalary
-                            ? `AED ${Number(selectedMd.finance.grossSalary).toLocaleString()}`
-                            : (selectedMd.finance?.basicSalary ? `AED ${(Number(selectedMd.finance?.basicSalary || 0) + Number(selectedMd.finance?.allowances || 0)).toLocaleString()}` : '—')}
+                            ? formatCompensation(selectedMd.finance.grossSalary)
+                            : (selectedMd.finance?.basicSalary ? formatCompensation(Number(selectedMd.finance?.basicSalary || 0) + Number(selectedMd.finance?.allowances || 0)) : '—')}
                         </div>
                       </div>
 
@@ -2454,10 +2474,10 @@ function EmployeesContent() {
                                 <td style={{ fontWeight: 700, color: '#008fa8' }}>
                                   {v(p, 'periodLabel', 'period_label') || 'Current Period'}
                                 </td>
-                                <td>AED {Number(v(p, 'basicSalary', 'basic_salary') || 0).toLocaleString()}</td>
-                                <td>AED {Number(v(p, 'allowances') || 0).toLocaleString()}</td>
-                                <td>AED {Number(v(p, 'deductions') || 0).toLocaleString()}</td>
-                                <td style={{ fontWeight: 700 }}>AED {Number(v(p, 'netSalary', 'net_salary') || 0).toLocaleString()}</td>
+                                <td>{formatCompensation(v(p, 'basicSalary', 'basic_salary'))}</td>
+                                <td>{formatCompensation(v(p, 'allowances'))}</td>
+                                <td>{formatCompensation(v(p, 'deductions'))}</td>
+                                <td style={{ fontWeight: 700 }}>{formatCompensation(v(p, 'netSalary', 'net_salary'))}</td>
                                 <td>{v(p, 'paymentMethod', 'payment_method') || 'WPS'}</td>
                                 <td style={{ textAlign: 'center' }}>
                                   <Badge status={v(p, 'status') || 'paid'} />

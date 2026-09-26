@@ -67,7 +67,8 @@ public sealed class EmployeesController : ControllerBase
         if (!await HasEmployeePermAsync(ct, "employees.list", "employees.create"))
             return Forbid();
 
-        return Ok(FieldAcl.ApplyAll(await _hr.EmployeesAsync(ct), role, viewerEid));
+        var canViewSalary = await HasEmployeePermAsync(ct, "payroll.view", "employees.create");
+        return Ok(FieldAcl.ApplyAll(await _hr.EmployeesAsync(ct), role, viewerEid, canViewCompensation: canViewSalary));
     }
 
     [HttpGet("departments")]
@@ -345,8 +346,9 @@ public sealed class EmployeesController : ControllerBase
             return Forbid();
         }
 
+        var canViewSalary = await HasEmployeePermAsync(ct, "payroll.view", "employees.create");
         var row = await _hr.EmployeeByIdAsync(id, ct);
         if (row is null) return NotFound(new { error = "Not found" });
-        return Ok(FieldAcl.Apply(row, role, viewerEid));
+        return Ok(FieldAcl.Apply(row, role, viewerEid, canViewCompensation: canViewSalary));
     }
 }
