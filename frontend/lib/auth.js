@@ -40,6 +40,18 @@ export function getUser() {
 export function setSession(loginResponse) {
   const user = loginResponse.user || loginResponse.User || loginResponse;
   const token = loginResponse.token || loginResponse.Token || '';
+  try {
+    const prev = JSON.parse(localStorage.getItem('hr_user') || 'null');
+    if (prev?.id !== user?.id || prev?.email !== user?.email) {
+      localStorage.removeItem('gocs_cached_dashboard');
+      localStorage.removeItem('gocs_cached_employees');
+      localStorage.removeItem('gocs_cached_leaves');
+      localStorage.removeItem('gocs_cached_divisions');
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.removeItem('gocs_selected_company_id');
+      }
+    }
+  } catch {}
   localStorage.setItem('hr_user', JSON.stringify(user));
   localStorage.setItem('hr_token', token);
 }
@@ -47,6 +59,13 @@ export function setSession(loginResponse) {
 export function clearSession() {
   localStorage.removeItem('hr_user');
   localStorage.removeItem('hr_token');
+  localStorage.removeItem('gocs_cached_dashboard');
+  localStorage.removeItem('gocs_cached_employees');
+  localStorage.removeItem('gocs_cached_leaves');
+  localStorage.removeItem('gocs_cached_divisions');
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.removeItem('gocs_selected_company_id');
+  }
 }
 
 /** True when both user profile and JWT are present. */

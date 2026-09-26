@@ -103,10 +103,27 @@ function EmployeesContent() {
     if (typeof window !== 'undefined') {
       try {
         const cached = localStorage.getItem('gocs_cached_employees');
+        let expectedCount = 0;
+        try {
+          const dashCached = localStorage.getItem('gocs_cached_dashboard');
+          if (dashCached) {
+            const d = JSON.parse(dashCached);
+            expectedCount = Number(d?.dash?.headcount || d?.dash?.totalEmployees || 0);
+            if (Array.isArray(d?.employees) && d.employees.length > 1) {
+              return sortEmployeesDesc(d.employees);
+            }
+          }
+        } catch {}
+
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return sortEmployeesDesc(parsed);
+          if (Array.isArray(parsed)) {
+            if (parsed.length === 1 && expectedCount > 1) {
+              return [];
+            }
+            if (parsed.length > 0) {
+              return sortEmployeesDesc(parsed);
+            }
           }
         }
       } catch {}
@@ -117,13 +134,25 @@ function EmployeesContent() {
     if (typeof window !== 'undefined') {
       try {
         const cached = localStorage.getItem('gocs_cached_employees');
+        let expectedCount = 0;
+        try {
+          const dashCached = localStorage.getItem('gocs_cached_dashboard');
+          if (dashCached) {
+            const d = JSON.parse(dashCached);
+            expectedCount = Number(d?.dash?.headcount || d?.dash?.totalEmployees || 0);
+            if (Array.isArray(d?.employees) && d.employees.length > 1) return false;
+          }
+        } catch {}
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) return false;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            if (parsed.length === 1 && expectedCount > 1) return true;
+            return false;
+          }
         }
       } catch {}
     }
-    return false;
+    return true;
   });
   const [departments, setDepartments] = useState([]);
   const [divisions, setDivisions] = useState([]);
@@ -286,6 +315,16 @@ function EmployeesContent() {
         setLoadingEmps(false);
         try {
           localStorage.setItem('gocs_cached_employees', JSON.stringify(sorted));
+          const dashCached = localStorage.getItem('gocs_cached_dashboard');
+          if (dashCached) {
+            const parsedDash = JSON.parse(dashCached);
+            if (parsedDash && parsedDash.dash) {
+              parsedDash.dash.headcount = Math.max(Number(parsedDash.dash.headcount || 0), sorted.length);
+              parsedDash.dash.totalEmployees = Math.max(Number(parsedDash.dash.totalEmployees || 0), sorted.length);
+              parsedDash.employees = sorted;
+              localStorage.setItem('gocs_cached_dashboard', JSON.stringify(parsedDash));
+            }
+          }
         } catch {}
         setCreateForm((prev) => ({
           ...prev,
@@ -339,13 +378,15 @@ function EmployeesContent() {
     load();
   }, [load]);
 
-  // Auto-apply dashboard company selection
+  // Apply company filter only when explicitly provided in URL query (?company=id)
   useEffect(() => {
     try {
-      const id = sessionStorage.getItem('gocs_selected_company_id') || '';
-      if (id) setFilterCompany(id);
+      const qCompany = searchParams?.get('company');
+      if (qCompany) {
+        setFilterCompany(qCompany);
+      }
     } catch {}
-  }, []);
+  }, [searchParams]);
 
   // Subscribe to instant employee cache updates from other forms/tabs
   useEffect(() => {

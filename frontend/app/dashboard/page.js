@@ -49,7 +49,19 @@ export default function DashboardPage() {
         const cached = localStorage.getItem('gocs_cached_dashboard');
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (parsed && parsed.dash) return parsed.dash;
+          if (parsed && parsed.dash) {
+            try {
+              const empCache = localStorage.getItem('gocs_cached_employees');
+              if (empCache) {
+                const pe = JSON.parse(empCache);
+                if (Array.isArray(pe) && pe.length > 1) {
+                  parsed.dash.headcount = Math.max(Number(parsed.dash.headcount || 0), pe.length);
+                  parsed.dash.totalEmployees = Math.max(Number(parsed.dash.totalEmployees || 0), pe.length);
+                }
+              }
+            } catch {}
+            return parsed.dash;
+          }
         }
       } catch {}
     }
@@ -470,7 +482,7 @@ export default function DashboardPage() {
 
   const totalEmployees = selectedCompanyId
     ? filteredEmployees.length
-    : (data?.headcount ?? employees.length ?? 0);
+    : Math.max(Number(data?.headcount || 0), employees.length);
 
   const pendingLeaves = selectedCompanyId
     ? filteredLeaves.filter((l) => String(v(l, 'status') || '').toLowerCase() === 'pending').length

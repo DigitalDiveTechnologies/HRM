@@ -78,6 +78,24 @@ export default function AppShell({ title, subtitle, actions, children }) {
     setUser(u);
     setReady(true);
 
+    // Self-heal stale caches from prior buggy single-item writes
+    try {
+      const empCache = localStorage.getItem('gocs_cached_employees');
+      const dashCache = localStorage.getItem('gocs_cached_dashboard');
+      if (empCache && dashCache) {
+        const emps = JSON.parse(empCache);
+        const dash = JSON.parse(dashCache);
+        const hc = Number(dash?.dash?.headcount || dash?.dash?.totalEmployees || 0);
+        if (Array.isArray(emps) && emps.length === 1 && hc > 1) {
+          if (Array.isArray(dash.employees) && dash.employees.length > 1) {
+            localStorage.setItem('gocs_cached_employees', JSON.stringify(dash.employees));
+          } else {
+            localStorage.removeItem('gocs_cached_employees');
+          }
+        }
+      }
+    } catch {}
+
     if (!canAccessPath(pathname, role, permissions)) {
       const home = homeForRole(u);
       if (home && norm(home) !== here) {

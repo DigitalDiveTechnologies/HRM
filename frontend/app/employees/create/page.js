@@ -100,7 +100,9 @@ export default function CreateEmployeePage() {
       if (empsRes.status === 'fulfilled' && Array.isArray(empsRes.value)) {
         setManagers(empsRes.value);
         try {
-          if (empsRes.value.length) {
+          const existing = localStorage.getItem('gocs_cached_employees');
+          const existingArr = existing ? JSON.parse(existing) : [];
+          if (!Array.isArray(existingArr) || empsRes.value.length >= existingArr.length) {
             localStorage.setItem('gocs_cached_employees', JSON.stringify(empsRes.value));
           }
         } catch {}
@@ -157,15 +159,28 @@ export default function CreateEmployeePage() {
       if (res?.employee) {
         try {
           const cached = localStorage.getItem('gocs_cached_employees');
-          const prev = cached ? JSON.parse(cached) : [];
+          let prev = [];
+          try {
+            if (cached) prev = JSON.parse(cached);
+          } catch {}
+          if (!Array.isArray(prev)) prev = [];
+
+          const mgrs = Array.isArray(managers) ? managers : [];
+          let dashEmps = [];
+          try {
+            const dc = localStorage.getItem('gocs_cached_dashboard');
+            if (dc) {
+              const p = JSON.parse(dc);
+              if (Array.isArray(p?.employees)) dashEmps = p.employees;
+            }
+          } catch {}
+
+          const candidates = [prev, mgrs, dashEmps];
+          candidates.sort((a, b) => b.length - a.length);
+          const sourceList = candidates[0] || [];
+
           const id = v(res.employee, 'id');
-          const baseList =
-            Array.isArray(prev) && prev.length > 0
-              ? prev
-              : Array.isArray(managers) && managers.length > 0
-                ? managers
-                : [];
-          const next = [res.employee, ...baseList.filter((r) => v(r, 'id') !== id)];
+          const next = [res.employee, ...sourceList.filter((r) => v(r, 'id') !== id)];
           localStorage.setItem('gocs_cached_employees', JSON.stringify(next));
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('gocs_employees_updated', { detail: next }));
@@ -173,19 +188,19 @@ export default function CreateEmployeePage() {
 
           const dashCached = localStorage.getItem('gocs_cached_dashboard');
           if (dashCached) {
-            const parsedDash = JSON.parse(dashCached);
-            if (parsedDash && parsedDash.dash) {
-              const currentCount = Number(
-                parsedDash.dash.headcount || parsedDash.dash.totalEmployees || (baseList.length || 0)
-              );
-              const nextCount = currentCount + 1;
-              parsedDash.dash.headcount = nextCount;
-              parsedDash.dash.totalEmployees = nextCount;
-              if (Array.isArray(parsedDash.employees)) {
-                parsedDash.employees = [res.employee, ...parsedDash.employees.filter((r) => v(r, 'id') !== id)];
+            try {
+              const parsedDash = JSON.parse(dashCached);
+              if (parsedDash && parsedDash.dash) {
+                const currentCount = Number(
+                  parsedDash.dash.headcount || parsedDash.dash.totalEmployees || (sourceList.length || 0)
+                );
+                const nextCount = Math.max(currentCount + 1, next.length);
+                parsedDash.dash.headcount = nextCount;
+                parsedDash.dash.totalEmployees = nextCount;
+                parsedDash.employees = next;
+                localStorage.setItem('gocs_cached_dashboard', JSON.stringify(parsedDash));
               }
-              localStorage.setItem('gocs_cached_dashboard', JSON.stringify(parsedDash));
-            }
+            } catch {}
           }
         } catch {}
       }
