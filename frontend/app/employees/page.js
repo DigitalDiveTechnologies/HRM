@@ -309,12 +309,24 @@ function EmployeesContent() {
     setShowProfilePassword(false);
     setIsEditingProfile(false);
     setSelectedTab('Personal info');
-    setLoadingTabDetails(true);
-    // Keep list row for header/highlight, but wait for full detail before trusting password/designation
+    // Show list-row data immediately (password/designation) — never blank to "…"
     setSelected(e);
     try {
       setMasterForm(masterFormFromEmployee(e));
     } catch {}
+    // Only mark loading if list row is missing designation/password (rare)
+    const mdQuick = (() => {
+      try {
+        const raw = e.masterData || e.master_data;
+        if (!raw) return {};
+        return typeof raw === 'string' ? JSON.parse(raw || '{}') : raw;
+      } catch {
+        return {};
+      }
+    })();
+    const hasDesig = Boolean(displayDesignation(e, mdQuick));
+    const hasPass = Boolean(displayAppPassword(e, mdQuick));
+    setLoadingTabDetails(!(hasDesig && hasPass));
 
     setTimeout(() => {
       try {
@@ -324,10 +336,46 @@ function EmployeesContent() {
     }, 60);
 
     try {
-      // Fetch employee detail first so password/designation are not blank then flash in
       const full = await api(`/employees/${empId}`).catch(() => null);
       if (full && typeof full === 'object' && !full.error && v(full, 'id')) {
-        setSelected(full);
+        // Merge so a slow/partial response cannot wipe values already on screen
+        setSelected((prev) => {
+          const prevMd = (() => {
+            try {
+              const raw = prev?.masterData || prev?.master_data;
+              if (!raw) return {};
+              return typeof raw === 'string' ? JSON.parse(raw || '{}') : raw;
+            } catch {
+              return {};
+            }
+          })();
+          const nextMd = (() => {
+            try {
+              const raw = full.masterData || full.master_data;
+              if (!raw) return {};
+              return typeof raw === 'string' ? JSON.parse(raw || '{}') : raw;
+            } catch {
+              return {};
+            }
+          })();
+          const mergedMd = {
+            ...prevMd,
+            ...nextMd,
+            appPassword:
+              nextMd.appPassword || nextMd.password || prevMd.appPassword || prevMd.password || full.appPassword || prev?.appPassword,
+          };
+          const merged = {
+            ...prev,
+            ...full,
+            masterData: mergedMd,
+            appPassword: full.appPassword || mergedMd.appPassword || prev?.appPassword,
+            jobTitle:
+              displayDesignation(full, nextMd) || displayDesignation(prev, prevMd) || full.jobTitle || prev?.jobTitle,
+            designationName:
+              full.designationName || full.designation_name || prev?.designationName || prev?.designation_name,
+          };
+          return merged;
+        });
         try {
           setMasterForm(masterFormFromEmployee(full));
         } catch {}
@@ -1751,22 +1799,23 @@ function EmployeesContent() {
                         <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', padding: '9px 0', alignItems: 'center' }}>
                           <div className="emp-row-label">App Password</div>
                           <div className="emp-row-val" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {(() => {
+                              const pass = displayAppPassword(selected, selectedMd);
+                              return (
+                                <>
                             <span style={{ fontFamily: showProfilePassword ? 'inherit' : 'monospace', fontSize: showProfilePassword ? '13px' : '15px', fontWeight: 600, color: 'var(--ink, #0f172a)', letterSpacing: showProfilePassword ? 'normal' : '2px' }}>
-                              {loadingTabDetails
-                                ? '…'
-                                : showProfilePassword
-                                  ? (displayAppPassword(selected, selectedMd) || 'Not stored for view')
-                                  : '••••••••'}
+                              {showProfilePassword
+                                ? (pass || (loadingTabDetails ? '…' : 'Not stored for view'))
+                                : '••••••••'}
                             </span>
                             <button
                               type="button"
                               onClick={() => setShowProfilePassword((prev) => !prev)}
                               title={showProfilePassword ? 'Hide password' : 'Show password'}
-                              disabled={loadingTabDetails}
                               style={{
                                 background: 'transparent',
                                 border: 'none',
-                                cursor: loadingTabDetails ? 'wait' : 'pointer',
+                                cursor: 'pointer',
                                 padding: '2px 4px',
                                 color: 'var(--muted, #64748b)',
                                 display: 'inline-flex',
@@ -1786,13 +1835,16 @@ function EmployeesContent() {
                                 </svg>
                               )}
                             </button>
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', padding: '9px 0', alignItems: 'center' }}>
                           <div className="emp-row-label">Designation</div>
                           <div className="emp-row-val">
-                            {loadingTabDetails ? '…' : (displayDesignation(selected, selectedMd) || '—')}
+                            {displayDesignation(selected, selectedMd) || (loadingTabDetails ? '…' : '—')}
                           </div>
                         </div>
 
@@ -2189,7 +2241,7 @@ function EmployeesContent() {
 
                       <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Designation / Job Title</div>
-                        <div className="emp-row-val">{loadingTabDetails ? '…' : (displayDesignation(selected, selectedMd) || '—')}</div>
+                        <div className="emp-row-val">{displayDesignation(selected, selectedMd) || (loadingTabDetails ? '…' : '—')}</div>
                       </div>
 
                       <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
