@@ -119,7 +119,9 @@ public sealed class EmployeesController : ControllerBase
             return BadRequest(new { error = "Operating Company (divisionId) is strictly required to create an employee." });
         }
 
-        var jobTitle = string.IsNullOrWhiteSpace(body.JobTitle) ? "Employee" : body.JobTitle.Trim();
+        var jobTitle = string.IsNullOrWhiteSpace(body.JobTitle) || body.JobTitle.Trim().Equals("Employee", StringComparison.OrdinalIgnoreCase)
+            ? "-"
+            : body.JobTitle.Trim();
 
         var fullName = !string.IsNullOrWhiteSpace(body.FullName)
             ? body.FullName.Trim()
@@ -135,7 +137,7 @@ public sealed class EmployeesController : ControllerBase
             fullName,
             body.Email,
             string.IsNullOrWhiteSpace(body.Password) ? "demo123" : body.Password.Trim(),
-            string.IsNullOrWhiteSpace(jobTitle) ? "Employee" : jobTitle,
+            string.IsNullOrWhiteSpace(jobTitle) ? "-" : jobTitle,
             body.Phone,
             body.DepartmentId,
             body.DivisionId,

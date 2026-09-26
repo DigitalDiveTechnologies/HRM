@@ -50,4 +50,18 @@ public sealed class DesignationsController : ControllerBase
 
         return Ok(row);
     }
+
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> Delete(int id, CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "masters.designations")) return Forbid();
+        var (ok, error) = await _hr.DeleteDesignationAsync(id, ct);
+        if (!ok)
+        {
+            return error != null && error.Contains("not found", StringComparison.OrdinalIgnoreCase)
+                ? NotFound(new { error })
+                : BadRequest(new { error });
+        }
+        return Ok(new { success = true, message = "Designation deleted successfully." });
+    }
 }

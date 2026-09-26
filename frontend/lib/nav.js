@@ -54,7 +54,7 @@ export const NAV = [
         href: '/masters',
         label: 'Designations & Types',
         permissions: ['masters.designations', 'masters.employment_types'],
-        roles: ['admin'],
+        roles: ['admin', 'manager', 'employee'],
       },
       { href: '/onboarding', label: 'Onboarding', permission: 'onboarding.view', roles: ['admin'] },
       { href: '/recruitment', label: 'Recruitment & ATS', permission: 'recruitment.view', roles: ['admin'] },

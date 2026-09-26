@@ -42,11 +42,11 @@ function displayDesignation(emp, md = {}) {
   ];
   for (const c of candidates) {
     const s = String(c ?? '').trim();
-    if (s && s !== '-' && s !== '—' && s.toLowerCase() !== 'null' && s.toLowerCase() !== 'undefined') {
+    if (s && s !== '-' && s !== '—' && s.toLowerCase() !== 'null' && s.toLowerCase() !== 'undefined' && s.toLowerCase() !== 'employee') {
       return s;
     }
   }
-  return '';
+  return '—';
 }
 
 function displayAppPassword(emp, md = {}) {
@@ -801,8 +801,19 @@ function EmployeesContent() {
   const safePage = Math.min(Math.max(1, empPage), totalEmpPages);
   const paginatedEmployees = useMemo(() => {
     const list = Array.isArray(filteredRows) ? filteredRows : [];
+    const sorted = [...list].sort((a, b) => {
+      const tA = new Date(v(a, 'createdAt', 'created_at') || 0).getTime();
+      const tB = new Date(v(b, 'createdAt', 'created_at') || 0).getTime();
+      if (!isNaN(tA) && !isNaN(tB) && tA !== tB && tA > 0 && tB > 0) return tB - tA;
+      const idA = Number(v(a, 'id') || 0);
+      const idB = Number(v(b, 'id') || 0);
+      if (idA !== idB && !isNaN(idA) && !isNaN(idB)) return idB - idA;
+      const codeA = parseInt(String(v(a, 'empCode', 'emp_code') || '').replace(/\D/g, ''), 10) || 0;
+      const codeB = parseInt(String(v(b, 'empCode', 'emp_code') || '').replace(/\D/g, ''), 10) || 0;
+      return codeB - codeA;
+    });
     const start = (safePage - 1) * EMP_PAGE_SIZE;
-    return list.slice(start, start + EMP_PAGE_SIZE);
+    return sorted.slice(start, start + EMP_PAGE_SIZE);
   }, [filteredRows, safePage]);
 
   // Selected Employee Master Data helper
@@ -1331,7 +1342,15 @@ function EmployeesContent() {
                     </td>
                     <td>{v(e, 'divisionName', 'division_name') || '-'}</td>
                     <td>{v(e, 'departmentName', 'department_name') || '-'}</td>
-                    <td>{v(e, 'jobTitle', 'job_title') || '-'}</td>
+                    <td>
+                      {(() => {
+                        const desig = v(e, 'designationName', 'designation_name');
+                        if (desig && desig.trim() && desig.trim() !== '-' && desig.trim() !== '—') return desig.trim();
+                        const jt = v(e, 'jobTitle', 'job_title');
+                        if (jt && jt.trim() && jt.trim() !== '-' && jt.trim() !== '—' && jt.trim().toLowerCase() !== 'employee') return jt.trim();
+                        return '-';
+                      })()}
+                    </td>
                     <td>{v(e, 'managerName', 'manager_name') || '—'}</td>
                     <td>{formatDate(v(e, 'joinDate', 'join_date', 'hireDate', 'hire_date')) || '-'}</td>
                     <td>
@@ -1381,9 +1400,8 @@ function EmployeesContent() {
               alignItems: 'center',
               flexWrap: 'wrap',
               gap: 10,
-              marginTop: 14,
-              paddingTop: 12,
-              borderTop: '1px solid var(--line, #e2e8f0)',
+              marginTop: 10,
+              paddingTop: 8,
             }}
           >
             <div className="muted" style={{ fontSize: '12px' }}>

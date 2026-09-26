@@ -48,4 +48,18 @@ public sealed class EmploymentTypesController : ControllerBase
 
         return Ok(row);
     }
+
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> Delete(int id, CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "masters.employment_types")) return Forbid();
+        var (ok, error) = await _hr.DeleteEmploymentTypeAsync(id, ct);
+        if (!ok)
+        {
+            return error != null && error.Contains("not found", StringComparison.OrdinalIgnoreCase)
+                ? NotFound(new { error })
+                : BadRequest(new { error });
+        }
+        return Ok(new { success = true, message = "Employment type deleted successfully." });
+    }
 }

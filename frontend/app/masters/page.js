@@ -91,6 +91,20 @@ export default function MastersPage() {
     }
   }
 
+  async function deleteMaster(kind, id, name) {
+    if (!window.confirm(`Are you sure you want to permanently delete "${name || 'this item'}"?`)) return;
+    setMsg('');
+    setError('');
+    const path = kind === 'des' ? `/designations/${id}` : `/employment-types/${id}`;
+    try {
+      await api(path, { method: 'DELETE' });
+      setMsg('Deleted successfully.');
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   return (
     <AppShell title="Designations & Employment Types" subtitle="Manage job designations (with grade/family) and employment types">
       {error ? <div className="error">{error}</div> : null}
@@ -172,15 +186,25 @@ export default function MastersPage() {
                         <Badge status={v(r, 'status')} />
                       </td>
                       <td>
-                        {String(v(r, 'status')).toLowerCase() === 'active' ? (
-                          <button type="button" className="btn secondary" onClick={() => setMasterStatus('des', v(r, 'id'), 'inactive')}>
-                            Deactivate
+                        <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                          {String(v(r, 'status')).toLowerCase() === 'active' ? (
+                            <button type="button" className="btn secondary" style={{ padding: '4px 10px', fontSize: '12px' }} onClick={() => setMasterStatus('des', v(r, 'id'), 'inactive')}>
+                              Deactivate
+                            </button>
+                          ) : (
+                            <button type="button" className="btn secondary" style={{ padding: '4px 10px', fontSize: '12px' }} onClick={() => setMasterStatus('des', v(r, 'id'), 'active')}>
+                              Reactivate
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="btn"
+                            style={{ background: '#ef4444', color: '#fff', padding: '4px 10px', fontSize: '12px', border: 'none' }}
+                            onClick={() => deleteMaster('des', v(r, 'id'), v(r, 'name'))}
+                          >
+                            Delete
                           </button>
-                        ) : (
-                          <button type="button" className="btn secondary" onClick={() => setMasterStatus('des', v(r, 'id'), 'active')}>
-                            Reactivate
-                          </button>
-                        )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -231,15 +255,25 @@ export default function MastersPage() {
                         <Badge status={v(r, 'status')} />
                       </td>
                       <td>
-                        {String(v(r, 'status')).toLowerCase() === 'active' ? (
-                          <button type="button" className="btn secondary" onClick={() => setMasterStatus('emp', v(r, 'id'), 'inactive')}>
-                            Deactivate
+                        <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                          {String(v(r, 'status')).toLowerCase() === 'active' ? (
+                            <button type="button" className="btn secondary" style={{ padding: '4px 10px', fontSize: '12px' }} onClick={() => setMasterStatus('emp', v(r, 'id'), 'inactive')}>
+                              Deactivate
+                            </button>
+                          ) : (
+                            <button type="button" className="btn secondary" style={{ padding: '4px 10px', fontSize: '12px' }} onClick={() => setMasterStatus('emp', v(r, 'id'), 'active')}>
+                              Reactivate
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="btn"
+                            style={{ background: '#ef4444', color: '#fff', padding: '4px 10px', fontSize: '12px', border: 'none' }}
+                            onClick={() => deleteMaster('emp', v(r, 'id'), v(r, 'name'))}
+                          >
+                            Delete
                           </button>
-                        ) : (
-                          <button type="button" className="btn secondary" onClick={() => setMasterStatus('emp', v(r, 'id'), 'active')}>
-                            Reactivate
-                          </button>
-                        )}
+                        </div>
                       </td>
                     </tr>
                   ))}

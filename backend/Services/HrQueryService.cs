@@ -629,7 +629,7 @@ public sealed class HrQueryService
             string.IsNullOrWhiteSpace(fullName) ? ComposeNameFromMaster(masterData) : fullName.Trim(),
             masterData);
         email = email.Trim().ToLowerInvariant();
-        jobTitle = string.IsNullOrWhiteSpace(jobTitle) ? "Employee" : jobTitle.Trim();
+        jobTitle = string.IsNullOrWhiteSpace(jobTitle) || jobTitle.Trim().Equals("Employee", StringComparison.OrdinalIgnoreCase) ? "-" : jobTitle.Trim();
         status = string.IsNullOrWhiteSpace(status) ? "active" : status.Trim().ToLowerInvariant();
         phone = string.IsNullOrWhiteSpace(phone) ? null : phone.Trim();
 
@@ -981,6 +981,78 @@ public sealed class HrQueryService
 
     public Task<(Dictionary<string, object?>? Row, string? Error)> UpdateEmploymentTypeAsync(int id, string? name, string? status, CancellationToken ct) =>
         UpdateMasterRowAsync("employment_types", id, name, status, ct);
+
+    public async Task<(bool Success, string? Error)> DeleteDesignationAsync(int id, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
+        try
+        {
+            await using (var upd = new NpgsqlCommand("UPDATE employees SET designation_id = NULL WHERE designation_id = @id", conn, tx))
+            {
+                upd.Parameters.AddWithValue("id", id);
+                await upd.ExecuteNonQueryAsync(ct);
+            }
+            await using (var updPos = new NpgsqlCommand("UPDATE positions SET designation_id = NULL WHERE designation_id = @id", conn, tx))
+            {
+                updPos.Parameters.AddWithValue("id", id);
+                await updPos.ExecuteNonQueryAsync(ct);
+            }
+            await using (var updRep = new NpgsqlCommand("UPDATE designations SET default_reporting_designation_id = NULL WHERE default_reporting_designation_id = @id", conn, tx))
+            {
+                updRep.Parameters.AddWithValue("id", id);
+                await updRep.ExecuteNonQueryAsync(ct);
+            }
+            await using (var del = new NpgsqlCommand("DELETE FROM designations WHERE id = @id", conn, tx))
+            {
+                del.Parameters.AddWithValue("id", id);
+                var affected = await del.ExecuteNonQueryAsync(ct);
+                if (affected == 0)
+                {
+                    await tx.RollbackAsync(ct);
+                    return (false, "Designation not found.");
+                }
+            }
+            await tx.CommitAsync(ct);
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            await tx.RollbackAsync(ct);
+            return (false, ex.Message);
+        }
+    }
+
+    public async Task<(bool Success, string? Error)> DeleteEmploymentTypeAsync(int id, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
+        try
+        {
+            await using (var upd = new NpgsqlCommand("UPDATE employees SET employment_type_id = NULL WHERE employment_type_id = @id", conn, tx))
+            {
+                upd.Parameters.AddWithValue("id", id);
+                await upd.ExecuteNonQueryAsync(ct);
+            }
+            await using (var del = new NpgsqlCommand("DELETE FROM employment_types WHERE id = @id", conn, tx))
+            {
+                del.Parameters.AddWithValue("id", id);
+                var affected = await del.ExecuteNonQueryAsync(ct);
+                if (affected == 0)
+                {
+                    await tx.RollbackAsync(ct);
+                    return (false, "Employment type not found.");
+                }
+            }
+            await tx.CommitAsync(ct);
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            await tx.RollbackAsync(ct);
+            return (false, ex.Message);
+        }
+    }
 
     public async Task<(int? Id, string? Error)> ResolveDesignationIdAsync(string name, CancellationToken ct)
     {
