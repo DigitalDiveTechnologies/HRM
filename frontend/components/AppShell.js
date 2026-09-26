@@ -181,27 +181,35 @@ export default function AppShell({ title, subtitle, actions, children }) {
     });
   }, []);
 
-  // Scroll active sidebar link into view (so thumb sits near Assets when Assets is active)
+  // Keep scrollbar thumb near the active nav item (center it in the sidebar viewport)
   useEffect(() => {
     if (typeof window === 'undefined' || !ready) return;
     const sidebar = document.getElementById('sidebar');
     if (!sidebar) return;
 
-    const scrollActiveIntoView = () => {
+    const scrollActiveNearThumb = () => {
       const active = sidebar.querySelector('a.active, a[aria-current="page"]');
-      if (active && typeof active.scrollIntoView === 'function') {
-        active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-      }
+      if (!active) return;
+      const sRect = sidebar.getBoundingClientRect();
+      const aRect = active.getBoundingClientRect();
+      const activeMid = aRect.top + aRect.height / 2;
+      const viewMid = sRect.top + sidebar.clientHeight / 2;
+      const next = sidebar.scrollTop + (activeMid - viewMid);
+      const max = Math.max(0, sidebar.scrollHeight - sidebar.clientHeight);
+      sidebar.scrollTop = Math.min(max, Math.max(0, next));
     };
-    // After paint so layout/heights are ready
-    const t = window.setTimeout(scrollActiveIntoView, 0);
+
+    // After nav links paint
+    const t1 = window.setTimeout(scrollActiveNearThumb, 0);
+    const t2 = window.setTimeout(scrollActiveNearThumb, 80);
 
     const onScroll = () => {
       sessionStorage.setItem('gocs_sidebar_scroll', String(sidebar.scrollTop));
     };
     sidebar.addEventListener('scroll', onScroll, { passive: true });
     return () => {
-      window.clearTimeout(t);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
       sidebar.removeEventListener('scroll', onScroll);
     };
   }, [pathname, ready]);
@@ -284,7 +292,7 @@ export default function AppShell({ title, subtitle, actions, children }) {
         <aside className={`sidebar${menuOpen ? ' open' : ''}`} id="sidebar">
           <div className="sidebar-top">
             <div>
-              <div className="logo" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap' }}>
+              <div className="logo brand-row">
                 {selectedCompany ? (
                   <>
                     {companyLogo ? (
@@ -303,7 +311,7 @@ export default function AppShell({ title, subtitle, actions, children }) {
                         }}
                       />
                     ) : null}
-                    <span style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+                    <span style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.02em' }}>
                       {companyName} <span style={{ color: 'var(--primary, #00b8db)', fontWeight: 800 }}>HR</span>
                     </span>
                   </>
@@ -325,27 +333,15 @@ export default function AppShell({ title, subtitle, actions, children }) {
                         }}
                       />
                     ) : null}
-                    <span style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+                    <span style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.02em' }}>
                       {allBrandTitle}
                     </span>
                     {canEditOrgBrand ? (
                       <button
                         type="button"
-                        className="btn secondary"
+                        className="sidebar-brand-edit"
                         title="Edit All Companies brand"
                         onClick={openBrandEdit}
-                        style={{
-                          padding: '2px 8px',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          lineHeight: 1,
-                          minHeight: 0,
-                          height: 22,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          alignSelf: 'center',
-                          flexShrink: 0,
-                        }}
                       >
                         Edit
                       </button>

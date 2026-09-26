@@ -476,6 +476,41 @@ form > button,
   color: var(--sidebar-logo);
   margin-bottom: 4px;
 }
+.sidebar .logo.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  min-height: 28px;
+}
+.sidebar .logo.brand-row > span {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+.sidebar-brand-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 22px;
+  padding: 0 8px;
+  margin: 0;
+  border: 1px solid rgba(0, 184, 219, 0.55);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sidebar-text);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  align-self: center;
+}
+.sidebar-brand-edit:hover {
+  border-color: #00B8DB;
+  color: #00B8DB;
+}
 .sidebar .logo span { color: var(--sidebar-logo-accent); }
 .sidebar .tag {
   font-size: 0.75rem;
