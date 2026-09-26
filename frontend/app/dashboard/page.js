@@ -41,7 +41,7 @@ export default function DashboardPage() {
         }
       } catch {}
     }
-    return null;
+    return {};
   });
   const [employees, setEmployees] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -644,25 +644,8 @@ export default function DashboardPage() {
       }
     >
       {error ? <div className="error" style={{ marginBottom: 14 }}>{error}</div> : null}
-      {loading && !data ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '36px 0', color: 'var(--muted, #64748b)' }}>
-          <span
-            style={{
-              width: 16,
-              height: 16,
-              border: '2px solid #cbd5e1',
-              borderTopColor: '#00b8db',
-              borderRadius: '50%',
-              display: 'inline-block',
-              animation: 'spin 0.8s linear infinite',
-            }}
-          />
-          <span>Loading live dashboard…</span>
-        </div>
-      ) : null}
 
-      {data ? (
-        <div className="dash-container">
+      <div className="dash-container">
           {!hasAnyWidget ? (
             <div className="card" style={{ padding: '36px 28px', marginTop: 4 }}>
               <h3 style={{ marginTop: 0, marginBottom: 8, fontSize: '1.15rem' }}>Welcome</h3>
@@ -1687,7 +1670,6 @@ export default function DashboardPage() {
           </div>
           ) : null}
         </div>
-      ) : null}
 
       <style jsx>{`
         .dash-container {

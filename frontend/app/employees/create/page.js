@@ -149,6 +149,19 @@ export default function CreateEmployeePage() {
         await apiUpload('/employees/' + empId + '/photo', fd);
       }
 
+      if (res?.employee) {
+        try {
+          const cached = localStorage.getItem('gocs_cached_employees');
+          const prev = cached ? JSON.parse(cached) : [];
+          const id = v(res.employee, 'id');
+          const next = [res.employee, ...(Array.isArray(prev) ? prev.filter((r) => v(r, 'id') !== id) : [])];
+          localStorage.setItem('gocs_cached_employees', JSON.stringify(next));
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('gocs_employees_updated', { detail: next }));
+          }
+        } catch {}
+      }
+
       // Check whether user filled details across form sections:
       const hasJobInfo = Boolean(form.departmentId || form.designationId || (form.jobTitle && form.jobTitle !== '—'));
       const hasContactOrAddress = Boolean(

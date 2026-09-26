@@ -1099,24 +1099,6 @@ export default function LeavePage() {
                 </div>
               </div>
             </div>
-          ) : loading && rows.length === 0 ? (
-            <div className="card" style={{ padding: '44px 20px', textAlign: 'center', borderRadius: 14 }}>
-              <div
-                style={{
-                  display: 'inline-block',
-                  width: 28,
-                  height: 28,
-                  border: '3px solid #00b8db',
-                  borderTopColor: 'transparent',
-                  borderRadius: '50%',
-                  animation: 'spin 0.8s linear infinite',
-                  marginBottom: 12,
-                }}
-              />
-              <p className="muted" style={{ margin: 0, fontSize: '13.5px', fontWeight: 600 }}>
-                Loading leave requests & live approvals pipeline…
-              </p>
-            </div>
           ) : (
             <div className="card" style={{ padding: '32px', textAlign: 'center' }}>
               <p className="muted" style={{ margin: 0 }}>No active leave requests found.</p>
@@ -1390,14 +1372,7 @@ export default function LeavePage() {
                     </tr>
                   );
                 })}
-                {loading && rows.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="muted" style={{ textAlign: 'center', padding: '32px 0' }}>
-                      <div style={{ display: 'inline-block', width: 18, height: 18, border: '2.5px solid #00b8db', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite', verticalAlign: 'middle', marginRight: 8 }} />
-                      Loading leave records…
-                    </td>
-                  </tr>
-                ) : !filteredLeaves.length ? (
+                {!filteredLeaves.length ? (
                   <tr>
                     <td colSpan={7} className="muted" style={{ textAlign: 'center', padding: '28px 0' }}>
                       No leave records matching current filter.
@@ -1675,26 +1650,7 @@ export default function LeavePage() {
                         </td>
                       </tr>
                     ))}
-                    {loading && balances.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="muted" style={{ textAlign: 'center', padding: '28px 0' }}>
-                          <div
-                            style={{
-                              display: 'inline-block',
-                              width: 18,
-                              height: 18,
-                              border: '2.5px solid #00b8db',
-                              borderTopColor: 'transparent',
-                              borderRadius: '50%',
-                              animation: 'spin 0.8s linear infinite',
-                              verticalAlign: 'middle',
-                              marginRight: 8,
-                            }}
-                          />
-                          Loading leave balances…
-                        </td>
-                      </tr>
-                    ) : !selectedEmpBalances.length ? (
+                    {!selectedEmpBalances.length ? (
                       <tr>
                         <td colSpan={4} className="muted" style={{ textAlign: 'center', padding: '28px 0' }}>
                           No leave balance records found for {activeBalanceEmp ? activeBalanceEmp.name : 'this employee'}.

@@ -88,18 +88,7 @@ function EmployeesContent() {
     }
     return [];
   });
-  const [loadingEmps, setLoadingEmps] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem('gocs_cached_employees');
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) return false;
-        }
-      } catch {}
-    }
-    return true;
-  });
+  const [loadingEmps, setLoadingEmps] = useState(false);
   const [departments, setDepartments] = useState([]);
   const [divisions, setDivisions] = useState([]);
   const [designations, setDesignations] = useState([]);
@@ -321,6 +310,35 @@ function EmployeesContent() {
     } catch {}
   }, []);
 
+  // Subscribe to instant employee cache updates from other forms/tabs
+  useEffect(() => {
+    const handleUpdate = (evt) => {
+      if (evt?.detail && Array.isArray(evt.detail)) {
+        setRows(evt.detail);
+        setLoadingEmps(false);
+      } else {
+        try {
+          const cached = localStorage.getItem('gocs_cached_employees');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length) {
+              setRows(parsed);
+              setLoadingEmps(false);
+            }
+          }
+        } catch {}
+      }
+    };
+    window.addEventListener('gocs_employees_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('focus', handleUpdate);
+    return () => {
+      window.removeEventListener('gocs_employees_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
+    };
+  }, []);
+
   async function openDetail(e) {
     if (!e) return;
     const empId = String(v(e, 'id'));
@@ -499,10 +517,14 @@ function EmployeesContent() {
           const next = [res.employee, ...(Array.isArray(prev) ? prev.filter((r) => v(r, 'id') !== id) : [])];
           try {
             localStorage.setItem('gocs_cached_employees', JSON.stringify(next));
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('gocs_employees_updated', { detail: next }));
+            }
           } catch {}
           return next;
         });
       }
+      setLoadingEmps(false);
       load();
     } catch (err) {
       setError(err.message);
@@ -1091,21 +1113,7 @@ function EmployeesContent() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span>All Employees {loadingEmps && !filteredRows.length ? '' : `(${filteredRows.length})`}</span>
-              {loadingEmps && !filteredRows.length ? (
-                <span
-                  style={{
-                    display: 'inline-block',
-                    width: 13,
-                    height: 13,
-                    border: '2px solid rgba(0, 184, 219, 0.3)',
-                    borderTopColor: '#00b8db',
-                    borderRadius: '50%',
-                    animation: 'spin 0.7s linear infinite',
-                  }}
-                  title="Loading..."
-                />
-              ) : null}
+              <span>All Employees ({filteredRows.length})</span>
             </h3>
             <p className="muted" style={{ fontSize: '12px', margin: '2px 0 0' }}>
               Click any employee row to open their profile details & edit credentials
@@ -1297,27 +1305,9 @@ function EmployeesContent() {
                   </tr>
                 );
               })}
-              {loadingEmps && !filteredRows.length ? (
+              {!filteredRows.length ? (
                 <tr>
-                  <td colSpan={10} style={{ textAlign: 'center', padding: '36px 16px' }} className="muted">
-                    <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-                      <div
-                        style={{
-                          width: 26,
-                          height: 26,
-                          border: '2.5px solid rgba(0, 184, 219, 0.25)',
-                          borderTopColor: '#00b8db',
-                          borderRadius: '50%',
-                          animation: 'spin 0.8s linear infinite',
-                        }}
-                      />
-                      <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--ink)' }}>Loading employees...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : !filteredRows.length ? (
-                <tr>
-                  <td colSpan={10} style={{ textAlign: 'center', padding: '24px' }} className="muted">
+                  <td colSpan={10} style={{ textAlign: 'center', padding: '28px 16px', color: 'var(--muted, #64748b)' }}>
                     No employees matching current filter.
                   </td>
                 </tr>

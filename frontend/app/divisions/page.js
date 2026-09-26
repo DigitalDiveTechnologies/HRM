@@ -21,15 +21,7 @@ export default function DivisionsPage() {
     }
     return [];
   });
-  const [loading, setLoading] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem('gocs_cached_divisions');
-        if (cached && JSON.parse(cached).length > 0) return false;
-      } catch {}
-    }
-    return true;
-  });
+  const [loading, setLoading] = useState(false);
   const [companyPage, setCompanyPage] = useState(1);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -182,26 +174,7 @@ export default function DivisionsPage() {
                   </td>
                 </tr>
               ))}
-              {loading && !rows.length ? (
-                <tr>
-                    <td colSpan={4} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted, #64748b)' }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
-                      <span
-                        style={{
-                          width: 14,
-                          height: 14,
-                          border: '2px solid #cbd5e1',
-                          borderTopColor: '#00b8db',
-                          borderRadius: '50%',
-                          display: 'inline-block',
-                          animation: 'spin 0.8s linear infinite',
-                        }}
-                      />
-                      <span>Loading companies...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : !rows.length ? (
+              {!rows.length ? (
                 <tr>
                     <td colSpan={4} style={{ textAlign: 'center', padding: '24px 16px', color: 'var(--muted, #64748b)' }}>
                     No companies yet.
