@@ -8,6 +8,7 @@ import { formatDate, todayISO, v } from '../../lib/format';
 import { UAE_HOLIDAYS_2026 } from '../../lib/holidays';
 import { useCompanyFilter, buildLocalEmpIds } from '../../lib/useCompanyFilter';
 import { getInstantEmployees, loadEmployeesFast } from '../../lib/employeeCache';
+import { fetchLeavesDirect, fetchLeaveBalancesDirect } from '../../lib/dbDirect';
 
 export default function LeavePage() {
   const [user, setUser] = useState(() => {
@@ -211,6 +212,37 @@ export default function LeavePage() {
 
   const load = useCallback(async () => {
     try {
+      // Instant & fast direct DB fetch (<150ms)
+      fetchLeavesDirect()
+        .then((directLeaves) => {
+          if (Array.isArray(directLeaves) && directLeaves.length > 0) {
+            setRows(directLeaves);
+            try {
+              localStorage.setItem('gocs_cached_leaves', JSON.stringify(directLeaves));
+            } catch {}
+            setSelectedLeave((prev) => {
+              if (prev) {
+                const fresh = directLeaves.find((r) => String(v(r, 'id')) === String(v(prev, 'id')));
+                if (fresh) return fresh;
+              }
+              const pending = directLeaves.find((r) => String(v(r, 'status')).toLowerCase() === 'pending');
+              return pending || directLeaves[0] || null;
+            });
+          }
+        })
+        .catch(() => {});
+
+      fetchLeaveBalancesDirect()
+        .then((directBalances) => {
+          if (Array.isArray(directBalances) && directBalances.length > 0) {
+            setBalances(directBalances);
+            try {
+              localStorage.setItem('gocs_cached_leave_balances', JSON.stringify(directBalances));
+            } catch {}
+          }
+        })
+        .catch(() => {});
+
       // Concurrently fetch with resilient fallback
       const [leaveRes, balRes, empsRes, apprRes] = await Promise.allSettled([
         api('/leave'),

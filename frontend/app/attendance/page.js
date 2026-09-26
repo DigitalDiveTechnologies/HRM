@@ -6,6 +6,7 @@ import { api, getUser, normalizeRole } from '../../lib/auth';
 import { formatDate, formatLate, todayISO, v } from '../../lib/format';
 import { applyEmpFilter, useCompanyFilter } from '../../lib/useCompanyFilter';
 import { getInstantEmployees, loadEmployeesFast } from '../../lib/employeeCache';
+import { fetchAttendanceDirect } from '../../lib/dbDirect';
 
 export default function AttendancePage() {
   const [user, setUser] = useState(null);
@@ -13,7 +14,18 @@ export default function AttendancePage() {
   const isEmployee = role === 'employee';
   const { filteredEmpIds } = useCompanyFilter();
 
-  const [rows, setRows] = useState([]);
+  const [rows, setRows] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_attendance');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
   const [employees, setEmployees] = useState(() => getInstantEmployees());
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -34,9 +46,27 @@ export default function AttendancePage() {
   const load = useCallback(async () => {
     if (!user) return;
     loadEmployeesFast(setEmployees);
+
+    // Fast Neon direct fetch (<150ms)
+    fetchAttendanceDirect()
+      .then((directAtt) => {
+        if (Array.isArray(directAtt) && directAtt.length > 0) {
+          setRows(directAtt);
+          try {
+            localStorage.setItem('gocs_cached_attendance', JSON.stringify(directAtt));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+
     try {
       const att = await api('/attendance');
-      setRows(att || []);
+      if (Array.isArray(att) && att.length > 0) {
+        setRows(att);
+        try {
+          localStorage.setItem('gocs_cached_attendance', JSON.stringify(att));
+        } catch {}
+      }
       if (normalizeRole(user) === 'employee' && user?.employeeId) {
         setForm((f) => ({ ...f, employeeId: String(user.employeeId) }));
       }

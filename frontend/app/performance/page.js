@@ -7,6 +7,7 @@ import { canUsePermission } from '../../lib/nav';
 import { formatDate, todayISO, v } from '../../lib/format';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
 import { getInstantEmployees, loadEmployeesFast } from '../../lib/employeeCache';
+import { fetchPerformanceGoalsDirect, fetchPerformanceReviewsDirect } from '../../lib/dbDirect';
 
 export default function PerformancePage() {
   const role = normalizeRole(getUser());
@@ -14,8 +15,30 @@ export default function PerformancePage() {
   const canManage = canUsePermission(role, permissions, 'performance.view');
   const { filteredEmpIds } = useCompanyFilter();
 
-  const [goals, setGoals] = useState([]);
-  const [reviews, setReviews] = useState([]);
+  const [goals, setGoals] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_perf_goals');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
+  const [reviews, setReviews] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_perf_reviews');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
   const [employees, setEmployees] = useState(() => getInstantEmployees());
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -42,10 +65,43 @@ export default function PerformancePage() {
     // Instant & background employee sync for dropdowns
     loadEmployeesFast(setEmployees);
 
+    // Fast Neon direct fetch (<150ms)
+    fetchPerformanceGoalsDirect()
+      .then((directGoals) => {
+        if (Array.isArray(directGoals) && directGoals.length > 0) {
+          setGoals(directGoals);
+          try {
+            localStorage.setItem('gocs_cached_perf_goals', JSON.stringify(directGoals));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+
+    fetchPerformanceReviewsDirect()
+      .then((directReviews) => {
+        if (Array.isArray(directReviews) && directReviews.length > 0) {
+          setReviews(directReviews);
+          try {
+            localStorage.setItem('gocs_cached_perf_reviews', JSON.stringify(directReviews));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+
     Promise.allSettled([api('/performance/goals'), api('/performance/reviews')])
       .then(([gRes, rRes]) => {
-        if (gRes.status === 'fulfilled') setGoals(gRes.value || []);
-        if (rRes.status === 'fulfilled') setReviews(rRes.value || []);
+        if (gRes.status === 'fulfilled' && Array.isArray(gRes.value)) {
+          setGoals(gRes.value);
+          try {
+            localStorage.setItem('gocs_cached_perf_goals', JSON.stringify(gRes.value));
+          } catch {}
+        }
+        if (rRes.status === 'fulfilled' && Array.isArray(rRes.value)) {
+          setReviews(rRes.value);
+          try {
+            localStorage.setItem('gocs_cached_perf_reviews', JSON.stringify(rRes.value));
+          } catch {}
+        }
       })
       .catch((e) => setError(e.message));
   }, []);

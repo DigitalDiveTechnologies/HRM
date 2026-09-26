@@ -7,7 +7,7 @@ import { canUsePermission } from '../../lib/nav';
 import { formatDate, todayISO, v } from '../../lib/format';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
 import { getInstantEmployees, loadEmployeesFast } from '../../lib/employeeCache';
-import { fetchSkillsDirect } from '../../lib/dbDirect';
+import { fetchSkillsDirect, fetchCoursesDirect, fetchCourseEnrollmentsDirect } from '../../lib/dbDirect';
 
 export default function TrainingPage() {
   const role = normalizeRole(getUser());
@@ -15,11 +15,44 @@ export default function TrainingPage() {
   const canManage = canUsePermission(role, permissions, 'training.view');
   const { filteredEmpIds } = useCompanyFilter();
 
-  const [courses, setCourses] = useState([]);
-  const [enrollments, setEnrollments] = useState([]);
+  const [courses, setCourses] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_courses');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
+  const [enrollments, setEnrollments] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_enrollments');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
   const [certs, setCerts] = useState([]);
   const [calendar, setCalendar] = useState([]);
-  const [skills, setSkills] = useState([]);
+  const [skills, setSkills] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_skills');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
   const [employeeSkills, setEmployeeSkills] = useState([]);
   const [employees, setEmployees] = useState(() => getInstantEmployees());
   const [error, setError] = useState('');
@@ -54,7 +87,35 @@ export default function TrainingPage() {
     // Fast skills direct fetch (<100ms)
     fetchSkillsDirect()
       .then((directSkills) => {
-        if (Array.isArray(directSkills) && directSkills.length > 0) setSkills(directSkills);
+        if (Array.isArray(directSkills) && directSkills.length > 0) {
+          setSkills(directSkills);
+          try {
+            localStorage.setItem('gocs_cached_skills', JSON.stringify(directSkills));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+
+    // Fast courses & enrollments direct fetch (<150ms)
+    fetchCoursesDirect()
+      .then((directCourses) => {
+        if (Array.isArray(directCourses) && directCourses.length > 0) {
+          setCourses(directCourses);
+          try {
+            localStorage.setItem('gocs_cached_courses', JSON.stringify(directCourses));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+
+    fetchCourseEnrollmentsDirect()
+      .then((directEnrollments) => {
+        if (Array.isArray(directEnrollments) && directEnrollments.length > 0) {
+          setEnrollments(directEnrollments);
+          try {
+            localStorage.setItem('gocs_cached_enrollments', JSON.stringify(directEnrollments));
+          } catch {}
+        }
       })
       .catch(() => {});
 
@@ -67,12 +128,25 @@ export default function TrainingPage() {
       api('/org/skills'),
       api('/org/employee-skills'),
     ]).then(([cRes, eRes, certRes, calRes, skRes, eskRes]) => {
-      if (cRes.status === 'fulfilled') setCourses(cRes.value || []);
-      if (eRes.status === 'fulfilled') setEnrollments(eRes.value || []);
+      if (cRes.status === 'fulfilled' && Array.isArray(cRes.value)) {
+        setCourses(cRes.value);
+        try {
+          localStorage.setItem('gocs_cached_courses', JSON.stringify(cRes.value));
+        } catch {}
+      }
+      if (eRes.status === 'fulfilled' && Array.isArray(eRes.value)) {
+        setEnrollments(eRes.value);
+        try {
+          localStorage.setItem('gocs_cached_enrollments', JSON.stringify(eRes.value));
+        } catch {}
+      }
       if (certRes.status === 'fulfilled') setCerts(certRes.value || []);
       if (calRes.status === 'fulfilled') setCalendar(calRes.value || []);
       if (skRes.status === 'fulfilled' && Array.isArray(skRes.value) && skRes.value.length > 0) {
         setSkills(skRes.value);
+        try {
+          localStorage.setItem('gocs_cached_skills', JSON.stringify(skRes.value));
+        } catch {}
       }
       if (eskRes.status === 'fulfilled') setEmployeeSkills(eskRes.value || []);
     });

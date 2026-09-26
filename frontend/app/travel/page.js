@@ -7,14 +7,37 @@ import { canUsePermission } from '../../lib/nav';
 import { formatDate, money, currencyCode, todayISO, v } from '../../lib/format';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
 import { getInstantEmployees, loadEmployeesFast } from '../../lib/employeeCache';
+import { fetchTravelDirect, fetchExpensesDirect } from '../../lib/dbDirect';
 
 export default function TravelPage() {
   const role = normalizeRole(getUser());
   const permissions = getPermissions(getUser());
   const canManage = canUsePermission(role, permissions, 'travel.view');
 
-  const [travel, setTravel] = useState([]);
-  const [expenses, setExpenses] = useState([]);
+  const [travel, setTravel] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_travel');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
+  const [expenses, setExpenses] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_expenses');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
   const [employees, setEmployees] = useState(() => getInstantEmployees());
   const { filteredEmpIds } = useCompanyFilter();
   const [error, setError] = useState('');
@@ -41,10 +64,44 @@ export default function TravelPage() {
   const load = useCallback(() => {
     setError('');
     loadEmployeesFast(setEmployees);
+
+    // Fast Neon direct fetch (<150ms)
+    fetchTravelDirect()
+      .then((directTravel) => {
+        if (Array.isArray(directTravel) && directTravel.length > 0) {
+          setTravel(directTravel);
+          try {
+            localStorage.setItem('gocs_cached_travel', JSON.stringify(directTravel));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+
+    fetchExpensesDirect()
+      .then((directExpenses) => {
+        if (Array.isArray(directExpenses) && directExpenses.length > 0) {
+          setExpenses(directExpenses);
+          try {
+            localStorage.setItem('gocs_cached_expenses', JSON.stringify(directExpenses));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+
     Promise.allSettled([api('/travel/requests'), api('/travel/expenses')])
       .then(([tRes, xRes]) => {
-        if (tRes.status === 'fulfilled') setTravel(tRes.value || []);
-        if (xRes.status === 'fulfilled') setExpenses(xRes.value || []);
+        if (tRes.status === 'fulfilled' && Array.isArray(tRes.value)) {
+          setTravel(tRes.value);
+          try {
+            localStorage.setItem('gocs_cached_travel', JSON.stringify(tRes.value));
+          } catch {}
+        }
+        if (xRes.status === 'fulfilled' && Array.isArray(xRes.value)) {
+          setExpenses(xRes.value);
+          try {
+            localStorage.setItem('gocs_cached_expenses', JSON.stringify(xRes.value));
+          } catch {}
+        }
       })
       .catch((err) => setError(err.message));
   }, []);

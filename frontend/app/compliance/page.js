@@ -7,13 +7,25 @@ import { canUsePermission } from '../../lib/nav';
 import { formatDate, todayISO, v } from '../../lib/format';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
 import { getInstantEmployees, loadEmployeesFast } from '../../lib/employeeCache';
+import { fetchComplianceDirect } from '../../lib/dbDirect';
 
 export default function CompliancePage() {
   const role = normalizeRole(getUser());
   const permissions = getPermissions(getUser());
   const canManage = canUsePermission(role, permissions, 'compliance.view');
 
-  const [rows, setRows] = useState([]);
+  const [rows, setRows] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_compliance');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
   const [auditLogs, setAuditLogs] = useState([]);
   const { filteredEmpIds } = useCompanyFilter();
   const [employees, setEmployees] = useState(() => getInstantEmployees());
@@ -35,9 +47,28 @@ export default function CompliancePage() {
     // Instant & background employee sync
     loadEmployeesFast(setEmployees);
 
+    // Fast Neon direct fetch (<150ms)
+    fetchComplianceDirect()
+      .then((directItems) => {
+        if (Array.isArray(directItems) && directItems.length > 0) {
+          setRows(directItems);
+          try {
+            localStorage.setItem('gocs_cached_compliance', JSON.stringify(directItems));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+
     // Resilient parallel loads
     api('/compliance')
-      .then((items) => setRows(items || []))
+      .then((items) => {
+        if (Array.isArray(items) && items.length > 0) {
+          setRows(items);
+          try {
+            localStorage.setItem('gocs_cached_compliance', JSON.stringify(items));
+          } catch {}
+        }
+      })
       .catch((e) => setError(e.message));
 
     api('/audit')

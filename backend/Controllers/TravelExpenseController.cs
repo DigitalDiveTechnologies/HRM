@@ -9,7 +9,7 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "TravelExpense")]
 [Route("api/travel")]
-[Authorize(Roles = "admin,manager,employee")]
+[Authorize]
 public sealed class TravelExpenseController : ControllerBase
 {
     private static readonly HashSet<string> TravelStatuses = new(StringComparer.OrdinalIgnoreCase)
@@ -36,7 +36,7 @@ public sealed class TravelExpenseController : ControllerBase
         Ok(await _hr.TravelRequestsAsync(ct));
 
     [HttpPost("requests")]
-    [Authorize(Roles = "admin,manager,employee")]
+    [Authorize]
     public async Task<IActionResult> CreateTravel([FromBody] TravelRequestCreateRequest body, CancellationToken ct)
     {
         var employeeId = body.EmployeeId;

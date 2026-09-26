@@ -193,3 +193,262 @@ export async function fetchSkillsDirect() {
     return null;
   }
 }
+
+export async function fetchAttendanceDirect(employeeId = null) {
+  try {
+    const whereEmp = employeeId ? `WHERE a.employee_id = ${parseInt(employeeId, 10)}` : '';
+    const res = await fetch(NEON_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Neon-Connection-String': NEON_CONN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `SELECT a.id, a.employee_id AS "employeeId", a.employee_id, a.work_date AS "workDate", a.work_date, a.check_in AS "checkIn", a.check_in, a.check_out AS "checkOut", a.check_out, a.shift_name AS "shiftName", a.shift_name, a.overtime_hours AS "overtimeHours", a.overtime_hours, a.late_minutes AS "lateMinutes", a.late_minutes, a.status, e.full_name AS "fullName", e.full_name, e.emp_code AS "empCode", e.emp_code, e.division_id AS "divisionId", e.division_id FROM attendance a JOIN employees e ON e.id = a.employee_id ${whereEmp} ORDER BY a.work_date DESC, a.id DESC LIMIT 300;`,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.rows || null;
+  } catch (err) {
+    console.error('Direct attendance fetch error:', err);
+    return null;
+  }
+}
+
+export async function fetchLeavesDirect(employeeId = null) {
+  try {
+    const whereEmp = employeeId ? `WHERE l.employee_id = ${parseInt(employeeId, 10)}` : '';
+    const res = await fetch(NEON_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Neon-Connection-String': NEON_CONN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `SELECT l.id, l.employee_id AS "employeeId", l.employee_id, l.leave_type AS "leaveType", l.leave_type, l.start_date AS "startDate", l.start_date, l.end_date AS "endDate", l.end_date, l.days, l.reason, l.status, l.balance_after AS "balanceAfter", l.balance_after, l.manager_note AS "managerNote", l.manager_note, e.full_name AS "fullName", e.full_name, e.emp_code AS "empCode", e.emp_code, e.division_id AS "divisionId", e.division_id FROM leave_requests l JOIN employees e ON e.id = l.employee_id ${whereEmp} ORDER BY l.id DESC LIMIT 300;`,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.rows || null;
+  } catch (err) {
+    console.error('Direct leaves fetch error:', err);
+    return null;
+  }
+}
+
+export async function fetchLeaveBalancesDirect(employeeId = null) {
+  try {
+    const whereEmp = employeeId ? `AND e.id = ${parseInt(employeeId, 10)}` : '';
+    const res = await fetch(NEON_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Neon-Connection-String': NEON_CONN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `WITH entitlements AS (
+          SELECT * FROM (VALUES
+            ('Annual', 30::numeric),
+            ('Sick', 15::numeric),
+            ('Maternity', 45::numeric),
+            ('Unpaid', 0::numeric)
+          ) AS t(leave_type, entitlement_days)
+        )
+        SELECT e.id AS "employeeId", e.id AS employee_id, e.full_name AS "fullName", e.full_name, e.emp_code AS "empCode", e.emp_code,
+               ent.leave_type AS "leaveType", ent.leave_type, ent.entitlement_days AS "entitlementDays", ent.entitlement_days,
+               COALESCE(SUM(l.days) FILTER (WHERE l.status = 'approved'), 0)::numeric AS "usedDays",
+               COALESCE(SUM(l.days) FILTER (WHERE l.status = 'approved'), 0)::numeric AS used_days,
+               GREATEST(ent.entitlement_days - COALESCE(SUM(l.days) FILTER (WHERE l.status = 'approved'), 0), 0)::numeric AS "remainingDays",
+               GREATEST(ent.entitlement_days - COALESCE(SUM(l.days) FILTER (WHERE l.status = 'approved'), 0), 0)::numeric AS remaining_days
+        FROM employees e
+        CROSS JOIN entitlements ent
+        LEFT JOIN leave_requests l
+          ON l.employee_id = e.id
+         AND lower(l.leave_type) = lower(ent.leave_type)
+        WHERE e.in_hr_ops = TRUE AND e.status != 'exited' ${whereEmp}
+        GROUP BY e.id, e.full_name, e.emp_code, ent.leave_type, ent.entitlement_days
+        ORDER BY e.emp_code, ent.leave_type;`,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.rows || null;
+  } catch (err) {
+    console.error('Direct leave balances fetch error:', err);
+    return null;
+  }
+}
+
+export async function fetchAssetsDirect() {
+  try {
+    const res = await fetch(NEON_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Neon-Connection-String': NEON_CONN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `SELECT a.id, a.asset_tag AS "assetTag", a.asset_tag, a.name, a.category, a.serial_no AS "serialNo", a.serial_no, a.status, aa.id AS "assignmentId", aa.id AS assignment_id, aa.employee_id AS "employeeId", aa.employee_id AS "assignedEmployeeId", aa.employee_id AS assigned_employee_id, e.full_name AS "employeeName", e.full_name AS "assignedTo", e.full_name AS assigned_to, e.emp_code AS "empCode", e.emp_code AS "assignedEmpCode", e.emp_code AS assigned_emp_code, e.division_id AS "divisionId", e.division_id FROM assets a LEFT JOIN asset_assignments aa ON aa.asset_id = a.id AND aa.returned_at IS NULL LEFT JOIN employees e ON e.id = aa.employee_id ORDER BY a.id DESC LIMIT 300;`,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.rows || null;
+  } catch (err) {
+    console.error('Direct assets fetch error:', err);
+    return null;
+  }
+}
+
+export async function fetchAssetAssignmentsDirect() {
+  try {
+    const res = await fetch(NEON_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Neon-Connection-String': NEON_CONN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `SELECT aa.id, aa.asset_id AS "assetId", aa.asset_id, aa.employee_id AS "employeeId", aa.employee_id, aa.assigned_at AS "assignedAt", aa.assigned_at, aa.returned_at AS "returnedAt", aa.returned_at, aa.notes, a.asset_tag AS "assetTag", a.asset_tag, a.name AS "assetName", a.name AS asset_name, a.category, e.full_name AS "fullName", e.full_name, e.emp_code AS "empCode", e.emp_code FROM asset_assignments aa JOIN assets a ON a.id = aa.asset_id JOIN employees e ON e.id = aa.employee_id ORDER BY aa.id DESC LIMIT 300;`,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.rows || null;
+  } catch (err) {
+    console.error('Direct asset assignments fetch error:', err);
+    return null;
+  }
+}
+
+export async function fetchDocumentsDirect() {
+  try {
+    const res = await fetch(NEON_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Neon-Connection-String': NEON_CONN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `SELECT d.id, d.employee_id AS "employeeId", d.employee_id, d.doc_type AS "docType", d.doc_type, d.title, d.file_ref AS "fileRef", d.file_ref, d.issue_date AS "issueDate", d.issue_date, d.expiry_date AS "expiryDate", d.expiry_date, d.status, e.full_name AS "fullName", e.full_name, e.emp_code AS "empCode", e.emp_code, e.division_id AS "divisionId", e.division_id FROM documents d JOIN employees e ON e.id = d.employee_id ORDER BY d.id DESC LIMIT 300;`,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.rows || null;
+  } catch (err) {
+    console.error('Direct documents fetch error:', err);
+    return null;
+  }
+}
+
+export async function fetchComplianceDirect() {
+  try {
+    const res = await fetch(NEON_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Neon-Connection-String': NEON_CONN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `SELECT c.id, c.employee_id AS "employeeId", c.employee_id, c.title, c.category, c.due_date AS "dueDate", c.due_date, c.status, c.notes, e.full_name AS "fullName", e.full_name, e.emp_code AS "empCode", e.emp_code, e.division_id AS "divisionId", e.division_id FROM compliance_items c JOIN employees e ON e.id = c.employee_id ORDER BY c.due_date ASC, c.id DESC LIMIT 300;`,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.rows || null;
+  } catch (err) {
+    console.error('Direct compliance fetch error:', err);
+    return null;
+  }
+}
+
+export async function fetchPerformanceGoalsDirect() {
+  try {
+    const res = await fetch(NEON_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Neon-Connection-String': NEON_CONN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `SELECT g.id, g.employee_id AS "employeeId", g.employee_id, g.title, g.kpi, g.target_value AS "targetValue", g.target_value, g.progress_pct AS "progressPct", g.progress_pct, g.period_label AS "periodLabel", g.period_label, g.status, e.full_name AS "fullName", e.full_name, e.emp_code AS "empCode", e.emp_code, e.division_id AS "divisionId", e.division_id FROM performance_goals g JOIN employees e ON e.id = g.employee_id ORDER BY g.id DESC LIMIT 300;`,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.rows || null;
+  } catch (err) {
+    console.error('Direct performance goals fetch error:', err);
+    return null;
+  }
+}
+
+export async function fetchPerformanceReviewsDirect() {
+  try {
+    const res = await fetch(NEON_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Neon-Connection-String': NEON_CONN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `SELECT r.id, r.employee_id AS "employeeId", r.employee_id, r.reviewer_name AS "reviewerName", r.reviewer_name, r.review_type AS "reviewType", r.review_type, r.rating, r.summary, r.review_date AS "reviewDate", r.review_date, e.full_name AS "fullName", e.full_name, e.emp_code AS "empCode", e.emp_code, e.division_id AS "divisionId", e.division_id FROM performance_reviews r JOIN employees e ON e.id = r.employee_id ORDER BY r.id DESC LIMIT 300;`,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.rows || null;
+  } catch (err) {
+    console.error('Direct performance reviews fetch error:', err);
+    return null;
+  }
+}
+
+export async function fetchCoursesDirect() {
+  try {
+    const res = await fetch(NEON_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Neon-Connection-String': NEON_CONN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `SELECT c.id, c.title, c.category, c.duration_hours AS "durationHours", c.duration_hours, c.description, c.status, c.scheduled_start AS "scheduledStart", c.scheduled_start, c.scheduled_end AS "scheduledEnd", c.scheduled_end, (SELECT COUNT(*)::int FROM course_enrollments e WHERE e.course_id = c.id) AS "enrollmentCount", (SELECT COUNT(*)::int FROM course_enrollments e WHERE e.course_id = c.id) AS enrollment_count FROM courses c ORDER BY c.id DESC LIMIT 300;`,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.rows || null;
+  } catch (err) {
+    console.error('Direct courses fetch error:', err);
+    return null;
+  }
+}
+
+export async function fetchCourseEnrollmentsDirect() {
+  try {
+    const res = await fetch(NEON_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Neon-Connection-String': NEON_CONN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `SELECT en.id, en.course_id AS "courseId", en.course_id, en.employee_id AS "employeeId", en.employee_id, en.assigned_at AS "assignedAt", en.assigned_at, en.due_date AS "dueDate", en.due_date, en.status, en.completed_at AS "completedAt", en.completed_at, c.title AS "courseTitle", c.title AS course_title, c.category AS "courseCategory", c.category AS course_category, e.full_name AS "fullName", e.full_name, e.emp_code AS "empCode", e.emp_code FROM course_enrollments en JOIN courses c ON c.id = en.course_id JOIN employees e ON e.id = en.employee_id ORDER BY en.id DESC LIMIT 300;`,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.rows || null;
+  } catch (err) {
+    console.error('Direct course enrollments fetch error:', err);
+    return null;
+  }
+}
+
+export async function fetchTravelDirect() {
+  try {
+    const res = await fetch(NEON_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Neon-Connection-String': NEON_CONN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `SELECT t.id, t.employee_id AS "employeeId", t.employee_id, t.destination, t.purpose, t.start_date AS "startDate", t.start_date, t.end_date AS "endDate", t.end_date, t.estimated_cost AS "estimatedCost", t.estimated_cost, t.currency, t.status, e.full_name AS "fullName", e.full_name, e.emp_code AS "empCode", e.emp_code, e.division_id AS "divisionId", e.division_id FROM travel_requests t JOIN employees e ON e.id = t.employee_id ORDER BY t.id DESC LIMIT 300;`,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.rows || null;
+  } catch (err) {
+    console.error('Direct travel requests fetch error:', err);
+    return null;
+  }
+}
+
+export async function fetchExpensesDirect() {
+  try {
+    const res = await fetch(NEON_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Neon-Connection-String': NEON_CONN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `SELECT x.id, x.employee_id AS "employeeId", x.employee_id, x.title, x.category, x.amount, x.currency, x.expense_date AS "expenseDate", x.expense_date, x.status, x.notes, e.full_name AS "fullName", e.full_name, e.emp_code AS "empCode", e.emp_code FROM expense_claims x JOIN employees e ON e.id = x.employee_id ORDER BY x.id DESC LIMIT 300;`,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.rows || null;
+  } catch (err) {
+    console.error('Direct expense claims fetch error:', err);
+    return null;
+  }
+}
+

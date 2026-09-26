@@ -7,6 +7,7 @@ import { canUsePermission } from '../../lib/nav';
 import { downloadDocumentFile, formatDate, todayISO, v } from '../../lib/format';
 import { applyEmpFilter, useCompanyFilter } from '../../lib/useCompanyFilter';
 import { getInstantEmployees, loadEmployeesFast } from '../../lib/employeeCache';
+import { fetchDocumentsDirect } from '../../lib/dbDirect';
 
 export default function DocumentsPage() {
   const role = normalizeRole(getUser());
@@ -14,7 +15,18 @@ export default function DocumentsPage() {
   const canManage = canUsePermission(role, permissions, 'documents.view');
   const { filteredEmpIds } = useCompanyFilter();
 
-  const [rows, setRows] = useState([]);
+  const [rows, setRows] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_documents');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
   const [employees, setEmployees] = useState(() => getInstantEmployees());
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -35,8 +47,28 @@ export default function DocumentsPage() {
   const load = useCallback(() => {
     setError('');
     loadEmployeesFast(setEmployees);
+
+    // Fast Neon direct fetch (<150ms)
+    fetchDocumentsDirect()
+      .then((directDocs) => {
+        if (Array.isArray(directDocs) && directDocs.length > 0) {
+          setRows(directDocs);
+          try {
+            localStorage.setItem('gocs_cached_documents', JSON.stringify(directDocs));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+
     api('/documents')
-      .then((docs) => setRows(docs || []))
+      .then((docs) => {
+        if (Array.isArray(docs) && docs.length > 0) {
+          setRows(docs);
+          try {
+            localStorage.setItem('gocs_cached_documents', JSON.stringify(docs));
+          } catch {}
+        }
+      })
       .catch((e) => setError(e.message));
   }, []);
 

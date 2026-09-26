@@ -7,14 +7,37 @@ import { canUsePermission } from '../../lib/nav';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
 import { formatDate, v } from '../../lib/format';
 import { getInstantEmployees, loadEmployeesFast } from '../../lib/employeeCache';
+import { fetchAssetsDirect, fetchAssetAssignmentsDirect } from '../../lib/dbDirect';
 
 export default function AssetsPage() {
   const role = normalizeRole(getUser());
   const permissions = getPermissions(getUser());
   const canManage = canUsePermission(role, permissions, 'assets.view');
 
-  const [assets, setAssets] = useState([]);
-  const [assignments, setAssignments] = useState([]);
+  const [assets, setAssets] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_assets');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
+  const [assignments, setAssignments] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('gocs_cached_asset_assignments');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
   const [employees, setEmployees] = useState(() => getInstantEmployees());
   const { filteredEmpIds } = useCompanyFilter();
   const [error, setError] = useState('');
@@ -30,10 +53,44 @@ export default function AssetsPage() {
   const load = useCallback(() => {
     setError('');
     loadEmployeesFast(setEmployees);
+
+    // Fast Neon direct fetch (<150ms)
+    fetchAssetsDirect()
+      .then((directAssets) => {
+        if (Array.isArray(directAssets) && directAssets.length > 0) {
+          setAssets(directAssets);
+          try {
+            localStorage.setItem('gocs_cached_assets', JSON.stringify(directAssets));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+
+    fetchAssetAssignmentsDirect()
+      .then((directAssignments) => {
+        if (Array.isArray(directAssignments) && directAssignments.length > 0) {
+          setAssignments(directAssignments);
+          try {
+            localStorage.setItem('gocs_cached_asset_assignments', JSON.stringify(directAssignments));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+
     Promise.allSettled([api('/assets'), api('/assets/assignments')])
       .then(([aRes, asgRes]) => {
-        if (aRes.status === 'fulfilled') setAssets(aRes.value || []);
-        if (asgRes.status === 'fulfilled') setAssignments(asgRes.value || []);
+        if (aRes.status === 'fulfilled' && Array.isArray(aRes.value)) {
+          setAssets(aRes.value);
+          try {
+            localStorage.setItem('gocs_cached_assets', JSON.stringify(aRes.value));
+          } catch {}
+        }
+        if (asgRes.status === 'fulfilled' && Array.isArray(asgRes.value)) {
+          setAssignments(asgRes.value);
+          try {
+            localStorage.setItem('gocs_cached_asset_assignments', JSON.stringify(asgRes.value));
+          } catch {}
+        }
       })
       .catch((err) => setError(err.message));
   }, []);
