@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api } from '../../lib/auth';
+import { writeCompaniesCache } from '../../lib/companyCache';
 import { fetchDivisionsDirect, updateDivisionStatusDirect } from '../../lib/dbDirect';
 import { v } from '../../lib/format';
 
@@ -45,6 +46,7 @@ export default function DivisionsPage() {
         setLoading(false);
         try {
           localStorage.setItem('gocs_cached_divisions', JSON.stringify(directData));
+          writeCompaniesCache(directData);
         } catch {}
       }
     }).catch(() => {});
@@ -58,6 +60,7 @@ export default function DivisionsPage() {
           setLoading(false);
           try {
             localStorage.setItem('gocs_cached_divisions', JSON.stringify(data));
+            writeCompaniesCache(data);
           } catch {}
         }
       })
@@ -152,7 +155,6 @@ export default function DivisionsPage() {
           <table>
             <thead>
               <tr>
-                <th>Code</th>
                 <th>Name</th>
                 <th>Employees</th>
                 <th>Status</th>
@@ -162,7 +164,6 @@ export default function DivisionsPage() {
             <tbody>
               {paginatedRows.map((d) => (
                 <tr key={v(d, 'id')}>
-                  <td>{v(d, 'code')}</td>
                   <td>{v(d, 'name')}</td>
                   <td>{v(d, 'employeeCount', 'employee_count') ?? 0}</td>
                   <td>
@@ -183,7 +184,7 @@ export default function DivisionsPage() {
               ))}
               {loading && !rows.length ? (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted, #64748b)' }}>
+                    <td colSpan={4} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted, #64748b)' }}>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
                       <span
                         style={{
@@ -202,7 +203,7 @@ export default function DivisionsPage() {
                 </tr>
               ) : !rows.length ? (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: '24px 16px', color: 'var(--muted, #64748b)' }}>
+                    <td colSpan={4} style={{ textAlign: 'center', padding: '24px 16px', color: 'var(--muted, #64748b)' }}>
                     No companies yet.
                   </td>
                 </tr>

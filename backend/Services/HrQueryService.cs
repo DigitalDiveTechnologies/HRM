@@ -132,23 +132,44 @@ public sealed class HrQueryService
     }
 
     public async Task<(Dictionary<string, object?>? Row, string? Error)> CreateDivisionAsync(
-        string code, string name, string payrollType, string? logoUrl, CancellationToken ct)
+        string? code, string name, string payrollType, string? logoUrl, CancellationToken ct)
     {
-        code = code.Trim().ToUpperInvariant().Replace(' ', '_');
         name = name.Trim();
         payrollType = string.IsNullOrWhiteSpace(payrollType) ? "wps" : payrollType.Trim().ToLowerInvariant();
 
-        if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(name))
-        {
-            return (null, "Code and name are required.");
-        }
+        if (string.IsNullOrWhiteSpace(name))
+            return (null, "Company name is required.");
 
         if (payrollType is not ("wps" or "bank_transfer"))
-        {
             return (null, "Payroll type must be wps or bank_transfer.");
-        }
 
         await using var conn = await OpenAsync(ct);
+
+        await using (var nameTaken = new NpgsqlCommand(
+            "SELECT 1 FROM divisions WHERE LOWER(TRIM(name)) = LOWER(@name) LIMIT 1", conn))
+        {
+            nameTaken.Parameters.AddWithValue("name", name);
+            if (await nameTaken.ExecuteScalarAsync(ct) is not null)
+                return (null, "A company with this name already exists.");
+        }
+
+        // Internal code only (hidden in UI) — keep NOT NULL UNIQUE column without user input.
+        var baseCode = string.IsNullOrWhiteSpace(code)
+            ? SlugDivisionCode(name)
+            : code.Trim().ToUpperInvariant().Replace(' ', '_');
+        if (string.IsNullOrWhiteSpace(baseCode))
+            baseCode = "CO";
+        var resolvedCode = baseCode;
+        for (var i = 0; i < 50; i++)
+        {
+            await using var codeTaken = new NpgsqlCommand(
+                "SELECT 1 FROM divisions WHERE UPPER(code) = UPPER(@code) LIMIT 1", conn);
+            codeTaken.Parameters.AddWithValue("code", resolvedCode);
+            if (await codeTaken.ExecuteScalarAsync(ct) is null)
+                break;
+            resolvedCode = $"{baseCode}_{i + 2}";
+        }
+
         try
         {
             await using var cmd = new NpgsqlCommand(
@@ -158,7 +179,7 @@ public sealed class HrQueryService
                 RETURNING id
                 """,
                 conn);
-            cmd.Parameters.AddWithValue("code", code);
+            cmd.Parameters.AddWithValue("code", resolvedCode);
             cmd.Parameters.AddWithValue("name", name);
             cmd.Parameters.AddWithValue("payroll", payrollType);
             cmd.Parameters.AddWithValue("logo", (object?)logoUrl ?? DBNull.Value);
@@ -168,8 +189,15 @@ public sealed class HrQueryService
         }
         catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
         {
-            return (null, "A division with this code already exists.");
+            return (null, "A company with this name already exists.");
         }
+    }
+
+    private static string SlugDivisionCode(string name)
+    {
+        var chars = name.Where(char.IsLetterOrDigit).Take(12).ToArray();
+        var s = new string(chars).ToUpperInvariant();
+        return string.IsNullOrWhiteSpace(s) ? "CO" : s;
     }
 
     public async Task<(Dictionary<string, object?>? Row, string? Error)> UpdateDivisionAsync(
@@ -205,6 +233,21 @@ public sealed class HrQueryService
             return (null, "Status must be active or inactive.");
         }
 
+        await using var connCheck = await OpenAsync(ct);
+        await using (var nameTaken = new NpgsqlCommand(
+            """
+            SELECT 1 FROM divisions
+            WHERE LOWER(TRIM(name)) = LOWER(@name) AND id <> @id
+            LIMIT 1
+            """,
+            connCheck))
+        {
+            nameTaken.Parameters.AddWithValue("name", nextName);
+            nameTaken.Parameters.AddWithValue("id", id);
+            if (await nameTaken.ExecuteScalarAsync(ct) is not null)
+                return (null, "A company with this name already exists.");
+        }
+
         if (nextStatus == "inactive")
         {
             await using var conn = await OpenAsync(ct);
@@ -222,19 +265,26 @@ public sealed class HrQueryService
         }
 
         await using var conn2 = await OpenAsync(ct);
-        await using var cmd = new NpgsqlCommand(
-            """
-            UPDATE divisions
-            SET name = @name, payroll_type = @payroll, status = @status, logo_url = @logo
-            WHERE id = @id
-            """,
-            conn2);
-        cmd.Parameters.AddWithValue("name", nextName);
-        cmd.Parameters.AddWithValue("payroll", nextPayroll);
-        cmd.Parameters.AddWithValue("status", nextStatus);
-        cmd.Parameters.AddWithValue("logo", (object?)nextLogo ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("id", id);
-        await cmd.ExecuteNonQueryAsync(ct);
+        try
+        {
+            await using var cmd = new NpgsqlCommand(
+                """
+                UPDATE divisions
+                SET name = @name, payroll_type = @payroll, status = @status, logo_url = @logo
+                WHERE id = @id
+                """,
+                conn2);
+            cmd.Parameters.AddWithValue("name", nextName!);
+            cmd.Parameters.AddWithValue("payroll", nextPayroll);
+            cmd.Parameters.AddWithValue("status", nextStatus);
+            cmd.Parameters.AddWithValue("logo", (object?)nextLogo ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("id", id);
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
+        {
+            return (null, "A company with this name already exists.");
+        }
 
         var row = await DivisionByIdAsync(id, ct);
         return (row, null);
@@ -603,10 +653,15 @@ public sealed class HrQueryService
         if (string.IsNullOrWhiteSpace(code)) return (null, null);
         await using var conn = await OpenAsync(ct);
         await using var cmd = new NpgsqlCommand(
-            "SELECT id FROM divisions WHERE UPPER(code) = UPPER(@c) AND status = 'active' LIMIT 1", conn);
+            """
+            SELECT id FROM divisions
+            WHERE status = 'active'
+              AND (UPPER(code) = UPPER(@c) OR LOWER(TRIM(name)) = LOWER(TRIM(@c)))
+            LIMIT 1
+            """, conn);
         cmd.Parameters.AddWithValue("c", code.Trim());
         var result = await cmd.ExecuteScalarAsync(ct);
-        if (result is null) return (null, $"Division code not found: {code.Trim()}");
+        if (result is null) return (null, $"Company not found: {code.Trim()}");
         return (Convert.ToInt32(result), null);
     }
 

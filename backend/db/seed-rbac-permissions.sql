@@ -10,6 +10,7 @@ INSERT INTO permissions (code, name, group_code, group_name, parent_code, path, 
 
   -- Core HR — Company
   ('company.create', 'Create Company', 'core_hr', 'Core HR', 'company', '/divisions/management', 100),
+  ('company.brand.edit', 'Edit All Companies Brand', 'core_hr', 'Core HR', 'company', '/dashboard', 101),
   ('company.organisation', 'Organisation', 'core_hr', 'Core HR', 'company', '/divisions/organisation', 110),
   ('company.org.entities', 'Entities', 'core_hr', 'Core HR', 'company.organisation', '/divisions/organisation', 111),
   ('company.org.branches', 'Branches', 'core_hr', 'Core HR', 'company.organisation', '/divisions/organisation', 112),

@@ -1,16 +1,19 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import AppShell from '../../../components/AppShell';
 import { api } from '../../../lib/auth';
+import { upsertCompanyInCache } from '../../../lib/companyCache';
 
 const emptyForm = () => ({
-  code: '',
   name: '',
   payrollType: 'wps',
+  logoUrl: '',
 });
 
 export default function CompanyManagementPage() {
+  const router = useRouter();
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -22,16 +25,24 @@ export default function CompanyManagementPage() {
     setError('');
     setSaving(true);
     try {
-      await api('/divisions', {
+      const created = await api('/divisions', {
         method: 'POST',
         body: JSON.stringify({
-          code: form.code.trim(),
           name: form.name.trim(),
           payrollType: form.payrollType,
+          logoUrl: form.logoUrl || null,
         }),
       });
-      setMsg(`Company "${form.name.trim()}" (${form.code.trim()}) created successfully.`);
+      try {
+        const cached = localStorage.getItem('gocs_cached_divisions');
+        const prev = cached ? JSON.parse(cached) : [];
+        upsertCompanyInCache(created, Array.isArray(prev) ? prev : []);
+      } catch {
+        upsertCompanyInCache(created, []);
+      }
+      setMsg(`Company "${form.name.trim()}" created successfully.`);
       setForm(emptyForm());
+      setTimeout(() => router.push('/divisions'), 600);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -40,7 +51,7 @@ export default function CompanyManagementPage() {
   }
 
   return (
-    <AppShell title="Create Company" subtitle="Register GOCs company">
+    <AppShell title="Create Company" subtitle="Register company">
       {error ? <div className="error" style={{ marginBottom: 16 }}>{error}</div> : null}
       {msg ? (
         <div
@@ -70,7 +81,7 @@ export default function CompanyManagementPage() {
           <div>
             <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Add New Company</h3>
             <p className="muted" style={{ margin: '3px 0 0', fontSize: '12.5px' }}>
-              Enter the unique company code and registered business name.
+              Enter the company name and optional logo.
             </p>
           </div>
         </div>
@@ -78,22 +89,26 @@ export default function CompanyManagementPage() {
         <form className="stack" onSubmit={createDivision} style={{ gap: 16 }}>
           <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <label className="field">
-              <span>Company Code <strong style={{ color: 'var(--accent, #00b8db)' }}>*</strong></span>
-              <input
-                required
-                placeholder="e.g. ALKIDMA"
-                value={form.code}
-                onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
-                style={{ textTransform: 'uppercase' }}
-              />
-            </label>
-            <label className="field">
               <span>Company Name <strong style={{ color: 'var(--accent, #00b8db)' }}>*</strong></span>
               <input
                 required
                 placeholder="e.g. Alkidma Global"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </label>
+            <label className="field">
+              <span>Company Logo (Optional)</span>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const r = new FileReader();
+                  r.onload = () => setForm((prev) => ({ ...prev, logoUrl: String(r.result || '') }));
+                  r.readAsDataURL(file);
+                }}
               />
             </label>
           </div>

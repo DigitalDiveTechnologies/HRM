@@ -2,7 +2,8 @@ namespace DigitalDive.Hr.Api.Models;
 
 public sealed class CreateDivisionRequest
 {
-    public string Code { get; set; } = string.Empty;
+    /// <summary>Optional legacy field — ignored by UI; server auto-generates if empty.</summary>
+    public string? Code { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? PayrollType { get; set; }
     public string? LogoUrl { get; set; }

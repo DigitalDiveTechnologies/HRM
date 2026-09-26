@@ -379,6 +379,16 @@ function EmployeesContent() {
         }
       }
       setCreateForm(emptyMasterForm());
+      if (res?.employee) {
+        setRows((prev) => {
+          const id = v(res.employee, 'id');
+          const next = [res.employee, ...(Array.isArray(prev) ? prev.filter((r) => v(r, 'id') !== id) : [])];
+          try {
+            localStorage.setItem('gocs_cached_employees', JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+      }
       load();
     } catch (err) {
       setError(err.message);

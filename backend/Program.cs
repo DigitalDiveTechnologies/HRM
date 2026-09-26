@@ -161,6 +161,17 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+try
+{
+    using var bootScope = app.Services.CreateScope();
+    var opsBoot = bootScope.ServiceProvider.GetRequiredService<OpsScaleService>();
+    await opsBoot.EnsureCompanyBrandSetupAsync();
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Startup company/brand ensure failed: {ex.Message}");
+}
+
 // One-shot: dotnet run -- --hash-passwords
 if (args.Contains("--hash-passwords", StringComparer.OrdinalIgnoreCase))
 {

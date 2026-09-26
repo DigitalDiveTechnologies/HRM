@@ -23,12 +23,12 @@ export const MASTER_TABS = [
 ];
 
 /**
- * Auto-generate company-based Employee Code (e.g. OVE-001, DIG-002, GOC-003).
- * Uses first 3 uppercase letters of company code/name + '-' + 3-digit sequence number.
+ * Auto-generate company-based Employee Code (e.g. OVE-001, DIG-002).
+ * Uses first 3 uppercase letters of company name + '-' + 3-digit sequence.
  */
 export function generateCompanyEmpCode(company, existingEmployees = []) {
   if (!company) return '';
-  const raw = (v(company, 'code') || v(company, 'name') || '').trim().replace(/[^a-zA-Z0-9]/g, '');
+  const raw = (v(company, 'name') || '').trim().replace(/[^a-zA-Z0-9]/g, '');
   if (!raw) return '';
   const prefix = (raw.length >= 3 ? raw.substring(0, 3) : raw.padEnd(3, 'X')).toUpperCase();
 

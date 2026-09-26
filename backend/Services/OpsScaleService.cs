@@ -96,6 +96,113 @@ public sealed class OpsScaleService
     public Task<List<Dictionary<string, object?>>> ListConfigAsync(CancellationToken ct) =>
         QueryConnAsync("SELECT key, value, description, updated_at, updated_by FROM system_config ORDER BY key", ct);
 
+    public async Task<object> GetOrgBrandAsync(CancellationToken ct)
+    {
+        string displayName = "GOCs";
+        string logoUrl = "";
+        try
+        {
+            var rows = await QueryConnAsync(
+                """
+                SELECT key, value FROM system_config
+                WHERE key IN ('org.display_name', 'org.logo_url')
+                """,
+                ct);
+            foreach (var row in rows)
+            {
+                var key = row.GetValueOrDefault("key")?.ToString() ?? "";
+                var value = row.GetValueOrDefault("value")?.ToString() ?? "";
+                if (string.Equals(key, "org.display_name", StringComparison.OrdinalIgnoreCase)
+                    && !string.IsNullOrWhiteSpace(value))
+                    displayName = value.Trim();
+                if (string.Equals(key, "org.logo_url", StringComparison.OrdinalIgnoreCase))
+                    logoUrl = value ?? "";
+            }
+        }
+        catch
+        {
+            // system_config missing — fallback brand
+        }
+
+        return new { displayName, logoUrl, tagline = "HR Portal · UAE" };
+    }
+
+    /// <summary>
+    /// Idempotent bootstrap: unique company names, hide legacy codes, org brand keys, brand permission.
+    /// </summary>
+    public async Task EnsureCompanyBrandSetupAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            await using var conn = await OpenAsync(ct);
+
+            // Clear business codes to synthetic C{id} (safe unique values; UI no longer shows code)
+            await using (var clear = new NpgsqlCommand(
+                "UPDATE divisions SET code = 'C' || id::text WHERE code !~ '^C[0-9]+$'", conn))
+            {
+                await clear.ExecuteNonQueryAsync(ct);
+            }
+
+            await using (var idx = new NpgsqlCommand(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS divisions_name_lower_uidx
+                ON divisions (LOWER(TRIM(name)))
+                """,
+                conn))
+            {
+                await idx.ExecuteNonQueryAsync(ct);
+            }
+
+            await using (var cfg = new NpgsqlCommand(
+                """
+                INSERT INTO system_config (key, value, description) VALUES
+                  ('org.display_name', 'GOCs', 'All Companies sidebar brand name'),
+                  ('org.logo_url', '', 'All Companies sidebar logo (data URL or path)')
+                ON CONFLICT (key) DO NOTHING
+                """,
+                conn))
+            {
+                await cfg.ExecuteNonQueryAsync(ct);
+            }
+
+            await using (var perm = new NpgsqlCommand(
+                """
+                INSERT INTO permissions (code, name, group_code, group_name, parent_code, path, sort_order)
+                VALUES ('company.brand.edit', 'Edit All Companies Brand', 'core_hr', 'Core HR', 'company', '/dashboard', 101)
+                ON CONFLICT (code) DO UPDATE SET
+                  name = EXCLUDED.name,
+                  group_code = EXCLUDED.group_code,
+                  group_name = EXCLUDED.group_name,
+                  parent_code = EXCLUDED.parent_code,
+                  path = EXCLUDED.path,
+                  sort_order = EXCLUDED.sort_order
+                """,
+                conn))
+            {
+                await perm.ExecuteNonQueryAsync(ct);
+            }
+
+            await using (var grant = new NpgsqlCommand(
+                """
+                INSERT INTO role_permissions (role_id, permission_id)
+                SELECT r.id, p.id
+                FROM roles r
+                CROSS JOIN permissions p
+                WHERE LOWER(r.code) = 'admin'
+                  AND p.code = 'company.brand.edit'
+                ON CONFLICT DO NOTHING
+                """,
+                conn))
+            {
+                await grant.ExecuteNonQueryAsync(ct);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"EnsureCompanyBrandSetup skipped: {ex.Message}");
+        }
+    }
+
     public async Task<Dictionary<string, object?>?> UpsertConfigAsync(
         string key, string value, string? description, string? actorEmail, CancellationToken ct)
     {

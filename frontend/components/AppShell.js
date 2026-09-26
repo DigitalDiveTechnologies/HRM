@@ -13,7 +13,7 @@ import {
   homeForRole,
   normalizeRole,
 } from '../lib/auth';
-import { canAccessPath, isNavActive, navForRole, navGroupTitle, navLabel } from '../lib/nav';
+import { canAccessPath, canUsePermission, isNavActive, navForRole, navGroupTitle, navLabel } from '../lib/nav';
 import { BRAND } from '../lib/brand';
 import ThemeToggle from './ThemeToggle';
 import LanguageToggle from './LanguageToggle';
@@ -22,6 +22,8 @@ import { useLocale } from '../lib/i18n/LocaleContext';
 import { useCompanyFilter } from '../lib/useCompanyFilter';
 import { subscribeSettingsRbacChanged } from '../lib/settingsSync';
 
+const ORG_BRAND_CACHE = 'gocs_org_brand';
+
 export default function AppShell({ title, subtitle, actions, children }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -29,6 +31,24 @@ export default function AppShell({ title, subtitle, actions, children }) {
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [orgBrand, setOrgBrand] = useState(() => {
+    if (typeof window === 'undefined') return { displayName: BRAND.sidebarTitle, logoUrl: '' };
+    try {
+      const cached = localStorage.getItem(ORG_BRAND_CACHE);
+      if (cached) {
+        const p = JSON.parse(cached);
+        return {
+          displayName: p.displayName || p.DisplayName || BRAND.sidebarTitle,
+          logoUrl: p.logoUrl || p.LogoUrl || '',
+        };
+      }
+    } catch {}
+    return { displayName: BRAND.sidebarTitle, logoUrl: '' };
+  });
+  const [brandEditOpen, setBrandEditOpen] = useState(false);
+  const [brandDraft, setBrandDraft] = useState({ displayName: '', logoUrl: '' });
+  const [brandBusy, setBrandBusy] = useState(false);
+  const [brandError, setBrandError] = useState('');
 
   useEffect(() => {
     // User chip alone is not enough — JWT must exist or API calls return 401.
@@ -105,6 +125,23 @@ export default function AppShell({ title, subtitle, actions, children }) {
       });
   }, [pathname, router]);
 
+  useEffect(() => {
+    if (!ready) return;
+    api('/org-brand')
+      .then((b) => {
+        if (!b) return;
+        const next = {
+          displayName: b.displayName || b.DisplayName || BRAND.sidebarTitle,
+          logoUrl: b.logoUrl || b.LogoUrl || '',
+        };
+        setOrgBrand(next);
+        try {
+          localStorage.setItem(ORG_BRAND_CACHE, JSON.stringify(next));
+        } catch {}
+      })
+      .catch(() => {});
+  }, [ready]);
+
   // Soft-refresh session when Settings RBAC changes (no full page reload)
   useEffect(() => {
     return subscribeSettingsRbacChanged((detail) => {
@@ -180,10 +217,48 @@ export default function AppShell({ title, subtitle, actions, children }) {
   const pathAllowed = canAccessPath(pathname, role, permissions);
   const noPages = filteredNav.length === 0;
   const showPage = pathAllowed && !noPages;
+  const canEditOrgBrand = canUsePermission(role, permissions, 'company.brand.edit');
 
   function logout() {
     clearSession();
     router.replace('/');
+  }
+
+  function openBrandEdit() {
+    setBrandError('');
+    setBrandDraft({
+      displayName: orgBrand.displayName || BRAND.sidebarTitle,
+      logoUrl: orgBrand.logoUrl || '',
+    });
+    setBrandEditOpen(true);
+  }
+
+  async function saveOrgBrand(e) {
+    e.preventDefault();
+    setBrandBusy(true);
+    setBrandError('');
+    try {
+      const saved = await api('/org-brand', {
+        method: 'PUT',
+        body: JSON.stringify({
+          displayName: String(brandDraft.displayName || '').trim(),
+          logoUrl: brandDraft.logoUrl || '',
+        }),
+      });
+      const next = {
+        displayName: saved?.displayName || saved?.DisplayName || brandDraft.displayName,
+        logoUrl: saved?.logoUrl ?? saved?.LogoUrl ?? brandDraft.logoUrl,
+      };
+      setOrgBrand(next);
+      try {
+        localStorage.setItem(ORG_BRAND_CACHE, JSON.stringify(next));
+      } catch {}
+      setBrandEditOpen(false);
+    } catch (err) {
+      setBrandError(err.message || 'Could not save brand.');
+    } finally {
+      setBrandBusy(false);
+    }
   }
 
   const companyLogo = selectedCompany?.logo_url || selectedCompany?.logoUrl || '';
@@ -193,6 +268,8 @@ export default function AppShell({ title, subtitle, actions, children }) {
     noPages || !pathAllowed
       ? 'This role has no portal pages assigned yet.'
       : subtitle || '';
+  const allBrandTitle = orgBrand.displayName || BRAND.sidebarTitle;
+  const allBrandLogo = orgBrand.logoUrl || '';
 
   return (
     <>
@@ -225,11 +302,48 @@ export default function AppShell({ title, subtitle, actions, children }) {
                     </span>
                   </>
                 ) : (
-                  <span>{BRAND.sidebarTitle}</span>
+                  <>
+                    {allBrandLogo ? (
+                      <img
+                        src={allBrandLogo}
+                        alt={allBrandTitle}
+                        style={{
+                          height: 28,
+                          maxWidth: 42,
+                          objectFit: 'contain',
+                          borderRadius: 4,
+                          flexShrink: 0,
+                          background: '#ffffff',
+                          padding: '1px',
+                          border: '1px solid rgba(255,255,255,0.15)',
+                        }}
+                      />
+                    ) : null}
+                    <span style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+                      {allBrandTitle}
+                    </span>
+                    {canEditOrgBrand ? (
+                      <button
+                        type="button"
+                        className="btn secondary"
+                        title="Edit All Companies brand"
+                        onClick={openBrandEdit}
+                        style={{
+                          padding: '2px 8px',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          lineHeight: 1.2,
+                          minHeight: 0,
+                        }}
+                      >
+                        Edit
+                      </button>
+                    ) : null}
+                  </>
                 )}
               </div>
               <div className="tag">
-                {selectedCompany ? (selectedCompany.code || BRAND.sidebarTag) : BRAND.sidebarTag}
+                {selectedCompany ? BRAND.sidebarTag : BRAND.sidebarTag}
               </div>
             </div>
             <button
@@ -418,6 +532,87 @@ export default function AppShell({ title, subtitle, actions, children }) {
             ×
           </span>
         </button>
+      ) : null}
+      {brandEditOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1200,
+            background: 'rgba(15, 23, 42, 0.45)',
+            display: 'grid',
+            placeItems: 'center',
+            padding: 16,
+          }}
+          onClick={() => !brandBusy && setBrandEditOpen(false)}
+        >
+          <div
+            className="card"
+            style={{ width: 'min(420px, 100%)', padding: 18, margin: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 6px', fontSize: '1.05rem' }}>Edit All Companies Brand</h3>
+            <p className="muted" style={{ margin: '0 0 14px', fontSize: 13 }}>
+              Shown in the sidebar when All Companies is selected.
+            </p>
+            {brandError ? <div className="error" style={{ marginBottom: 10 }}>{brandError}</div> : null}
+            <form onSubmit={saveOrgBrand} className="stack" style={{ gap: 12 }}>
+              <label className="field">
+                <span>Brand name</span>
+                <input
+                  required
+                  minLength={1}
+                  value={brandDraft.displayName}
+                  onChange={(e) => setBrandDraft({ ...brandDraft, displayName: e.target.value })}
+                />
+              </label>
+              <label className="field">
+                <span>Logo (optional)</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const r = new FileReader();
+                    r.onload = () => setBrandDraft((prev) => ({ ...prev, logoUrl: String(r.result || '') }));
+                    r.readAsDataURL(file);
+                  }}
+                />
+                {brandDraft.logoUrl ? (
+                  <img
+                    src={brandDraft.logoUrl}
+                    alt="Brand logo preview"
+                    style={{
+                      marginTop: 8,
+                      height: 40,
+                      maxWidth: 80,
+                      objectFit: 'contain',
+                      borderRadius: 4,
+                      border: '1px solid var(--line)',
+                      background: '#fff',
+                    }}
+                  />
+                ) : null}
+              </label>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button type="submit" className="btn" disabled={brandBusy}>
+                  {brandBusy ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  className="btn secondary"
+                  disabled={brandBusy}
+                  onClick={() => setBrandEditOpen(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       ) : null}
     </>
   );

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
 import { api, getPermissions, getUser, normalizeRole } from '../../lib/auth';
+import { upsertCompanyInCache, writeCompaniesCache } from '../../lib/companyCache';
 import { formatDate, formatLate, v } from '../../lib/format';
 import { canUseAnyPermission, canUsePermission } from '../../lib/nav';
 
@@ -144,7 +145,7 @@ export default function DashboardPage() {
       window.dispatchEvent(new Event('gocs_company_changed'));
     } catch {}
   }, [selectedCompanyId, isMounted]);
-  const [newCompany, setNewCompany] = useState({ code: '', name: '', payrollType: 'wps', logoUrl: '' });
+  const [newCompany, setNewCompany] = useState({ name: '', payrollType: 'wps', logoUrl: '' });
   const [companySaving, setCompanySaving] = useState(false);
   const [companyMsg, setCompanyMsg] = useState('');
   const [error, setError] = useState('');
@@ -258,35 +259,34 @@ export default function DashboardPage() {
 
   async function handleCreateCompany(e) {
     e.preventDefault();
-    if (!newCompany.code.trim() || !newCompany.name.trim()) return;
+    if (!newCompany.name.trim()) return;
     setCompanySaving(true);
     setCompanyMsg('');
     setError('');
     try {
-      await api('/divisions', {
+      const created = await api('/divisions', {
         method: 'POST',
         body: JSON.stringify({
-          code: newCompany.code.trim().toUpperCase(),
           name: newCompany.name.trim(),
           payrollType: newCompany.payrollType,
           logoUrl: newCompany.logoUrl || null,
         }),
       });
+      // Instant list: use create response first (avoid waiting on full GET with heavy logos)
+      const next = upsertCompanyInCache(created, companies);
+      setCompanies(next);
+      setCompanyPage(1);
       setCompanyMsg('Company created successfully.');
-      setNewCompany({ code: '', name: '', payrollType: 'wps', logoUrl: '' });
+      setNewCompany({ name: '', payrollType: 'wps', logoUrl: '' });
       setShowAddCompany(false);
-      const d = await api('/divisions');
-      const cleanDivs = Array.isArray(d) ? d : [];
-      setCompanies(cleanDivs);
-      try {
-        const cached = localStorage.getItem('gocs_cached_dashboard');
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          parsed.companies = cleanDivs;
-          localStorage.setItem('gocs_cached_dashboard', JSON.stringify(parsed));
-        }
-      } catch {}
-      window.dispatchEvent(new Event('gocs_company_changed'));
+      // Background refresh — don't block UI
+      api('/divisions')
+        .then((d) => {
+          const cleanDivs = Array.isArray(d) ? d : [];
+          setCompanies(cleanDivs);
+          writeCompaniesCache(cleanDivs);
+        })
+        .catch(() => {});
     } catch (err) {
       setError(err.message);
     } finally {
@@ -315,15 +315,7 @@ export default function DashboardPage() {
         const d = await api('/divisions');
         const cleanDivs = Array.isArray(d) ? d : [];
         setCompanies(cleanDivs);
-        try {
-          const cached = localStorage.getItem('gocs_cached_dashboard');
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            parsed.companies = cleanDivs;
-            localStorage.setItem('gocs_cached_dashboard', JSON.stringify(parsed));
-          }
-        } catch {}
-        window.dispatchEvent(new Event('gocs_company_changed'));
+        writeCompaniesCache(cleanDivs);
       } catch (err) {
         setError(err.message || 'Failed to update company logo.');
       } finally {
@@ -1355,16 +1347,6 @@ export default function DashboardPage() {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '12px' }}>
                   <label className="field" style={{ margin: 0 }}>
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Company Code</span>
-                    <input
-                      required
-                      placeholder="e.g. ROYAL_OCEANS"
-                      value={newCompany.code}
-                      onChange={(e) => setNewCompany({ ...newCompany, code: e.target.value.toUpperCase() })}
-                      style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--line)', boxSizing: 'border-box' }}
-                    />
-                  </label>
-                  <label className="field" style={{ margin: 0 }}>
                     <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Company Name</span>
                     <input
                       required
@@ -1420,7 +1402,7 @@ export default function DashboardPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setNewCompany({ code: '', name: '', payrollType: 'wps', logoUrl: '' });
+                      setNewCompany({ name: '', payrollType: 'wps', logoUrl: '' });
                       setShowAddCompany(false);
                     }}
                     style={{
@@ -1445,11 +1427,10 @@ export default function DashboardPage() {
               <table className="dash-table">
                 <thead>
                   <tr>
-                    <th style={{ width: '12%' }}>Logo</th>
-                    <th style={{ width: '22%' }}>Code</th>
-                    <th style={{ width: '38%' }}>Company Name</th>
-                    <th style={{ width: '13%' }}>Status</th>
-                    <th style={{ width: '15%', textAlign: 'right' }}>Action</th>
+                    <th style={{ width: '14%' }}>Logo</th>
+                    <th style={{ width: '48%' }}>Company Name</th>
+                    <th style={{ width: '18%' }}>Status</th>
+                    <th style={{ width: '20%', textAlign: 'right' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1457,7 +1438,6 @@ export default function DashboardPage() {
                     companies
                       .slice((companyPage - 1) * 10, companyPage * 10)
                       .map((comp) => {
-                        const code = v(comp, 'code') || '—';
                         const name = v(comp, 'name') || '—';
                         const status = v(comp, 'status') || 'active';
                         const logo = comp.logo_url || comp.logoUrl || '';
@@ -1501,7 +1481,7 @@ export default function DashboardPage() {
                                       color: 'var(--muted, #64748b)',
                                     }}
                                   >
-                                    {String(code).slice(0, 2)}
+                                    {String(name).replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toUpperCase() || 'CO'}
                                   </span>
                                 )}
                                 <label
@@ -1530,9 +1510,6 @@ export default function DashboardPage() {
                                   />
                                 </label>
                               </div>
-                            </td>
-                            <td>
-                              <span className="code-pill">{code}</span>
                             </td>
                             <td style={{ fontWeight: 600 }}>
                               {name}

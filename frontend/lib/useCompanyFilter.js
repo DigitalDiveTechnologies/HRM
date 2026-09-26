@@ -42,6 +42,12 @@ export function useCompanyFilter() {
           if (!employees.length && Array.isArray(p.employees)) employees = p.employees;
         }
       } catch {}
+      try {
+        if (!companies.length) {
+          const divs = localStorage.getItem('gocs_cached_divisions');
+          if (divs) companies = JSON.parse(divs) || [];
+        }
+      } catch {}
 
       const foundComp = id && companies.length
         ? companies.find((c) => String(v(c, 'id')) === id) || null
