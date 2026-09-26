@@ -629,13 +629,13 @@ public sealed class HrQueryService
             string.IsNullOrWhiteSpace(fullName) ? ComposeNameFromMaster(masterData) : fullName.Trim(),
             masterData);
         email = email.Trim().ToLowerInvariant();
-        jobTitle = jobTitle.Trim();
+        jobTitle = string.IsNullOrWhiteSpace(jobTitle) ? "Employee" : jobTitle.Trim();
         status = string.IsNullOrWhiteSpace(status) ? "active" : status.Trim().ToLowerInvariant();
         phone = string.IsNullOrWhiteSpace(phone) ? null : phone.Trim();
 
-        if (string.IsNullOrWhiteSpace(fullName) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(jobTitle))
+        if (string.IsNullOrWhiteSpace(fullName) || string.IsNullOrWhiteSpace(email))
         {
-            return (null, "Full name, email, and job title are required.");
+            return (null, "Full name and email are required.");
         }
 
         if (divisionId is null or <= 0)
@@ -643,8 +643,8 @@ public sealed class HrQueryService
             return (null, "Operating Company (divisionId) is strictly required to create an employee.");
         }
 
-        password = password.Trim();
-        if (string.IsNullOrWhiteSpace(password) || password.Length < 6)
+        password = string.IsNullOrWhiteSpace(password) ? "demo123" : password.Trim();
+        if (password.Length < 6)
         {
             return (null, "App login password must be at least 6 characters.");
         }

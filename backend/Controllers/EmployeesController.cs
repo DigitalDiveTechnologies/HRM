@@ -119,22 +119,22 @@ public sealed class EmployeesController : ControllerBase
             return BadRequest(new { error = "Operating Company (divisionId) is strictly required to create an employee." });
         }
 
-        var jobTitle = body.JobTitle?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(jobTitle) && !body.DesignationId.HasValue)
-        {
-            return BadRequest(new { error = "Designation or job title is required." });
-        }
+        var jobTitle = string.IsNullOrWhiteSpace(body.JobTitle) ? "Employee" : body.JobTitle.Trim();
 
         var fullName = !string.IsNullOrWhiteSpace(body.FullName)
             ? body.FullName.Trim()
             : string.Join(' ', new[] { body.FirstName, body.MiddleName, body.LastName }
                 .Where(p => !string.IsNullOrWhiteSpace(p))
                 .Select(p => p!.Trim()));
+        if (string.IsNullOrWhiteSpace(fullName) && !string.IsNullOrWhiteSpace(body.Email))
+        {
+            fullName = body.Email.Split('@')[0];
+        }
 
         var (employee, error) = await _hr.CreateEmployeeWithLoginAsync(
             fullName,
             body.Email,
-            body.Password,
+            string.IsNullOrWhiteSpace(body.Password) ? "demo123" : body.Password.Trim(),
             string.IsNullOrWhiteSpace(jobTitle) ? "Employee" : jobTitle,
             body.Phone,
             body.DepartmentId,
