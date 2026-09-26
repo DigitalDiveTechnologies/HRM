@@ -168,7 +168,7 @@ public sealed class OpsScaleService
             await using (var perm = new NpgsqlCommand(
                 """
                 INSERT INTO permissions (code, name, group_code, group_name, parent_code, path, sort_order)
-                VALUES ('company.brand.edit', 'Edit All Companies Brand', 'core_hr', 'Core HR', 'company', '/dashboard', 101)
+                VALUES ('company.brand.edit', 'Edit GOCs (All Companies) name & logo', 'core_hr', 'Core HR', 'company', '/dashboard', 101)
                 ON CONFLICT (code) DO UPDATE SET
                   name = EXCLUDED.name,
                   group_code = EXCLUDED.group_code,
@@ -180,6 +180,18 @@ public sealed class OpsScaleService
                 conn))
             {
                 await perm.ExecuteNonQueryAsync(ct);
+            }
+
+            // Clarify label for existing installs (name only)
+            await using (var rename = new NpgsqlCommand(
+                """
+                UPDATE permissions
+                SET name = 'Edit GOCs (All Companies) name & logo'
+                WHERE code = 'company.brand.edit'
+                """,
+                conn))
+            {
+                await rename.ExecuteNonQueryAsync(ct);
             }
 
             await using (var grant = new NpgsqlCommand(

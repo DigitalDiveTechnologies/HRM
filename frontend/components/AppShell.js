@@ -341,7 +341,7 @@ export default function AppShell({ title, subtitle, actions, children }) {
                       <button
                         type="button"
                         className="sidebar-brand-edit"
-                        title="Edit All Companies brand"
+                        title="Edit GOCs (All Companies) name & logo"
                         onClick={openBrandEdit}
                       >
                         Edit
@@ -561,9 +561,9 @@ export default function AppShell({ title, subtitle, actions, children }) {
             style={{ width: 'min(420px, 100%)', padding: 18, margin: 0 }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ margin: '0 0 6px', fontSize: '1.05rem' }}>Edit All Companies Brand</h3>
+            <h3 style={{ margin: '0 0 6px', fontSize: '1.05rem' }}>Edit GOCs brand</h3>
             <p className="muted" style={{ margin: '0 0 14px', fontSize: 13 }}>
-              Shown in the sidebar when All Companies is selected.
+              Only the main All Companies (GOCs) name and logo — not the list of companies below.
             </p>
             {brandError ? <div className="error" style={{ marginBottom: 10 }}>{brandError}</div> : null}
             <form onSubmit={saveOrgBrand} className="stack" style={{ gap: 12 }}>
