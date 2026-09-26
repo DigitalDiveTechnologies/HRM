@@ -80,7 +80,46 @@ export async function fetchEmployeesDirect() {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        query: `SELECT id, emp_code AS "empCode", emp_code, full_name AS "fullName", full_name, email, phone, job_title AS "jobTitle", job_title, department_id AS "departmentId", department_id, division_id AS "divisionId", division_id, designation_id AS "designationId", designation_id, employment_type_id AS "employmentTypeId", employment_type_id, status, join_date AS "joinDate", join_date, photo_path AS "photoPath", photo_path FROM employees ORDER BY id DESC;`,
+        query: `SELECT 
+          e.id,
+          e.emp_code AS "empCode", e.emp_code,
+          e.full_name AS "fullName", e.full_name,
+          e.email,
+          e.phone,
+          e.department_id AS "departmentId", e.department_id,
+          d.name AS "departmentName", d.name AS department_name,
+          e.division_id AS "divisionId", e.division_id,
+          dv.name AS "divisionName", dv.name AS division_name,
+          dv.code AS "divisionCode", dv.code AS division_code,
+          e.designation_id AS "designationId", e.designation_id,
+          dg.name AS "designationName", dg.name AS designation_name,
+          e.employment_type_id AS "employmentTypeId", e.employment_type_id,
+          et.name AS "employmentTypeName", et.name AS employment_type_name,
+          e.job_title AS "jobTitle", e.job_title,
+          e.manager_id AS "managerId", e.manager_id,
+          m.full_name AS "managerName", m.full_name AS manager_name,
+          e.join_date AS "joinDate", e.join_date,
+          e.passport_no AS "passportNo", e.passport_no,
+          e.passport_expiry AS "passportExpiry", e.passport_expiry,
+          e.emirates_id AS "emiratesId", e.emirates_id,
+          e.emirates_id_expiry AS "emiratesIdExpiry", e.emirates_id_expiry,
+          e.visa_no AS "visaNo", e.visa_no,
+          e.visa_expiry AS "visaExpiry", e.visa_expiry,
+          e.contract_end AS "contractEnd", e.contract_end,
+          e.probation_end AS "probationEnd", e.probation_end,
+          e.status,
+          e.basic_salary AS "basicSalary", e.basic_salary,
+          e.allowances,
+          e.master_data AS "masterData", e.master_data,
+          e.photo_path AS "photoPath", e.photo_path
+        FROM employees e
+        LEFT JOIN departments d ON d.id = e.department_id
+        LEFT JOIN divisions dv ON dv.id = e.division_id
+        LEFT JOIN designations dg ON dg.id = e.designation_id
+        LEFT JOIN employment_types et ON et.id = e.employment_type_id
+        LEFT JOIN employees m ON m.id = e.manager_id
+        WHERE e.in_hr_ops = TRUE
+        ORDER BY e.id DESC;`,
       }),
     });
     if (!res.ok) return null;

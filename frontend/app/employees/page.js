@@ -105,7 +105,10 @@ function EmployeesContent() {
     const instant = getInstantEmployees();
     return instant.length > 0 ? sortEmployeesDesc(instant) : [];
   });
-  const [loadingEmps, setLoadingEmps] = useState(false);
+  const [loadingEmps, setLoadingEmps] = useState(() => {
+    const instant = getInstantEmployees();
+    return !instant || instant.length === 0;
+  });
   const [departments, setDepartments] = useState([]);
   const [divisions, setDivisions] = useState([]);
   const [designations, setDesignations] = useState([]);
@@ -272,31 +275,26 @@ function EmployeesContent() {
     const empsP = api('/employees')
       .then((emps) => {
         const list = Array.isArray(emps) ? emps : [];
-        const sorted = sortEmployeesDesc(list);
-        setRows(sorted);
+        if (list.length > 0) {
+          const sorted = sortEmployeesDesc(list);
+          setRows(sorted);
+          writeEmployeesCache(sorted);
+        }
         setLoadingEmps(false);
-        try {
-          localStorage.setItem('gocs_cached_employees', JSON.stringify(sorted));
-          const dashCached = localStorage.getItem('gocs_cached_dashboard');
-          if (dashCached) {
-            const parsedDash = JSON.parse(dashCached);
-            if (parsedDash && parsedDash.dash) {
-              parsedDash.dash.headcount = Math.max(Number(parsedDash.dash.headcount || 0), sorted.length);
-              parsedDash.dash.totalEmployees = Math.max(Number(parsedDash.dash.totalEmployees || 0), sorted.length);
-              parsedDash.employees = sorted;
-              localStorage.setItem('gocs_cached_dashboard', JSON.stringify(parsedDash));
-            }
-          }
-        } catch {}
         setCreateForm((prev) => ({
           ...prev,
-          empCode: prev.empCode || calculateNextCode(sorted),
+          empCode: prev.empCode || calculateNextCode(list),
         }));
       })
       .catch((e) => {
-        setError(e.message || 'Failed to load employees.');
         setLoadingEmps(false);
-        setRows((prev) => (Array.isArray(prev) ? prev : []));
+        setRows((prev) => {
+          if (!prev || !prev.length) {
+            setError(e.message || 'Failed to load employees.');
+            return [];
+          }
+          return prev;
+        });
       });
 
     // Load masters for create form — allSettled so one failure does not empty every dropdown
@@ -1171,7 +1169,7 @@ function EmployeesContent() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span>All Employees ({filteredRows.length})</span>
+              <span>All Employees ({loadingEmps && !rows.length ? '...' : filteredRows.length})</span>
             </h3>
             <p className="muted" style={{ fontSize: '12px', margin: '2px 0 0' }}>
               Click any employee row to open their profile details & edit credentials
@@ -1374,11 +1372,13 @@ function EmployeesContent() {
               {!filteredRows.length ? (
                 <tr>
                   <td colSpan={10} style={{ textAlign: 'center', padding: '28px 16px', color: 'var(--muted, #64748b)' }}>
-                    {loadingEmps ? (
+                    {loadingEmps || (!rows.length && !error) ? (
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ width: 14, height: 14, border: '2px solid #00b8db', borderRightColor: 'transparent', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.75s linear infinite' }} />
                         <span>Loading employees...</span>
                       </div>
+                    ) : error ? (
+                      <span style={{ color: '#ef4444' }}>{error}</span>
                     ) : (
                       'No employees matching current filter.'
                     )}

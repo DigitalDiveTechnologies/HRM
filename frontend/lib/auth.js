@@ -43,10 +43,6 @@ export function setSession(loginResponse) {
   try {
     const prev = JSON.parse(localStorage.getItem('hr_user') || 'null');
     if (prev?.id !== user?.id || prev?.email !== user?.email) {
-      localStorage.removeItem('gocs_cached_dashboard');
-      localStorage.removeItem('gocs_cached_employees');
-      localStorage.removeItem('gocs_cached_leaves');
-      localStorage.removeItem('gocs_cached_divisions');
       if (typeof sessionStorage !== 'undefined') {
         sessionStorage.removeItem('gocs_selected_company_id');
       }
@@ -59,10 +55,6 @@ export function setSession(loginResponse) {
 export function clearSession() {
   localStorage.removeItem('hr_user');
   localStorage.removeItem('hr_token');
-  localStorage.removeItem('gocs_cached_dashboard');
-  localStorage.removeItem('gocs_cached_employees');
-  localStorage.removeItem('gocs_cached_leaves');
-  localStorage.removeItem('gocs_cached_divisions');
   if (typeof sessionStorage !== 'undefined') {
     sessionStorage.removeItem('gocs_selected_company_id');
   }

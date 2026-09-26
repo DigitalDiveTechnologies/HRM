@@ -9,6 +9,8 @@ import { upsertCompanyInCache, writeCompaniesCache } from '../../lib/companyCach
 import { formatDate, formatDateTime, formatLate, v } from '../../lib/format';
 import { LOGO_ACCEPT, readLogoFileAsDataUrl, validateLogoFile } from '../../lib/logoUpload';
 import { canUseAnyPermission, canUsePermission } from '../../lib/nav';
+import { fetchEmployeesDirect, fetchDivisionsDirect } from '../../lib/dbDirect';
+import { getInstantEmployees, writeEmployeesCache } from '../../lib/employeeCache';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'July', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -198,6 +200,24 @@ export default function DashboardPage() {
     const allowNotifications = canUsePermission(roleNow, permsNow, 'notifications.view');
     const allowCompanies = canUseAnyPermission(roleNow, permsNow, COMPANY_PERMS);
     const allowAttendance = canUsePermission(roleNow, permsNow, 'attendance.view');
+
+    // Ultra-fast direct Neon SQL for companies & employees (<150ms)
+    if (allowCompanies) {
+      fetchDivisionsDirect().then((divs) => {
+        if (Array.isArray(divs) && divs.length > 0) {
+          setCompanies(sortCompaniesLatest(divs));
+        }
+      }).catch(() => {});
+    }
+
+    if (allowEmployees) {
+      fetchEmployeesDirect().then((emps) => {
+        if (Array.isArray(emps) && emps.length > 0) {
+          setEmployees(emps);
+          writeEmployeesCache(emps);
+        }
+      }).catch(() => {});
+    }
 
     const tasks = [api('/dashboard').catch(() => ({}))];
     tasks.push(allowEmployees ? api('/employees').catch(() => []) : Promise.resolve([]));
