@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import AppShell, { Badge } from '../../components/AppShell';
 import EmployeeMasterForm from '../../components/EmployeeMasterForm';
-import { api, apiBlob, apiUpload, getApiBase, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
+import { api, apiBlob, apiUpload, getApiBase, getPermissions, getUser, isAdminRole, normalizeRole } from '../../lib/auth';
 import {
   emptyMasterForm,
   masterFormFromEmployee,
@@ -13,6 +13,7 @@ import {
   pickMaster,
 } from '../../lib/employeeMaster';
 import { formatDate, v } from '../../lib/format';
+import { canUsePermission } from '../../lib/nav';
 
 function getEmployeePhotoUrl(emp) {
   if (!emp) return null;
@@ -64,7 +65,10 @@ function displayAppPassword(emp, md = {}) {
 
 function EmployeesContent() {
   const role = normalizeRole(getUser());
+  const permissions = getPermissions(getUser());
   const isAdmin = isAdminRole(role);
+  const canCreateEmployee = canUsePermission(role, permissions, 'employees.create');
+  const canEditEmployee = canCreateEmployee || canUsePermission(role, permissions, 'employees.list');
   const [rows, setRows] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -734,7 +738,7 @@ function EmployeesContent() {
     <AppShell
       title="Employee Information"
       actions={
-        isAdmin ? (
+        canCreateEmployee ? (
           <Link
             href="/employees/create"
             className="btn"
@@ -1690,7 +1694,7 @@ function EmployeesContent() {
                       <h4 className="emp-card-title">
                         Basic information
                       </h4>
-                      {isAdmin ? (
+                      {canEditEmployee ? (
                         <button
                           type="button"
                           className="card-edit-pencil"
@@ -1862,7 +1866,7 @@ function EmployeesContent() {
                       <h4 className="emp-card-title">
                         Address
                       </h4>
-                      {isAdmin ? (
+                      {canEditEmployee ? (
                         <button
                           type="button"
                           className="card-edit-pencil"
@@ -1896,7 +1900,7 @@ function EmployeesContent() {
                       <h4 className="emp-card-title">
                         Work experience
                       </h4>
-                      {isAdmin ? (
+                      {canEditEmployee ? (
                         <button
                           type="button"
                           className="card-edit-pencil"
@@ -2046,7 +2050,7 @@ function EmployeesContent() {
                       <h4 className="emp-card-title">
                         Education
                       </h4>
-                      {isAdmin ? (
+                      {canEditEmployee ? (
                         <button
                           type="button"
                           className="card-edit-pencil"
@@ -2213,7 +2217,7 @@ function EmployeesContent() {
                       <h4 className="emp-card-title">
                         Job & Organization Profile
                       </h4>
-                      {isAdmin ? (
+                      {canEditEmployee ? (
                         <button
                           type="button"
                           className="card-edit-pencil"
@@ -2287,7 +2291,7 @@ function EmployeesContent() {
                   </div>
 
                   {/* Card 2: App Login & Password Reset */}
-                  {isAdmin ? (
+                  {canEditEmployee ? (
                     <div className="emp-card">
                       <h4 className="emp-card-title" style={{ margin: '0 0 6px' }}>
                         Mobile App Security & Password Reset
@@ -2348,7 +2352,7 @@ function EmployeesContent() {
                         <h4 className="emp-card-title" style={{ margin: 0 }}>
                           Current Compensation & WPS Details
                         </h4>
-                        {isAdmin ? (
+                        {canEditEmployee ? (
                           <button
                             type="button"
                             className="card-edit-pencil"
@@ -2494,7 +2498,7 @@ function EmployeesContent() {
                       <h4 className="emp-card-title">
                         Passport & Emirates ID Credentials
                       </h4>
-                      {isAdmin ? (
+                      {canEditEmployee ? (
                         <button
                           type="button"
                           className="card-edit-pencil"
@@ -2553,7 +2557,7 @@ function EmployeesContent() {
                       <h4 className="emp-card-title">
                         Uploaded Documents & Custom Attachments
                       </h4>
-                      {isAdmin ? (
+                      {canEditEmployee ? (
                         <button
                           type="button"
                           className="card-edit-pencil"

@@ -22,13 +22,31 @@ public sealed class EmployeesController : ControllerBase
     private readonly EmployeeBulkService _bulk;
     private readonly OrgFoundationService _org;
     private readonly IWebHostEnvironment _env;
+    private readonly RbacService _rbac;
 
-    public EmployeesController(HrQueryService hr, EmployeeBulkService bulk, OrgFoundationService org, IWebHostEnvironment env)
+    public EmployeesController(
+        HrQueryService hr,
+        EmployeeBulkService bulk,
+        OrgFoundationService org,
+        IWebHostEnvironment env,
+        RbacService rbac)
     {
         _hr = hr;
         _bulk = bulk;
         _org = org;
         _env = env;
+        _rbac = rbac;
+    }
+
+    private async Task<bool> HasEmployeePermAsync(CancellationToken ct, params string[] codes)
+    {
+        var role = CurrentUser.Role(User);
+        if (string.Equals(role, "admin", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(role, "super_admin", StringComparison.OrdinalIgnoreCase))
+            return true;
+        var perms = await _rbac.GetPermissionCodesForRoleAsync(role, ct);
+        return codes.Any(code =>
+            perms.Any(p => string.Equals(p, code, StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>Admin/manager: full ops list. Employee: self only (for forms). Salary ACL applied.</summary>
@@ -51,22 +69,27 @@ public sealed class EmployeesController : ControllerBase
     }
 
     [HttpGet("departments")]
-    [Authorize(Roles = "admin")]
-    public async Task<IActionResult> Departments(CancellationToken ct) =>
-        Ok(await _hr.DepartmentsAsync(ct));
+    public async Task<IActionResult> Departments(CancellationToken ct)
+    {
+        if (!await HasEmployeePermAsync(ct, "employees.list", "employees.create"))
+            return Forbid();
+        return Ok(await _hr.DepartmentsAsync(ct));
+    }
 
     [HttpGet("bulk/template")]
-    [Authorize(Roles = "admin")]
-    public IActionResult BulkTemplate()
+    public async Task<IActionResult> BulkTemplate(CancellationToken ct)
     {
+        if (!await HasEmployeePermAsync(ct, "employees.create"))
+            return Forbid();
         var bytes = _bulk.BuildTemplate();
         return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "employee-bulk-template.xlsx");
     }
 
     [HttpPost("bulk")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> BulkUpload(IFormFile file, CancellationToken ct)
     {
+        if (!await HasEmployeePermAsync(ct, "employees.create"))
+            return Forbid();
         if (file is null || file.Length == 0)
         {
             return BadRequest(new { error = "Upload an Excel file (.xlsx)." });
@@ -82,11 +105,12 @@ public sealed class EmployeesController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>Create employee record + mobile app login (employee role).</summary>
+    /// <summary>Create employee — requires employees.create (RBAC), not just role=admin.</summary>
     [HttpPost]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> Create([FromBody] CreateEmployeeRequest body, CancellationToken ct)
     {
+        if (!await HasEmployeePermAsync(ct, "employees.create"))
+            return Forbid();
         if (body.DivisionId is null or <= 0)
         {
             return BadRequest(new { error = "Operating Company (divisionId) is strictly required to create an employee." });
@@ -152,9 +176,10 @@ public sealed class EmployeesController : ControllerBase
     }
 
     [HttpPatch("{id:int}")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateEmployeeRequest body, CancellationToken ct)
     {
+        if (!await HasEmployeePermAsync(ct, "employees.create", "employees.list"))
+            return Forbid();
         var (employee, error) = await _hr.UpdateEmployeeAsync(id, body, ct);
 
         if (error is not null)
@@ -183,9 +208,10 @@ public sealed class EmployeesController : ControllerBase
     }
 
     [HttpPost("{id:int}/reset-password")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> ResetPassword(int id, [FromBody] ResetEmployeePasswordRequest body, CancellationToken ct)
     {
+        if (!await HasEmployeePermAsync(ct, "employees.create", "employees.list"))
+            return Forbid();
         var (ok, error) = await _hr.ResetEmployeePasswordAsync(id, body.Password, ct);
         if (!ok) return BadRequest(new { error });
         return Ok(new { message = "App login password updated." });
@@ -193,11 +219,12 @@ public sealed class EmployeesController : ControllerBase
 
     /// <summary>Upload employee profile photo (not passport/CNIC — those stay in Documents).</summary>
     [HttpPost("{id:int}/photo")]
-    [Authorize(Roles = "admin")]
     [RequestSizeLimit(5_000_000)]
     [RequestFormLimits(MultipartBodyLengthLimit = 5_000_000)]
     public async Task<IActionResult> UploadPhoto(int id, IFormFile? file, CancellationToken ct)
     {
+        if (!await HasEmployeePermAsync(ct, "employees.create", "employees.list"))
+            return Forbid();
         if (file is null || file.Length <= 0)
             return BadRequest(new { error = "Photo file is required." });
         if (file.Length > 5_000_000)
@@ -233,9 +260,10 @@ public sealed class EmployeesController : ControllerBase
     [HttpDelete("{id:int}/photo")]
     [HttpPost("{id:int}/photo/delete")]
     [HttpPost("{id:int}/remove-photo")]
-    [Authorize(Roles = "admin")]
     public async Task<IActionResult> DeletePhoto(int id, CancellationToken ct)
     {
+        if (!await HasEmployeePermAsync(ct, "employees.create", "employees.list"))
+            return Forbid();
         var (employee, error) = await _hr.SetEmployeePhotoPathAsync(id, null, ct);
         if (error is not null) return BadRequest(new { error });
         return Ok(new { employee, photoPath = (string?)null, message = "Profile photo removed." });
