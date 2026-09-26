@@ -223,22 +223,20 @@ function EmployeesContent() {
         setLoadingEmps(false);
       });
 
-    // 2. Load Admin dropdown masters in background
-    if (isAdmin) {
-      Promise.all([
-        api('/employees/departments'),
-        api('/divisions?activeOnly=true'),
-        api('/designations?activeOnly=true'),
-        api('/employment-types?activeOnly=true'),
-      ])
-        .then(([depts, divs, desigs, empTypes]) => {
-          if (depts) setDepartments(depts || []);
-          if (divs) setDivisions(divs || []);
-          if (desigs) setDesignations(desigs || []);
-          if (empTypes) setEmploymentTypes(empTypes || []);
-        })
-        .catch(() => {});
-    }
+    // Load masters for create form (divisions must load even if role is not super_admin)
+    Promise.all([
+      api('/employees/departments'),
+      api('/divisions?activeOnly=true'),
+      api('/designations?activeOnly=true'),
+      api('/employment-types?activeOnly=true'),
+    ])
+      .then(([depts, divs, desigs, empTypes]) => {
+        if (Array.isArray(depts)) setDepartments(depts);
+        if (Array.isArray(divs)) setDivisions(divs);
+        if (Array.isArray(desigs)) setDesignations(desigs);
+        if (Array.isArray(empTypes)) setEmploymentTypes(empTypes);
+      })
+      .catch(() => {});
   }, [isAdmin]);
 
   useEffect(() => {
@@ -257,6 +255,7 @@ function EmployeesContent() {
     if (!e) return;
     const empId = String(v(e, 'id'));
     setSelected(e);
+    setShowProfilePassword(false);
     setIsEditingProfile(false);
     setSelectedTab('Personal info');
     try {
@@ -456,7 +455,17 @@ function EmployeesContent() {
       });
       const newPass = resetPassword.trim();
       setMsg(res.message || 'App login password updated successfully.');
-      setSelected((prev) => (prev ? { ...prev, password: newPass } : prev));
+      setSelected((prev) => {
+        if (!prev) return prev;
+        const md = typeof prev.masterData === 'string'
+          ? (() => { try { return JSON.parse(prev.masterData || '{}'); } catch { return {}; } })()
+          : (prev.masterData || prev.master_data || {});
+        return {
+          ...prev,
+          password: newPass,
+          masterData: { ...md, appPassword: newPass },
+        };
+      });
       setResetPassword('');
     } catch (err) {
       setError(err.message);
@@ -1694,11 +1703,17 @@ function EmployeesContent() {
                           <div className="emp-row-label">App Password</div>
                           <div className="emp-row-val" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span style={{ fontFamily: showProfilePassword ? 'inherit' : 'monospace', fontSize: showProfilePassword ? '13px' : '15px', fontWeight: 600, color: 'var(--ink, #0f172a)', letterSpacing: showProfilePassword ? 'normal' : '2px' }}>
-                              {showProfilePassword ? (v(selected, 'password') || selectedMd.password || '—') : '••••••••'}
+                              {showProfilePassword
+                                ? (v(selected, 'password')
+                                  || selectedMd.appPassword
+                                  || selectedMd.password
+                                  || selectedMd.app_password
+                                  || '—')
+                                : '••••••••'}
                             </span>
                             <button
                               type="button"
-                              onClick={() => setShowProfilePassword(!showProfilePassword)}
+                              onClick={() => setShowProfilePassword((prev) => !prev)}
                               title={showProfilePassword ? 'Hide password' : 'Show password'}
                               style={{
                                 background: 'transparent',

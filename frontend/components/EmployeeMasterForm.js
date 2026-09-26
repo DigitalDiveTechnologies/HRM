@@ -880,10 +880,9 @@ export default function EmployeeMasterForm({
                       {divisions.map((div) => {
                         const id = String(v(div, 'id'));
                         const name = v(div, 'name');
-                        const code = v(div, 'code');
                         return (
                           <option key={id} value={id}>
-                            {name} {code ? `(Code: ${code})` : ''}
+                            {name}
                           </option>
                         );
                       })}

@@ -102,15 +102,21 @@ public sealed class HrQueryService
     public Task<List<Dictionary<string, object?>>> DivisionsAsync(bool activeOnly, CancellationToken ct) =>
         QueryConnAsync(
             activeOnly
+                // Dropdowns / forms: never ship logo payloads (can be multi‑MB and empty the UI).
                 ? """
-                  SELECT id, code, name, payroll_type, status, logo_url, created_at,
+                  SELECT id, code, name, payroll_type, status, created_at,
                          (SELECT COUNT(*)::int FROM employees WHERE division_id = divisions.id AND status != 'exited') AS employee_count
                   FROM divisions
                   WHERE status = 'active'
                   ORDER BY name
                   """
                 : """
-                  SELECT id, code, name, payroll_type, status, logo_url, created_at,
+                  SELECT id, code, name, payroll_type, status, created_at,
+                         CASE
+                           WHEN logo_url IS NULL OR length(logo_url) = 0 THEN NULL
+                           WHEN length(logo_url) > 120000 THEN NULL
+                           ELSE logo_url
+                         END AS logo_url,
                          (SELECT COUNT(*)::int FROM employees WHERE division_id = divisions.id AND status != 'exited') AS employee_count
                   FROM divisions
                   ORDER BY name
@@ -449,6 +455,8 @@ public sealed class HrQueryService
         }
 
         var hash = PasswordHasher.Hash(password);
+        masterData ??= new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        masterData["appPassword"] = password;
         var masterJson = SerializeMasterData(masterData);
 
         int employeeId;
@@ -540,9 +548,27 @@ public sealed class HrQueryService
         cmd.Parameters.AddWithValue("hash", PasswordHasher.Hash(password));
         cmd.Parameters.AddWithValue("eid", employeeId);
         var rows = await cmd.ExecuteNonQueryAsync(ct);
-        return rows == 0
-            ? (false, "No app login exists for this employee.")
-            : (true, null);
+        if (rows == 0)
+            return (false, "No app login exists for this employee.");
+
+        // Keep a recoverable copy for Admin "App Password" eye toggle (login still uses BCrypt hash).
+        await using var md = new NpgsqlCommand(
+            """
+            UPDATE employees
+            SET master_data = jsonb_set(
+              COALESCE(master_data, '{}'::jsonb),
+              '{appPassword}',
+              to_jsonb(@plain::text),
+              true
+            )
+            WHERE id = @eid
+            """,
+            conn);
+        md.Parameters.AddWithValue("plain", password);
+        md.Parameters.AddWithValue("eid", employeeId);
+        await md.ExecuteNonQueryAsync(ct);
+
+        return (true, null);
     }
 
     public Task<List<Dictionary<string, object?>>> DesignationsAsync(bool activeOnly, CancellationToken ct) =>
@@ -799,7 +825,43 @@ public sealed class HrQueryService
         }
 
         await using var conn2 = await OpenAsync(ct);
-        var masterJson = SerializeMasterData(body.MasterData);
+        var masterDict = body.MasterData is null
+            ? new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, object?>(body.MasterData, StringComparer.OrdinalIgnoreCase);
+        // Preserve viewable app password if editor form left it blank
+        if (!masterDict.ContainsKey("appPassword") || string.IsNullOrWhiteSpace(Convert.ToString(masterDict["appPassword"])))
+        {
+            try
+            {
+                var existingMd = existing.GetValueOrDefault("masterData") ?? existing.GetValueOrDefault("master_data");
+                if (existingMd is string s && s.Length > 2)
+                {
+                    using var doc = JsonDocument.Parse(s);
+                    if (doc.RootElement.TryGetProperty("appPassword", out var ap)
+                        && ap.ValueKind == JsonValueKind.String
+                        && !string.IsNullOrWhiteSpace(ap.GetString()))
+                    {
+                        masterDict["appPassword"] = ap.GetString();
+                    }
+                }
+                else if (existingMd is JsonElement je
+                         && je.ValueKind == JsonValueKind.Object
+                         && je.TryGetProperty("appPassword", out var ap2)
+                         && ap2.ValueKind == JsonValueKind.String
+                         && !string.IsNullOrWhiteSpace(ap2.GetString()))
+                {
+                    masterDict["appPassword"] = ap2.GetString();
+                }
+                else if (existingMd is Dictionary<string, object?> mdDict
+                         && mdDict.TryGetValue("appPassword", out var apObj)
+                         && !string.IsNullOrWhiteSpace(Convert.ToString(apObj)))
+                {
+                    masterDict["appPassword"] = Convert.ToString(apObj);
+                }
+            }
+            catch { /* keep without */ }
+        }
+        var masterJson = SerializeMasterData(masterDict);
         var isPhotoRemoved = body.PhotoRemoved == true ||
                              (body.MasterData != null && body.MasterData.TryGetValue("photoRemoved", out var pr) && (pr is true || Convert.ToString(pr) == "true"));
 
