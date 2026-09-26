@@ -16,65 +16,78 @@ public sealed class MssController : ControllerBase
 
     public MssController(HrQueryService hr) => _hr = hr;
 
-    private IActionResult? ResolveManagerId(int? managerIdQuery, out int managerId)
+    private async Task<(IActionResult? Err, int ManagerId)> ResolveManagerIdAsync(
+        int? managerIdQuery, CancellationToken ct)
     {
-        managerId = 0;
         if (managerIdQuery is > 0)
         {
             if (!CurrentUser.IsAdmin(User))
-                return Forbid();
-            managerId = managerIdQuery.Value;
-            return null;
+                return (Forbid(), 0);
+            return (null, managerIdQuery.Value);
         }
 
         var self = CurrentUser.EmployeeId(User);
-        if (self is null or <= 0)
+        if (self is > 0)
+            return (null, self.Value);
+
+        // Super Admin / Admin can open MSS without a linked employee — empty team view
+        if (CurrentUser.IsAdmin(User))
+            return (null, 0);
+
+        // Manager (or similar) without employee_id — auto-create/link a profile so MSS works
+        if (CurrentUser.IsManager(User)
+            && int.TryParse(CurrentUser.UserId(User), out var userId)
+            && !string.IsNullOrWhiteSpace(CurrentUser.Email(User)))
         {
-            // Super Admin / Admin can open MSS without a linked employee — empty team view
-            if (CurrentUser.IsAdmin(User))
-            {
-                managerId = 0;
-                return null;
-            }
-            return BadRequest(new { error = "manager employee profile required" });
+            var linked = await _hr.EnsurePortalEmployeeLinkAsync(
+                userId,
+                CurrentUser.Email(User)!,
+                CurrentUser.Name(User),
+                ct);
+            if (linked is > 0)
+                return (null, linked.Value);
         }
 
-        managerId = self.Value;
-        return null;
+        return (BadRequest(new { error = "manager employee profile required" }), 0);
     }
 
     [HttpGet("summary")]
     public async Task<IActionResult> Summary([FromQuery] int? managerId, CancellationToken ct)
     {
-        if (ResolveManagerId(managerId, out var mid) is { } err) return err;
+        var (err, mid) = await ResolveManagerIdAsync(managerId, ct);
+        if (err is not null) return err;
         return Ok(await _hr.MssSummaryAsync(mid, ct));
     }
 
     [HttpGet("team")]
     public async Task<IActionResult> Team([FromQuery] int? managerId, CancellationToken ct)
     {
-        if (ResolveManagerId(managerId, out var mid) is { } err) return err;
+        var (err, mid) = await ResolveManagerIdAsync(managerId, ct);
+        if (err is not null) return err;
         return Ok(await _hr.MssTeamAsync(mid, ct));
     }
 
     [HttpGet("leave")]
     public async Task<IActionResult> Leave([FromQuery] int? managerId, CancellationToken ct)
     {
-        if (ResolveManagerId(managerId, out var mid) is { } err) return err;
+        var (err, mid) = await ResolveManagerIdAsync(managerId, ct);
+        if (err is not null) return err;
         return Ok(await _hr.MssLeaveAsync(mid, ct));
     }
 
     [HttpGet("attendance")]
     public async Task<IActionResult> Attendance([FromQuery] int? managerId, CancellationToken ct)
     {
-        if (ResolveManagerId(managerId, out var mid) is { } err) return err;
+        var (err, mid) = await ResolveManagerIdAsync(managerId, ct);
+        if (err is not null) return err;
         return Ok(await _hr.MssAttendanceAsync(mid, ct));
     }
 
     [HttpGet("approvals")]
     public async Task<IActionResult> Approvals([FromQuery] int? managerId, CancellationToken ct)
     {
-        if (ResolveManagerId(managerId, out var mid) is { } err) return err;
+        var (err, mid) = await ResolveManagerIdAsync(managerId, ct);
+        if (err is not null) return err;
         return Ok(await _hr.MssApprovalsAsync(mid, ct));
     }
 
@@ -86,7 +99,19 @@ public sealed class MssController : ControllerBase
 
         var self = CurrentUser.EmployeeId(User);
         if (CurrentUser.IsManager(User) && self is null)
-            return BadRequest(new { error = "manager employee profile required" });
+        {
+            if (int.TryParse(CurrentUser.UserId(User), out var userId)
+                && !string.IsNullOrWhiteSpace(CurrentUser.Email(User)))
+            {
+                self = await _hr.EnsurePortalEmployeeLinkAsync(
+                    userId,
+                    CurrentUser.Email(User)!,
+                    CurrentUser.Name(User),
+                    ct);
+            }
+            if (self is null)
+                return BadRequest(new { error = "manager employee profile required" });
+        }
 
         // Admins can update any; managers only team approvals
         if (CurrentUser.IsManager(User) && !CurrentUser.IsAdmin(User))

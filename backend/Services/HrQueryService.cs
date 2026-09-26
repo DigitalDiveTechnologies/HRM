@@ -93,7 +93,241 @@ public sealed class HrQueryService
             LEFT JOIN employment_types et ON et.id = e.employment_type_id
             WHERE e.id = @id
             """, ct, ("id", id));
-        return rows.FirstOrDefault();
+        var row = rows.FirstOrDefault();
+        if (row is not null)
+            await EnrichViewableAppPasswordAsync(row, ct);
+        return row;
+    }
+
+    /// <summary>
+    /// Link admin-portal users (e.g. manager) to an employees row so MSS / JWT employee_id work.
+    /// Reuses an employee with the same email when present; otherwise creates a stub profile.
+    /// </summary>
+    public async Task<int?> EnsurePortalEmployeeLinkAsync(
+        int userId, string email, string? displayName, CancellationToken ct)
+    {
+        email = (email ?? string.Empty).Trim();
+        if (userId <= 0 || string.IsNullOrWhiteSpace(email))
+            return null;
+
+        await using var conn = await OpenAsync(ct);
+
+        await using (var cur = new NpgsqlCommand(
+            "SELECT employee_id FROM users WHERE id = @id", conn))
+        {
+            cur.Parameters.AddWithValue("id", userId);
+            var linked = await cur.ExecuteScalarAsync(ct);
+            if (linked is not null and not DBNull)
+                return Convert.ToInt32(linked);
+        }
+
+        int? empId = null;
+        await using (var find = new NpgsqlCommand(
+            """
+            SELECT id FROM employees
+            WHERE LOWER(email) = LOWER(@e)
+            ORDER BY CASE WHEN in_hr_ops THEN 0 ELSE 1 END, id
+            LIMIT 1
+            """, conn))
+        {
+            find.Parameters.AddWithValue("e", email);
+            var hit = await find.ExecuteScalarAsync(ct);
+            if (hit is not null and not DBNull)
+                empId = Convert.ToInt32(hit);
+        }
+
+        if (empId is null)
+        {
+            var name = string.IsNullOrWhiteSpace(displayName)
+                ? email.Split('@')[0]
+                : displayName.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+                name = "Manager";
+
+            var nextNum = await ScalarIntAsync(conn,
+                """
+                SELECT COALESCE(MAX(
+                  CASE WHEN emp_code ~ '^DD-[0-9]+$'
+                  THEN CAST(SUBSTRING(emp_code FROM 4) AS INTEGER)
+                  END), 1000) + 1
+                FROM employees
+                """, ct);
+            var empCode = $"DD-{nextNum}";
+
+            await using var insert = new NpgsqlCommand(
+                """
+                INSERT INTO employees (
+                  emp_code, full_name, email, phone, job_title, join_date, status, in_hr_ops,
+                  basic_salary, allowances, master_data
+                )
+                VALUES (
+                  @code, @name, @email, NULL, 'Manager', CURRENT_DATE, 'active', TRUE,
+                  0, 0, '{}'::jsonb
+                )
+                RETURNING id
+                """, conn);
+            insert.Parameters.AddWithValue("code", empCode);
+            insert.Parameters.AddWithValue("name", name);
+            insert.Parameters.AddWithValue("email", email);
+            empId = Convert.ToInt32(await insert.ExecuteScalarAsync(ct));
+        }
+
+        await using (var link = new NpgsqlCommand(
+            """
+            UPDATE users
+            SET employee_id = @eid,
+                display_name = COALESCE(NULLIF(display_name, ''), @name)
+            WHERE id = @uid AND employee_id IS NULL
+            """, conn))
+        {
+            link.Parameters.AddWithValue("eid", empId.Value);
+            link.Parameters.AddWithValue("uid", userId);
+            link.Parameters.AddWithValue("name",
+                string.IsNullOrWhiteSpace(displayName) ? email.Split('@')[0] : displayName.Trim());
+            await link.ExecuteNonQueryAsync(ct);
+        }
+
+        return empId;
+    }
+
+    /// <summary>
+    /// Ensure master_data.appPassword is present for Admin eye-toggle.
+    /// Recovers demo/legacy passwords when possible; never invents an unknown password.
+    /// </summary>
+    private async Task EnrichViewableAppPasswordAsync(
+        Dictionary<string, object?> row, CancellationToken ct)
+    {
+        try
+        {
+            var mdObj = row.GetValueOrDefault("masterData") ?? row.GetValueOrDefault("master_data");
+            var md = NormalizeMasterDict(mdObj);
+            var existingPlain = ReadMasterString(md, "appPassword")
+                ?? ReadMasterString(md, "password")
+                ?? ReadMasterString(md, "app_password");
+            if (!string.IsNullOrWhiteSpace(existingPlain))
+            {
+                md["appPassword"] = existingPlain;
+                row["masterData"] = md;
+                row["appPassword"] = existingPlain;
+                return;
+            }
+
+            var empId = ReadId(row);
+            var email = Convert.ToString(row.GetValueOrDefault("email"))?.Trim();
+            if (empId is null && string.IsNullOrWhiteSpace(email))
+                return;
+
+            await using var conn = await OpenAsync(ct);
+            string? storedHash = null;
+            await using (var cmd = new NpgsqlCommand(
+                """
+                SELECT password FROM users
+                WHERE (@eid IS NOT NULL AND employee_id = @eid)
+                   OR (@email IS NOT NULL AND LOWER(email) = LOWER(@email))
+                ORDER BY CASE WHEN employee_id = @eid THEN 0 ELSE 1 END
+                LIMIT 1
+                """, conn))
+            {
+                cmd.Parameters.AddWithValue("eid", (object?)empId ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("email",
+                    string.IsNullOrWhiteSpace(email) ? DBNull.Value : email);
+                storedHash = await cmd.ExecuteScalarAsync(ct) as string;
+            }
+
+            if (string.IsNullOrWhiteSpace(storedHash))
+                return;
+
+            string? recovered = null;
+            if (!PasswordHasher.IsHashed(storedHash))
+            {
+                recovered = storedHash;
+            }
+            else
+            {
+                foreach (var candidate in new[] { "demo123", "Demo123", "password", "Password1", "Welcome1" })
+                {
+                    if (PasswordHasher.Verify(storedHash, candidate))
+                    {
+                        recovered = candidate;
+                        break;
+                    }
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(recovered) || empId is null)
+                return;
+
+            await using (var mdUpd = new NpgsqlCommand(
+                """
+                UPDATE employees
+                SET master_data = jsonb_set(
+                  COALESCE(master_data, '{}'::jsonb),
+                  '{appPassword}',
+                  to_jsonb(@plain::text),
+                  true
+                )
+                WHERE id = @eid
+                """, conn))
+            {
+                mdUpd.Parameters.AddWithValue("plain", recovered);
+                mdUpd.Parameters.AddWithValue("eid", empId.Value);
+                await mdUpd.ExecuteNonQueryAsync(ct);
+            }
+
+            md["appPassword"] = recovered;
+            row["masterData"] = md;
+            row["appPassword"] = recovered;
+        }
+        catch
+        {
+            // Best-effort — never block employee detail on password enrich
+        }
+    }
+
+    private static Dictionary<string, object?> NormalizeMasterDict(object? mdObj)
+    {
+        if (mdObj is Dictionary<string, object?> d)
+            return new Dictionary<string, object?>(d, StringComparer.OrdinalIgnoreCase);
+        if (mdObj is JsonElement je && je.ValueKind == JsonValueKind.Object)
+        {
+            var parsed = JsonSerializer.Deserialize<Dictionary<string, object?>>(je.GetRawText());
+            return parsed is null
+                ? new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, object?>(parsed, StringComparer.OrdinalIgnoreCase);
+        }
+        if (mdObj is string s && s.Length > 1)
+        {
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<Dictionary<string, object?>>(s);
+                return parsed is null
+                    ? new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, object?>(parsed, StringComparer.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            }
+        }
+        return new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string? ReadMasterString(Dictionary<string, object?> md, string key)
+    {
+        if (!md.TryGetValue(key, out var val) || val is null) return null;
+        if (val is JsonElement je)
+        {
+            return je.ValueKind == JsonValueKind.String ? je.GetString() : je.ToString();
+        }
+        var s = Convert.ToString(val);
+        return string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+    }
+
+    private static int? ReadId(Dictionary<string, object?> row)
+    {
+        var raw = row.GetValueOrDefault("id");
+        if (raw is null) return null;
+        return int.TryParse(Convert.ToString(raw), out var id) ? id : null;
     }
 
     public Task<List<Dictionary<string, object?>>> DepartmentsAsync(CancellationToken ct) =>

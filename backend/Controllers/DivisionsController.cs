@@ -8,14 +8,14 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "Divisions")]
 [Route("api/divisions")]
-[Authorize(Roles = "admin,employee")]
+[Authorize(Roles = "admin,employee,manager")]
 public sealed class DivisionsController : ControllerBase
 {
     private readonly HrQueryService _hr;
 
     public DivisionsController(HrQueryService hr) => _hr = hr;
 
-    /// <summary>List divisions. Pass activeOnly=true for employee form dropdowns.</summary>
+    /// <summary>List divisions / companies. View does not require company.brand.edit.</summary>
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] bool activeOnly = false, CancellationToken ct = default) =>
         Ok(await _hr.DivisionsAsync(activeOnly, ct));

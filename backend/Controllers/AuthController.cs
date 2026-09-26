@@ -14,12 +14,14 @@ public sealed class AuthController : ControllerBase
     private readonly AuthService _auth;
     private readonly JwtTokenService _jwt;
     private readonly RbacService _rbac;
+    private readonly HrQueryService _hr;
 
-    public AuthController(AuthService auth, JwtTokenService jwt, RbacService rbac)
+    public AuthController(AuthService auth, JwtTokenService jwt, RbacService rbac, HrQueryService hr)
     {
         _auth = auth;
         _jwt = jwt;
         _rbac = rbac;
+        _hr = hr;
     }
 
     /// <summary>Login — returns JWT Bearer token. Passwords are verified with BCrypt.</summary>
@@ -43,6 +45,16 @@ public sealed class AuthController : ControllerBase
         if (string.Equals(user.Role, "employee", StringComparison.OrdinalIgnoreCase) && user.EmployeeId is null)
         {
             return Unauthorized(new { error = "This login is not linked to an employee profile. Ask HR admin to recreate the account." });
+        }
+
+        // Manager (and any future MSS role) needs an employees row for team views
+        if (string.Equals(user.Role, "manager", StringComparison.OrdinalIgnoreCase)
+            && user.EmployeeId is null)
+        {
+            var linked = await _hr.EnsurePortalEmployeeLinkAsync(
+                user.Id, user.Email, user.FullName, ct);
+            if (linked is > 0)
+                user.EmployeeId = linked;
         }
 
         var (token, expiresMinutes) = _jwt.CreateToken(user);

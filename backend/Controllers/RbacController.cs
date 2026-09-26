@@ -12,8 +12,13 @@ namespace DigitalDive.Hr.Api.Controllers;
 public sealed class RbacController : ControllerBase
 {
     private readonly RbacService _rbac;
+    private readonly HrQueryService _hr;
 
-    public RbacController(RbacService rbac) => _rbac = rbac;
+    public RbacController(RbacService rbac, HrQueryService hr)
+    {
+        _rbac = rbac;
+        _hr = hr;
+    }
 
     [HttpGet("roles")]
     public async Task<ActionResult<IReadOnlyList<RoleDto>>> ListRoles(CancellationToken ct)
@@ -68,6 +73,16 @@ public sealed class RbacController : ControllerBase
     {
         var (user, error) = await _rbac.CreateUserAsync(body, ct);
         if (error is not null) return BadRequest(new { error });
+        // Managers need an employees profile for MSS / JWT employee_id — link immediately
+        if (user is not null
+            && string.Equals(user.Role, "manager", StringComparison.OrdinalIgnoreCase)
+            && user.EmployeeId is null)
+        {
+            var linked = await _hr.EnsurePortalEmployeeLinkAsync(
+                user.Id, user.Email, user.DisplayName, ct);
+            if (linked is > 0)
+                user.EmployeeId = linked;
+        }
         return Ok(user);
     }
 
@@ -76,6 +91,15 @@ public sealed class RbacController : ControllerBase
     {
         var (user, error) = await _rbac.UpdateUserAsync(id, body, ct);
         if (error is not null) return BadRequest(new { error });
+        if (user is not null
+            && string.Equals(user.Role, "manager", StringComparison.OrdinalIgnoreCase)
+            && user.EmployeeId is null)
+        {
+            var linked = await _hr.EnsurePortalEmployeeLinkAsync(
+                user.Id, user.Email, user.DisplayName, ct);
+            if (linked is > 0)
+                user.EmployeeId = linked;
+        }
         return Ok(user);
     }
 
