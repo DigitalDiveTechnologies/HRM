@@ -1,5 +1,6 @@
 using System.Data;
 using System.Data.Common;
+using System.Security.Cryptography;
 using System.Text.Json;
 using DigitalDive.Hr.Api.Data;
 using DigitalDive.Hr.Api.Helpers;
@@ -635,7 +636,8 @@ public sealed class HrQueryService
         string? joinDate,
         string status,
         Dictionary<string, object?>? masterData,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? photoContentSha256 = null)
     {
         fullName = BuildFullName(
             string.IsNullOrWhiteSpace(fullName) ? ComposeNameFromMaster(masterData) : fullName.Trim(),
@@ -669,103 +671,137 @@ public sealed class HrQueryService
         await using var conn = await OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
 
-        await using (var dup = new NpgsqlCommand(
-                         """
-                         SELECT
-                           EXISTS(SELECT 1 FROM employees WHERE LOWER(email) = @email) AS emp_exists,
-                           EXISTS(SELECT 1 FROM users WHERE LOWER(email) = @email) AS user_exists
-                         """, conn, tx))
+        try
         {
-            dup.Parameters.AddWithValue("email", email);
-            await using var reader = await dup.ExecuteReaderAsync(ct);
-            if (!await reader.ReadAsync(ct))
+            await using (var dup = new NpgsqlCommand(
+                             """
+                             SELECT
+                               EXISTS(SELECT 1 FROM employees WHERE LOWER(email) = @email) AS emp_exists,
+                               EXISTS(SELECT 1 FROM users WHERE LOWER(email) = @email) AS user_exists
+                             """, conn, tx))
             {
-                return (null, "Could not validate email.");
+                dup.Parameters.AddWithValue("email", email);
+                await using var reader = await dup.ExecuteReaderAsync(ct);
+                if (!await reader.ReadAsync(ct))
+                {
+                    return (null, "Could not validate email.");
+                }
+
+                if (reader.GetBoolean(0) || reader.GetBoolean(1))
+                {
+                    return (null, "Email already exists.");
+                }
             }
 
-            if (reader.GetBoolean(0) || reader.GetBoolean(1))
+            var photoHash = NormalizePhotoSha256(photoContentSha256);
+            if (!string.IsNullOrWhiteSpace(photoHash))
             {
-                return (null, "An employee or login with this email already exists.");
-            }
-        }
-
-        if (managerId.HasValue)
-        {
-            var mgrOk = await ScalarIntTxAsync(conn, tx,
-                "SELECT COUNT(*)::int FROM employees WHERE id = @id AND in_hr_ops = TRUE", ct,
-                ("id", managerId.Value));
-            if (mgrOk == 0)
-            {
-                return (null, "Selected manager was not found.");
-            }
-        }
-
-        if (departmentId.HasValue)
-        {
-            var deptOk = await ScalarIntTxAsync(conn, tx,
-                "SELECT COUNT(*)::int FROM departments WHERE id = @id", ct,
-                ("id", departmentId.Value));
-            if (deptOk == 0)
-            {
-                return (null, "Selected department was not found.");
-            }
-        }
-
-        if (divisionId.HasValue)
-        {
-            var divOk = await ScalarIntTxAsync(conn, tx,
-                "SELECT COUNT(*)::int FROM divisions WHERE id = @id AND status = 'active'", ct,
-                ("id", divisionId.Value));
-            if (divOk == 0)
-            {
-                return (null, "Selected division was not found or is inactive.");
-            }
-        }
-        else
-        {
-            return (null, "Operating Company (divisionId) is strictly required to create an employee.");
-        }
-
-        if (designationId.HasValue)
-        {
-            var desOk = await ScalarIntTxAsync(conn, tx,
-                "SELECT COUNT(*)::int FROM designations WHERE id = @id AND status = 'active'", ct,
-                ("id", designationId.Value));
-            if (desOk == 0)
-            {
-                return (null, "Selected designation was not found or is inactive.");
+                await EnsurePhotoHashColumnAsync(conn, tx, ct);
+                if (await PhotoHashTakenAsync(conn, tx, photoHash, excludeEmployeeId: null, ct))
+                {
+                    return (null, "Profile picture already exists.");
+                }
             }
 
-            var desName = await ScalarStringTxAsync(conn, tx,
-                "SELECT name FROM designations WHERE id = @id", ct, ("id", designationId.Value));
-            if (!string.IsNullOrWhiteSpace(desName))
+            if (managerId.HasValue)
             {
-                jobTitle = desName;
+                var mgrOk = await ScalarIntTxAsync(conn, tx,
+                    "SELECT COUNT(*)::int FROM employees WHERE id = @id AND in_hr_ops = TRUE", ct,
+                    ("id", managerId.Value));
+                if (mgrOk == 0)
+                {
+                    return (null, "Selected manager was not found.");
+                }
             }
-        }
 
-        if (employmentTypeId.HasValue)
-        {
-            var etOk = await ScalarIntTxAsync(conn, tx,
-                "SELECT COUNT(*)::int FROM employment_types WHERE id = @id AND status = 'active'", ct,
-                ("id", employmentTypeId.Value));
-            if (etOk == 0)
+            if (departmentId.HasValue)
             {
-                return (null, "Selected employment type was not found or is inactive.");
+                var deptOk = await ScalarIntTxAsync(conn, tx,
+                    "SELECT COUNT(*)::int FROM departments WHERE id = @id", ct,
+                    ("id", departmentId.Value));
+                if (deptOk == 0)
+                {
+                    return (null, "Selected department was not found.");
+                }
             }
-        }
 
-        string finalEmpCode;
-        if (!string.IsNullOrWhiteSpace(empCode))
-        {
-            finalEmpCode = empCode.Trim();
-            var exists = await ScalarIntTxAsync(conn, tx,
-                "SELECT COUNT(*)::int FROM employees WHERE LOWER(emp_code) = LOWER(@c)", ct,
-                ("c", finalEmpCode));
-            if (exists > 0)
+            if (divisionId.HasValue)
             {
-                var match = System.Text.RegularExpressions.Regex.Match(finalEmpCode, @"^([A-Za-z]+)[-_]?(\d+)?$");
-                var prefix = match.Success && match.Groups[1].Success ? match.Groups[1].Value.ToUpperInvariant() : "EMP";
+                var divOk = await ScalarIntTxAsync(conn, tx,
+                    "SELECT COUNT(*)::int FROM divisions WHERE id = @id AND status = 'active'", ct,
+                    ("id", divisionId.Value));
+                if (divOk == 0)
+                {
+                    return (null, "Selected division was not found or is inactive.");
+                }
+            }
+            else
+            {
+                return (null, "Operating Company (divisionId) is strictly required to create an employee.");
+            }
+
+            if (designationId.HasValue)
+            {
+                var desOk = await ScalarIntTxAsync(conn, tx,
+                    "SELECT COUNT(*)::int FROM designations WHERE id = @id AND status = 'active'", ct,
+                    ("id", designationId.Value));
+                if (desOk == 0)
+                {
+                    return (null, "Selected designation was not found or is inactive.");
+                }
+
+                var desName = await ScalarStringTxAsync(conn, tx,
+                    "SELECT name FROM designations WHERE id = @id", ct, ("id", designationId.Value));
+                if (!string.IsNullOrWhiteSpace(desName))
+                {
+                    jobTitle = desName;
+                }
+            }
+
+            if (employmentTypeId.HasValue)
+            {
+                var etOk = await ScalarIntTxAsync(conn, tx,
+                    "SELECT COUNT(*)::int FROM employment_types WHERE id = @id AND status = 'active'", ct,
+                    ("id", employmentTypeId.Value));
+                if (etOk == 0)
+                {
+                    return (null, "Selected employment type was not found or is inactive.");
+                }
+            }
+
+            string finalEmpCode;
+            if (!string.IsNullOrWhiteSpace(empCode))
+            {
+                finalEmpCode = empCode.Trim();
+                var exists = await ScalarIntTxAsync(conn, tx,
+                    "SELECT COUNT(*)::int FROM employees WHERE LOWER(emp_code) = LOWER(@c)", ct,
+                    ("c", finalEmpCode));
+                if (exists > 0)
+                {
+                    return (null, "Employee code already exists.");
+                }
+            }
+            else
+            {
+                string prefix = "EMP";
+                if (divisionId.HasValue)
+                {
+                    await using var divCmd = new NpgsqlCommand(
+                        "SELECT name FROM divisions WHERE id = @id", conn, tx);
+                    divCmd.Parameters.AddWithValue("id", divisionId.Value);
+                    await using var divReader = await divCmd.ExecuteReaderAsync(ct);
+                    if (await divReader.ReadAsync(ct))
+                    {
+                        var divName = divReader.IsDBNull(0) ? "" : divReader.GetString(0);
+                        // Always derive from company NAME (first 3 letters) — never internal code (C19…)
+                        var clean = System.Text.RegularExpressions.Regex.Replace(divName ?? "", @"[^a-zA-Z]", "");
+                        if (!string.IsNullOrWhiteSpace(clean))
+                        {
+                            prefix = (clean.Length >= 3 ? clean.Substring(0, 3) : clean.PadRight(3, 'X')).ToUpperInvariant();
+                        }
+                    }
+                }
+
                 var nextNum = await ScalarIntTxAsync(conn, tx,
                     """
                     SELECT COALESCE(MAX(
@@ -776,127 +812,278 @@ public sealed class HrQueryService
                     """, ct, ("prefix", prefix));
                 finalEmpCode = $"{prefix}-{nextNum:D3}";
             }
-        }
-        else
-        {
-            string prefix = "EMP";
-            if (divisionId.HasValue)
+
+            DateTime join;
+            if (string.IsNullOrWhiteSpace(joinDate))
             {
-                await using var divCmd = new NpgsqlCommand(
-                    "SELECT name FROM divisions WHERE id = @id", conn, tx);
-                divCmd.Parameters.AddWithValue("id", divisionId.Value);
-                await using var divReader = await divCmd.ExecuteReaderAsync(ct);
-                if (await divReader.ReadAsync(ct))
-                {
-                    var divName = divReader.IsDBNull(0) ? "" : divReader.GetString(0);
-                    // Always derive from company NAME (first 3 letters) — never internal code (C19…)
-                    var clean = System.Text.RegularExpressions.Regex.Replace(divName ?? "", @"[^a-zA-Z]", "");
-                    if (!string.IsNullOrWhiteSpace(clean))
-                    {
-                        prefix = (clean.Length >= 3 ? clean.Substring(0, 3) : clean.PadRight(3, 'X')).ToUpperInvariant();
-                    }
-                }
+                join = DateTime.UtcNow.Date;
+            }
+            else if (!DateOnly.TryParse(joinDate, out var parsedJoin))
+            {
+                return (null, "Join date is invalid.");
+            }
+            else
+            {
+                join = parsedJoin.ToDateTime(TimeOnly.MinValue);
             }
 
-            var nextNum = await ScalarIntTxAsync(conn, tx,
-                """
-                SELECT COALESCE(MAX(
-                  CASE WHEN emp_code ~* ('^' || @prefix || '-[0-9]+$')
-                  THEN CAST(SUBSTRING(emp_code FROM LENGTH(@prefix) + 2) AS INTEGER)
-                  END), 0) + 1
-                FROM employees
-                """, ct, ("prefix", prefix));
-            finalEmpCode = $"{prefix}-{nextNum:D3}";
-        }
+            var hash = PasswordHasher.Hash(password);
+            masterData ??= new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            masterData["appPassword"] = password;
+            masterData["empCode"] = finalEmpCode;
+            var masterJson = SerializeMasterData(masterData);
 
-        DateTime join;
-        if (string.IsNullOrWhiteSpace(joinDate))
+            int employeeId;
+            await using (var insertEmp = new NpgsqlCommand(
+                             """
+                             INSERT INTO employees (
+                               emp_code, full_name, email, phone, department_id, division_id,
+                               designation_id, employment_type_id, job_title,
+                               join_date, status, manager_id, in_hr_ops, basic_salary, allowances,
+                               master_data
+                             )
+                             VALUES (
+                               @code, @name, @email, @phone, @dept, @div, @desig, @emptype, @title,
+                               @join, @status, @mgr, TRUE, 0, 0, @master::jsonb
+                             )
+                             RETURNING id
+                             """, conn, tx))
+            {
+                insertEmp.Parameters.AddWithValue("code", finalEmpCode);
+                insertEmp.Parameters.AddWithValue("name", fullName);
+                insertEmp.Parameters.AddWithValue("email", email);
+                insertEmp.Parameters.AddWithValue("phone", (object?)phone ?? DBNull.Value);
+                insertEmp.Parameters.AddWithValue("dept", (object?)departmentId ?? DBNull.Value);
+                insertEmp.Parameters.AddWithValue("div", (object?)divisionId ?? DBNull.Value);
+                insertEmp.Parameters.AddWithValue("desig", (object?)designationId ?? DBNull.Value);
+                insertEmp.Parameters.AddWithValue("emptype", (object?)employmentTypeId ?? DBNull.Value);
+                insertEmp.Parameters.AddWithValue("title", jobTitle);
+                insertEmp.Parameters.AddWithValue("join", join);
+                insertEmp.Parameters.AddWithValue("status", status);
+                insertEmp.Parameters.AddWithValue("mgr", (object?)managerId ?? DBNull.Value);
+                insertEmp.Parameters.AddWithValue("master", masterJson);
+                var idObj = await insertEmp.ExecuteScalarAsync(ct);
+                employeeId = Convert.ToInt32(idObj);
+            }
+
+            await using (var insertUser = new NpgsqlCommand(
+                             """
+                             INSERT INTO users (email, password, role, employee_id)
+                             VALUES (@email, @hash, 'employee', @eid)
+                             """, conn, tx))
+            {
+                insertUser.Parameters.AddWithValue("email", email);
+                insertUser.Parameters.AddWithValue("hash", hash);
+                insertUser.Parameters.AddWithValue("eid", employeeId);
+                await insertUser.ExecuteNonQueryAsync(ct);
+            }
+
+            await tx.CommitAsync(ct);
+
+            var created = await EmployeeByIdAsync(employeeId, ct);
+            return (created, null);
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
         {
-            join = DateTime.UtcNow.Date;
+            var msg = ((ex.MessageText ?? "") + " " + (ex.ConstraintName ?? "")).ToLowerInvariant();
+            if (msg.Contains("emp_code") || msg.Contains("code"))
+                return (null, "Employee code already exists.");
+            if (msg.Contains("email"))
+                return (null, "Email already exists.");
+            if (msg.Contains("phone"))
+                return (null, "Phone number already exists.");
+            return (null, "A record with these details already exists.");
         }
-        else if (!DateOnly.TryParse(joinDate, out var parsedJoin))
+        catch (Exception ex)
         {
-            return (null, "Join date is invalid.");
+            return (null, ex.Message);
         }
-        else
-        {
-            join = parsedJoin.ToDateTime(TimeOnly.MinValue);
-        }
-
-        var hash = PasswordHasher.Hash(password);
-        masterData ??= new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        masterData["appPassword"] = password;
-        masterData["empCode"] = finalEmpCode;
-        var masterJson = SerializeMasterData(masterData);
-
-        int employeeId;
-        await using (var insertEmp = new NpgsqlCommand(
-                         """
-                         INSERT INTO employees (
-                           emp_code, full_name, email, phone, department_id, division_id,
-                           designation_id, employment_type_id, job_title,
-                           join_date, status, manager_id, in_hr_ops, basic_salary, allowances,
-                           master_data
-                         )
-                         VALUES (
-                           @code, @name, @email, @phone, @dept, @div, @desig, @emptype, @title,
-                           @join, @status, @mgr, TRUE, 0, 0, @master::jsonb
-                         )
-                         RETURNING id
-                         """, conn, tx))
-        {
-            insertEmp.Parameters.AddWithValue("code", finalEmpCode);
-            insertEmp.Parameters.AddWithValue("name", fullName);
-            insertEmp.Parameters.AddWithValue("email", email);
-            insertEmp.Parameters.AddWithValue("phone", (object?)phone ?? DBNull.Value);
-            insertEmp.Parameters.AddWithValue("dept", (object?)departmentId ?? DBNull.Value);
-            insertEmp.Parameters.AddWithValue("div", (object?)divisionId ?? DBNull.Value);
-            insertEmp.Parameters.AddWithValue("desig", (object?)designationId ?? DBNull.Value);
-            insertEmp.Parameters.AddWithValue("emptype", (object?)employmentTypeId ?? DBNull.Value);
-            insertEmp.Parameters.AddWithValue("title", jobTitle);
-            insertEmp.Parameters.AddWithValue("join", join);
-            insertEmp.Parameters.AddWithValue("status", status);
-            insertEmp.Parameters.AddWithValue("mgr", (object?)managerId ?? DBNull.Value);
-            insertEmp.Parameters.AddWithValue("master", masterJson);
-            var idObj = await insertEmp.ExecuteScalarAsync(ct);
-            employeeId = Convert.ToInt32(idObj);
-        }
-
-        await using (var insertUser = new NpgsqlCommand(
-                         """
-                         INSERT INTO users (email, password, role, employee_id)
-                         VALUES (@email, @hash, 'employee', @eid)
-                         """, conn, tx))
-        {
-            insertUser.Parameters.AddWithValue("email", email);
-            insertUser.Parameters.AddWithValue("hash", hash);
-            insertUser.Parameters.AddWithValue("eid", employeeId);
-            await insertUser.ExecuteNonQueryAsync(ct);
-        }
-
-        await tx.CommitAsync(ct);
-
-        var created = await EmployeeByIdAsync(employeeId, ct);
-        return (created, null);
     }
 
     public async Task<(Dictionary<string, object?>? Employee, string? Error)> SetEmployeePhotoPathAsync(
-        int id, string? photoPath, CancellationToken ct)
+        int id, string? photoPath, CancellationToken ct, string? photoContentSha256 = null)
     {
         var existing = await EmployeeByIdAsync(id, ct);
         if (existing is null) return (null, "Employee not found.");
 
         var cleanPath = string.IsNullOrWhiteSpace(photoPath) ? null : photoPath.Trim();
+        var photoHash = string.IsNullOrWhiteSpace(cleanPath) ? null : NormalizePhotoSha256(photoContentSha256);
 
         await using var conn = await OpenAsync(ct);
+        await EnsurePhotoHashColumnAsync(conn, null, ct);
+
+        if (!string.IsNullOrWhiteSpace(photoHash))
+        {
+            if (await PhotoHashTakenAsync(conn, null, photoHash, excludeEmployeeId: id, ct))
+            {
+                return (null, "Profile picture already exists.");
+            }
+        }
+
         await using var cmd = new NpgsqlCommand(
-            "UPDATE employees SET photo_path = @path WHERE id = @id", conn);
+            """
+            UPDATE employees
+            SET photo_path = @path,
+                photo_content_sha256 = @hash
+            WHERE id = @id
+            """, conn);
         cmd.Parameters.AddWithValue("path", (object?)cleanPath ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("hash", (object?)photoHash ?? DBNull.Value);
         cmd.Parameters.AddWithValue("id", id);
         await cmd.ExecuteNonQueryAsync(ct);
 
         var updated = await EmployeeByIdAsync(id, ct);
         return (updated, null);
+    }
+
+    public static string? NormalizePhotoSha256(string? hex)
+    {
+        if (string.IsNullOrWhiteSpace(hex)) return null;
+        var clean = hex.Trim().ToLowerInvariant();
+        if (clean.Length != 64) return null;
+        for (var i = 0; i < clean.Length; i++)
+        {
+            var c = clean[i];
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return null;
+        }
+        return clean;
+    }
+
+    public static string Sha256Hex(Stream stream)
+    {
+        using var sha = SHA256.Create();
+        var hash = sha.ComputeHash(stream);
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    public static string Sha256Hex(byte[] bytes)
+    {
+        using var sha = SHA256.Create();
+        var hash = sha.ComputeHash(bytes);
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    private static async Task EnsurePhotoHashColumnAsync(
+        NpgsqlConnection conn, NpgsqlTransaction? tx, CancellationToken ct)
+    {
+        await using var cmd = tx is null
+            ? new NpgsqlCommand(
+                "ALTER TABLE employees ADD COLUMN IF NOT EXISTS photo_content_sha256 TEXT", conn)
+            : new NpgsqlCommand(
+                "ALTER TABLE employees ADD COLUMN IF NOT EXISTS photo_content_sha256 TEXT", conn, tx);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    /// <summary>
+    /// True if another employee already uses this photo content (DB hash, or on-disk file hash fallback).
+    /// </summary>
+    private async Task<bool> PhotoHashTakenAsync(
+        NpgsqlConnection conn,
+        NpgsqlTransaction? tx,
+        string photoHash,
+        int? excludeEmployeeId,
+        CancellationToken ct)
+    {
+        var sql = excludeEmployeeId.HasValue
+            ? """
+              SELECT COUNT(*)::int FROM employees
+              WHERE photo_content_sha256 IS NOT NULL
+                AND LOWER(photo_content_sha256) = LOWER(@h)
+                AND id != @id
+              """
+            : """
+              SELECT COUNT(*)::int FROM employees
+              WHERE photo_content_sha256 IS NOT NULL
+                AND LOWER(photo_content_sha256) = LOWER(@h)
+              """;
+        var taken = excludeEmployeeId.HasValue
+            ? (tx is null
+                ? await ScalarIntAsync(conn, sql, ct, ("h", photoHash), ("id", excludeEmployeeId.Value))
+                : await ScalarIntTxAsync(conn, tx, sql, ct, ("h", photoHash), ("id", excludeEmployeeId.Value)))
+            : (tx is null
+                ? await ScalarIntAsync(conn, sql, ct, ("h", photoHash))
+                : await ScalarIntTxAsync(conn, tx, sql, ct, ("h", photoHash)));
+        if (taken > 0) return true;
+
+        // Fallback: hash existing photo files that have no stored hash yet
+        await using var listCmd = tx is null
+            ? new NpgsqlCommand(
+                """
+                SELECT id, photo_path FROM employees
+                WHERE photo_path IS NOT NULL AND TRIM(photo_path) <> ''
+                  AND (photo_content_sha256 IS NULL OR TRIM(photo_content_sha256) = '')
+                """, conn)
+            : new NpgsqlCommand(
+                """
+                SELECT id, photo_path FROM employees
+                WHERE photo_path IS NOT NULL AND TRIM(photo_path) <> ''
+                  AND (photo_content_sha256 IS NULL OR TRIM(photo_content_sha256) = '')
+                """, conn, tx);
+
+        var webRoot = Path.Combine(AppContext.BaseDirectory, "wwwroot");
+        if (!Directory.Exists(webRoot))
+            webRoot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+
+        await using var reader = await listCmd.ExecuteReaderAsync(ct);
+        var toBackfill = new List<(int Id, string Hash)>();
+        while (await reader.ReadAsync(ct))
+        {
+            var empId = reader.GetInt32(0);
+            if (excludeEmployeeId.HasValue && empId == excludeEmployeeId.Value) continue;
+            var rel = reader.IsDBNull(1) ? null : reader.GetString(1);
+            if (string.IsNullOrWhiteSpace(rel) || rel.Contains("..", StringComparison.Ordinal)) continue;
+            var abs = Path.GetFullPath(Path.Combine(webRoot, rel.Replace('/', Path.DirectorySeparatorChar)));
+            var photosRoot = Path.GetFullPath(Path.Combine(webRoot, "uploads", "photos"));
+            if (!abs.StartsWith(photosRoot, StringComparison.OrdinalIgnoreCase) || !File.Exists(abs)) continue;
+            try
+            {
+                await using var fs = File.OpenRead(abs);
+                var fileHash = Sha256Hex(fs);
+                toBackfill.Add((empId, fileHash));
+                if (string.Equals(fileHash, photoHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    await reader.CloseAsync();
+                    // best-effort backfill then report taken
+                    await BackfillPhotoHashesAsync(conn, tx, toBackfill, ct);
+                    return true;
+                }
+            }
+            catch
+            {
+                /* skip unreadable */
+            }
+        }
+        await reader.CloseAsync();
+        await BackfillPhotoHashesAsync(conn, tx, toBackfill, ct);
+        return false;
+    }
+
+    private static async Task BackfillPhotoHashesAsync(
+        NpgsqlConnection conn,
+        NpgsqlTransaction? tx,
+        List<(int Id, string Hash)> rows,
+        CancellationToken ct)
+    {
+        foreach (var (id, hash) in rows)
+        {
+            try
+            {
+                await using var cmd = tx is null
+                    ? new NpgsqlCommand(
+                        "UPDATE employees SET photo_content_sha256 = @h WHERE id = @id AND (photo_content_sha256 IS NULL OR TRIM(photo_content_sha256) = '')",
+                        conn)
+                    : new NpgsqlCommand(
+                        "UPDATE employees SET photo_content_sha256 = @h WHERE id = @id AND (photo_content_sha256 IS NULL OR TRIM(photo_content_sha256) = '')",
+                        conn, tx);
+                cmd.Parameters.AddWithValue("h", hash);
+                cmd.Parameters.AddWithValue("id", id);
+                await cmd.ExecuteNonQueryAsync(ct);
+            }
+            catch
+            {
+                /* ignore backfill errors */
+            }
+        }
     }
 
     public async Task<(bool Ok, string? Error)> ResetEmployeePasswordAsync(
@@ -1366,6 +1553,36 @@ public sealed class HrQueryService
             }
         }
 
+        string? nextCode = null;
+        if (!string.IsNullOrWhiteSpace(body.EmpCode))
+        {
+            nextCode = body.EmpCode.Trim();
+            await using var connCheck = await OpenAsync(ct);
+            var codeTaken = await ScalarIntAsync(connCheck,
+                "SELECT COUNT(*)::int FROM employees WHERE LOWER(emp_code) = LOWER(@c) AND id != @id", ct,
+                ("c", nextCode), ("id", id));
+            if (codeTaken > 0)
+            {
+                return (null, "Employee code already exists.");
+            }
+        }
+
+        if (body.MasterData != null && body.MasterData.TryGetValue("email", out var rawEmailObj) && rawEmailObj is not null)
+        {
+            var newEmail = rawEmailObj.ToString()?.Trim().ToLowerInvariant();
+            if (!string.IsNullOrWhiteSpace(newEmail))
+            {
+                await using var connEmail = await OpenAsync(ct);
+                var emailTaken = await ScalarIntAsync(connEmail,
+                    "SELECT (EXISTS(SELECT 1 FROM employees WHERE LOWER(email) = LOWER(@e) AND id != @id) OR EXISTS(SELECT 1 FROM users WHERE LOWER(email) = LOWER(@e) AND employee_id != @id))::int", ct,
+                    ("e", newEmail), ("id", id));
+                if (emailTaken > 0)
+                {
+                    return (null, "Email already exists.");
+                }
+            }
+        }
+
         await using var conn2 = await OpenAsync(ct);
         var masterDict = body.MasterData is null
             ? new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
@@ -1407,56 +1624,77 @@ public sealed class HrQueryService
         var isPhotoRemoved = body.PhotoRemoved == true ||
                              (body.MasterData != null && body.MasterData.TryGetValue("photoRemoved", out var pr) && (pr is true || Convert.ToString(pr) == "true"));
 
-        await using var update = new NpgsqlCommand(
-            isPhotoRemoved
-                ? """
-                  UPDATE employees
-                  SET full_name = @name,
-                      phone = @phone,
-                      department_id = @dept,
-                      division_id = @div,
-                      designation_id = @desig,
-                      employment_type_id = @emptype,
-                      job_title = @title,
-                      manager_id = @mgr,
-                      join_date = @join,
-                      status = @status,
-                      photo_path = NULL,
-                      master_data = @master::jsonb
-                  WHERE id = @id
-                  """
-                : """
-                  UPDATE employees
-                  SET full_name = @name,
-                      phone = @phone,
-                      department_id = @dept,
-                      division_id = @div,
-                      designation_id = @desig,
-                      employment_type_id = @emptype,
-                      job_title = @title,
-                      manager_id = @mgr,
-                      join_date = @join,
-                      status = @status,
-                      master_data = @master::jsonb
-                  WHERE id = @id
-                  """,
-            conn2);
-        update.Parameters.AddWithValue("name", fullName);
-        update.Parameters.AddWithValue("phone", (object?)phone ?? DBNull.Value);
-        update.Parameters.AddWithValue("dept", (object?)departmentId ?? DBNull.Value);
-        update.Parameters.AddWithValue("div", (object?)divisionId ?? DBNull.Value);
-        update.Parameters.AddWithValue("desig", (object?)designationId ?? DBNull.Value);
-        update.Parameters.AddWithValue("emptype", (object?)employmentTypeId ?? DBNull.Value);
-        update.Parameters.AddWithValue("title", (object?)jobTitle ?? DBNull.Value);
-        update.Parameters.AddWithValue("mgr", (object?)managerId ?? DBNull.Value);
-        update.Parameters.AddWithValue("join", (object?)join ?? DBNull.Value);
-        update.Parameters.AddWithValue("status", status);
-        update.Parameters.AddWithValue("master", masterJson);
-        update.Parameters.AddWithValue("id", id);
-        await update.ExecuteNonQueryAsync(ct);
+        try
+        {
+            await using var update = new NpgsqlCommand(
+                isPhotoRemoved
+                    ? """
+                      UPDATE employees
+                      SET emp_code = COALESCE(@code, emp_code),
+                          full_name = @name,
+                          phone = @phone,
+                          department_id = @dept,
+                          division_id = @div,
+                          designation_id = @desig,
+                          employment_type_id = @emptype,
+                          job_title = @title,
+                          manager_id = @mgr,
+                          join_date = @join,
+                          status = @status,
+                          photo_path = NULL,
+                          master_data = @master::jsonb
+                      WHERE id = @id
+                      """
+                    : """
+                      UPDATE employees
+                      SET emp_code = COALESCE(@code, emp_code),
+                          full_name = @name,
+                          phone = @phone,
+                          department_id = @dept,
+                          division_id = @div,
+                          designation_id = @desig,
+                          employment_type_id = @emptype,
+                          job_title = @title,
+                          manager_id = @mgr,
+                          join_date = @join,
+                          status = @status,
+                          master_data = @master::jsonb
+                      WHERE id = @id
+                      """,
+                conn2);
+            update.Parameters.AddWithValue("code", (object?)nextCode ?? DBNull.Value);
+            update.Parameters.AddWithValue("name", fullName);
+            update.Parameters.AddWithValue("phone", (object?)phone ?? DBNull.Value);
+            update.Parameters.AddWithValue("dept", (object?)departmentId ?? DBNull.Value);
+            update.Parameters.AddWithValue("div", (object?)divisionId ?? DBNull.Value);
+            update.Parameters.AddWithValue("desig", (object?)designationId ?? DBNull.Value);
+            update.Parameters.AddWithValue("emptype", (object?)employmentTypeId ?? DBNull.Value);
+            update.Parameters.AddWithValue("title", (object?)jobTitle ?? DBNull.Value);
+            update.Parameters.AddWithValue("mgr", (object?)managerId ?? DBNull.Value);
+            update.Parameters.AddWithValue("join", (object?)join ?? DBNull.Value);
+            update.Parameters.AddWithValue("status", status);
+            update.Parameters.AddWithValue("master", masterJson);
+            update.Parameters.AddWithValue("id", id);
+            await update.ExecuteNonQueryAsync(ct);
 
-        var updated = await EmployeeByIdAsync(id, ct);
-        return (updated, null);
+            var updated = await EmployeeByIdAsync(id, ct);
+            return (updated, null);
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
+        {
+            var msg = ((ex.MessageText ?? "") + " " + (ex.ConstraintName ?? "")).ToLowerInvariant();
+            if (msg.Contains("emp_code") || msg.Contains("code"))
+                return (null, "Employee code already exists.");
+            if (msg.Contains("email"))
+                return (null, "Email already exists.");
+            if (msg.Contains("phone"))
+                return (null, "Phone number already exists.");
+            return (null, "A record with these details already exists.");
+        }
+        catch (Exception ex)
+        {
+            return (null, ex.Message);
+        }
     }
 
     private async Task<(Dictionary<string, object?>? Row, string? Error)> CreateMasterRowAsync(
@@ -1539,6 +1777,23 @@ public sealed class HrQueryService
             """, conn);
         cmd.Parameters.AddWithValue("status", status);
         cmd.Parameters.AddWithValue("id", id);
+        return await ReadOneAsync(cmd, ct);
+    }
+
+    public async Task<Dictionary<string, object?>?> UpdateOnboardingForEmployeeAsync(int id, int employeeId, string status, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            UPDATE onboarding_tasks
+            SET status = @status,
+                signed_at = CASE WHEN @status = 'done' THEN NOW() ELSE signed_at END
+            WHERE id = @id AND employee_id = @eid
+            RETURNING *
+            """, conn);
+        cmd.Parameters.AddWithValue("status", status);
+        cmd.Parameters.AddWithValue("id", id);
+        cmd.Parameters.AddWithValue("eid", employeeId);
         return await ReadOneAsync(cmd, ct);
     }
 

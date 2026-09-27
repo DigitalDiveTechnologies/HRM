@@ -35,6 +35,8 @@ public sealed class CreateEmployeeRequest
     public Dictionary<string, object?>? MasterData { get; set; }
     /// <summary>Optional vacant position seat to occupy (Phase 1 org). Additive — old clients omit it.</summary>
     public int? PositionId { get; set; }
+    /// <summary>SHA-256 hex of profile photo bytes (optional). Rejects create if another employee already has this picture.</summary>
+    public string? PhotoContentSha256 { get; set; }
 }
 
 public sealed class ResetEmployeePasswordRequest

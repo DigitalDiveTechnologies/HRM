@@ -11,11 +11,14 @@ import {
   masterFormFromEmployee,
   masterPayloadFromForm,
   pickMaster,
+  findCreateDuplicateMessage,
+  sha256HexOfFile,
 } from '../../lib/employeeMaster';
 import { formatDate, v } from '../../lib/format';
 import { canUsePermission } from '../../lib/nav';
 import { getInstantEmployees, writeEmployeesCache } from '../../lib/employeeCache';
 import { fetchEmployeesDirect } from '../../lib/dbDirect';
+import { useCompanyFilter } from '../../lib/useCompanyFilter';
 
 function getEmployeePhotoUrl(emp) {
   if (!emp) return null;
@@ -219,6 +222,8 @@ function EmployeesContent() {
   const [empSwitcherOpen, setEmpSwitcherOpen] = useState(false);
   const [empSearch, setEmpSearch] = useState('');
 
+  const { selectedCompanyId, setCompanyId } = useCompanyFilter();
+
   // Table search & filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCompany, setFilterCompany] = useState('');
@@ -250,19 +255,7 @@ function EmployeesContent() {
     }
   }, [queryId, rows]);
 
-  // Calculate next sequential employee code (e.g. DD-1015)
-  const calculateNextCode = (list) => {
-    let maxNum = 1000;
-    (Array.isArray(list) ? list : []).forEach((e) => {
-      const code = String(v(e, 'empCode', 'emp_code') || '');
-      const match = code.match(/(\d+)/);
-      if (match) {
-        const n = parseInt(match[1], 10);
-        if (n > maxNum) maxNum = n;
-      }
-    });
-    return `DD-${maxNum + 1}`;
-  };
+
 
   const load = useCallback(() => {
     // 0. Ultra-fast direct DB query (<150ms)
@@ -287,7 +280,7 @@ function EmployeesContent() {
         setLoadingEmps(false);
         setCreateForm((prev) => ({
           ...prev,
-          empCode: prev.empCode || calculateNextCode(list),
+          empCode: prev.empCode || '',
         }));
       })
       .catch((e) => {
@@ -342,15 +335,18 @@ function EmployeesContent() {
     load();
   }, [load]);
 
-  // Apply company filter only when explicitly provided in URL query (?company=id)
+  // Synchronize company filter with URL query (?company=id) or global selected company
   useEffect(() => {
     try {
       const qCompany = searchParams?.get('company');
       if (qCompany) {
         setFilterCompany(qCompany);
+        setCompanyId(qCompany);
+      } else if (selectedCompanyId !== undefined) {
+        setFilterCompany(selectedCompanyId || '');
       }
     } catch {}
-  }, [searchParams]);
+  }, [searchParams, selectedCompanyId, setCompanyId]);
 
   // Subscribe to instant employee cache updates from other forms/tabs
   useEffect(() => {
@@ -518,7 +514,18 @@ function EmployeesContent() {
     setMsg('');
     setCreating(true);
     try {
+      const dupMsg = findCreateDuplicateMessage(createForm, rows);
+      if (dupMsg) {
+        setError(dupMsg);
+        setCreating(false);
+        return;
+      }
+
       const payload = masterPayloadFromForm(createForm, { includePassword: true });
+      if (createForm.photoFile) {
+        const photoHash = await sha256HexOfFile(createForm.photoFile);
+        if (photoHash) payload.photoContentSha256 = photoHash;
+      }
       const res = await api('/employees', {
         method: 'POST',
         body: JSON.stringify(payload),
@@ -1205,7 +1212,9 @@ function EmployeesContent() {
             <select
               value={filterCompany}
               onChange={(e) => {
-                setFilterCompany(e.target.value);
+                const val = e.target.value;
+                setFilterCompany(val);
+                setCompanyId(val);
                 setEmpPage(1);
               }}
               style={{
@@ -1278,6 +1287,7 @@ function EmployeesContent() {
                 onClick={() => {
                   setSearchTerm('');
                   setFilterCompany('');
+                  setCompanyId('');
                   setFilterDept('');
                   setFilterStatus('');
                   setEmpPage(1);
@@ -1830,7 +1840,7 @@ function EmployeesContent() {
                             {v(selected, 'fullName', 'full_name')}
                           </h3>
                           <div style={{ fontSize: '13px', color: 'var(--muted, #64748b)', fontWeight: 500, marginTop: 2 }}>
-                            {v(selected, 'empCode', 'emp_code') || 'DD-1007'}
+                            {v(selected, 'empCode', 'emp_code') || '—'}
                           </div>
 
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 12 }}>
@@ -2365,7 +2375,18 @@ function EmployeesContent() {
 
                       <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Employment Type</div>
-                        <div className="emp-row-val">{v(selected, 'employmentTypeName', 'employment_type_name') || 'Full-time'}</div>
+                        <div className="emp-row-val">
+                          {(() => {
+                            const direct = v(selected, 'employmentTypeName', 'employment_type_name');
+                            if (direct && String(direct).trim()) return direct;
+                            const typeId = v(selected, 'employmentTypeId', 'employment_type_id');
+                            if (typeId && Array.isArray(employmentTypes)) {
+                              const match = employmentTypes.find((t) => String(v(t, 'id')) === String(typeId));
+                              if (match) return v(match, 'name') || '—';
+                            }
+                            return '—';
+                          })()}
+                        </div>
                       </div>
 
                       <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
@@ -2563,11 +2584,11 @@ function EmployeesContent() {
                         style={{
                           padding: '32px 16px',
                           textAlign: 'center',
-                          color: '#94a3b8',
+                          color: 'var(--muted, #94a3b8)',
                           fontSize: '13px',
-                          background: '#f8fafc',
+                          background: 'var(--surface-alt, #03142C)',
                           borderRadius: '8px',
-                          border: '1px dashed #cbd5e1',
+                          border: '1px dashed var(--line, #cbd5e1)',
                         }}
                       >
                         No payroll history found for this employee.

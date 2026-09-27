@@ -6,22 +6,14 @@ import { useRouter } from 'next/navigation';
 import AppShell from '../../../components/AppShell';
 import EmployeeMasterForm from '../../../components/EmployeeMasterForm';
 import { api, apiUpload } from '../../../lib/auth';
-import { emptyMasterForm, masterPayloadFromForm } from '../../../lib/employeeMaster';
+import { emptyMasterForm, masterPayloadFromForm, findCreateDuplicateMessage, sha256HexOfFile } from '../../../lib/employeeMaster';
 import { v } from '../../../lib/format';
-
-const DEFAULT_DEPARTMENTS = [
-  { id: 1, name: 'Human Resources' },
-  { id: 2, name: 'Engineering' },
-  { id: 3, name: 'Finance' },
-  { id: 4, name: 'Operations' },
-  { id: 5, name: 'Executive' },
-];
 
 export default function CreateEmployeePage() {
   const router = useRouter();
 
   const [form, setForm] = useState(emptyMasterForm());
-  const [departments, setDepartments] = useState(DEFAULT_DEPARTMENTS);
+  const [departments, setDepartments] = useState([]);
   const [divisions, setDivisions] = useState([]);
   const [designations, setDesignations] = useState([]);
   const [employmentTypes, setEmploymentTypes] = useState([]);
@@ -34,20 +26,6 @@ export default function CreateEmployeePage() {
   // Post-creation popup states: Case A (Credentials) vs Case B (Simple Success)
   const [createLoginPopup, setCreateLoginPopup] = useState(null);
   const [quickSuccessPopup, setQuickSuccessPopup] = useState(false);
-
-  // Calculate next code from list
-  const calculateNextCode = (list) => {
-    let maxNum = 1000;
-    (list || []).forEach((e) => {
-      const code = String(v(e, 'empCode', 'emp_code') || '');
-      const match = code.match(/(\d+)/);
-      if (match) {
-        const n = parseInt(match[1], 10);
-        if (n > maxNum) maxNum = n;
-      }
-    });
-    return 'DD-' + (maxNum + 1);
-  };
 
   useEffect(() => {
     async function loadMasters() {
@@ -71,7 +49,7 @@ export default function CreateEmployeePage() {
       if (cached.length) setDivisions(cached);
 
       const [deptRes, divRes, desRes, empTypeRes, empsRes, posRes] = await Promise.allSettled([
-        api('/employees/departments'),
+        api('/departments?activeOnly=true').catch(() => api('/employees/departments')),
         api('/divisions?activeOnly=true'),
         api('/designations?activeOnly=true'),
         api('/employment-types?activeOnly=true'),
@@ -132,7 +110,18 @@ export default function CreateEmployeePage() {
 
     setSaving(true);
     try {
+      const dupMsg = findCreateDuplicateMessage(form, managers);
+      if (dupMsg) {
+        setError(dupMsg);
+        setSaving(false);
+        return;
+      }
+
       const payload = masterPayloadFromForm(form, { includePassword: true });
+      if (form.photoFile) {
+        const photoHash = await sha256HexOfFile(form.photoFile);
+        if (photoHash) payload.photoContentSha256 = photoHash;
+      }
       const res = await api('/employees', {
         method: 'POST',
         body: JSON.stringify(payload),

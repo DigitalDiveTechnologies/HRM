@@ -149,7 +149,8 @@ public sealed class EmployeesController : ControllerBase
             body.JoinDate,
             body.Status ?? "active",
             body.MasterData,
-            ct);
+            ct,
+            body.PhotoContentSha256);
 
         if (error is not null)
         {
@@ -237,31 +238,44 @@ public sealed class EmployeesController : ControllerBase
         if (file.Length > 5_000_000)
             return BadRequest(new { error = "Photo too large (max 5MB)." });
 
-        var ext = Path.GetExtension(file.FileName);
-        if (string.IsNullOrWhiteSpace(ext) || !PhotoExtensions.Contains(ext))
-            return BadRequest(new { error = "Use PNG, JPG, or WEBP only." });
-
-        var existing = await _hr.EmployeeByIdAsync(id, ct);
-        if (existing is null) return NotFound(new { error = "Employee not found." });
-
-        var webRoot = string.IsNullOrWhiteSpace(_env.WebRootPath)
-            ? Path.Combine(_env.ContentRootPath, "wwwroot")
-            : _env.WebRootPath;
-        var uploadDir = Path.Combine(webRoot, "uploads", "photos");
-        System.IO.Directory.CreateDirectory(uploadDir);
-
-        var storedName = $"emp_{id}_{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}{ext.ToLowerInvariant()}";
-        var absolutePath = Path.Combine(uploadDir, storedName);
-        await using (var stream = System.IO.File.Create(absolutePath))
+        try
         {
-            await file.CopyToAsync(stream, ct);
+            var ext = Path.GetExtension(file.FileName);
+            if (string.IsNullOrWhiteSpace(ext) || !PhotoExtensions.Contains(ext))
+                return BadRequest(new { error = "Use PNG, JPG, or WEBP only." });
+
+            var existing = await _hr.EmployeeByIdAsync(id, ct);
+            if (existing is null) return NotFound(new { error = "Employee not found." });
+
+            var webRoot = string.IsNullOrWhiteSpace(_env.WebRootPath)
+                ? Path.Combine(_env.ContentRootPath, "wwwroot")
+                : _env.WebRootPath;
+            var uploadDir = Path.Combine(webRoot, "uploads", "photos");
+            System.IO.Directory.CreateDirectory(uploadDir);
+
+            await using var mem = new MemoryStream();
+            await file.CopyToAsync(mem, ct);
+            var bytes = mem.ToArray();
+            var contentSha = HrQueryService.Sha256Hex(bytes);
+
+            var storedName = $"emp_{id}_{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}{ext.ToLowerInvariant()}";
+            var absolutePath = Path.Combine(uploadDir, storedName);
+            await System.IO.File.WriteAllBytesAsync(absolutePath, bytes, ct);
+
+            var relativeRef = $"uploads/photos/{storedName}";
+            var (employee, error) = await _hr.SetEmployeePhotoPathAsync(id, relativeRef, ct, contentSha);
+            if (error is not null)
+            {
+                try { System.IO.File.Delete(absolutePath); } catch { /* ignore */ }
+                return BadRequest(new { error });
+            }
+
+            return Ok(new { employee, photoPath = relativeRef, message = "Profile photo saved." });
         }
-
-        var relativeRef = $"uploads/photos/{storedName}";
-        var (employee, error) = await _hr.SetEmployeePhotoPathAsync(id, relativeRef, ct);
-        if (error is not null) return BadRequest(new { error });
-
-        return Ok(new { employee, photoPath = relativeRef, message = "Profile photo saved." });
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
     [HttpDelete("{id:int}/photo")]

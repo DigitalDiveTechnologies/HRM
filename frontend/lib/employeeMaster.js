@@ -35,7 +35,23 @@ export function generateCompanyEmpCode(company, existingEmployees = []) {
 
   let maxNum = 0;
   const prefixRegex = new RegExp(`^${prefix}[-_]?(\\d+)`, 'i');
-  (existingEmployees || []).forEach((emp) => {
+  let allEmps = Array.isArray(existingEmployees) ? [...existingEmployees] : [];
+  if (typeof window !== 'undefined') {
+    try {
+      const cached = localStorage.getItem('gocs_cached_employees');
+      if (cached) {
+        const arr = JSON.parse(cached);
+        if (Array.isArray(arr)) {
+          arr.forEach((e) => {
+            if (!allEmps.some((x) => String(v(x, 'id')) === String(v(e, 'id')))) {
+              allEmps.push(e);
+            }
+          });
+        }
+      }
+    } catch {}
+  }
+  allEmps.forEach((emp) => {
     const code = String(v(emp, 'empCode', 'emp_code') || '').trim();
     const match = code.match(prefixRegex);
     if (match) {
@@ -488,4 +504,39 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
   }
 
   return payload;
+}
+
+/** SHA-256 hex of a File/Blob (for profile-picture uniqueness on create). */
+export async function sha256HexOfFile(file) {
+  if (!file || typeof crypto === 'undefined' || !crypto.subtle) return '';
+  const buf = await file.arrayBuffer();
+  const hash = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
+ * Client-side uniqueness for create Save.
+ * Returns an "already exists" message, or '' if ok.
+ * Does NOT regenerate codes — company auto-generate stays separate.
+ */
+export function findCreateDuplicateMessage(form, existingEmployees = []) {
+  const code = String(form?.empCode || '').trim().toLowerCase();
+  const email = String(form?.email || '').trim().toLowerCase();
+  const list = Array.isArray(existingEmployees) ? existingEmployees : [];
+
+  if (code) {
+    const hit = list.some(
+      (e) => String(v(e, 'empCode', 'emp_code') || '').trim().toLowerCase() === code
+    );
+    if (hit) return 'Employee code already exists.';
+  }
+  if (email) {
+    const hit = list.some(
+      (e) => String(v(e, 'email') || '').trim().toLowerCase() === email
+    );
+    if (hit) return 'Email already exists.';
+  }
+  return '';
 }
