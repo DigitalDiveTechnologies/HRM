@@ -173,7 +173,7 @@ public sealed class HrQueryService
                   basic_salary, allowances, master_data
                 )
                 VALUES (
-                  @code, @name, @email, NULL, 'Manager', CURRENT_DATE, 'active', TRUE,
+                  @code, @name, @email, NULL, 'Manager', CURRENT_DATE, 'active', FALSE,
                   0, 0, '{}'::jsonb
                 )
                 RETURNING id
