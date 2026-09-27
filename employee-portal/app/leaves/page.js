@@ -2,10 +2,17 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import PortalShell from '@/components/PortalShell';
-import { api, value } from '@/lib/api';
+import { api, session, value } from '@/lib/api';
 import { useLocale } from '@/lib/LocaleContext';
 
 const formatDate = (v) => (v ? new Date(v).toLocaleDateString() : '—');
+
+function calcLeaveDays(startDate, endDate) {
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return 0;
+  return Math.floor((end - start) / 86400000) + 1;
+}
 
 export default function Leaves() {
   const { t, locale } = useLocale();
@@ -45,9 +52,25 @@ export default function Leaves() {
     setError('');
     setMsg('');
     try {
+      const user = session.get()?.user || {};
+      const employeeId = Number(user.employeeId || user.employee_id || 0);
+      if (!employeeId) {
+        throw new Error('Your employee profile is not linked. Please sign out and sign in again.');
+      }
+      const days = calcLeaveDays(form.startDate, form.endDate);
+      if (days < 1) {
+        throw new Error('End date must be on or after the start date.');
+      }
       await api('/leave', {
         method: 'POST',
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          employeeId,
+          leaveType: form.leaveType,
+          startDate: form.startDate,
+          endDate: form.endDate,
+          days,
+          reason: form.reason || null,
+        }),
       });
       setMsg(t('leave_submitted_success'));
       setForm({ leaveType: 'Annual', startDate: '', endDate: '', reason: '' });
