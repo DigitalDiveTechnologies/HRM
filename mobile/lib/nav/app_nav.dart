@@ -43,7 +43,6 @@ List<NavGroup> navForRole(String? role, {bool isTeamLead = false}) {
     const NavItem(id: 'payslips', label: 'My Payslips', icon: 'payslips'),
     const NavItem(id: 'notifications', label: 'Notifications', icon: 'alerts'),
     const NavItem(id: 'documents', label: 'My Documents', icon: 'documents'),
-    const NavItem(id: 'directory', label: 'Directory', icon: 'directory'),
     const NavItem(id: 'profile', label: 'Profile', icon: 'profile'),
   ];
   return [

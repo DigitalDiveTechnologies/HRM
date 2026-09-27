@@ -29,18 +29,27 @@ export default function CertificatesPage() {
   const [busyId, setBusyId] = useState(null);
   const [noteById, setNoteById] = useState({});
 
-  const load = useCallback(async () => {
-    setError('');
+  const load = useCallback(async (quiet = false) => {
+    if (!quiet) setError('');
     try {
       const data = await api('/certificates');
       setRows(data || []);
     } catch (e) {
-      setError(e.message);
+      if (!quiet) setError(e.message);
     }
   }, []);
 
   useEffect(() => {
     load();
+    const interval = setInterval(() => {
+      load(true);
+    }, 4000);
+    const onFocus = () => load(true);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
   }, [load]);
 
   async function decide(id, status) {
@@ -113,7 +122,7 @@ export default function CertificatesPage() {
         </div>
       ) : null}
       <p className="muted" style={{ marginTop: 0 }}>
-        Issued certificates embed a QR to <code>/verify/certificate?id=…&amp;emp=…</code> for public authenticity checks.
+        Issued certificates include a QR code for public authenticity checks on the verify page.
       </p>
 
       {canManage ? (

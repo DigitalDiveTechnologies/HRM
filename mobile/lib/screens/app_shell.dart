@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import '../brand.dart';
 import '../l10n/l10n.dart';
 import '../nav/app_nav.dart';
 import '../state/app_state.dart';
@@ -44,6 +44,8 @@ class _AppShellState extends State<AppShell> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   final Set<String> _visited = {};
   final Map<String, Widget> _pageCache = {};
+  /// Previous routes for Android system back (one step, not exit).
+  final List<String> _backStack = [];
 
   @override
   void initState() {
@@ -126,11 +128,38 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _openRoute(String id) {
+    if (id == route) return;
     context.read<AppState>().acknowledgeRoute(id);
     setState(() {
+      _backStack.add(route);
       route = id;
       _visited.add(id);
     });
+  }
+
+  bool _handleSystemBack() {
+    // Close drawer first if open.
+    if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
+      Navigator.of(context).pop();
+      return true;
+    }
+    if (_backStack.isNotEmpty) {
+      setState(() {
+        route = _backStack.removeLast();
+        _visited.add(route);
+      });
+      return true;
+    }
+    final home = homeRouteForRole(context.read<AppState>().user?.role);
+    if (route != home) {
+      setState(() {
+        route = home;
+        _visited.add(home);
+      });
+      return true;
+    }
+    // Already on ESS home — allow app exit.
+    return false;
   }
 
   @override
@@ -145,7 +174,15 @@ class _AppShellState extends State<AppShell> {
       role: user.role,
     );
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (!_handleSystemBack()) {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
       key: _scaffoldKey,
       backgroundColor: T.bg(context),
       appBar: AppTopBar(
@@ -247,6 +284,7 @@ class _AppShellState extends State<AppShell> {
           const AppBottomChrome(),
         ],
       ),
+    ),
     );
   }
 }

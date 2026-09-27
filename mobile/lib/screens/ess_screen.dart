@@ -351,7 +351,6 @@ class _EssScreenState extends State<EssScreen> {
                   _QuickTile(icon: Icons.beach_access_outlined, label: 'Apply leave', onTap: () => _go('leave')),
                   _QuickTile(icon: Icons.receipt_long_outlined, label: 'View slips', onTap: () => _go('payslips')),
                   _QuickTile(icon: Icons.description_outlined, label: 'Request certificate', onTap: () => _go('certificates')),
-                  _QuickTile(icon: Icons.contacts_outlined, label: 'Directory', onTap: () => _go('directory')),
                   _QuickTile(icon: Icons.folder_outlined, label: 'Documents', onTap: () => _go('documents')),
                   _QuickTile(icon: Icons.calendar_month_outlined, label: 'Attendance', onTap: () => _go('attendance')),
                 ],
