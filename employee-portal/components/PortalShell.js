@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { session } from '@/lib/api';
+import { ACCOUNT_DEACTIVATED_EVENT, api, session } from '@/lib/api';
 import { useLocale } from '@/lib/LocaleContext';
 import ThemeToggle from './ThemeToggle';
 
@@ -79,6 +79,7 @@ export default function PortalShell({ title, subtitle, actions, children }) {
   const { locale, t, toggleLocale } = useLocale();
   const [user, setUser] = useState(null);
   const [open, setOpen] = useState(false);
+  const [deactivated, setDeactivated] = useState(false);
 
   useEffect(() => {
     const current = session.get();
@@ -87,11 +88,22 @@ export default function PortalShell({ title, subtitle, actions, children }) {
       return;
     }
     setUser(current.user);
+
+    // If account was deactivated after login, block the whole employee portal.
+    const markDeactivated = () => setDeactivated(true);
+    window.addEventListener(ACCOUNT_DEACTIVATED_EVENT, markDeactivated);
+
+    api('/auth/me').catch((err) => {
+      const msg = String(err?.message || '');
+      if (/deactivat|inactive/i.test(msg)) markDeactivated();
+    });
+
+    return () => window.removeEventListener(ACCOUNT_DEACTIVATED_EVENT, markDeactivated);
   }, [router]);
 
   // Preserve sidebar scroll position
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || deactivated) return;
     const sidebar = document.getElementById('emp-sidebar');
     if (!sidebar) return;
 
@@ -104,11 +116,48 @@ export default function PortalShell({ title, subtitle, actions, children }) {
     sidebar.addEventListener('scroll', onScroll, { passive: true });
 
     return () => sidebar.removeEventListener('scroll', onScroll);
-  }, [pathname]);
+  }, [pathname, deactivated]);
 
   function logout() {
     session.clear();
     router.replace('/login');
+  }
+
+  if (deactivated) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'grid',
+          placeItems: 'center',
+          background: 'var(--bg)',
+          padding: 24,
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 420,
+            width: '100%',
+            textAlign: 'center',
+            padding: '32px 28px',
+            borderRadius: 12,
+            border: '1px solid var(--line, #e2e8f0)',
+            background: 'var(--surface, #fff)',
+            boxShadow: 'var(--shadow)',
+          }}
+        >
+          <h1 style={{ margin: '0 0 10px', fontSize: 20, fontWeight: 800, color: 'var(--ink)' }}>
+            Account deactivated
+          </h1>
+          <p style={{ margin: '0 0 20px', fontSize: 14, lineHeight: 1.5, color: 'var(--muted)' }}>
+            Your account has been deactivated. You cannot access the employee portal. Please contact your HR admin.
+          </p>
+          <button type="button" className="btn-primary" onClick={logout} style={{ minWidth: 140 }}>
+            Sign out
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (!user) {
