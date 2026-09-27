@@ -617,6 +617,7 @@ public sealed class HrQueryService
     }
 
     public async Task<(Dictionary<string, object?>? Employee, string? Error)> CreateEmployeeWithLoginAsync(
+        string? empCode,
         string fullName,
         string email,
         string password,
@@ -769,15 +770,59 @@ public sealed class HrQueryService
             }
         }
 
-        var nextNum = await ScalarIntTxAsync(conn, tx,
-            """
-            SELECT COALESCE(MAX(
-              CASE WHEN emp_code ~ '^DD-[0-9]+$'
-              THEN CAST(SUBSTRING(emp_code FROM 4) AS INTEGER)
-              END), 1000) + 1
-            FROM employees
-            """, ct);
-        var empCode = $"DD-{nextNum}";
+        string finalEmpCode;
+        if (!string.IsNullOrWhiteSpace(empCode))
+        {
+            finalEmpCode = empCode.Trim();
+            var exists = await ScalarIntTxAsync(conn, tx,
+                "SELECT COUNT(*)::int FROM employees WHERE LOWER(emp_code) = LOWER(@c)", ct,
+                ("c", finalEmpCode));
+            if (exists > 0)
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(finalEmpCode, @"^([A-Za-z]+)[-_]?(\d+)?$");
+                var prefix = match.Success && match.Groups[1].Success ? match.Groups[1].Value.ToUpperInvariant() : "EMP";
+                var nextNum = await ScalarIntTxAsync(conn, tx,
+                    """
+                    SELECT COALESCE(MAX(
+                      CASE WHEN emp_code ~* ('^' || @prefix || '-[0-9]+$')
+                      THEN CAST(SUBSTRING(emp_code FROM LENGTH(@prefix) + 2) AS INTEGER)
+                      END), 0) + 1
+                    FROM employees
+                    """, ct, ("prefix", prefix));
+                finalEmpCode = $"{prefix}-{nextNum:D3}";
+            }
+        }
+        else
+        {
+            string prefix = "EMP";
+            if (divisionId.HasValue)
+            {
+                await using var divCmd = new NpgsqlCommand(
+                    "SELECT name FROM divisions WHERE id = @id", conn, tx);
+                divCmd.Parameters.AddWithValue("id", divisionId.Value);
+                await using var divReader = await divCmd.ExecuteReaderAsync(ct);
+                if (await divReader.ReadAsync(ct))
+                {
+                    var divName = divReader.IsDBNull(0) ? "" : divReader.GetString(0);
+                    // Always derive from company NAME (first 3 letters) — never internal code (C19…)
+                    var clean = System.Text.RegularExpressions.Regex.Replace(divName ?? "", @"[^a-zA-Z]", "");
+                    if (!string.IsNullOrWhiteSpace(clean))
+                    {
+                        prefix = (clean.Length >= 3 ? clean.Substring(0, 3) : clean.PadRight(3, 'X')).ToUpperInvariant();
+                    }
+                }
+            }
+
+            var nextNum = await ScalarIntTxAsync(conn, tx,
+                """
+                SELECT COALESCE(MAX(
+                  CASE WHEN emp_code ~* ('^' || @prefix || '-[0-9]+$')
+                  THEN CAST(SUBSTRING(emp_code FROM LENGTH(@prefix) + 2) AS INTEGER)
+                  END), 0) + 1
+                FROM employees
+                """, ct, ("prefix", prefix));
+            finalEmpCode = $"{prefix}-{nextNum:D3}";
+        }
 
         DateTime join;
         if (string.IsNullOrWhiteSpace(joinDate))
@@ -796,6 +841,7 @@ public sealed class HrQueryService
         var hash = PasswordHasher.Hash(password);
         masterData ??= new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         masterData["appPassword"] = password;
+        masterData["empCode"] = finalEmpCode;
         var masterJson = SerializeMasterData(masterData);
 
         int employeeId;
@@ -814,7 +860,7 @@ public sealed class HrQueryService
                          RETURNING id
                          """, conn, tx))
         {
-            insertEmp.Parameters.AddWithValue("code", empCode);
+            insertEmp.Parameters.AddWithValue("code", finalEmpCode);
             insertEmp.Parameters.AddWithValue("name", fullName);
             insertEmp.Parameters.AddWithValue("email", email);
             insertEmp.Parameters.AddWithValue("phone", (object?)phone ?? DBNull.Value);

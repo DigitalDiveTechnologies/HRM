@@ -125,6 +125,7 @@ public sealed class EmployeeBulkService
 
             var jobTitle = string.IsNullOrWhiteSpace(designationName) ? "Employee" : designationName.Trim();
             var (employee, error) = await _hr.CreateEmployeeWithLoginAsync(
+                null,
                 fullName,
                 email,
                 password,

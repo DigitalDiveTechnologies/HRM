@@ -16,6 +16,7 @@ public sealed class EmployeeDto
 
 public sealed class CreateEmployeeRequest
 {
+    public string? EmpCode { get; set; }
     public string FullName { get; set; } = string.Empty;
     public string? FirstName { get; set; }
     public string? MiddleName { get; set; }

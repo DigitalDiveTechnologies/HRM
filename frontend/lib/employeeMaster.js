@@ -23,14 +23,15 @@ export const MASTER_TABS = [
 ];
 
 /**
- * Auto-generate company-based Employee Code (e.g. OVE-001, DIG-002).
- * Uses first 3 uppercase letters of company name + '-' + 3-digit sequence.
+ * Auto-generate company-based Employee Code (e.g. VAC-001 from "Vaco Hub").
+ * Always uses first 3 letters of the company NAME — never internal company code (C19…).
  */
 export function generateCompanyEmpCode(company, existingEmployees = []) {
   if (!company) return '';
-  const raw = (v(company, 'name') || '').trim().replace(/[^a-zA-Z0-9]/g, '');
-  if (!raw) return '';
-  const prefix = (raw.length >= 3 ? raw.substring(0, 3) : raw.padEnd(3, 'X')).toUpperCase();
+  const rawName = (v(company, 'name', 'companyName', 'company_name') || '').trim();
+  const letters = rawName.replace(/[^a-zA-Z]/g, '');
+  if (!letters) return '';
+  const prefix = (letters.length >= 3 ? letters.substring(0, 3) : letters.padEnd(3, 'X')).toUpperCase();
 
   let maxNum = 0;
   const prefixRegex = new RegExp(`^${prefix}[-_]?(\\d+)`, 'i');
@@ -393,6 +394,7 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
   }));
 
   const masterData = {
+    empCode: currentCode || '',
     firstName: fallbackFirstName,
     middleName: form.middleName?.trim() || '',
     lastName: form.lastName?.trim() || '',
@@ -456,6 +458,7 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
   };
 
   const payload = {
+    empCode: currentCode || undefined,
     firstName: fallbackFirstName,
     middleName: form.middleName?.trim() || '',
     lastName: form.lastName?.trim() || '',

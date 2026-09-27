@@ -135,6 +135,7 @@ public sealed class EmployeesController : ControllerBase
         }
 
         var (employee, error) = await _hr.CreateEmployeeWithLoginAsync(
+            body.EmpCode,
             fullName,
             body.Email,
             string.IsNullOrWhiteSpace(body.Password) ? "demo123" : body.Password.Trim(),
