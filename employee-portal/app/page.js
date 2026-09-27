@@ -143,7 +143,7 @@ export default function Dashboard() {
               </div>
             </Link>
 
-            <Link href="/notifications" style={{ textDecoration: 'none', display: 'block' }}>
+            <Link href="/notifications/" style={{ textDecoration: 'none', display: 'block' }}>
               <div className="kpi-card tone-rose clickable-card">
                 <div className="kpi-info">
                   <span className="kpi-title">{t('kpi_notifications')}</span>

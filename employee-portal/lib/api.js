@@ -29,10 +29,27 @@ export const session = {
 
 export async function api(path, options = {}) {
   const current = session.get();
-  const response = await fetch(`${apiBase()}/api${path}`, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...(current?.token ? { Authorization: `Bearer ${current.token}` } : {}), ...(options.headers || {}) },
-  });
+  const headers = {
+    ...(current?.token ? { Authorization: `Bearer ${current.token}` } : {}),
+    ...(options.headers || {}),
+  };
+  // Only set JSON content-type when sending a body (avoids unnecessary CORS preflight on GETs)
+  if (options.body !== undefined && options.body !== null && !headers['Content-Type'] && !headers['content-type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+  let response;
+  try {
+    response = await fetch(`${apiBase()}/api${path}`, {
+      ...options,
+      headers,
+    });
+  } catch (err) {
+    const msg = String(err?.message || '');
+    if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+      throw new Error('Unable to reach the server. Check your connection and try again.');
+    }
+    throw err;
+  }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const message = data.error || `Request failed (${response.status})`;

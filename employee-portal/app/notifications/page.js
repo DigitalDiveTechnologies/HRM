@@ -17,9 +17,13 @@ export default function Notifications() {
 
   const load = useCallback(() => {
     setLoading(true);
+    setError('');
     api('/notifications')
-      .then((data) => setRows(Array.isArray(data) ? data : []))
-      .catch((e) => setError(e.message))
+      .then((data) => {
+        setRows(Array.isArray(data) ? data : []);
+        setError('');
+      })
+      .catch((e) => setError(e.message || 'Could not load notifications.'))
       .finally(() => setLoading(false));
   }, []);
 
