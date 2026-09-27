@@ -195,6 +195,7 @@ export default function DashboardPage() {
     const u = getUser();
     const roleNow = normalizeRole(u);
     const permsNow = getPermissions(u);
+    const allowDashboard = canUsePermission(roleNow, permsNow, 'dashboard.view');
     const allowEmployees = canUsePermission(roleNow, permsNow, 'employees.list');
     const allowLeave = canUsePermission(roleNow, permsNow, 'leave.view');
     const allowNotifications = canUsePermission(roleNow, permsNow, 'notifications.view');
@@ -220,32 +221,36 @@ export default function DashboardPage() {
     }
 
     // 1. Instant Dashboard stats (<300ms) - unblocked by other APIs
-    api('/dashboard')
-      .then((dash) => {
-        if (dash) {
-          setData(dash);
+    if (allowDashboard) {
+      api('/dashboard')
+        .then((dash) => {
+          if (dash) {
+            setData(dash);
+            setLoading(false);
+            try {
+              const cachedStr = localStorage.getItem('gocs_cached_dashboard');
+              const cachedObj = cachedStr ? JSON.parse(cachedStr) : {};
+              localStorage.setItem(
+                'gocs_cached_dashboard',
+                JSON.stringify({
+                  ...cachedObj,
+                  dash: dash,
+                  savedAt: Date.now(),
+                })
+              );
+            } catch {}
+          }
+        })
+        .catch((e) => {
+          setData((prev) => {
+            if (!prev) setError(e?.message || 'Failed to load dashboard data');
+            return prev;
+          });
           setLoading(false);
-          try {
-            const cachedStr = localStorage.getItem('gocs_cached_dashboard');
-            const cachedObj = cachedStr ? JSON.parse(cachedStr) : {};
-            localStorage.setItem(
-              'gocs_cached_dashboard',
-              JSON.stringify({
-                ...cachedObj,
-                dash: dash,
-                savedAt: Date.now(),
-              })
-            );
-          } catch {}
-        }
-      })
-      .catch((e) => {
-        setData((prev) => {
-          if (!prev) setError(e?.message || 'Failed to load dashboard data');
-          return prev;
         });
-        setLoading(false);
-      });
+    } else {
+      setLoading(false);
+    }
 
     // 2. Load supporting widgets in parallel without blocking main stat cards
     const subTasks = [];

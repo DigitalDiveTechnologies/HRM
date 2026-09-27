@@ -1,3 +1,4 @@
+using DigitalDive.Hr.Api.Helpers;
 using DigitalDive.Hr.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -7,13 +8,23 @@ namespace DigitalDive.Hr.Api.Controllers;
 [ApiController]
 [ApiExplorerSettings(GroupName = "Dashboard")]
 [Route("api/dashboard")]
-[Authorize(Roles = "admin,manager,employee")]
+[Authorize]
 public sealed class DashboardController : ControllerBase
 {
     private readonly HrQueryService _hr;
+    private readonly RbacService _rbac;
 
-    public DashboardController(HrQueryService hr) => _hr = hr;
+    public DashboardController(HrQueryService hr, RbacService rbac)
+    {
+        _hr = hr;
+        _rbac = rbac;
+    }
 
     [HttpGet]
-    public async Task<IActionResult> Get(CancellationToken ct) => Ok(await _hr.DashboardAsync(ct));
+    public async Task<IActionResult> Get(CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "dashboard.view"))
+            return Forbid();
+        return Ok(await _hr.DashboardAsync(ct));
+    }
 }

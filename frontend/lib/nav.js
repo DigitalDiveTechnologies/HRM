@@ -101,23 +101,18 @@ function hasAnyPermission(granted, codes) {
 
 function linkAllowed(link, role, permissions) {
   if (role === 'super_admin') return true;
-  // Dashboard is the default home for every portal role
-  if (link.href === '/dashboard') return true;
   // Manager role always has access to MSS
   if (role === 'manager' && (link.href === '/mss' || link.permission === 'mss.view')) return true;
   const codes = linkPermissionCodes(link);
   const childAllowed = Array.isArray(link.children) && link.children.some((c) => linkAllowed(c, role, permissions));
 
-  if (permissions && permissions.length) {
+  if (Array.isArray(permissions)) {
     if (codes.length && hasAnyPermission(permissions, codes)) return true;
     if (childAllowed) return true;
     if (codes.length) return false;
-  }
-  if (childAllowed) return true;
-  // No permission matrix grants → fall back to role allow-list on the link
-  if (permissions && permissions.length && !codes.length) {
     return false;
   }
+  if (childAllowed) return true;
   return linkRoles(link).includes(role);
 }
 
@@ -137,8 +132,8 @@ export function canAccessPath(pathname, role, permissions) {
     return r === 'admin';
   }
 
-  // Empty-permission landing + default home — any signed-in role may open these
-  if (base === '/no-access' || base === '/dashboard') return true;
+  // Empty-permission landing — any signed-in role may open this
+  if (base === '/no-access') return true;
 
   for (const group of NAV) {
     if (group.settingsSection) continue;
