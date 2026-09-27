@@ -691,26 +691,6 @@ export default function DashboardPage() {
           ? `Workforce overview for ${v(selectedCompany, 'name')}`
           : 'Workforce overview, live statistics and operational metrics'
       }
-      actions={
-        canCompanies ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <select
-              value={selectedCompanyId}
-              onChange={(e) => setSelectedCompanyId(e.target.value)}
-              className="topbar-select"
-              style={selectedCompanyId ? { borderColor: '#00b8db', borderWidth: '1.5px' } : undefined}
-              title="Filter dashboard by company"
-            >
-              <option value="">🏢 All Companies ({companies.length})</option>
-              {companies.map((c) => (
-                <option key={v(c, 'id')} value={String(v(c, 'id'))}>
-                  {v(c, 'name')} {v(c, 'code') ? `(${v(c, 'code')})` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null
-      }
     >
       {error ? <div className="error" style={{ marginBottom: 14 }}>{error}</div> : null}
 
