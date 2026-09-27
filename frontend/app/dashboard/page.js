@@ -219,30 +219,56 @@ export default function DashboardPage() {
       }).catch(() => {});
     }
 
-    const tasks = [api('/dashboard').catch(() => ({}))];
-    tasks.push(allowEmployees ? api('/employees').catch(() => []) : Promise.resolve([]));
-    tasks.push(allowNotifications ? api('/notifications').catch(() => []) : Promise.resolve([]));
-    tasks.push(allowCompanies ? api('/divisions').catch(() => []) : Promise.resolve([]));
-    tasks.push(allowLeave ? api('/leave').catch(() => []) : Promise.resolve([]));
-    tasks.push(allowAttendance ? api('/attendance').catch(() => []) : Promise.resolve([]));
+    // 1. Instant Dashboard stats (<300ms) - unblocked by other APIs
+    api('/dashboard')
+      .then((dash) => {
+        if (dash) {
+          setData(dash);
+          setLoading(false);
+          try {
+            const cachedStr = localStorage.getItem('gocs_cached_dashboard');
+            const cachedObj = cachedStr ? JSON.parse(cachedStr) : {};
+            localStorage.setItem(
+              'gocs_cached_dashboard',
+              JSON.stringify({
+                ...cachedObj,
+                dash: dash,
+                savedAt: Date.now(),
+              })
+            );
+          } catch {}
+        }
+      })
+      .catch((e) => {
+        setData((prev) => {
+          if (!prev) setError(e?.message || 'Failed to load dashboard data');
+          return prev;
+        });
+        setLoading(false);
+      });
 
-    Promise.all(tasks)
-      .then(([dash, emps, notifs, divs, leaveRows, attRows]) => {
+    // 2. Load supporting widgets in parallel without blocking main stat cards
+    const subTasks = [];
+    subTasks.push(allowEmployees ? api('/employees').catch(() => []) : Promise.resolve([]));
+    subTasks.push(allowNotifications ? api('/notifications').catch(() => []) : Promise.resolve([]));
+    subTasks.push(allowCompanies ? api('/divisions').catch(() => []) : Promise.resolve([]));
+    subTasks.push(allowLeave ? api('/leave').catch(() => []) : Promise.resolve([]));
+    subTasks.push(allowAttendance ? api('/attendance').catch(() => []) : Promise.resolve([]));
+
+    Promise.all(subTasks)
+      .then(([emps, notifs, divs, leaveRows, attRows]) => {
         const cleanEmps = allowEmployees && Array.isArray(emps) ? emps : [];
         const cleanDivs = allowCompanies && Array.isArray(divs) ? sortCompaniesLatest(divs) : [];
         const cleanLeaves = allowLeave && Array.isArray(leaveRows) ? leaveRows : [];
         const cleanAtt =
           allowAttendance && Array.isArray(attRows) && attRows.length
             ? attRows
-            : allowAttendance
-              ? dash?.recentAttendance || []
-              : [];
+            : [];
 
-        setData(dash || {});
         setEmployees(cleanEmps);
         setCompanies(cleanDivs);
         setLeaves(cleanLeaves);
-        setAttendanceList(cleanAtt);
+        if (cleanAtt.length) setAttendanceList(cleanAtt);
 
         const feed = [];
         if (allowNotifications && Array.isArray(notifs) && notifs.length) {
@@ -256,17 +282,6 @@ export default function DashboardPage() {
           });
         }
 
-        if (allowAttendance && feed.length < 5 && dash?.recentAttendance?.length) {
-          dash.recentAttendance.slice(0, 5).forEach((a, idx) => {
-            feed.push({
-              id: `att-${idx}`,
-              title: `${v(a, 'fullName', 'full_name')} marked ${v(a, 'status') || 'attendance'}`,
-              desc: v(a, 'lateMinutes', 'late_minutes') > 0 ? `Late by ${v(a, 'lateMinutes', 'late_minutes')} min` : 'On-time check-in',
-              date: v(a, 'workDate', 'work_date'),
-            });
-          });
-        }
-
         const finalFeed = allowNotifications || allowAttendance ? feed.slice(0, 10) : [];
         setActivities(finalFeed);
 
@@ -274,10 +289,12 @@ export default function DashboardPage() {
           if (cleanEmps.length > 0) {
             localStorage.setItem('gocs_cached_employees', JSON.stringify(cleanEmps));
           }
+          const cachedStr = localStorage.getItem('gocs_cached_dashboard');
+          const cachedObj = cachedStr ? JSON.parse(cachedStr) : {};
           localStorage.setItem(
             'gocs_cached_dashboard',
             JSON.stringify({
-              dash: dash || {},
+              ...cachedObj,
               employees: cleanEmps,
               companies: cleanDivs,
               leaves: cleanLeaves,
@@ -288,13 +305,7 @@ export default function DashboardPage() {
           );
         } catch {}
       })
-      .catch((e) => {
-        setData((prev) => {
-          if (!prev) setError(e.message);
-          return prev;
-        });
-      })
-      .finally(() => setLoading(false));
+      .catch(() => {});
   }, []);
 
   // Drop cached widgets the current role is not allowed to see

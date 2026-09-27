@@ -65,7 +65,14 @@ public sealed class HrQueryService
     {
         var rows = await QueryConnAsync(
             """
-            SELECT e.*, d.name AS department_name, m.full_name AS manager_name,
+            SELECT e.id, e.emp_code, e.full_name, e.email, e.phone, e.department_id, e.job_title,
+                   e.join_date, e.dob, e.nationality, e.passport_no, e.passport_expiry,
+                   e.emirates_id, e.emirates_id_expiry, e.visa_no, e.visa_expiry,
+                   e.contract_end, e.probation_end, e.status, e.basic_salary, e.allowances,
+                   e.manager_id, e.in_hr_ops, e.division_id, e.designation_id, e.employment_type_id,
+                   e.photo_path, e.is_emirati, e.pension_authority, e.pension_contribution_salary, e.nafis_registered,
+                   (e.master_data - 'customDocuments' - 'educationalCertificateUrl' - 'experienceLetterUrl') AS master_data,
+                   d.name AS department_name, m.full_name AS manager_name,
                    dv.name AS division_name, dv.code AS division_code, dv.payroll_type AS division_payroll_type,
                    dg.name AS designation_name, et.name AS employment_type_name
             FROM employees e

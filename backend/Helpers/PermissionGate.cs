@@ -20,6 +20,11 @@ public static class PermissionGate
             || string.Equals(role, "super_admin", StringComparison.OrdinalIgnoreCase))
             return true;
 
+        if (string.Equals(role, "manager", StringComparison.OrdinalIgnoreCase)
+            && codes is not null
+            && codes.Any(c => !string.IsNullOrWhiteSpace(c) && c.StartsWith("mss.", StringComparison.OrdinalIgnoreCase)))
+            return true;
+
         if (codes is null || codes.Length == 0)
             return false;
 

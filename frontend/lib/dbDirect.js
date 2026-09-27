@@ -110,7 +110,8 @@ export async function fetchEmployeesDirect() {
           e.status,
           e.basic_salary AS "basicSalary", e.basic_salary,
           e.allowances,
-          e.master_data AS "masterData", e.master_data,
+          (e.master_data - 'customDocuments' - 'educationalCertificateUrl' - 'experienceLetterUrl') AS "masterData",
+          (e.master_data - 'customDocuments' - 'educationalCertificateUrl' - 'experienceLetterUrl') AS master_data,
           e.photo_path AS "photoPath", e.photo_path
         FROM employees e
         LEFT JOIN departments d ON d.id = e.department_id

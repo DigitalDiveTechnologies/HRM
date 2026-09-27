@@ -219,6 +219,46 @@ export default function EmployeeMasterForm({
     });
   };
 
+  const compressImageFile = (file, maxWidth = 1200, quality = 0.8) => {
+    return new Promise((resolve) => {
+      const isImg = file?.type?.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(file?.name || '');
+      if (!file || !isImg) {
+        return resolve(readFileAsDataUrl(file));
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > maxWidth || height > maxWidth) {
+            if (width > height) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            } else {
+              width = Math.round((width * maxWidth) / height);
+              height = maxWidth;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          const mime = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+          try {
+            resolve(canvas.toDataURL(mime, quality));
+          } catch {
+            resolve(e.target.result);
+          }
+        };
+        img.onerror = () => resolve(e.target.result);
+        img.src = e.target.result;
+      };
+      reader.onerror = () => resolve(readFileAsDataUrl(file));
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleDownloadDoc = (doc) => {
     if (!doc?.fileUrl) return;
     const a = document.createElement('a');
@@ -250,7 +290,7 @@ export default function EmployeeMasterForm({
     try {
       const newDocs = await Promise.all(
         files.map(async (file, idx) => {
-          const dataUrl = await readFileAsDataUrl(file);
+          const dataUrl = await compressImageFile(file);
           const isImg = file.type.startsWith('image/') || /\.(png|jpe?g)$/i.test(file.name);
           const titleSuffix = files.length > 1 ? ` (Part ${idx + 1})` : '';
           return {
@@ -294,7 +334,7 @@ export default function EmployeeMasterForm({
     try {
       const newDocs = await Promise.all(
         files.map(async (file) => {
-          const dataUrl = await readFileAsDataUrl(file);
+          const dataUrl = await compressImageFile(file);
           const isImg = file.type.startsWith('image/') || /\.(png|jpe?g)$/i.test(file.name);
           return {
             id: `${Date.now()}_${Math.random().toString(36).substr(2, 7)}`,
@@ -1241,7 +1281,7 @@ export default function EmployeeMasterForm({
                               return;
                             }
                             try {
-                              const dataUrl = await readFileAsDataUrl(file);
+                              const dataUrl = await compressImageFile(file);
                               const updated = [...educations];
                               updated[idx] = {
                                 ...updated[idx],
@@ -1526,7 +1566,7 @@ export default function EmployeeMasterForm({
                               return;
                             }
                             try {
-                              const dataUrl = await readFileAsDataUrl(file);
+                              const dataUrl = await compressImageFile(file);
                               const updated = [...experiences];
                               updated[idx] = {
                                 ...updated[idx],

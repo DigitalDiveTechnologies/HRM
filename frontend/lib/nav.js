@@ -103,6 +103,8 @@ function linkAllowed(link, role, permissions) {
   if (role === 'super_admin') return true;
   // Dashboard is the default home for every portal role
   if (link.href === '/dashboard') return true;
+  // Manager role always has access to MSS
+  if (role === 'manager' && (link.href === '/mss' || link.permission === 'mss.view')) return true;
   const codes = linkPermissionCodes(link);
   const childAllowed = Array.isArray(link.children) && link.children.some((c) => linkAllowed(c, role, permissions));
 

@@ -46,6 +46,15 @@ export function setSession(loginResponse) {
       if (typeof sessionStorage !== 'undefined') {
         sessionStorage.removeItem('gocs_selected_company_id');
       }
+      // Purge previous user's cached widgets and lists so stale data never flashes
+      try {
+        const toRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('gocs_cached_')) toRemove.push(k);
+        }
+        toRemove.forEach((k) => localStorage.removeItem(k));
+      } catch {}
     }
   } catch {}
   localStorage.setItem('hr_user', JSON.stringify(user));
@@ -53,11 +62,19 @@ export function setSession(loginResponse) {
 }
 
 export function clearSession() {
-  localStorage.removeItem('hr_user');
-  localStorage.removeItem('hr_token');
-  if (typeof sessionStorage !== 'undefined') {
-    sessionStorage.removeItem('gocs_selected_company_id');
-  }
+  try {
+    localStorage.removeItem('hr_user');
+    localStorage.removeItem('hr_token');
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.removeItem('gocs_selected_company_id');
+    }
+    const toRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('gocs_cached_')) toRemove.push(k);
+    }
+    toRemove.forEach((k) => localStorage.removeItem(k));
+  } catch {}
 }
 
 /** True when both user profile and JWT are present. */
