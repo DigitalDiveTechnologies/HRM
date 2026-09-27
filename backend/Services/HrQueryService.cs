@@ -44,10 +44,18 @@ public sealed class HrQueryService
             "SELECT COUNT(*)::int FROM certificate_requests WHERE status = 'pending'", ct);
         var recent = await QueryAsync(conn,
             """
-            SELECT a.work_date, a.status, a.late_minutes, e.full_name
-            FROM attendance a JOIN employees e ON e.id = a.employee_id
-            WHERE e.in_hr_ops = TRUE
-            ORDER BY a.work_date DESC, a.id DESC LIMIT 8
+            SELECT work_date, status, late_minutes, full_name
+            FROM (
+              SELECT DISTINCT ON (a.employee_id, a.work_date)
+                     a.work_date, a.status, a.late_minutes, e.full_name
+              FROM attendance a
+              JOIN employees e ON e.id = a.employee_id
+              WHERE e.in_hr_ops = TRUE
+              ORDER BY a.employee_id, a.work_date DESC,
+                       (a.check_out IS NOT NULL) DESC, a.id DESC
+            ) x
+            ORDER BY work_date DESC
+            LIMIT 8
             """, ct);
 
         return new
@@ -1578,13 +1586,22 @@ public sealed class HrQueryService
     {
         var sql =
             """
-            SELECT a.*, e.full_name, e.emp_code
-            FROM attendance a
-            JOIN employees e ON e.id = a.employee_id
-            WHERE e.in_hr_ops = TRUE
+            SELECT *
+            FROM (
+              SELECT DISTINCT ON (a.employee_id, a.work_date)
+                     a.*, e.full_name, e.emp_code
+              FROM attendance a
+              JOIN employees e ON e.id = a.employee_id
+              WHERE e.in_hr_ops = TRUE
             """;
         if (onlyEmployeeId.HasValue) sql += " AND a.employee_id = @eid";
-        sql += " ORDER BY a.work_date DESC, e.full_name LIMIT 100";
+        sql += """
+              ORDER BY a.employee_id, a.work_date DESC,
+                       (a.check_out IS NOT NULL) DESC, a.id DESC
+            ) x
+            ORDER BY work_date DESC, full_name
+            LIMIT 100
+            """;
 
         return onlyEmployeeId.HasValue
             ? await QueryConnAsync(sql, ct, ("eid", onlyEmployeeId.Value))
@@ -1595,23 +1612,99 @@ public sealed class HrQueryService
         int employeeId, string workDate, string? checkIn, string? checkOut, string? status,
         decimal overtime, string? shiftName, CancellationToken ct)
     {
-        var resolved = AttendanceLate.Resolve(checkIn, status);
         await using var conn = await OpenAsync(ct);
-        await using var cmd = new NpgsqlCommand(
+
+        // One row per employee per work day — check-out must update check-in, not insert a duplicate.
+        int? existingId = null;
+        string? existingCheckIn = null;
+        string? existingCheckOut = null;
+        string? existingShift = null;
+
+        await using (var find = new NpgsqlCommand(
+                         """
+                         SELECT id,
+                                CASE WHEN check_in IS NULL THEN NULL ELSE to_char(check_in, 'HH24:MI:SS') END,
+                                CASE WHEN check_out IS NULL THEN NULL ELSE to_char(check_out, 'HH24:MI:SS') END,
+                                shift_name
+                         FROM attendance
+                         WHERE employee_id = @eid AND work_date = @wd::date
+                         ORDER BY (check_out IS NULL) DESC, id DESC
+                         LIMIT 1
+                         """, conn))
+        {
+            find.Parameters.AddWithValue("eid", employeeId);
+            find.Parameters.AddWithValue("wd", workDate);
+            await using var reader = await find.ExecuteReaderAsync(ct);
+            if (await reader.ReadAsync(ct))
+            {
+                existingId = reader.GetInt32(0);
+                existingCheckIn = reader.IsDBNull(1) ? null : reader.GetString(1);
+                existingCheckOut = reader.IsDBNull(2) ? null : reader.GetString(2);
+                existingShift = reader.IsDBNull(3) ? null : reader.GetString(3);
+            }
+        }
+
+        var effectiveCheckIn = !string.IsNullOrWhiteSpace(existingCheckIn) ? existingCheckIn : checkIn;
+        var effectiveCheckOut = !string.IsNullOrWhiteSpace(checkOut) ? checkOut : existingCheckOut;
+        var resolved = AttendanceLate.Resolve(effectiveCheckIn, status);
+        var shift = !string.IsNullOrWhiteSpace(shiftName)
+            ? shiftName.Trim()
+            : (!string.IsNullOrWhiteSpace(existingShift) ? existingShift!.Trim() : "General");
+
+        if (existingId is > 0)
+        {
+            await using (var upd = new NpgsqlCommand(
+                             """
+                             UPDATE attendance
+                             SET check_in = @cin::time,
+                                 check_out = @cout::time,
+                                 status = @status,
+                                 late_minutes = @late,
+                                 overtime_hours = GREATEST(COALESCE(overtime_hours, 0), @ot),
+                                 shift_name = @shift
+                             WHERE id = @id
+                             RETURNING *
+                             """, conn))
+            {
+                upd.Parameters.AddWithValue("id", existingId.Value);
+                upd.Parameters.AddWithValue("cin", (object?)effectiveCheckIn ?? DBNull.Value);
+                upd.Parameters.AddWithValue("cout", (object?)effectiveCheckOut ?? DBNull.Value);
+                upd.Parameters.AddWithValue("status", resolved.Status);
+                upd.Parameters.AddWithValue("late", resolved.LateMinutes);
+                upd.Parameters.AddWithValue("ot", overtime);
+                upd.Parameters.AddWithValue("shift", shift);
+                var updated = await ReadOneAsync(upd, ct);
+
+                // Remove any leftover same-day duplicates from older buggy inserts
+                await using var cleanup = new NpgsqlCommand(
+                    """
+                    DELETE FROM attendance
+                    WHERE employee_id = @eid AND work_date = @wd::date AND id <> @id
+                    """, conn);
+                cleanup.Parameters.AddWithValue("eid", employeeId);
+                cleanup.Parameters.AddWithValue("wd", workDate);
+                cleanup.Parameters.AddWithValue("id", existingId.Value);
+                await cleanup.ExecuteNonQueryAsync(ct);
+
+                return updated!;
+            }
+        }
+
+        await using var insert = new NpgsqlCommand(
             """
             INSERT INTO attendance (employee_id, work_date, check_in, check_out, status, late_minutes, overtime_hours, shift_name)
             VALUES (@eid, @wd::date, @cin::time, @cout::time, @status, @late, @ot, @shift)
             RETURNING *
             """, conn);
-        cmd.Parameters.AddWithValue("eid", employeeId);
-        cmd.Parameters.AddWithValue("wd", workDate);
-        cmd.Parameters.AddWithValue("cin", (object?)checkIn ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("cout", (object?)checkOut ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("status", resolved.Status);
-        cmd.Parameters.AddWithValue("late", resolved.LateMinutes);
-        cmd.Parameters.AddWithValue("ot", overtime);
-        cmd.Parameters.AddWithValue("shift", string.IsNullOrWhiteSpace(shiftName) ? "General" : shiftName.Trim());
-        return (await ReadOneAsync(cmd, ct))!;
+        insert.Parameters.AddWithValue("eid", employeeId);
+        insert.Parameters.AddWithValue("wd", workDate);
+        insert.Parameters.AddWithValue("cin", (object?)effectiveCheckIn ?? DBNull.Value);
+        insert.Parameters.AddWithValue("cout", (object?)effectiveCheckOut ?? DBNull.Value);
+        insert.Parameters.AddWithValue("status", resolved.Status);
+        insert.Parameters.AddWithValue("late", resolved.LateMinutes);
+        insert.Parameters.AddWithValue("ot", overtime);
+        insert.Parameters.AddWithValue("shift", shift);
+        return (await ReadOneAsync(insert, ct))!;
     }
 
     public async Task<List<Dictionary<string, object?>>> LeaveAsync(int? onlyEmployeeId, CancellationToken ct)
@@ -2361,7 +2454,17 @@ public sealed class HrQueryService
         var payslips = await QueryAsync(conn,
             "SELECT * FROM payslips WHERE employee_id = @id ORDER BY id DESC", ct, ("id", employeeId));
         var attendance = await QueryAsync(conn,
-            "SELECT * FROM attendance WHERE employee_id = @id ORDER BY work_date DESC LIMIT 30", ct, ("id", employeeId));
+            """
+            SELECT *
+            FROM (
+              SELECT DISTINCT ON (work_date) *
+              FROM attendance
+              WHERE employee_id = @id
+              ORDER BY work_date DESC, (check_out IS NOT NULL) DESC, id DESC
+            ) t
+            ORDER BY work_date DESC
+            LIMIT 30
+            """, ct, ("id", employeeId));
         var documents = await QueryAsync(conn,
             "SELECT * FROM documents WHERE employee_id = @id ORDER BY id DESC", ct, ("id", employeeId));
 
@@ -3103,12 +3206,18 @@ public sealed class HrQueryService
     public Task<List<Dictionary<string, object?>>> MssAttendanceAsync(int managerId, CancellationToken ct) =>
         QueryConnAsync(
             """
-            SELECT a.*, e.full_name, e.emp_code
-            FROM attendance a
-            JOIN employees e ON e.id = a.employee_id
-            JOIN v_employee_reporting_manager rm ON rm.employee_id = e.id
-            WHERE rm.manager_employee_id = @mid AND e.in_hr_ops = TRUE
-            ORDER BY a.work_date DESC, a.id DESC
+            SELECT *
+            FROM (
+              SELECT DISTINCT ON (a.employee_id, a.work_date)
+                     a.*, e.full_name, e.emp_code
+              FROM attendance a
+              JOIN employees e ON e.id = a.employee_id
+              JOIN v_employee_reporting_manager rm ON rm.employee_id = e.id
+              WHERE rm.manager_employee_id = @mid AND e.in_hr_ops = TRUE
+              ORDER BY a.employee_id, a.work_date DESC,
+                       (a.check_out IS NOT NULL) DESC, a.id DESC
+            ) x
+            ORDER BY work_date DESC, id DESC
             LIMIT 40
             """, ct, ("mid", managerId));
 

@@ -197,12 +197,26 @@ export async function fetchSkillsDirect() {
 
 export async function fetchAttendanceDirect(employeeId = null) {
   try {
-    const whereEmp = employeeId ? `WHERE a.employee_id = ${parseInt(employeeId, 10)}` : '';
+    const empFilter = employeeId ? `AND a.employee_id = ${parseInt(employeeId, 10)}` : '';
     const res = await fetch(NEON_ENDPOINT, {
       method: 'POST',
       headers: { 'Neon-Connection-String': NEON_CONN, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        query: `SELECT a.id, a.employee_id AS "employeeId", a.employee_id, a.work_date AS "workDate", a.work_date, a.check_in AS "checkIn", a.check_in, a.check_out AS "checkOut", a.check_out, a.shift_name AS "shiftName", a.shift_name, a.overtime_hours AS "overtimeHours", a.overtime_hours, a.late_minutes AS "lateMinutes", a.late_minutes, a.status, e.full_name AS "fullName", e.full_name, e.emp_code AS "empCode", e.emp_code, e.division_id AS "divisionId", e.division_id FROM attendance a JOIN employees e ON e.id = a.employee_id ${whereEmp} ORDER BY a.work_date DESC, a.id DESC LIMIT 300;`,
+        query: `SELECT * FROM (
+          SELECT DISTINCT ON (a.employee_id, a.work_date)
+            a.id, a.employee_id AS "employeeId", a.employee_id, a.work_date AS "workDate", a.work_date,
+            a.check_in AS "checkIn", a.check_in, a.check_out AS "checkOut", a.check_out,
+            a.shift_name AS "shiftName", a.shift_name, a.overtime_hours AS "overtimeHours", a.overtime_hours,
+            a.late_minutes AS "lateMinutes", a.late_minutes, a.status,
+            e.full_name AS "fullName", e.full_name, e.emp_code AS "empCode", e.emp_code,
+            e.division_id AS "divisionId", e.division_id
+          FROM attendance a
+          JOIN employees e ON e.id = a.employee_id
+          WHERE 1=1 ${empFilter}
+          ORDER BY a.employee_id, a.work_date DESC, (a.check_out IS NOT NULL) DESC, a.id DESC
+        ) x
+        ORDER BY "workDate" DESC, id DESC
+        LIMIT 300;`,
       }),
     });
     if (!res.ok) return null;
