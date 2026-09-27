@@ -106,8 +106,12 @@ function EmployeesContent() {
     return instant.length > 0 ? sortEmployeesDesc(instant) : [];
   });
   const [loadingEmps, setLoadingEmps] = useState(() => {
-    const instant = getInstantEmployees();
-    return !instant || instant.length === 0;
+    if (typeof window !== 'undefined') {
+      try {
+        if (localStorage.getItem('gocs_cached_employees') !== null) return false;
+      } catch {}
+    }
+    return true;
   });
   const [departments, setDepartments] = useState([]);
   const [divisions, setDivisions] = useState([]);
@@ -269,7 +273,9 @@ function EmployeesContent() {
         setLoadingEmps(false);
         writeEmployeesCache(sorted);
       }
-    }).catch(() => {});
+    }).catch(() => {
+      setLoadingEmps(false);
+    });
 
     // 1. Prioritized immediate load for Employees table
     const empsP = api('/employees')
@@ -1370,13 +1376,18 @@ function EmployeesContent() {
               {!filteredRows.length ? (
                 <tr>
                   <td colSpan={10} style={{ textAlign: 'center', padding: '28px 16px', color: 'var(--muted, #64748b)' }}>
-                    {loadingEmps || (!rows.length && !error) ? (
+                    {loadingEmps ? (
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ width: 14, height: 14, border: '2px solid #00b8db', borderRightColor: 'transparent', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.75s linear infinite' }} />
                         <span>Loading employees...</span>
                       </div>
                     ) : error ? (
                       <span style={{ color: '#ef4444' }}>{error}</span>
+                    ) : rows.length === 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '12px 0' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink, #0f172a)' }}>No employees found</span>
+                        <span style={{ fontSize: '12px', color: 'var(--muted, #64748b)' }}>There are currently 0 employees in the system. Click &ldquo;+ Create Employee&rdquo; to add your first employee.</span>
+                      </div>
                     ) : (
                       'No employees matching current filter.'
                     )}
