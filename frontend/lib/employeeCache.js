@@ -25,16 +25,16 @@ export function getInstantEmployees() {
   if (typeof window === 'undefined') return [];
   try {
     const cached = localStorage.getItem('gocs_cached_employees');
-    if (cached) {
+    if (cached !== null) {
       const parsed = JSON.parse(cached);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return sortEmployeesLatest(parsed);
       }
     }
     const dashCached = localStorage.getItem('gocs_cached_dashboard');
-    if (dashCached) {
+    if (dashCached !== null) {
       const d = JSON.parse(dashCached);
-      if (Array.isArray(d?.employees) && d.employees.length > 0) {
+      if (Array.isArray(d?.employees)) {
         return sortEmployeesLatest(d.employees);
       }
     }
@@ -46,7 +46,7 @@ export function getInstantEmployees() {
  * Persists employees to cache and broadcasts update to all components.
  */
 export function writeEmployeesCache(list) {
-  if (typeof window === 'undefined' || !Array.isArray(list) || !list.length) return;
+  if (typeof window === 'undefined' || !Array.isArray(list)) return;
   const sorted = sortEmployeesLatest(list);
   try {
     localStorage.setItem('gocs_cached_employees', JSON.stringify(sorted));
@@ -56,8 +56,8 @@ export function writeEmployeesCache(list) {
       if (d && typeof d === 'object') {
         d.employees = sorted;
         if (d.dash) {
-          d.dash.headcount = Math.max(Number(d.dash.headcount || 0), sorted.length);
-          d.dash.totalEmployees = Math.max(Number(d.dash.totalEmployees || 0), sorted.length);
+          d.dash.headcount = sorted.length;
+          d.dash.totalEmployees = sorted.length;
         }
         localStorage.setItem('gocs_cached_dashboard', JSON.stringify(d));
       }
@@ -78,16 +78,14 @@ export function loadEmployeesFast(onData) {
 
   // Step 1: Instant cache
   const instant = getInstantEmployees();
-  if (instant.length > 0) {
-    onData(instant);
-  }
+  onData(instant);
 
   let isMounted = true;
 
   // Step 2: Direct DB query (Neon HTTP SQL - ultra fast)
   fetchEmployeesDirect()
     .then((directRows) => {
-      if (!isMounted || !Array.isArray(directRows) || !directRows.length) return;
+      if (!isMounted || !Array.isArray(directRows)) return;
       const sorted = sortEmployeesLatest(directRows);
       onData(sorted);
       writeEmployeesCache(sorted);
@@ -97,7 +95,7 @@ export function loadEmployeesFast(onData) {
   // Step 3: Backend API fallback / sync
   api('/employees')
     .then((apiRows) => {
-      if (!isMounted || !Array.isArray(apiRows) || !apiRows.length) return;
+      if (!isMounted || !Array.isArray(apiRows)) return;
       const sorted = sortEmployeesLatest(apiRows);
       onData(sorted);
       writeEmployeesCache(sorted);

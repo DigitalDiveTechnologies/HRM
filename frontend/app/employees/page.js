@@ -263,7 +263,7 @@ function EmployeesContent() {
   const load = useCallback(() => {
     // 0. Ultra-fast direct DB query (<150ms)
     fetchEmployeesDirect().then((direct) => {
-      if (Array.isArray(direct) && direct.length > 0) {
+      if (Array.isArray(direct)) {
         const sorted = sortEmployeesDesc(direct);
         setRows(sorted);
         setLoadingEmps(false);
@@ -275,11 +275,9 @@ function EmployeesContent() {
     const empsP = api('/employees')
       .then((emps) => {
         const list = Array.isArray(emps) ? emps : [];
-        if (list.length > 0) {
-          const sorted = sortEmployeesDesc(list);
-          setRows(sorted);
-          writeEmployeesCache(sorted);
-        }
+        const sorted = sortEmployeesDesc(list);
+        setRows(sorted);
+        writeEmployeesCache(sorted);
         setLoadingEmps(false);
         setCreateForm((prev) => ({
           ...prev,

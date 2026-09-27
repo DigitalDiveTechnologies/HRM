@@ -212,7 +212,7 @@ export default function DashboardPage() {
 
     if (allowEmployees) {
       fetchEmployeesDirect().then((emps) => {
-        if (Array.isArray(emps) && emps.length > 0) {
+        if (Array.isArray(emps)) {
           setEmployees(emps);
           writeEmployeesCache(emps);
         }
