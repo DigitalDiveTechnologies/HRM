@@ -348,35 +348,31 @@ public sealed class HrQueryService
         return int.TryParse(Convert.ToString(raw), out var id) ? id : null;
     }
 
-    public async Task<List<Dictionary<string, object?>>> DepartmentsAsync(CancellationToken ct)
-    {
-        var list = await QueryConnAsync("SELECT id, name FROM departments ORDER BY name", ct);
-        if (list.Count == 0)
-        {
-            await EnsureDefaultDepartmentsAsync(ct);
-            list = await QueryConnAsync("SELECT id, name FROM departments ORDER BY name", ct);
-        }
-        return list;
-    }
+    public Task<List<Dictionary<string, object?>>> DepartmentsAsync(bool activeOnly, CancellationToken ct) =>
+        QueryConnAsync(
+            activeOnly
+                ? """
+                  SELECT d.id, d.name, d.status,
+                         (SELECT COUNT(*)::int FROM employees WHERE department_id = d.id AND status != 'exited') AS employee_count
+                  FROM departments d
+                  WHERE d.status = 'active'
+                  ORDER BY d.name
+                  """
+                : """
+                  SELECT d.id, d.name, d.status,
+                         (SELECT COUNT(*)::int FROM employees WHERE department_id = d.id AND status != 'exited') AS employee_count
+                  FROM departments d
+                  ORDER BY d.name
+                  """,
+            ct);
+
+    public Task<List<Dictionary<string, object?>>> DepartmentsAsync(CancellationToken ct) =>
+        DepartmentsAsync(false, ct);
 
     public async Task EnsureDefaultDepartmentsAsync(CancellationToken ct)
     {
-        await using var conn = _db.CreateConnection();
-        await conn.OpenAsync(ct);
-        await using var cmd = new Npgsql.NpgsqlCommand(
-            """
-            INSERT INTO departments (id, name, status)
-            VALUES 
-              (1, 'Human Resources', 'active'),
-              (2, 'Engineering', 'active'),
-              (3, 'Finance', 'active'),
-              (4, 'Operations', 'active'),
-              (5, 'Executive', 'active')
-            ON CONFLICT (id) DO NOTHING;
-            SELECT setval('departments_id_seq', (SELECT COALESCE(MAX(id), 1) FROM departments));
-            """,
-            conn);
-        await cmd.ExecuteNonQueryAsync(ct);
+        // No-op: Departments are managed manually by Admin.
+        await Task.CompletedTask;
     }
 
     public Task<List<Dictionary<string, object?>>> DivisionsAsync(bool activeOnly, CancellationToken ct) =>
@@ -703,26 +699,7 @@ public sealed class HrQueryService
                 ("id", departmentId.Value));
             if (deptOk == 0)
             {
-                await using var seedCmd = new Npgsql.NpgsqlCommand(
-                    """
-                    INSERT INTO departments (id, name, status)
-                    VALUES 
-                      (1, 'Human Resources', 'active'),
-                      (2, 'Engineering', 'active'),
-                      (3, 'Finance', 'active'),
-                      (4, 'Operations', 'active'),
-                      (5, 'Executive', 'active')
-                    ON CONFLICT (id) DO NOTHING;
-                    """, conn, tx);
-                await seedCmd.ExecuteNonQueryAsync(ct);
-
-                deptOk = await ScalarIntTxAsync(conn, tx,
-                    "SELECT COUNT(*)::int FROM departments WHERE id = @id", ct,
-                    ("id", departmentId.Value));
-                if (deptOk == 0)
-                {
-                    return (null, "Selected department was not found.");
-                }
+                return (null, "Selected department was not found.");
             }
         }
 
@@ -1095,6 +1072,99 @@ public sealed class HrQueryService
                 {
                     await tx.RollbackAsync(ct);
                     return (false, "Employment type not found.");
+                }
+            }
+            await tx.CommitAsync(ct);
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            await tx.RollbackAsync(ct);
+            return (false, ex.Message);
+        }
+    }
+
+    public async Task<(Dictionary<string, object?>? Row, string? Error)> CreateDepartmentAsync(string name, CancellationToken ct)
+    {
+        name = name.Trim();
+        if (string.IsNullOrWhiteSpace(name)) return (null, "Name is required.");
+
+        await using var conn = await OpenAsync(ct);
+        try
+        {
+            await using var cmd = new NpgsqlCommand(
+                "INSERT INTO departments (name, status) VALUES (@name, 'active') RETURNING id", conn);
+            cmd.Parameters.AddWithValue("name", name);
+            var id = Convert.ToInt32(await cmd.ExecuteScalarAsync(ct));
+            var rows = await QueryConnAsync(
+                """
+                SELECT d.id, d.name, d.status,
+                       (SELECT COUNT(*)::int FROM employees WHERE department_id = d.id AND status != 'exited') AS employee_count
+                FROM departments d
+                WHERE d.id = @id
+                """, ct, ("id", id));
+            return (rows.FirstOrDefault(), null);
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
+        {
+            return (null, "A department with this name already exists.");
+        }
+    }
+
+    public async Task<(Dictionary<string, object?>? Row, string? Error)> UpdateDepartmentAsync(int id, string? name, string? status, CancellationToken ct)
+    {
+        var rows = await QueryConnAsync("SELECT id, name, status FROM departments WHERE id = @id", ct, ("id", id));
+        var existing = rows.FirstOrDefault();
+        if (existing is null) return (null, "Department not found.");
+
+        var nextName = string.IsNullOrWhiteSpace(name) ? existing["name"]?.ToString() : name.Trim();
+        var nextStatus = string.IsNullOrWhiteSpace(status) ? existing["status"]?.ToString() ?? "active" : status.Trim().ToLowerInvariant();
+
+        if (string.IsNullOrWhiteSpace(nextName)) return (null, "Name cannot be empty.");
+        if (nextStatus is not ("active" or "inactive")) return (null, "Status must be active or inactive.");
+
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            "UPDATE departments SET name = @name, status = @status WHERE id = @id", conn);
+        cmd.Parameters.AddWithValue("name", nextName);
+        cmd.Parameters.AddWithValue("status", nextStatus);
+        cmd.Parameters.AddWithValue("id", id);
+        await cmd.ExecuteNonQueryAsync(ct);
+
+        var updated = await QueryConnAsync(
+            """
+            SELECT d.id, d.name, d.status,
+                   (SELECT COUNT(*)::int FROM employees WHERE department_id = d.id AND status != 'exited') AS employee_count
+            FROM departments d
+            WHERE d.id = @id
+            """, ct, ("id", id));
+        return (updated.FirstOrDefault(), null);
+    }
+
+    public async Task<(bool Success, string? Error)> DeleteDepartmentAsync(int id, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
+        try
+        {
+            await using (var upd = new NpgsqlCommand("UPDATE employees SET department_id = NULL WHERE department_id = @id", conn, tx))
+            {
+                upd.Parameters.AddWithValue("id", id);
+                await upd.ExecuteNonQueryAsync(ct);
+            }
+            await using (var updPos = new NpgsqlCommand("UPDATE positions SET department_id = NULL WHERE department_id = @id", conn, tx))
+            {
+                updPos.Parameters.AddWithValue("id", id);
+                await updPos.ExecuteNonQueryAsync(ct);
+            }
+            await using (var del = new NpgsqlCommand("DELETE FROM departments WHERE id = @id", conn, tx))
+            {
+                del.Parameters.AddWithValue("id", id);
+                var affected = await del.ExecuteNonQueryAsync(ct);
+                if (affected == 0)
+                {
+                    await tx.RollbackAsync(ct);
+                    return (false, "Department not found.");
                 }
             }
             await tx.CommitAsync(ct);

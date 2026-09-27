@@ -23,7 +23,8 @@ INSERT INTO permissions (code, name, group_code, group_name, parent_code, path, 
   ('employees.list', 'Employees', 'core_hr', 'Core HR', 'employees', '/employees', 200),
   ('employees.create', 'Create Employee', 'core_hr', 'Core HR', 'employees', '/employees/create', 210),
 
-  -- Designations & Types (2 tabs)
+  -- Departments & Designations & Types
+  ('masters.departments', 'Departments', 'core_hr', 'Core HR', 'masters', '/departments', 290),
   ('masters.designations', 'Designations', 'core_hr', 'Core HR', 'masters', '/masters', 300),
   ('masters.employment_types', 'Employment types', 'core_hr', 'Core HR', 'masters', '/masters', 310),
 

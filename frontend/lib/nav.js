@@ -10,7 +10,21 @@ export const NAV = [
   {
     titleKey: 'nav_overview',
     links: [
-      { href: '/dashboard', labelKey: 'nav_dashboard', permission: 'dashboard.view', roles: ['admin', 'manager', 'employee'] },
+      {
+        href: '/dashboard',
+        labelKey: 'nav_dashboard',
+        // Show Dashboard link when user has dashboard.view OR any section permission
+        // (same list as DASHBOARD_SECTION_PERMS in canAccessPath below)
+        permissions: [
+          'dashboard.view',
+          'employees.list', 'employees.create',
+          'leave.view', 'attendance.view', 'notifications.view', 'documents.view',
+          'company.create', 'company.organisation', 'company.structure',
+          'company.org.entities', 'company.org.branches', 'company.org.positions',
+          'company.org.assignments', 'company.org.headcount', 'company.brand.edit',
+        ],
+        roles: ['admin', 'manager', 'employee'],
+      },
       { href: '/reports', labelKey: 'nav_reports', permission: 'reports.view', roles: ['admin'] },
       { href: '/ops', label: 'Ops & Scale', permission: 'ops.view', roles: ['admin'] },
       { href: '/notifications', labelKey: 'nav_notifications', permission: 'notifications.view', roles: ['admin', 'manager', 'employee'] },
@@ -27,6 +41,12 @@ export const NAV = [
         children: [
           { href: '/employees/create', label: 'Create Employee', permission: 'employees.create', roles: ['admin'] },
         ],
+      },
+      {
+        href: '/departments',
+        label: 'Departments',
+        permission: 'masters.departments',
+        roles: ['admin', 'manager'],
       },
       {
         href: '/masters',
@@ -116,6 +136,30 @@ function linkAllowed(link, role, permissions) {
   return linkRoles(link).includes(role);
 }
 
+/**
+ * All permission codes that map to sections shown on the /dashboard page.
+ * If a user has ANY of these, they can open the dashboard (sections without
+ * permission are hidden by canUsePermission checks inside the page itself).
+ */
+const DASHBOARD_SECTION_PERMS = [
+  'dashboard.view',
+  'employees.list',
+  'employees.create',
+  'leave.view',
+  'attendance.view',
+  'notifications.view',
+  'documents.view',
+  'company.create',
+  'company.organisation',
+  'company.structure',
+  'company.org.entities',
+  'company.org.branches',
+  'company.org.positions',
+  'company.org.assignments',
+  'company.org.headcount',
+  'company.brand.edit',
+];
+
 export function canAccessPath(pathname, role, permissions) {
   const path = pathname.startsWith('/') ? pathname : `/${pathname}`;
   const base = path.split('?')[0].replace(/\/$/, '') || '/';
@@ -134,6 +178,13 @@ export function canAccessPath(pathname, role, permissions) {
 
   // Empty-permission landing — any signed-in role may open this
   if (base === '/no-access') return true;
+
+  // Dashboard: allow if user has dashboard.view OR any permission for a section
+  // shown on the dashboard. Sections themselves are gated inside the page.
+  if (base === '/dashboard') {
+    if (!grants.length) return r === 'admin'; // legacy admin with no matrix
+    return canUseAnyPermission(r, grants, DASHBOARD_SECTION_PERMS);
+  }
 
   for (const group of NAV) {
     if (group.settingsSection) continue;
