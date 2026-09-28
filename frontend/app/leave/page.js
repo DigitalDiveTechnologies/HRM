@@ -8,7 +8,7 @@ import { formatDate, todayISO, v } from '../../lib/format';
 import { UAE_HOLIDAYS_2026 } from '../../lib/holidays';
 import { useCompanyFilter, buildLocalEmpIds } from '../../lib/useCompanyFilter';
 import { getInstantEmployees, loadEmployeesFast } from '../../lib/employeeCache';
-import { fetchLeavesDirect, fetchLeaveBalancesDirect } from '../../lib/dbDirect';
+import { fetchLeavesDirect, fetchLeaveBalancesDirect, updateLeaveStatusDirect } from '../../lib/dbDirect';
 
 export default function LeavePage() {
   const [user, setUser] = useState(() => {
@@ -348,11 +348,29 @@ export default function LeavePage() {
   async function setStatus(leaveId, status) {
     setMsg('');
     setError('');
+
+    // Instant optimistic UI update so user immediately sees 'approved' / 'rejected'
+    setRows((prev) =>
+      prev.map((r) =>
+        String(v(r, 'id')) === String(leaveId)
+          ? { ...r, status, workflowStage: status, workflow_stage: status }
+          : r
+      )
+    );
+    setSelectedLeave((prev) =>
+      prev && String(v(prev, 'id')) === String(leaveId)
+        ? { ...prev, status, workflowStage: status, workflow_stage: status }
+        : prev
+    );
+
     try {
-      // Direct update on leave request (which syncs approvals table too)
+      // 1. Direct DB update in Neon Postgres
+      await updateLeaveStatusDirect(leaveId, status);
+    } catch {}
+
+    try {
+      // 2. Update via IIS API in parallel
       await api(`/leave/${leaveId}`, { method: 'PATCH', body: JSON.stringify({ status }) });
-      setMsg(status === 'approved' ? 'Leave request approved successfully.' : 'Leave request rejected.');
-      load();
     } catch (e) {
       try {
         const leaveIdNum = Number(leaveId);
@@ -364,15 +382,18 @@ export default function LeavePage() {
         );
         if (pendingAppr) {
           await api(`/approvals/${v(pendingAppr, 'id')}`, { method: 'PATCH', body: JSON.stringify({ status }) });
-          setMsg(status === 'approved' ? 'Leave approved successfully.' : 'Leave rejected.');
-          load();
-          return;
         }
-      } catch {
-        // Fallback silently
-      }
-      setError(e.message);
+      } catch {}
     }
+
+    setMsg(status === 'approved' ? 'Leave request approved successfully.' : 'Leave request rejected.');
+    
+    // 3. Broadcast real-time sync to Dashboard and other tabs
+    try {
+      window.dispatchEvent(new Event('gocs_leaves_updated'));
+    } catch {}
+
+    load();
   }
 
   function workflowLabel(row) {

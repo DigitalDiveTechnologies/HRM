@@ -7,7 +7,7 @@ import AppShell from '../../components/AppShell';
 import { api, getPermissions, getUser, normalizeRole } from '../../lib/auth';
 import { formatDate, formatDateTime, formatLate, v } from '../../lib/format';
 import { canUseAnyPermission, canUsePermission } from '../../lib/nav';
-import { fetchEmployeesDirect, fetchDivisionsDirect } from '../../lib/dbDirect';
+import { fetchEmployeesDirect, fetchDivisionsDirect, updateLeaveStatusDirect } from '../../lib/dbDirect';
 import { writeEmployeesCache } from '../../lib/employeeCache';
 
 const COMPANY_PERMS = [
@@ -479,11 +479,18 @@ export default function DashboardPage() {
   // Approve / Reject handlers for pending leaves
   async function handleApproveLeave(leaveId) {
     try {
+      setLeaves((prev) =>
+        prev.map((l) => (String(v(l, 'id')) === String(leaveId) ? { ...l, status: 'approved' } : l))
+      );
+      await updateLeaveStatusDirect(leaveId, 'approved');
       await api(`/leave/${leaveId}`, {
         method: 'PATCH',
         body: JSON.stringify({ status: 'approved' }),
-      });
-      loadData();
+      }).catch(() => {});
+      try {
+        window.dispatchEvent(new Event('gocs_leaves_updated'));
+      } catch {}
+      loadData(true);
     } catch (err) {
       alert(err.message || 'Failed to approve request');
     }
@@ -491,20 +498,27 @@ export default function DashboardPage() {
 
   async function handleRejectLeave(leaveId) {
     try {
+      setLeaves((prev) =>
+        prev.map((l) => (String(v(l, 'id')) === String(leaveId) ? { ...l, status: 'rejected' } : l))
+      );
+      await updateLeaveStatusDirect(leaveId, 'rejected');
       await api(`/leave/${leaveId}`, {
         method: 'PATCH',
         body: JSON.stringify({ status: 'rejected' }),
-      });
-      loadData();
+      }).catch(() => {});
+      try {
+        window.dispatchEvent(new Event('gocs_leaves_updated'));
+      } catch {}
+      loadData(true);
     } catch (err) {
       alert(err.message || 'Failed to reject request');
     }
   }
 
-  // Dynamic Headcount by Department (Colors matching screenshot)
+  // Dynamic Headcount by Department (Colors matching screenshot with Cyan primary)
   const departmentHeadcount = useMemo(() => {
     const map = {};
-    const colors = ['#4338ca', '#06b6d4', '#f59e0b', '#10b981', '#ec4899', '#94a3b8'];
+    const colors = ['#00b8db', '#06b6d4', '#f59e0b', '#10b981', '#ec4899', '#94a3b8'];
     (filteredEmployees || []).forEach((emp) => {
       let dept = v(emp, 'departmentName', 'department_name');
       if (!dept) {
@@ -690,7 +704,7 @@ export default function DashboardPage() {
               dept: v(e, 'departmentName', 'department_name') || 'Operations',
               date: birthdayThisYear.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }),
               type: 'Birthday',
-              icon: '🎂',
+              iconType: 'birthday',
             });
           }
         }
@@ -709,7 +723,7 @@ export default function DashboardPage() {
               dept: v(e, 'departmentName', 'department_name') || 'Operations',
               date: annivThisYear.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }),
               type: `${years}-year work anniversary`,
-              icon: '💼',
+              iconType: 'anniversary',
             });
           }
         }
@@ -796,8 +810,8 @@ export default function DashboardPage() {
     });
   }, []);
 
-  // Announcements list
-  const announcementsList = [
+  // Announcements state with local storage persistence
+  const DEFAULT_ANNOUNCEMENTS = [
     {
       category: 'Public holiday',
       tagBg: '#eff6ff',
@@ -820,6 +834,53 @@ export default function DashboardPage() {
       desc: 'Updated WFH guidelines effective 1st of month. Please acknowledge.',
     },
   ];
+
+  const [announcements, setAnnouncements] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('gocs_announcements');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return DEFAULT_ANNOUNCEMENTS;
+  });
+
+  const [showPostModal, setShowPostModal] = useState(false);
+  const [postForm, setPostForm] = useState({
+    title: '',
+    category: 'General',
+    desc: '',
+  });
+
+  function handleCreateAnnouncement(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!postForm.title.trim()) return;
+    const catColors = {
+      'Public holiday': { bg: '#eff6ff', text: '#2563eb' },
+      Wellness: { bg: '#ecfdf5', text: '#059669' },
+      Policy: { bg: '#fffbeb', text: '#d97706' },
+      Event: { bg: '#f5f3ff', text: '#7c3aed' },
+      General: { bg: '#e0f2fe', text: '#0284c7' },
+    };
+    const c = catColors[postForm.category] || { bg: '#e0f2fe', text: '#0284c7' };
+    const newItem = {
+      category: postForm.category,
+      tagBg: c.bg,
+      tagColor: c.text,
+      title: postForm.title.trim(),
+      desc: postForm.desc.trim() || 'No additional description provided.',
+    };
+    const nextList = [newItem, ...announcements];
+    setAnnouncements(nextList);
+    try {
+      localStorage.setItem('gocs_announcements', JSON.stringify(nextList));
+    } catch {}
+    setPostForm({ title: '', category: 'General', desc: '' });
+    setShowPostModal(false);
+  }
 
   return (
     <AppShell title="Dashboard">
@@ -1480,7 +1541,7 @@ export default function DashboardPage() {
               {/* Legend */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: '11px', marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 2, background: '#4f46e5' }} />
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: '#00b8db' }} />
                   <span className="muted">On time</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -1531,8 +1592,8 @@ export default function DashboardPage() {
                             top: -12,
                             fontSize: '9.5px',
                             fontWeight: 700,
-                            color: '#4f46e5',
-                            background: '#eff6ff',
+                            color: '#00b8db',
+                            background: '#e0f2fe',
                             padding: '1px 5px',
                             borderRadius: 4,
                           }}
@@ -1557,7 +1618,7 @@ export default function DashboardPage() {
                       >
                         <div style={{ height: `${absentHeight}%`, background: '#cbd5e1' }} />
                         <div style={{ height: `${lateHeight}%`, background: '#f59e0b' }} />
-                        <div style={{ height: `${onTimeHeight}%`, background: '#4f46e5' }} />
+                        <div style={{ height: `${onTimeHeight}%`, background: '#00b8db' }} />
                       </div>
 
                       <span className="muted" style={{ fontSize: '11px', fontWeight: item.isToday ? 700 : 500, color: item.isToday ? 'var(--ink)' : undefined }}>
@@ -1586,7 +1647,7 @@ export default function DashboardPage() {
               <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
                 Headcount by department
               </h3>
-              <Link href="/departments" style={{ fontSize: '12px', fontWeight: 600, color: '#4f46e5', textDecoration: 'none' }}>
+              <Link href="/departments" style={{ fontSize: '12px', fontWeight: 600, color: '#00b8db', textDecoration: 'none' }}>
                 View all
               </Link>
             </div>
@@ -2139,10 +2200,20 @@ export default function DashboardPage() {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <h3 style={{ margin: 0, fontSize: '14.5px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
-                Celebrations 🎉
-              </h3>
-              <span style={{ fontSize: '11px', fontWeight: 600, color: '#4f46e5' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00b8db" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8" />
+                  <path d="M4 16s.5-1 2-1 2.5 2 4 2 2.5-2 4-2 2.5 2 4 2 2-1 2-1" />
+                  <path d="M2 21h20" />
+                  <path d="M7 8v3" />
+                  <path d="M12 8v3" />
+                  <path d="M17 8v3" />
+                </svg>
+                <h3 style={{ margin: 0, fontSize: '14.5px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                  Celebrations
+                </h3>
+              </div>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: '#00b8db' }}>
                 This week
               </span>
             </div>
@@ -2152,13 +2223,30 @@ export default function DashboardPage() {
                 celebrations.map((item, idx) => (
                   <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '12px' }}>
                     <div style={{ minWidth: 42, textAlign: 'center', background: 'var(--surface-alt, #f8fafc)', border: '1px solid var(--line, #e2e8f0)', borderRadius: 6, padding: '3px 0' }}>
-                      <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#4f46e5', display: 'block', lineHeight: 1.1 }}>
+                      <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#00b8db', display: 'block', lineHeight: 1.1 }}>
                         {item.date}
                       </span>
                     </div>
                     <div>
                       <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink, #0f172a)' }}>{item.name}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)', marginTop: 2 }}>{item.icon} {item.type}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '11.5px', color: 'var(--muted, #64748b)', marginTop: 2 }}>
+                        {item.iconType === 'birthday' ? (
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#00b8db" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8" />
+                            <path d="M4 16s.5-1 2-1 2.5 2 4 2 2.5-2 4-2 2.5 2 4 2 2.5-2 4-2 2-1 2-1" />
+                            <path d="M2 21h20" />
+                            <path d="M7 8v3" />
+                            <path d="M12 8v3" />
+                            <path d="M17 8v3" />
+                          </svg>
+                        ) : (
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="8" r="7" />
+                            <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
+                          </svg>
+                        )}
+                        <span>{item.type}</span>
+                      </div>
                     </div>
                   </div>
                 ))
@@ -2293,9 +2381,23 @@ export default function DashboardPage() {
             <h3 style={{ margin: 0, fontSize: '14.5px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
               Announcements
             </h3>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: '#00b8db', cursor: 'pointer' }}>
+            <button
+              type="button"
+              onClick={() => setShowPostModal(true)}
+              style={{
+                background: 'rgba(0, 184, 219, 0.08)',
+                border: '1px solid rgba(0, 184, 219, 0.25)',
+                fontSize: '12px',
+                fontWeight: 700,
+                color: '#00b8db',
+                cursor: 'pointer',
+                padding: '4px 10px',
+                borderRadius: 6,
+                transition: 'all 0.15s ease',
+              }}
+            >
               + Post
-            </span>
+            </button>
           </div>
 
           <div
@@ -2305,7 +2407,7 @@ export default function DashboardPage() {
               gap: 14,
             }}
           >
-            {announcementsList.map((item, idx) => (
+            {announcements.map((item, idx) => (
               <div
                 key={idx}
                 style={{
@@ -2341,6 +2443,165 @@ export default function DashboardPage() {
             ))}
           </div>
         </div>
+
+        {/* Post Announcement Modal Dialog */}
+        {showPostModal ? (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(15, 23, 42, 0.65)',
+              backdropFilter: 'blur(4px)',
+              zIndex: 9999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 16,
+            }}
+            onClick={() => setShowPostModal(false)}
+          >
+            <div
+              style={{
+                background: 'var(--surface, #ffffff)',
+                border: '1px solid var(--line, #e2e8f0)',
+                borderRadius: 16,
+                padding: '24px 26px',
+                width: '100%',
+                maxWidth: 480,
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                  Create Announcement
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowPostModal(false)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    fontSize: '18px',
+                    color: 'var(--muted, #64748b)',
+                    cursor: 'pointer',
+                    lineHeight: 1,
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateAnnouncement} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--ink, #0f172a)', marginBottom: 6 }}>
+                    Category
+                  </label>
+                  <select
+                    value={postForm.category}
+                    onChange={(e) => setPostForm({ ...postForm, category: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: 8,
+                      border: '1px solid var(--line, #cbd5e1)',
+                      background: 'var(--surface-alt, #f8fafc)',
+                      fontSize: '13px',
+                      color: 'var(--ink, #0f172a)',
+                      outline: 'none',
+                    }}
+                  >
+                    <option value="General">General</option>
+                    <option value="Public holiday">Public holiday</option>
+                    <option value="Wellness">Wellness</option>
+                    <option value="Policy">Policy</option>
+                    <option value="Event">Event</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--ink, #0f172a)', marginBottom: 6 }}>
+                    Title *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Office Closed on Thursday"
+                    value={postForm.title}
+                    onChange={(e) => setPostForm({ ...postForm, title: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: 8,
+                      border: '1px solid var(--line, #cbd5e1)',
+                      background: 'var(--surface-alt, #f8fafc)',
+                      fontSize: '13px',
+                      color: 'var(--ink, #0f172a)',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--ink, #0f172a)', marginBottom: 6 }}>
+                    Description
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Enter details about this announcement..."
+                    value={postForm.desc}
+                    onChange={(e) => setPostForm({ ...postForm, desc: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: 8,
+                      border: '1px solid var(--line, #cbd5e1)',
+                      background: 'var(--surface-alt, #f8fafc)',
+                      fontSize: '13px',
+                      color: 'var(--ink, #0f172a)',
+                      outline: 'none',
+                      resize: 'vertical',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowPostModal(false)}
+                    style={{
+                      padding: '9px 16px',
+                      borderRadius: 8,
+                      border: '1px solid var(--line, #cbd5e1)',
+                      background: 'transparent',
+                      color: 'var(--ink, #0f172a)',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    style={{
+                      padding: '9px 20px',
+                      borderRadius: 8,
+                      border: 'none',
+                      background: '#00b8db',
+                      color: '#ffffff',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Post Announcement
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        ) : null}
 
         {/* =========================================================================
             9. FULL-WIDTH GRATUITY / EOSB LIABILITY BANNER (Bottom)

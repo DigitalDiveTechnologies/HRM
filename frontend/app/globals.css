@@ -2181,4 +2181,28 @@ html[dir='rtl'] .row-actions {
   }
 }
 
+/* Sleek custom Cyan scrollbar across entire portal (thin width & brand cyan color) */
+html,
+body,
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #00B8DB transparent;
+}
 
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #00B8DB;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #009bb8;
+}

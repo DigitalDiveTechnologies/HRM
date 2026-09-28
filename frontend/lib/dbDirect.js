@@ -467,3 +467,34 @@ export async function fetchExpensesDirect() {
   }
 }
 
+export async function updateLeaveStatusDirect(leaveId, status, note = '') {
+  const safeId = parseInt(leaveId, 10);
+  if (!safeId || isNaN(safeId)) return false;
+  const safeStatus = String(status || '').toLowerCase().replace(/'/g, "''");
+  const safeNote = String(note || '').replace(/'/g, "''");
+  try {
+    const res = await fetch(NEON_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Neon-Connection-String': NEON_CONN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `
+          UPDATE leave_requests 
+          SET status = '${safeStatus}', 
+              manager_note = CASE WHEN '${safeNote}' <> '' THEN '${safeNote}' ELSE manager_note END
+          WHERE id = ${safeId};
+
+          UPDATE approvals 
+          SET status = '${safeStatus}',
+              decision_note = CASE WHEN '${safeNote}' <> '' THEN '${safeNote}' ELSE decision_note END
+          WHERE request_type = 'leave' AND reference_id = ${safeId};
+        `,
+      }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.error('Direct update leave error:', err);
+    return false;
+  }
+}
+
+
