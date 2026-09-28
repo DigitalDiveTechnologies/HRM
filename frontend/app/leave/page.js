@@ -421,7 +421,13 @@ export default function LeavePage() {
   const [searchFilter, setSearchFilter] = useState('');
 
   const filteredLeaves = useMemo(() => {
+    const seenIds = new Set();
     return rows.filter((r) => {
+      const rid = String(v(r, 'id') || '');
+      if (rid) {
+        if (seenIds.has(rid)) return false;
+        seenIds.add(rid);
+      }
       const t = String(v(r, 'leaveType', 'leave_type') || '').toLowerCase();
       const s = String(v(r, 'status') || '').toLowerCase();
       const name = String(v(r, 'fullName', 'full_name') || '').toLowerCase();
@@ -1433,8 +1439,8 @@ export default function LeavePage() {
                             </button>
                           </div>
                         ) : (
-                          <span style={{ fontSize: '12px', fontWeight: 600, color: '#008fa8' }}>
-                            {isSelected ? '● Viewing' : 'View Details →'}
+                          <span style={{ fontSize: '12px', fontWeight: isSelected ? 700 : 500, color: '#008fa8' }}>
+                            View Details →
                           </span>
                         )}
                       </td>

@@ -37,7 +37,7 @@ export async function fetchDivisionsDirect() {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        query: `SELECT id, code, name, payroll_type, status, created_at, (SELECT COUNT(id)::int FROM employees WHERE division_id = divisions.id AND status != 'exited') AS employee_count FROM divisions ORDER BY created_at DESC NULLS LAST, id DESC;`,
+        query: `SELECT id, code, name, payroll_type, status, created_at, logo_url, (SELECT COUNT(id)::int FROM employees WHERE division_id = divisions.id AND status != 'exited') AS employee_count FROM divisions ORDER BY created_at DESC NULLS LAST, id DESC;`,
       }),
     });
     if (!res.ok) return null;
@@ -45,6 +45,55 @@ export async function fetchDivisionsDirect() {
     return data?.rows || null;
   } catch (err) {
     console.error('Direct divisions fetch error:', err);
+    return null;
+  }
+}
+
+export async function updateCompanyDirect(id, name, logoUrl) {
+  const safeId = parseInt(id, 10);
+  if (!safeId || isNaN(safeId)) return false;
+  const safeName = String(name || '').replace(/'/g, "''").trim();
+  const safeLogo = logoUrl ? `'${String(logoUrl).replace(/'/g, "''")}'` : 'NULL';
+  try {
+    const res = await fetch(NEON_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Neon-Connection-String': NEON_CONN,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query: `UPDATE divisions SET name = '${safeName}', logo_url = ${safeLogo} WHERE id = ${safeId};`,
+      }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.error('Error updating company in DB:', err);
+    return false;
+  }
+}
+
+export async function createCompanyDirect(name, logoUrl = null) {
+  const safeName = String(name || '').replace(/'/g, "''").trim();
+  const safeCode = (safeName.slice(0, 4).toUpperCase().replace(/[^A-Z0-9]/g, '') || 'COMP') + Math.floor(100 + Math.random() * 900);
+  const safeLogo = logoUrl ? `'${String(logoUrl).replace(/'/g, "''")}'` : 'NULL';
+  try {
+    const res = await fetch(NEON_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Neon-Connection-String': NEON_CONN,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query: `INSERT INTO divisions (code, name, payroll_type, status, logo_url) 
+                VALUES ('${safeCode}', '${safeName}', 'wps', 'active', ${safeLogo}) 
+                RETURNING id, code, name, payroll_type, status, created_at, logo_url;`,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.rows?.[0] || null;
+  } catch (err) {
+    console.error('Error creating company in DB:', err);
     return null;
   }
 }

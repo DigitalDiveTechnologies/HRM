@@ -7,8 +7,10 @@ import AppShell from '../../components/AppShell';
 import { api, getPermissions, getUser, normalizeRole } from '../../lib/auth';
 import { formatDate, formatDateTime, formatLate, v } from '../../lib/format';
 import { canUseAnyPermission, canUsePermission } from '../../lib/nav';
-import { fetchEmployeesDirect, fetchDivisionsDirect, updateLeaveStatusDirect } from '../../lib/dbDirect';
+import { fetchEmployeesDirect, fetchDivisionsDirect, updateLeaveStatusDirect, updateCompanyDirect, createCompanyDirect } from '../../lib/dbDirect';
 import { writeEmployeesCache } from '../../lib/employeeCache';
+import { upsertCompanyInCache, writeCompaniesCache } from '../../lib/companyCache';
+import { LOGO_ACCEPT, readLogoFileAsDataUrl, validateLogoFile } from '../../lib/logoUpload';
 
 const COMPANY_PERMS = [
   'company.create',
@@ -26,6 +28,24 @@ function sortCompaniesLatest(list) {
     if (timeB !== timeA) return timeB - timeA;
     return (Number(b?.id || 0) || 0) - (Number(a?.id || 0) || 0);
   });
+}
+
+function getLocalDateStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function getLocalDateStrFrom(d) {
+  if (!d) return '';
+  const dateObj = typeof d === 'string' ? new Date(d) : d;
+  if (isNaN(dateObj.getTime())) return '';
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 const AVATAR_PALETTE = [
@@ -435,7 +455,7 @@ export default function DashboardPage() {
     ? filteredEmployees.length
     : Math.max(Number(data?.headcount || 0), employees.length);
 
-  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const todayStr = useMemo(() => getLocalDateStr(), []);
 
   const todayAttendanceRecords = useMemo(() => {
     return (filteredAttendanceList || []).filter((a) => {
@@ -563,8 +583,8 @@ export default function DashboardPage() {
     return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map((dayName, idx) => {
       const d = new Date(monday);
       d.setDate(monday.getDate() + idx);
-      const isoDate = d.toISOString().slice(0, 10);
-      const isToday = isoDate === now.toISOString().slice(0, 10);
+      const isoDate = getLocalDateStrFrom(d);
+      const isToday = isoDate === getLocalDateStr();
 
       const dayRecords = (filteredAttendanceList || []).filter(
         (a) => String(v(a, 'workDate', 'work_date') || '').slice(0, 10) === isoDate
@@ -655,7 +675,7 @@ export default function DashboardPage() {
   // Dynamic Who is on leave
   const employeesOnLeave = useMemo(() => {
     const list = [];
-    const nowIso = new Date().toISOString().slice(0, 10);
+    const nowIso = getLocalDateStr();
 
     (filteredLeaves || []).forEach((l) => {
       const st = String(v(l, 'status') || '').toLowerCase();
@@ -866,17 +886,29 @@ export default function DashboardPage() {
     desc: '',
   });
 
+  // Edit / Delete Announcements
+  const [editingAnnouncementIndex, setEditingAnnouncementIndex] = useState(null);
+  const [editAnnouncementForm, setEditAnnouncementForm] = useState({
+    title: '',
+    category: 'General',
+    desc: '',
+  });
+
+  function getCategoryColor(cat) {
+    const map = {
+      'Public holiday': { bg: '#eff6ff', text: '#2563eb', border: 'rgba(37,99,235,0.2)' },
+      Wellness: { bg: '#ecfdf5', text: '#059669', border: 'rgba(5,150,105,0.2)' },
+      Policy: { bg: '#fffbeb', text: '#d97706', border: 'rgba(217,119,6,0.2)' },
+      Event: { bg: '#f5f3ff', text: '#7c3aed', border: 'rgba(124,58,237,0.2)' },
+      General: { bg: '#e0f2fe', text: '#0284c7', border: 'rgba(2,132,199,0.2)' },
+    };
+    return map[cat] || { bg: '#e0f2fe', text: '#0284c7', border: 'rgba(2,132,199,0.2)' };
+  }
+
   function handleCreateAnnouncement(e) {
     if (e && e.preventDefault) e.preventDefault();
     if (!postForm.title.trim()) return;
-    const catColors = {
-      'Public holiday': { bg: '#eff6ff', text: '#2563eb' },
-      Wellness: { bg: '#ecfdf5', text: '#059669' },
-      Policy: { bg: '#fffbeb', text: '#d97706' },
-      Event: { bg: '#f5f3ff', text: '#7c3aed' },
-      General: { bg: '#e0f2fe', text: '#0284c7' },
-    };
-    const c = catColors[postForm.category] || { bg: '#e0f2fe', text: '#0284c7' };
+    const c = getCategoryColor(postForm.category);
     const newItem = {
       category: postForm.category,
       tagBg: c.bg,
@@ -891,6 +923,136 @@ export default function DashboardPage() {
     } catch {}
     setPostForm({ title: '', category: 'General', desc: '' });
     setShowPostModal(false);
+  }
+
+  function handleDeleteAnnouncement(idx) {
+    if (!window.confirm('Are you sure you want to delete this announcement?')) return;
+    const nextList = announcements.filter((_, i) => i !== idx);
+    setAnnouncements(nextList);
+    try {
+      localStorage.setItem('gocs_announcements', JSON.stringify(nextList));
+    } catch {}
+  }
+
+  function handleOpenEditAnnouncement(item, idx) {
+    setEditingAnnouncementIndex(idx);
+    setEditAnnouncementForm({
+      title: item.title || '',
+      category: item.category || 'General',
+      desc: item.desc || '',
+    });
+  }
+
+  function handleSaveEditAnnouncement(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (editingAnnouncementIndex === null) return;
+    if (!editAnnouncementForm.title.trim()) return;
+
+    const c = getCategoryColor(editAnnouncementForm.category);
+    const nextList = announcements.map((item, i) => {
+      if (i === editingAnnouncementIndex) {
+        return {
+          category: editAnnouncementForm.category,
+          tagBg: c.bg,
+          tagColor: c.text,
+          title: editAnnouncementForm.title.trim(),
+          desc: editAnnouncementForm.desc.trim() || 'No additional description provided.',
+        };
+      }
+      return item;
+    });
+
+    setAnnouncements(nextList);
+    try {
+      localStorage.setItem('gocs_announcements', JSON.stringify(nextList));
+    } catch {}
+    setEditingAnnouncementIndex(null);
+  }
+
+  // Company management state
+  const [companyPage, setCompanyPage] = useState(1);
+  const [showAddCompanyModal, setShowAddCompanyModal] = useState(false);
+  const [newCompanyForm, setNewCompanyForm] = useState({ name: '', logoUrl: '' });
+  const [addCompanyError, setAddCompanyError] = useState('');
+  const [addCompanySaving, setAddCompanySaving] = useState(false);
+
+  const [editingCompany, setEditingCompany] = useState(null); // { id, name, logoUrl }
+  const [editCompanyError, setEditCompanyError] = useState('');
+  const [editCompanySaving, setEditCompanySaving] = useState(false);
+
+  async function handleCreateCompanySubmit(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!newCompanyForm.name.trim()) return;
+    setAddCompanyError('');
+    setAddCompanySaving(true);
+    try {
+      let created = null;
+      try {
+        created = await api('/divisions', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: newCompanyForm.name.trim(),
+            payrollType: 'wps',
+            logoUrl: newCompanyForm.logoUrl || null,
+          }),
+        });
+      } catch (apiErr) {
+        created = await createCompanyDirect(newCompanyForm.name.trim(), newCompanyForm.logoUrl || null);
+        if (!created) throw apiErr;
+      }
+
+      if (created) {
+        const nextCompanies = sortCompaniesLatest([created, ...companies]);
+        setCompanies(nextCompanies);
+        upsertCompanyInCache(created, nextCompanies);
+        writeCompaniesCache(nextCompanies);
+        try {
+          window.dispatchEvent(new Event('gocs_company_changed'));
+        } catch {}
+      }
+      setNewCompanyForm({ name: '', logoUrl: '' });
+      setShowAddCompanyModal(false);
+    } catch (err) {
+      setAddCompanyError(err.message || 'Failed to create company');
+    } finally {
+      setAddCompanySaving(false);
+    }
+  }
+
+  async function handleEditCompanySubmit(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!editingCompany || !editingCompany.name.trim()) return;
+    setEditCompanyError('');
+    setEditCompanySaving(true);
+    const targetId = editingCompany.id;
+    const targetName = editingCompany.name.trim();
+    const targetLogo = editingCompany.logoUrl || null;
+
+    try {
+      await updateCompanyDirect(targetId, targetName, targetLogo);
+      await api(`/divisions/${targetId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: targetName, logoUrl: targetLogo }),
+      }).catch(() => {});
+
+      const nextCompanies = companies.map((c) => {
+        if (String(v(c, 'id')) === String(targetId)) {
+          return { ...c, name: targetName, logo_url: targetLogo, logoUrl: targetLogo };
+        }
+        return c;
+      });
+      setCompanies(nextCompanies);
+      writeCompaniesCache(nextCompanies);
+      try {
+        window.dispatchEvent(new Event('gocs_company_changed'));
+      } catch {}
+
+      setEditingCompany(null);
+    } catch (err) {
+      setEditCompanyError(err.message || 'Failed to update company');
+    } finally {
+      setEditCompanySaving(false);
+    }
   }
 
   return (
@@ -2320,86 +2482,470 @@ export default function DashboardPage() {
         </div>
 
         {/* =========================================================================
-            8. BOTTOM ROW: Announcements Card (+ Post)
+            8. BOTTOM ROW: Announcements Card + Companies Card (Side by Side)
            ========================================================================= */}
         <div
-          className="admin-card-hover"
           style={{
-            background: 'var(--surface, #ffffff)',
-            border: '1px solid var(--line, #e2e8f0)',
-            borderRadius: 12,
-            padding: '20px 22px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+            gap: 16,
+            alignItems: 'start',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <h3 style={{ margin: 0, fontSize: '14.5px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
-              Announcements
-            </h3>
-            <button
-              type="button"
-              onClick={() => setShowPostModal(true)}
-              style={{
-                background: 'rgba(0, 184, 219, 0.08)',
-                border: '1px solid rgba(0, 184, 219, 0.25)',
-                fontSize: '12px',
-                fontWeight: 700,
-                color: '#00b8db',
-                cursor: 'pointer',
-                padding: '4px 10px',
-                borderRadius: 6,
-                transition: 'all 0.15s ease',
-              }}
-            >
-              + Post
-            </button>
-          </div>
-
+          {/* Card A: Announcements Card (+ Post, Edit, Delete, Pure White Items) */}
           <div
+            className="admin-card-hover"
             style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-              gap: 14,
+              background: 'var(--surface, #ffffff)',
+              border: '1px solid var(--line, #e2e8f0)',
+              borderRadius: 12,
+              padding: '20px 22px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 380,
             }}
           >
-            {announcements.map((item, idx) => (
-              <div
-                key={idx}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#00b8db" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+                <h3 style={{ margin: 0, fontSize: '14.5px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                  Announcements
+                </h3>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#00b8db', background: 'rgba(0, 184, 219, 0.1)', padding: '2px 7px', borderRadius: 999 }}>
+                  {announcements.length}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPostModal(true)}
                 style={{
-                  padding: '14px 16px',
-                  borderRadius: 10,
-                  border: '1px solid var(--line, #f1f5f9)',
-                  background: 'var(--surface-alt, #fafbfc)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 6,
+                  background: 'rgba(0, 184, 219, 0.08)',
+                  border: '1px solid rgba(0, 184, 219, 0.25)',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: '#00b8db',
+                  cursor: 'pointer',
+                  padding: '5px 12px',
+                  borderRadius: 7,
+                  transition: 'all 0.15s ease',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
                 }}
               >
-                <span
+                <span style={{ fontSize: '14px', lineHeight: 1 }}>+</span> Post
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, maxHeight: 420, overflowY: 'auto' }}>
+              {announcements.length > 0 ? (
+                announcements.map((item, idx) => {
+                  const c = getCategoryColor(item.category);
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '14px 16px',
+                        borderRadius: 10,
+                        border: '1px solid var(--line, #e2e8f0)',
+                        background: 'var(--surface, #ffffff)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 6,
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                        transition: 'all 0.2s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'none';
+                        e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.02)';
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span
+                          style={{
+                            fontSize: '10.5px',
+                            fontWeight: 700,
+                            background: item.tagBg || c.bg,
+                            color: item.tagColor || c.text,
+                            border: `1px solid ${c.border}`,
+                            padding: '2.5px 8px',
+                            borderRadius: 5,
+                            letterSpacing: '0.02em',
+                          }}
+                        >
+                          {item.category}
+                        </span>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditAnnouncement(item, idx)}
+                            title="Edit announcement"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: 'var(--muted, #64748b)',
+                              cursor: 'pointer',
+                              padding: '4px',
+                              borderRadius: 4,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'color 0.15s ease',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.color = '#00b8db';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.color = 'var(--muted, #64748b)';
+                            }}
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAnnouncement(idx)}
+                            title="Delete announcement"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: 'var(--muted, #64748b)',
+                              cursor: 'pointer',
+                              padding: '4px',
+                              borderRadius: 4,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'color 0.15s ease',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.color = '#ef4444';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.color = 'var(--muted, #64748b)';
+                            }}
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                        {item.title}
+                      </span>
+                      <p className="muted" style={{ margin: 0, fontSize: '12px', lineHeight: 1.45, color: 'var(--muted, #64748b)' }}>
+                        {item.desc}
+                      </p>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="muted" style={{ textAlign: 'center', padding: '36px 0', fontSize: '12px' }}>
+                  No announcements posted yet.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Card B: Companies Card (Logo / Avatar fallback, Edit name & logo, Add Company, Pagination) */}
+          <div
+            className="admin-card-hover"
+            style={{
+              background: 'var(--surface, #ffffff)',
+              border: '1px solid var(--line, #e2e8f0)',
+              borderRadius: 12,
+              padding: '20px 22px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 380,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#00b8db" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 21h18" />
+                  <path d="M9 8h1" />
+                  <path d="M9 12h1" />
+                  <path d="M9 16h1" />
+                  <path d="M14 8h1" />
+                  <path d="M14 12h1" />
+                  <path d="M14 16h1" />
+                  <path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16" />
+                </svg>
+                <h3 style={{ margin: 0, fontSize: '14.5px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                  Companies
+                </h3>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#00b8db', background: 'rgba(0, 184, 219, 0.1)', padding: '2px 7px', borderRadius: 999 }}>
+                  {companies.length}
+                </span>
+              </div>
+
+              {canCompanies ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewCompanyForm({ name: '', logoUrl: '' });
+                    setAddCompanyError('');
+                    setShowAddCompanyModal(true);
+                  }}
                   style={{
-                    alignSelf: 'flex-start',
-                    fontSize: '10.5px',
+                    background: 'rgba(0, 184, 219, 0.08)',
+                    border: '1px solid rgba(0, 184, 219, 0.25)',
+                    fontSize: '12px',
                     fontWeight: 700,
-                    background: item.tagBg,
-                    color: item.tagColor,
-                    padding: '2px 7px',
-                    borderRadius: 4,
+                    color: '#00b8db',
+                    cursor: 'pointer',
+                    padding: '5px 12px',
+                    borderRadius: 7,
+                    transition: 'all 0.15s ease',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
                   }}
                 >
-                  {item.category}
+                  <span style={{ fontSize: '14px', lineHeight: 1 }}>+</span> Add Company
+                </button>
+              ) : null}
+            </div>
+
+            {/* Companies Paginated List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, maxHeight: 420, overflowY: 'auto' }}>
+              {(() => {
+                const COMPANIES_PER_PAGE = 10;
+                const totalCompanyPages = Math.ceil(companies.length / COMPANIES_PER_PAGE) || 1;
+                const startIdx = (companyPage - 1) * COMPANIES_PER_PAGE;
+                const pageCompanies = companies.slice(startIdx, startIdx + COMPANIES_PER_PAGE);
+
+                if (companies.length === 0) {
+                  return (
+                    <div className="muted" style={{ textAlign: 'center', padding: '36px 0', fontSize: '12px' }}>
+                      No companies found.
+                    </div>
+                  );
+                }
+
+                return pageCompanies.map((comp, idx) => {
+                  const compName = comp.name || 'Unnamed Company';
+                  const compLogo = comp.logo_url || comp.logoUrl;
+                  const empCount = comp.employee_count;
+                  const compCode = comp.code || '';
+
+                  return (
+                    <div
+                      key={comp.id || idx}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 12px',
+                        borderRadius: 9,
+                        border: '1px solid var(--line, #f1f5f9)',
+                        background: 'var(--surface, #ffffff)',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'var(--surface-alt, #f8fafc)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'var(--surface, #ffffff)';
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                        {compLogo ? (
+                          <img
+                            src={compLogo}
+                            alt={compName}
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 7,
+                              objectFit: 'contain',
+                              background: '#ffffff',
+                              border: '1px solid var(--line, #e2e8f0)',
+                              flexShrink: 0,
+                            }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 7,
+                              background: getAvatarColor(compName, idx),
+                              color: '#ffffff',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: 700,
+                              fontSize: '11px',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {getInitials(compName)}
+                          </div>
+                        )}
+                        <div style={{ minWidth: 0 }}>
+                          <div
+                            style={{
+                              fontWeight: 600,
+                              fontSize: '12.5px',
+                              color: 'var(--ink, #0f172a)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {compName}
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)', marginTop: 1 }}>
+                            {compCode ? `${compCode} · ` : ''}{empCount !== undefined ? `${empCount} employees` : 'Active'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {canCompanies ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingCompany({
+                              id: comp.id,
+                              name: comp.name || '',
+                              logoUrl: comp.logo_url || comp.logoUrl || '',
+                            });
+                            setEditCompanyError('');
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            padding: '4px 9px',
+                            borderRadius: 6,
+                            border: '1px solid var(--line, #cbd5e1)',
+                            background: 'var(--surface-alt, #f8fafc)',
+                            color: 'var(--ink, #0f172a)',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            flexShrink: 0,
+                            transition: 'all 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = '#00b8db';
+                            e.currentTarget.style.color = '#00b8db';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = 'var(--line, #cbd5e1)';
+                            e.currentTarget.style.color = 'var(--ink, #0f172a)';
+                          }}
+                          title="Edit company name or logo"
+                        >
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                          Edit
+                        </button>
+                      ) : null}
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+
+            {/* Pagination Controls */}
+            {companies.length > 10 ? (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginTop: 12,
+                  paddingTop: 10,
+                  borderTop: '1px solid var(--line, #e2e8f0)',
+                  fontSize: '11.5px',
+                  color: 'var(--muted, #64748b)',
+                }}
+              >
+                <span>
+                  Showing {Math.min((companyPage - 1) * 10 + 1, companies.length)}–{Math.min(companyPage * 10, companies.length)} of {companies.length}
                 </span>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
-                  {item.title}
-                </span>
-                <p className="muted" style={{ margin: 0, fontSize: '12px', lineHeight: 1.45 }}>
-                  {item.desc}
-                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <button
+                    type="button"
+                    disabled={companyPage <= 1}
+                    onClick={() => setCompanyPage((p) => Math.max(1, p - 1))}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: 5,
+                      border: '1px solid var(--line, #cbd5e1)',
+                      background: companyPage <= 1 ? 'var(--surface-alt, #f1f5f9)' : 'var(--surface, #ffffff)',
+                      color: companyPage <= 1 ? 'var(--muted, #94a3b8)' : 'var(--ink, #0f172a)',
+                      cursor: companyPage <= 1 ? 'not-allowed' : 'pointer',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    ‹
+                  </button>
+                  {Array.from({ length: Math.ceil(companies.length / 10) || 1 }, (_, i) => i + 1).map((pg) => (
+                    <button
+                      key={pg}
+                      type="button"
+                      onClick={() => setCompanyPage(pg)}
+                      style={{
+                        padding: '3px 8px',
+                        borderRadius: 5,
+                        border: pg === companyPage ? '1px solid #00b8db' : '1px solid var(--line, #cbd5e1)',
+                        background: pg === companyPage ? '#00b8db' : 'var(--surface, #ffffff)',
+                        color: pg === companyPage ? '#ffffff' : 'var(--ink, #0f172a)',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {pg}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    disabled={companyPage >= Math.ceil(companies.length / 10)}
+                    onClick={() => setCompanyPage((p) => Math.min(Math.ceil(companies.length / 10), p + 1))}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: 5,
+                      border: '1px solid var(--line, #cbd5e1)',
+                      background: companyPage >= Math.ceil(companies.length / 10) ? 'var(--surface-alt, #f1f5f9)' : 'var(--surface, #ffffff)',
+                      color: companyPage >= Math.ceil(companies.length / 10) ? 'var(--muted, #94a3b8)' : 'var(--ink, #0f172a)',
+                      cursor: companyPage >= Math.ceil(companies.length / 10) ? 'not-allowed' : 'pointer',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    ›
+                  </button>
+                </div>
               </div>
-            ))}
+            ) : null}
           </div>
         </div>
 
-        {/* Post Announcement Modal Dialog */}
+        {/* Modal 1: Post Announcement Modal Dialog */}
         {showPostModal ? (
           <div
             style={{
@@ -2551,6 +3097,503 @@ export default function DashboardPage() {
                     }}
                   >
                     Post Announcement
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        ) : null}
+
+        {/* Modal 2: Edit Announcement Modal Dialog */}
+        {editingAnnouncementIndex !== null ? (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(15, 23, 42, 0.65)',
+              backdropFilter: 'blur(4px)',
+              zIndex: 9999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 16,
+            }}
+            onClick={() => setEditingAnnouncementIndex(null)}
+          >
+            <div
+              style={{
+                background: 'var(--surface, #ffffff)',
+                border: '1px solid var(--line, #e2e8f0)',
+                borderRadius: 16,
+                padding: '24px 26px',
+                width: '100%',
+                maxWidth: 480,
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                  Edit Announcement
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setEditingAnnouncementIndex(null)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    fontSize: '18px',
+                    color: 'var(--muted, #64748b)',
+                    cursor: 'pointer',
+                    lineHeight: 1,
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEditAnnouncement} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--ink, #0f172a)', marginBottom: 6 }}>
+                    Category
+                  </label>
+                  <select
+                    value={editAnnouncementForm.category}
+                    onChange={(e) => setEditAnnouncementForm({ ...editAnnouncementForm, category: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: 8,
+                      border: '1px solid var(--line, #cbd5e1)',
+                      background: 'var(--surface-alt, #f8fafc)',
+                      fontSize: '13px',
+                      color: 'var(--ink, #0f172a)',
+                      outline: 'none',
+                    }}
+                  >
+                    <option value="General">General</option>
+                    <option value="Public holiday">Public holiday</option>
+                    <option value="Wellness">Wellness</option>
+                    <option value="Policy">Policy</option>
+                    <option value="Event">Event</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--ink, #0f172a)', marginBottom: 6 }}>
+                    Title *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editAnnouncementForm.title}
+                    onChange={(e) => setEditAnnouncementForm({ ...editAnnouncementForm, title: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: 8,
+                      border: '1px solid var(--line, #cbd5e1)',
+                      background: 'var(--surface-alt, #f8fafc)',
+                      fontSize: '13px',
+                      color: 'var(--ink, #0f172a)',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--ink, #0f172a)', marginBottom: 6 }}>
+                    Description
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={editAnnouncementForm.desc}
+                    onChange={(e) => setEditAnnouncementForm({ ...editAnnouncementForm, desc: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: 8,
+                      border: '1px solid var(--line, #cbd5e1)',
+                      background: 'var(--surface-alt, #f8fafc)',
+                      fontSize: '13px',
+                      color: 'var(--ink, #0f172a)',
+                      outline: 'none',
+                      resize: 'vertical',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setEditingAnnouncementIndex(null)}
+                    style={{
+                      padding: '9px 16px',
+                      borderRadius: 8,
+                      border: '1px solid var(--line, #cbd5e1)',
+                      background: 'transparent',
+                      color: 'var(--ink, #0f172a)',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    style={{
+                      padding: '9px 20px',
+                      borderRadius: 8,
+                      border: 'none',
+                      background: '#00b8db',
+                      color: '#ffffff',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        ) : null}
+
+        {/* Modal 3: Add Company Modal Dialog */}
+        {showAddCompanyModal ? (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(15, 23, 42, 0.65)',
+              backdropFilter: 'blur(4px)',
+              zIndex: 9999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 16,
+            }}
+            onClick={() => setShowAddCompanyModal(false)}
+          >
+            <div
+              style={{
+                background: 'var(--surface, #ffffff)',
+                border: '1px solid var(--line, #e2e8f0)',
+                borderRadius: 16,
+                padding: '24px 26px',
+                width: '100%',
+                maxWidth: 480,
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                  Add New Company
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowAddCompanyModal(false)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    fontSize: '18px',
+                    color: 'var(--muted, #64748b)',
+                    cursor: 'pointer',
+                    lineHeight: 1,
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {addCompanyError ? (
+                <div style={{ background: '#fee2e2', border: '1px solid #f87171', color: '#991b1b', padding: '8px 12px', borderRadius: 8, fontSize: '12px', marginBottom: 14 }}>
+                  {addCompanyError}
+                </div>
+              ) : null}
+
+              <form onSubmit={handleCreateCompanySubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--ink, #0f172a)', marginBottom: 6 }}>
+                    Company Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Alkidma Global"
+                    value={newCompanyForm.name}
+                    onChange={(e) => setNewCompanyForm({ ...newCompanyForm, name: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: 8,
+                      border: '1px solid var(--line, #cbd5e1)',
+                      background: 'var(--surface-alt, #f8fafc)',
+                      fontSize: '13px',
+                      color: 'var(--ink, #0f172a)',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--ink, #0f172a)', marginBottom: 6 }}>
+                    Company Logo (Optional, PNG/JPG, Max 5MB)
+                  </label>
+                  <input
+                    type="file"
+                    accept={LOGO_ACCEPT}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      if (!file) return;
+                      try {
+                        const dataUrl = await readLogoFileAsDataUrl(file);
+                        setNewCompanyForm((prev) => ({ ...prev, logoUrl: dataUrl }));
+                        setAddCompanyError('');
+                      } catch (err) {
+                        setAddCompanyError(err.message || 'Invalid logo file.');
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      fontSize: '12px',
+                      color: 'var(--ink, #0f172a)',
+                    }}
+                  />
+                  {newCompanyForm.logoUrl ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+                      <img
+                        src={newCompanyForm.logoUrl}
+                        alt="Logo Preview"
+                        style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'contain', border: '1px solid var(--line, #cbd5e1)', background: '#ffffff' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setNewCompanyForm((prev) => ({ ...prev, logoUrl: '' }))}
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid var(--line, #cbd5e1)',
+                          borderRadius: 6,
+                          padding: '4px 8px',
+                          fontSize: '11px',
+                          color: '#ef4444',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Remove Logo
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddCompanyModal(false)}
+                    style={{
+                      padding: '9px 16px',
+                      borderRadius: 8,
+                      border: '1px solid var(--line, #cbd5e1)',
+                      background: 'transparent',
+                      color: 'var(--ink, #0f172a)',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={addCompanySaving}
+                    style={{
+                      padding: '9px 20px',
+                      borderRadius: 8,
+                      border: 'none',
+                      background: '#00b8db',
+                      color: '#ffffff',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      cursor: addCompanySaving ? 'not-allowed' : 'pointer',
+                      opacity: addCompanySaving ? 0.7 : 1,
+                    }}
+                  >
+                    {addCompanySaving ? 'Creating…' : 'Create Company'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        ) : null}
+
+        {/* Modal 4: Edit Company Modal Dialog (Edit name & logo only, per user requirement) */}
+        {editingCompany ? (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(15, 23, 42, 0.65)',
+              backdropFilter: 'blur(4px)',
+              zIndex: 9999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 16,
+            }}
+            onClick={() => setEditingCompany(null)}
+          >
+            <div
+              style={{
+                background: 'var(--surface, #ffffff)',
+                border: '1px solid var(--line, #e2e8f0)',
+                borderRadius: 16,
+                padding: '24px 26px',
+                width: '100%',
+                maxWidth: 480,
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                  Edit Company
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setEditingCompany(null)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    fontSize: '18px',
+                    color: 'var(--muted, #64748b)',
+                    cursor: 'pointer',
+                    lineHeight: 1,
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="muted" style={{ margin: '0 0 16px', fontSize: '12px', color: 'var(--muted, #64748b)' }}>
+                Update company name and branding logo.
+              </p>
+
+              {editCompanyError ? (
+                <div style={{ background: '#fee2e2', border: '1px solid #f87171', color: '#991b1b', padding: '8px 12px', borderRadius: 8, fontSize: '12px', marginBottom: 14 }}>
+                  {editCompanyError}
+                </div>
+              ) : null}
+
+              <form onSubmit={handleEditCompanySubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--ink, #0f172a)', marginBottom: 6 }}>
+                    Company Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editingCompany.name}
+                    onChange={(e) => setEditingCompany({ ...editingCompany, name: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      borderRadius: 8,
+                      border: '1px solid var(--line, #cbd5e1)',
+                      background: 'var(--surface-alt, #f8fafc)',
+                      fontSize: '13px',
+                      color: 'var(--ink, #0f172a)',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--ink, #0f172a)', marginBottom: 6 }}>
+                    Company Logo (PNG/JPG, Max 5MB)
+                  </label>
+                  <input
+                    type="file"
+                    accept={LOGO_ACCEPT}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      if (!file) return;
+                      try {
+                        const dataUrl = await readLogoFileAsDataUrl(file);
+                        setEditingCompany((prev) => ({ ...prev, logoUrl: dataUrl }));
+                        setEditCompanyError('');
+                      } catch (err) {
+                        setEditCompanyError(err.message || 'Invalid logo file.');
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      fontSize: '12px',
+                      color: 'var(--ink, #0f172a)',
+                    }}
+                  />
+                  {editingCompany.logoUrl ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+                      <img
+                        src={editingCompany.logoUrl}
+                        alt="Logo Preview"
+                        style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'contain', border: '1px solid var(--line, #cbd5e1)', background: '#ffffff' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEditingCompany((prev) => ({ ...prev, logoUrl: '' }))}
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid var(--line, #cbd5e1)',
+                          borderRadius: 6,
+                          padding: '4px 8px',
+                          fontSize: '11px',
+                          color: '#ef4444',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Remove Logo
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setEditingCompany(null)}
+                    style={{
+                      padding: '9px 16px',
+                      borderRadius: 8,
+                      border: '1px solid var(--line, #cbd5e1)',
+                      background: 'transparent',
+                      color: 'var(--ink, #0f172a)',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editCompanySaving}
+                    style={{
+                      padding: '9px 20px',
+                      borderRadius: 8,
+                      border: 'none',
+                      background: '#00b8db',
+                      color: '#ffffff',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      cursor: editCompanySaving ? 'not-allowed' : 'pointer',
+                      opacity: editCompanySaving ? 0.7 : 1,
+                    }}
+                  >
+                    {editCompanySaving ? 'Saving…' : 'Save Changes'}
                   </button>
                 </div>
               </form>
