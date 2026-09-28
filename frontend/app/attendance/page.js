@@ -223,7 +223,6 @@ export default function AttendancePage() {
               <tr>
                 <th>Date</th>
                 <th>Employee</th>
-                <th>Shift</th>
                 <th>Check In</th>
                 <th>Check Out</th>
                 <th>OT</th>
@@ -249,9 +248,6 @@ export default function AttendancePage() {
                           {v(r, 'empCode', 'emp_code')}
                         </div>
                       ) : null}
-                    </td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      {v(r, 'shiftName', 'shift_name') || 'General'}
                     </td>
                     <td>
                       {inTime ? (
@@ -323,7 +319,7 @@ export default function AttendancePage() {
 
               {!paginatedRows.length ? (
                 <tr>
-                  <td colSpan={8} className="muted" style={{ textAlign: 'center', padding: '36px 0' }}>
+                  <td colSpan={7} className="muted" style={{ textAlign: 'center', padding: '36px 0' }}>
                     No attendance records found for current selection.
                   </td>
                 </tr>
@@ -501,7 +497,7 @@ export default function AttendancePage() {
             </div>
 
             <p className="muted" style={{ margin: '0 0 16px', fontSize: '12.5px' }}>
-              Record daily employee attendance, work hours, shift schedule, and overtime punch.
+              Record daily employee attendance, work hours, and overtime punch.
             </p>
 
             <form className="stack" onSubmit={onSave} style={{ gap: 13 }}>
@@ -553,16 +549,6 @@ export default function AttendancePage() {
                     onChange={(e) => setForm({ ...form, checkOut: e.target.value })}
                   />
                 </div>
-              </div>
-
-              <div className="field">
-                <label>Shift</label>
-                <select value={form.shiftName} onChange={(e) => setForm({ ...form, shiftName: e.target.value })}>
-                  <option value="General">General (09–18)</option>
-                  <option value="Morning">Morning (07–16)</option>
-                  <option value="Evening">Evening (12–21)</option>
-                  <option value="Night">Night (21–06)</option>
-                </select>
               </div>
 
               <div className="field">
