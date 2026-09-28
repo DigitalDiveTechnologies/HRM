@@ -28,6 +28,41 @@ function sortCompaniesLatest(list) {
   });
 }
 
+const AVATAR_PALETTE = [
+  '#0284c7', // Sky Cyan (YA)
+  '#e11d48', // Magenta / Rose (EL)
+  '#7c3aed', // Purple (AS)
+  '#ea580c', // Warm Orange (HM)
+  '#059669', // Emerald
+  '#d97706', // Amber
+  '#4f46e5', // Indigo
+  '#0891b2', // Deep Teal
+  '#db2777', // Hot Pink
+  '#2563eb', // Royal Blue
+];
+
+function getAvatarColor(name, index) {
+  if (typeof index === 'number') {
+    return AVATAR_PALETTE[index % AVATAR_PALETTE.length];
+  }
+  if (!name || typeof name !== 'string') return AVATAR_PALETTE[0];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
+}
+
+function getJoinerStatusPill(idx) {
+  const statusCycle = [
+    { label: 'Onboarded', bg: '#ecfdf5', text: '#059669' },
+    { label: 'Visa in process', bg: '#fef3c7', text: '#92400e' },
+    { label: 'Day 1', bg: '#eff6ff', text: '#2563eb' },
+    { label: 'Starts soon', bg: '#f1f5f9', text: '#475569' },
+  ];
+  return statusCycle[idx % statusCycle.length];
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState(null);
@@ -152,8 +187,8 @@ export default function DashboardPage() {
     } catch {}
   }, [selectedCompanyId, isMounted]);
 
-  const loadData = useCallback(() => {
-    setError('');
+  const loadData = useCallback((silent = false) => {
+    if (!silent) setError('');
     const u = getUser();
     const roleNow = normalizeRole(u);
     const permsNow = getPermissions(u);
@@ -197,10 +232,12 @@ export default function DashboardPage() {
           }
         })
         .catch((e) => {
-          setData((prev) => {
-            if (!prev) setError(e?.message || 'Failed to load dashboard data');
-            return prev;
-          });
+          if (!silent) {
+            setData((prev) => {
+              if (!prev) setError(e?.message || 'Failed to load dashboard data');
+              return prev;
+            });
+          }
           setLoading(false);
         });
     }
@@ -233,8 +270,8 @@ export default function DashboardPage() {
             'gocs_cached_dashboard',
             JSON.stringify({
               ...cachedObj,
-              employees: cleanEmps || employees,
-              companies: cleanDivs || companies,
+              ...(cleanEmps ? { employees: cleanEmps } : {}),
+              ...(cleanDivs ? { companies: cleanDivs } : {}),
               leaves: cleanLeaves,
               attendanceList: cleanAtt,
               savedAt: Date.now(),
@@ -243,10 +280,76 @@ export default function DashboardPage() {
         } catch {}
       })
       .catch(() => {});
-  }, [employees, companies]);
+  }, []);
 
   useEffect(() => {
+    // 1. Initial data load
     loadData();
+
+    // 2. Periodic background auto-sync every 20s without page refresh
+    const syncInterval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        loadData(true);
+      }
+    }, 20000);
+
+    // 3. Tab visibility / Window focus sync (instant update when returning to tab)
+    const handleVisibilityOrFocus = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        loadData(true);
+      }
+    };
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+
+    // 4. Custom portal events (real-time sync across components)
+    const handleEmployeesUpdated = (e) => {
+      if (e?.detail && Array.isArray(e.detail)) {
+        setEmployees(e.detail);
+      }
+      loadData(true);
+    };
+
+    const handleCompanyChanged = () => {
+      try {
+        const saved = sessionStorage.getItem('gocs_selected_company_id');
+        setSelectedCompanyId(saved || '');
+      } catch {}
+      loadData(true);
+    };
+
+    const handleGenericSync = () => {
+      loadData(true);
+    };
+
+    window.addEventListener('gocs_employees_updated', handleEmployeesUpdated);
+    window.addEventListener('gocs_company_changed', handleCompanyChanged);
+    window.addEventListener('gocs_leaves_updated', handleGenericSync);
+    window.addEventListener('gocs_attendance_updated', handleGenericSync);
+
+    // 5. Cross-tab storage change sync
+    const handleStorageChange = (e) => {
+      if (
+        e.key === 'gocs_cached_employees' ||
+        e.key === 'gocs_employees_cache' ||
+        e.key === 'gocs_cached_dashboard' ||
+        e.key === 'gocs_cached_leaves'
+      ) {
+        loadData(true);
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      clearInterval(syncInterval);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('gocs_employees_updated', handleEmployeesUpdated);
+      window.removeEventListener('gocs_company_changed', handleCompanyChanged);
+      window.removeEventListener('gocs_leaves_updated', handleGenericSync);
+      window.removeEventListener('gocs_attendance_updated', handleGenericSync);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, [loadData]);
 
   // Selected company lookup
@@ -950,16 +1053,16 @@ export default function DashboardPage() {
                     <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                   </svg>
                 </div>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#10b981', background: '#ecfdf5', padding: '2px 7px', borderRadius: 999 }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#10b981', background: '#ecfdf5', padding: '2px 7px', borderRadius: 999, whiteSpace: 'nowrap', flexShrink: 0 }}>
                   ▲ 3.2%
                 </span>
               </div>
-              <div className="muted" style={{ fontSize: '12px', fontWeight: 500, marginBottom: 4 }}>Total employees</div>
-              <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.15 }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink-secondary, #475569)', marginBottom: 4 }}>Total employees</div>
+              <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.2 }}>
                 {totalEmployees}
               </div>
             </div>
-            <div className="muted" style={{ fontSize: '11px', marginTop: 6 }}>
+            <div style={{ fontSize: '11.5px', fontWeight: 500, color: 'var(--muted, #64748b)', marginTop: 6, lineHeight: 1.35 }}>
               +{newJoiners.length} joined this month
             </div>
           </Link>
@@ -997,16 +1100,16 @@ export default function DashboardPage() {
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                 </div>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#10b981', background: '#ecfdf5', padding: '2px 7px', borderRadius: 999 }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#10b981', background: '#ecfdf5', padding: '2px 7px', borderRadius: 999, whiteSpace: 'nowrap', flexShrink: 0 }}>
                   {totalEmployees > 0 ? Math.round((presentTodayCount / totalEmployees) * 100) : 100}%
                 </span>
               </div>
-              <div className="muted" style={{ fontSize: '12px', fontWeight: 500, marginBottom: 4 }}>Present today</div>
-              <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.15 }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink-secondary, #475569)', marginBottom: 4 }}>Present today</div>
+              <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.2 }}>
                 {presentTodayCount}
               </div>
             </div>
-            <div className="muted" style={{ fontSize: '11px', marginTop: 6 }}>
+            <div style={{ fontSize: '11.5px', fontWeight: 500, color: 'var(--muted, #64748b)', marginTop: 6, lineHeight: 1.35 }}>
               {lateCheckinsCount} late check-ins · 0 remote
             </div>
           </Link>
@@ -1047,16 +1150,16 @@ export default function DashboardPage() {
                     <line x1="3" y1="10" x2="21" y2="10" />
                   </svg>
                 </div>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#f59e0b', background: '#fffbeb', padding: '2px 7px', borderRadius: 999 }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#f59e0b', background: '#fffbeb', padding: '2px 7px', borderRadius: 999, whiteSpace: 'nowrap', flexShrink: 0 }}>
                   Today
                 </span>
               </div>
-              <div className="muted" style={{ fontSize: '12px', fontWeight: 500, marginBottom: 4 }}>On leave today</div>
-              <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.15 }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink-secondary, #475569)', marginBottom: 4 }}>On leave today</div>
+              <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.2 }}>
                 {todayOnLeaveCount}
               </div>
             </div>
-            <div className="muted" style={{ fontSize: '11px', marginTop: 6 }}>
+            <div style={{ fontSize: '11.5px', fontWeight: 500, color: 'var(--muted, #64748b)', marginTop: 6, lineHeight: 1.35 }}>
               {todayOnLeaveCount > 0 ? `${todayOnLeaveCount} active approved` : 'All staff available'}
             </div>
           </Link>
@@ -1095,16 +1198,16 @@ export default function DashboardPage() {
                     <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
                   </svg>
                 </div>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#0284c7', background: '#f0f9ff', padding: '2px 7px', borderRadius: 999 }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#0284c7', background: '#f0f9ff', padding: '2px 7px', borderRadius: 999, whiteSpace: 'nowrap', flexShrink: 0 }}>
                   Hiring
                 </span>
               </div>
-              <div className="muted" style={{ fontSize: '12px', fontWeight: 500, marginBottom: 4 }}>Open positions</div>
-              <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.15 }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink-secondary, #475569)', marginBottom: 4 }}>Open positions</div>
+              <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.2 }}>
                 {departmentHeadcount.length || 6}
               </div>
             </div>
-            <div className="muted" style={{ fontSize: '11px', marginTop: 6 }}>
+            <div style={{ fontSize: '11.5px', fontWeight: 500, color: 'var(--muted, #64748b)', marginTop: 6, lineHeight: 1.35 }}>
               Across {departmentHeadcount.length || 6} active teams
             </div>
           </Link>
@@ -1143,16 +1246,16 @@ export default function DashboardPage() {
                     <polyline points="12 6 12 12 16 14" />
                   </svg>
                 </div>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#f43f5e', background: '#fff1f2', padding: '2px 7px', borderRadius: 999 }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#f43f5e', background: '#fff1f2', padding: '2px 7px', borderRadius: 999, whiteSpace: 'nowrap', flexShrink: 0 }}>
                   {pendingLeavesList.length > 0 ? `${pendingLeavesList.length} pending` : 'All clear'}
                 </span>
               </div>
-              <div className="muted" style={{ fontSize: '12px', fontWeight: 500, marginBottom: 4 }}>Pending approvals</div>
-              <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.15 }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink-secondary, #475569)', marginBottom: 4 }}>Pending approvals</div>
+              <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.2 }}>
                 {pendingLeavesList.length}
               </div>
             </div>
-            <div className="muted" style={{ fontSize: '11px', marginTop: 6 }}>
+            <div style={{ fontSize: '11.5px', fontWeight: 500, color: 'var(--muted, #64748b)', marginTop: 6, lineHeight: 1.35 }}>
               Leave {pendingLeavesList.length} · Docs {expiringDocsList.length}
             </div>
           </Link>
@@ -1191,16 +1294,16 @@ export default function DashboardPage() {
                     <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
                   </svg>
                 </div>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#059669', background: '#f0fdf4', padding: '2px 7px', borderRadius: 999 }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#059669', background: '#f0fdf4', padding: '2px 7px', borderRadius: 999, whiteSpace: 'nowrap', flexShrink: 0 }}>
                   ▲ 2.1%
                 </span>
               </div>
-              <div className="muted" style={{ fontSize: '12px', fontWeight: 500, marginBottom: 4 }}>Current payroll</div>
-              <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.15 }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink-secondary, #475569)', marginBottom: 4 }}>Current payroll</div>
+              <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.2 }}>
                 AED 3.42M
               </div>
             </div>
-            <div className="muted" style={{ fontSize: '11px', marginTop: 6 }}>
+            <div style={{ fontSize: '11.5px', fontWeight: 500, color: 'var(--muted, #64748b)', marginTop: 6, lineHeight: 1.35 }}>
               WPS run due end of month
             </div>
           </Link>
@@ -1530,7 +1633,7 @@ export default function DashboardPage() {
                   <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.1 }}>
                     {totalEmployees}
                   </span>
-                  <span className="muted" style={{ fontSize: '10.5px', marginTop: 1, color: '#94a3b8' }}>
+                  <span style={{ fontSize: '11px', marginTop: 1, color: 'var(--muted, #64748b)', fontWeight: 600 }}>
                     employees
                   </span>
                 </div>
@@ -1543,13 +1646,13 @@ export default function DashboardPage() {
                     <div key={dept.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12.5px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                         <span style={{ width: 9, height: 9, borderRadius: 3, background: dept.color, flexShrink: 0 }} />
-                        <span style={{ color: 'var(--ink, #0f172a)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span style={{ color: 'var(--ink, #0f172a)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {dept.name}
                         </span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 8 }}>
                         <span style={{ fontWeight: 700, color: 'var(--ink, #0f172a)', fontSize: '13px' }}>{dept.count}</span>
-                        <span className="muted" style={{ fontSize: '12px', minWidth: 30, textAlign: 'right' }}>{dept.percent}%</span>
+                        <span style={{ fontSize: '12px', minWidth: 32, textAlign: 'right', color: 'var(--muted, #64748b)', fontWeight: 500 }}>{dept.percent}%</span>
                       </div>
                     </div>
                   ))
@@ -1574,11 +1677,25 @@ export default function DashboardPage() {
             }}
           >
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <h3 style={{ margin: 0, fontSize: '14.5px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 10 }}>
+                <h3 style={{ margin: 0, fontSize: '14.5px', fontWeight: 700, color: 'var(--ink, #0f172a)', minWidth: 0 }}>
                   Payroll trend (AED, 6 months)
                 </h3>
-                <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#10b981', background: '#ecfdf5', padding: '3px 8px', borderRadius: 999 }}>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: '#059669',
+                    background: '#ecfdf5',
+                    padding: '3px 9px',
+                    borderRadius: 999,
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 3,
+                  }}
+                >
                   ▲ 6.8% vs Apr
                 </span>
               </div>
@@ -1716,7 +1833,6 @@ export default function DashboardPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
               {pendingLeavesList.length > 0 ? (
                 pendingLeavesList.slice(0, 5).map((l, idx) => {
-                  const colors = ['#0284c7', '#d97706', '#7c3aed', '#059669', '#f43f5e'];
                   const empName = v(l, 'fullName', 'full_name') || v(l, 'employeeName', 'employee_name') || 'Employee';
                   const leaveType = v(l, 'leaveType', 'leave_type') || 'Annual leave';
                   const days = v(l, 'days') || 1;
@@ -1743,7 +1859,7 @@ export default function DashboardPage() {
                             width: 32,
                             height: 32,
                             borderRadius: '50%',
-                            background: colors[idx % colors.length],
+                            background: getAvatarColor(empName, idx),
                             color: '#ffffff',
                             display: 'flex',
                             alignItems: 'center',
@@ -1764,7 +1880,7 @@ export default function DashboardPage() {
                               {leaveType}
                             </span>
                           </div>
-                          <span className="muted" style={{ fontSize: '11.5px', marginTop: 2 }}>
+                          <span style={{ fontSize: '11.5px', color: 'var(--muted, #64748b)', marginTop: 2 }}>
                             {sDate} – {eDate} · {days} days
                           </span>
                         </div>
@@ -1989,15 +2105,15 @@ export default function DashboardPage() {
                 employeesOnLeave.slice(0, 5).map((item, idx) => (
                   <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#6366f1', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '10.5px' }}>
+                      <div style={{ width: 30, height: 30, borderRadius: '50%', background: getAvatarColor(item.name, idx), color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '11px', flexShrink: 0 }}>
                         {item.name.slice(0, 2).toUpperCase()}
                       </div>
                       <div>
-                        <div style={{ fontWeight: 600, color: 'var(--ink, #0f172a)' }}>{item.name}</div>
-                        <div className="muted" style={{ fontSize: '10.5px' }}>Back {formatDate(item.endDate)}</div>
+                        <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink, #0f172a)' }}>{item.name}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)', marginTop: 2 }}>Back {formatDate(item.endDate)}</div>
                       </div>
                     </div>
-                    <span style={{ fontSize: '10.5px', fontWeight: 600, background: '#eff6ff', color: '#3b82f6', padding: '2px 6px', borderRadius: 4 }}>
+                    <span style={{ fontSize: '10.5px', fontWeight: 600, background: '#eff6ff', color: '#3b82f6', padding: '2px 8px', borderRadius: 999 }}>
                       {item.leaveType}
                     </span>
                   </div>
@@ -2036,13 +2152,13 @@ export default function DashboardPage() {
                 celebrations.map((item, idx) => (
                   <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '12px' }}>
                     <div style={{ minWidth: 42, textAlign: 'center', background: 'var(--surface-alt, #f8fafc)', border: '1px solid var(--line, #e2e8f0)', borderRadius: 6, padding: '3px 0' }}>
-                      <span style={{ fontSize: '10px', fontWeight: 700, color: '#4f46e5', display: 'block', lineHeight: 1.1 }}>
+                      <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#4f46e5', display: 'block', lineHeight: 1.1 }}>
                         {item.date}
                       </span>
                     </div>
                     <div>
-                      <div style={{ fontWeight: 600, color: 'var(--ink, #0f172a)' }}>{item.name}</div>
-                      <div className="muted" style={{ fontSize: '11px' }}>{item.icon} {item.type}</div>
+                      <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink, #0f172a)' }}>{item.name}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)', marginTop: 2 }}>{item.icon} {item.type}</div>
                     </div>
                   </div>
                 ))
@@ -2054,7 +2170,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Card 3: New Joiners (Clickable Link to Employee Details, Max 10) */}
+          {/* Card 3: New Joiners (Clickable Link to Employee Details, Max 10, Multi-color Avatars) */}
           <div
             style={{
               background: 'var(--surface, #ffffff)',
@@ -2070,16 +2186,20 @@ export default function DashboardPage() {
               <h3 style={{ margin: 0, fontSize: '14.5px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
                 New joiners
               </h3>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#059669', background: '#ecfdf5', padding: '2px 7px', borderRadius: 999 }}>
-                {newJoiners.length} active
+              <span style={{ fontSize: '11px', fontWeight: 600, color: '#059669', background: '#ecfdf5', padding: '3px 8px', borderRadius: 999 }}>
+                {newJoiners.length} in {new Date().toLocaleString('en', { month: 'short' })}
               </span>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, maxHeight: 210, overflowY: 'auto' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, maxHeight: 220, overflowY: 'auto' }}>
               {newJoiners.length > 0 ? (
                 newJoiners.map((emp, idx) => {
                   const empName = v(emp, 'fullName', 'full_name') || 'Employee';
                   const title = v(emp, 'jobTitle', 'job_title') || 'Staff';
+                  const dept = v(emp, 'department', 'department_name') || v(emp, 'departmentName') || '';
+                  const joinDate = formatDate(v(emp, 'joiningDate', 'joining_date', 'createdAt'));
+                  const subtitle = [title, dept, joinDate].filter(Boolean).join(' · ');
+                  const pill = getJoinerStatusPill(idx);
 
                   return (
                     <Link
@@ -2103,17 +2223,47 @@ export default function DashboardPage() {
                       }}
                       title={`View details for ${empName}`}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#0284c7', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '10.5px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                        <div
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: '50%',
+                            background: getAvatarColor(empName, idx),
+                            color: '#ffffff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 700,
+                            fontSize: '11px',
+                            flexShrink: 0,
+                          }}
+                        >
                           {empName.slice(0, 2).toUpperCase()}
                         </div>
-                        <div>
-                          <div style={{ fontWeight: 600, color: 'var(--ink, #0f172a)' }}>{empName}</div>
-                          <div className="muted" style={{ fontSize: '10.5px' }}>{title}</div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink, #0f172a)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {empName}
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {subtitle}
+                          </div>
                         </div>
                       </div>
-                      <span style={{ fontSize: '10px', fontWeight: 600, background: '#ecfdf5', color: '#059669', padding: '2px 6px', borderRadius: 4 }}>
-                        Onboarded
+                      <span
+                        style={{
+                          fontSize: '10.5px',
+                          fontWeight: 600,
+                          background: pill.bg,
+                          color: pill.text,
+                          padding: '2px 8px',
+                          borderRadius: 999,
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0,
+                          marginLeft: 8,
+                        }}
+                      >
+                        {pill.label}
                       </span>
                     </Link>
                   );
