@@ -17,7 +17,18 @@ export default function CreateEmployeePage() {
   const [divisions, setDivisions] = useState([]);
   const [designations, setDesignations] = useState([]);
   const [employmentTypes, setEmploymentTypes] = useState([]);
-  const [managers, setManagers] = useState([]);
+  const [managers, setManagers] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const c = localStorage.getItem('gocs_cached_employees');
+        if (c) {
+          const arr = JSON.parse(c);
+          if (Array.isArray(arr) && arr.length) return arr;
+        }
+      } catch {}
+    }
+    return [];
+  });
   const [vacantPositions, setVacantPositions] = useState([]);
 
   const [saving, setSaving] = useState(false);
@@ -108,14 +119,26 @@ export default function CreateEmployeePage() {
       return;
     }
 
+    // Instant duplicate validation (<1ms) before setting loading or doing any network calls
+    let existingList = managers;
+    if (!existingList || !existingList.length) {
+      try {
+        const c = localStorage.getItem('gocs_cached_employees');
+        if (c) {
+          const arr = JSON.parse(c);
+          if (Array.isArray(arr) && arr.length) existingList = arr;
+        }
+      } catch {}
+    }
+    const dupMsg = findCreateDuplicateMessage(form, existingList);
+    if (dupMsg) {
+      setError(dupMsg);
+      setSaving(false);
+      return;
+    }
+
     setSaving(true);
     try {
-      const dupMsg = findCreateDuplicateMessage(form, managers);
-      if (dupMsg) {
-        setError(dupMsg);
-        setSaving(false);
-        return;
-      }
 
       const payload = masterPayloadFromForm(form, { includePassword: true });
       if (form.photoFile) {
@@ -286,7 +309,10 @@ export default function CreateEmployeePage() {
         <EmployeeMasterForm
           mode="create"
           form={form}
-          setForm={setForm}
+          setForm={(updater) => {
+            setError('');
+            setForm(updater);
+          }}
           departments={departments}
           divisions={divisions}
           designations={designations}

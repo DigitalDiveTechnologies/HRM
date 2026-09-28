@@ -222,8 +222,6 @@ export default function ExitPage() {
                 <th>Employee</th>
                 <th>Type</th>
                 <th>Last day</th>
-                <th>Settlement / EOSB</th>
-                <th>Clearance</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -237,14 +235,6 @@ export default function ExitPage() {
                   </td>
                   <td>{v(r, 'exitType', 'exit_type')}</td>
                   <td>{formatDate(v(r, 'lastWorkingDate', 'last_working_date'))}</td>
-                  <td style={{ maxWidth: 220 }}>
-                    <div className="muted" style={{ fontSize: 12 }}>
-                      EOSB {v(r, 'eosbAmount', 'eosb_amount') != null && v(r, 'eosbAmount', 'eosb_amount') !== '' ? v(r, 'eosbAmount', 'eosb_amount') : '—'} · {v(r, 'serviceYears', 'service_years') != null && v(r, 'serviceYears', 'service_years') !== '' ? `${v(r, 'serviceYears', 'service_years')} yrs` : '—'}
-                    </div>
-                  </td>
-                  <td>
-                    {v(r, 'checklistDone', 'checklist_done') || 0}/{v(r, 'checklistTotal', 'checklist_total') || 0}
-                  </td>
                   <td>
                     <Badge status={v(r, 'status')} />
                   </td>
@@ -274,7 +264,7 @@ export default function ExitPage() {
               ))}
               {!rows.length ? (
                 <tr>
-                  <td colSpan={7}>No exit cases yet.</td>
+                  <td colSpan={5}>No exit cases yet.</td>
                 </tr>
               ) : null}
             </tbody>
