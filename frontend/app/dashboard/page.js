@@ -895,22 +895,22 @@ export default function DashboardPage() {
   });
 
   function getCategoryColor(cat) {
-    const map = {
-      'Public holiday': { bg: '#eff6ff', text: '#2563eb', border: 'rgba(37,99,235,0.2)' },
-      Wellness: { bg: '#ecfdf5', text: '#059669', border: 'rgba(5,150,105,0.2)' },
-      Policy: { bg: '#fffbeb', text: '#d97706', border: 'rgba(217,119,6,0.2)' },
-      Event: { bg: '#f5f3ff', text: '#7c3aed', border: 'rgba(124,58,237,0.2)' },
-      General: { bg: '#e0f2fe', text: '#0284c7', border: 'rgba(2,132,199,0.2)' },
-    };
-    return map[cat] || { bg: '#e0f2fe', text: '#0284c7', border: 'rgba(2,132,199,0.2)' };
+    const raw = String(cat || '').toLowerCase().trim();
+    if (raw.includes('holiday')) return { bg: '#eff6ff', text: '#2563eb', border: 'rgba(37,99,235,0.2)' };
+    if (raw.includes('wellness') || raw.includes('health') || raw.includes('medical')) return { bg: '#ecfdf5', text: '#059669', border: 'rgba(5,150,105,0.2)' };
+    if (raw.includes('policy') || raw.includes('rule') || raw.includes('notice')) return { bg: '#fffbeb', text: '#d97706', border: 'rgba(217,119,6,0.2)' };
+    if (raw.includes('event') || raw.includes('party') || raw.includes('celebrat')) return { bg: '#f5f3ff', text: '#7c3aed', border: 'rgba(124,58,237,0.2)' };
+    if (raw.includes('urgent') || raw.includes('alert') || raw.includes('warning')) return { bg: '#fef2f2', text: '#dc2626', border: 'rgba(220,38,38,0.2)' };
+    return { bg: '#e0f2fe', text: '#0284c7', border: 'rgba(2,132,199,0.2)' };
   }
 
   function handleCreateAnnouncement(e) {
     if (e && e.preventDefault) e.preventDefault();
     if (!postForm.title.trim()) return;
-    const c = getCategoryColor(postForm.category);
+    const catName = postForm.category.trim() || 'General';
+    const c = getCategoryColor(catName);
     const newItem = {
-      category: postForm.category,
+      category: catName,
       tagBg: c.bg,
       tagColor: c.text,
       title: postForm.title.trim(),
@@ -926,7 +926,6 @@ export default function DashboardPage() {
   }
 
   function handleDeleteAnnouncement(idx) {
-    if (!window.confirm('Are you sure you want to delete this announcement?')) return;
     const nextList = announcements.filter((_, i) => i !== idx);
     setAnnouncements(nextList);
     try {
@@ -2489,7 +2488,7 @@ export default function DashboardPage() {
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
             gap: 16,
-            alignItems: 'start',
+            alignItems: 'stretch',
           }}
         >
           {/* Card A: Announcements Card (+ Post, Edit, Delete, Pure White Items) */}
@@ -2503,7 +2502,7 @@ export default function DashboardPage() {
               boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
               display: 'flex',
               flexDirection: 'column',
-              minHeight: 380,
+              height: 490,
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -2541,7 +2540,18 @@ export default function DashboardPage() {
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, maxHeight: 420, overflowY: 'auto' }}>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+                flex: 1,
+                overflowY: 'auto',
+                paddingRight: 6,
+                scrollbarWidth: 'thin',
+                scrollbarColor: '#00b8db transparent',
+              }}
+            >
               {announcements.length > 0 ? (
                 announcements.map((item, idx) => {
                   const c = getCategoryColor(item.category);
@@ -2673,7 +2683,7 @@ export default function DashboardPage() {
               boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
               display: 'flex',
               flexDirection: 'column',
-              minHeight: 380,
+              height: 490,
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -2725,7 +2735,18 @@ export default function DashboardPage() {
             </div>
 
             {/* Companies Paginated List */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, maxHeight: 420, overflowY: 'auto' }}>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                flex: 1,
+                overflowY: 'auto',
+                paddingRight: 6,
+                scrollbarWidth: 'thin',
+                scrollbarColor: '#00b8db transparent',
+              }}
+            >
               {(() => {
                 const COMPANIES_PER_PAGE = 10;
                 const totalCompanyPages = Math.ceil(companies.length / COMPANIES_PER_PAGE) || 1;
@@ -2998,7 +3019,10 @@ export default function DashboardPage() {
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--ink, #0f172a)', marginBottom: 6 }}>
                     Category
                   </label>
-                  <select
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Public holiday, Policy, General, Wellness..."
                     value={postForm.category}
                     onChange={(e) => setPostForm({ ...postForm, category: e.target.value })}
                     style={{
@@ -3011,13 +3035,7 @@ export default function DashboardPage() {
                       color: 'var(--ink, #0f172a)',
                       outline: 'none',
                     }}
-                  >
-                    <option value="General">General</option>
-                    <option value="Public holiday">Public holiday</option>
-                    <option value="Wellness">Wellness</option>
-                    <option value="Policy">Policy</option>
-                    <option value="Event">Event</option>
-                  </select>
+                  />
                 </div>
 
                 <div>
@@ -3157,7 +3175,10 @@ export default function DashboardPage() {
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--ink, #0f172a)', marginBottom: 6 }}>
                     Category
                   </label>
-                  <select
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Public holiday, Policy, General, Wellness..."
                     value={editAnnouncementForm.category}
                     onChange={(e) => setEditAnnouncementForm({ ...editAnnouncementForm, category: e.target.value })}
                     style={{
@@ -3170,13 +3191,7 @@ export default function DashboardPage() {
                       color: 'var(--ink, #0f172a)',
                       outline: 'none',
                     }}
-                  >
-                    <option value="General">General</option>
-                    <option value="Public holiday">Public holiday</option>
-                    <option value="Wellness">Wellness</option>
-                    <option value="Policy">Policy</option>
-                    <option value="Event">Event</option>
-                  </select>
+                  />
                 </div>
 
                 <div>

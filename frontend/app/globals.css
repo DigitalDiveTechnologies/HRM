@@ -569,24 +569,119 @@ form > button,
 .nav a {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 6px;
-  margin-bottom: 4px;
-  color: var(--sidebar-text);
-  font-size: 0.92rem;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  margin-bottom: 5px;
+  color: var(--sidebar-text, #101828);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  position: relative;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid transparent;
 }
+
+.nav a .nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: #334155;
+  transition: all 0.2s ease;
+}
+
+:root[data-theme='dark'] .nav a .nav-icon {
+  color: #94a3b8;
+}
+
+.nav a .nav-active-indicator {
+  width: 4px;
+  height: 18px;
+  border-radius: 999px;
+  background: #00B8DB;
+  box-shadow: 0 0 8px rgba(0, 184, 219, 0.8);
+  flex-shrink: 0;
+  margin-right: -2px;
+  animation: navIndicatorFade 0.2s ease;
+}
+
+@keyframes navIndicatorFade {
+  from { opacity: 0; transform: scaleY(0.6); }
+  to { opacity: 1; transform: scaleY(1); }
+}
+
+.nav a:hover {
+  background: rgba(0, 184, 219, 0.08);
+  color: #00b8db;
+  border-color: rgba(0, 184, 219, 0.18);
+  box-shadow: 0 2px 8px rgba(0, 184, 219, 0.12);
+  transform: translateX(2px);
+}
+
+.nav a:hover .nav-icon {
+  color: #00b8db;
+  transform: scale(1.06);
+}
+
+/* Active tab styling exact match to Employee Portal screenshot */
+.sidebar .nav a.active,
+.sidebar .nav a[aria-current='page'] {
+  background: rgba(0, 184, 219, 0.11) !important;
+  color: #00b8db !important;
+  border: 1px solid rgba(0, 184, 219, 0.35) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 3px 12px rgba(0, 184, 219, 0.18), inset 0 0 0 1px rgba(0, 184, 219, 0.15) !important;
+  transform: none !important;
+}
+
+.sidebar .nav a.active .nav-icon,
+.sidebar .nav a[aria-current='page'] .nav-icon {
+  color: #00b8db !important;
+}
+
+.sidebar .nav a.active .nav-link-label,
+.sidebar .nav a[aria-current='page'] .nav-link-label {
+  color: #00b8db !important;
+  font-weight: 700 !important;
+}
+
+.sidebar .nav a.active:hover,
+.sidebar .nav a[aria-current='page']:hover {
+  background: rgba(0, 184, 219, 0.14) !important;
+  color: #00b8db !important;
+}
+
+:root[data-theme='dark'] .sidebar .nav a.active,
+:root[data-theme='dark'] .sidebar .nav a[aria-current='page'] {
+  background: rgba(0, 184, 219, 0.18) !important;
+  color: #38d6f4 !important;
+  border-color: rgba(0, 184, 219, 0.45) !important;
+  box-shadow: 0 3px 14px rgba(0, 184, 219, 0.3) !important;
+}
+
+:root[data-theme='dark'] .sidebar .nav a.active .nav-icon,
+:root[data-theme='dark'] .sidebar .nav a[aria-current='page'] .nav-icon {
+  color: #38d6f4 !important;
+}
+
+:root[data-theme='dark'] .sidebar .nav a.active .nav-active-indicator,
+:root[data-theme='dark'] .sidebar .nav a[aria-current='page'] .nav-active-indicator {
+  background: #38d6f4;
+  box-shadow: 0 0 10px rgba(56, 214, 244, 0.9);
+}
+
 .nav-disabled-link {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 6px;
-  margin-bottom: 4px;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  margin-bottom: 5px;
   color: var(--sidebar-text);
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   opacity: 0.42;
   cursor: not-allowed;
   user-select: none;
@@ -612,24 +707,9 @@ form > button,
 }
 .sidebar .nav a.active .nav-alert-badge,
 .sidebar .nav a[aria-current='page'] .nav-alert-badge {
-  background: #fff;
-  color: #023047;
+  background: #00b8db;
+  color: #fff;
   border-color: rgba(255, 255, 255, 0.9);
-}
-.nav a:hover {
-  background: var(--sidebar-hover);
-  color: var(--sidebar-text);
-}
-.sidebar .nav a.active,
-.sidebar .nav a[aria-current='page'] {
-  background: var(--sidebar-active-bg);
-  color: var(--sidebar-active-text);
-  font-weight: 600;
-}
-.sidebar .nav a.active:hover,
-.sidebar .nav a[aria-current='page']:hover {
-  background: var(--sidebar-active-bg);
-  color: var(--sidebar-active-text);
 }
 
 .main {
