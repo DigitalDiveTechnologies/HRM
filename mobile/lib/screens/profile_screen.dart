@@ -238,16 +238,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _row(context, 'Phone', phone),
                     _row(context, 'Citizen ID address', _citizenAddress),
                     _row(context, 'Residential address', _residentialAddress),
-                    const SizedBox(height: 4),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(l10n.t('language')),
-                      subtitle: Text(app.locale == 'ar' ? l10n.t('arabic') : l10n.t('english')),
-                      trailing: FilledButton.tonal(
-                        onPressed: () => app.toggleLocale(),
-                        child: Text(app.locale == 'ar' ? 'EN' : 'ع'),
-                      ),
-                    ),
                   ],
                 ),
               ),

@@ -210,12 +210,12 @@ export default function CompanyStructurePage() {
               {title}
             </div>
             {code ? (
-              <div style={{ fontSize: '9px', color: '#64748b', marginTop: 2 }}>{code}</div>
+              <div style={{ fontSize: '9px', color: 'var(--muted, #64748b)', marginTop: 2 }}>{code}</div>
             ) : null}
             {vacant ? (
               <div style={{ fontSize: '10px', color: '#b45309', fontWeight: 700, marginTop: 3 }}>Vacant</div>
             ) : name ? (
-              <div style={{ fontSize: '10px', color: '#334155', marginTop: 3 }}>{name}</div>
+              <div style={{ fontSize: '10px', color: 'var(--ink, #334155)', marginTop: 3 }}>{name}</div>
             ) : null}
             {dept ? (
               <div style={{ fontSize: '10px', color: '#008fa8', fontWeight: 600, marginTop: 3 }}>{dept}</div>
@@ -436,12 +436,12 @@ export default function CompanyStructurePage() {
                         {title}
                       </div>
                       {code ? (
-                        <div style={{ fontSize: '9px', color: '#64748b', marginTop: 2 }}>{code}</div>
+                        <div style={{ fontSize: '9px', color: 'var(--muted, #64748b)', marginTop: 2 }}>{code}</div>
                       ) : null}
                       {vacant ? (
                         <div style={{ fontSize: '10px', color: '#b45309', fontWeight: 700, marginTop: 3 }}>Vacant</div>
                       ) : name && name !== title ? (
-                        <div style={{ fontSize: '10px', color: '#334155', marginTop: 3 }}>{name}</div>
+                        <div style={{ fontSize: '10px', color: 'var(--ink, #334155)', marginTop: 3 }}>{name}</div>
                       ) : null}
                       {dept ? (
                         <div style={{ fontSize: '10px', color: '#008fa8', fontWeight: 600, marginTop: 3 }}>{dept}</div>

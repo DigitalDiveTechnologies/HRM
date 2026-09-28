@@ -72,6 +72,36 @@ var connStr = Normalize(raw);
 await using var conn = new NpgsqlConnection(connStr);
 await conn.OpenAsync();
 
+if (args.Length > 1 && args[0] == "-q")
+{
+    var query = string.Join(" ", args.Skip(1));
+    await using var qCmd = new NpgsqlCommand(query, conn);
+    if (query.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase) ||
+        query.TrimStart().StartsWith("WITH", StringComparison.OrdinalIgnoreCase))
+    {
+        await using var reader = await qCmd.ExecuteReaderAsync();
+        for (int i = 0; i < reader.FieldCount; i++)
+        {
+            Console.Write(reader.GetName(i) + " | ");
+        }
+        Console.WriteLine();
+        while (await reader.ReadAsync())
+        {
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                Console.Write((reader.IsDBNull(i) ? "NULL" : reader.GetValue(i)?.ToString()) + " | ");
+            }
+            Console.WriteLine();
+        }
+    }
+    else
+    {
+        var rows = await qCmd.ExecuteNonQueryAsync();
+        Console.WriteLine($"Rows affected: {rows}");
+    }
+    return 0;
+}
+
 foreach (var file in files)
 {
     var path = Path.IsPathRooted(file) ? file : Path.Combine(dbDir, Path.GetFileName(file));

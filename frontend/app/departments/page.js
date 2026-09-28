@@ -170,14 +170,14 @@ export default function DepartmentsPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                  <td colSpan={5} style={{ textAlign: 'center', padding: '24px', color: 'var(--muted)' }}>
                     Loading departments...
                   </td>
                 </tr>
               ) : departments.length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: '32px 16px', color: '#64748b' }}>
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#334155', marginBottom: 4 }}>
+                  <td colSpan={5} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted)' }}>
+                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink)', marginBottom: 4 }}>
                       No departments yet
                     </div>
                     <div style={{ fontSize: '13px' }}>
@@ -194,13 +194,13 @@ export default function DepartmentsPage() {
 
                   return (
                     <tr key={id || index}>
-                      <td style={{ color: '#94a3b8', fontSize: '12px' }}>{index + 1}</td>
-                      <td style={{ fontWeight: 600, color: '#1e293b' }}>{deptName}</td>
+                      <td style={{ color: 'var(--muted)', fontSize: '12px' }}>{index + 1}</td>
+                      <td style={{ fontWeight: 600, color: 'var(--ink)' }}>{deptName}</td>
                       <td>
                         <Badge status={status} />
                       </td>
                       <td>
-                        <span style={{ fontSize: '13px', color: '#475569' }}>
+                        <span style={{ fontSize: '13px', color: 'var(--muted)' }}>
                           {empCount} {empCount === 1 ? 'employee' : 'employees'}
                         </span>
                       </td>

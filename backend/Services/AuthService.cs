@@ -20,13 +20,15 @@ public sealed class AuthService
         await conn.OpenAsync(ct);
 
         UserRecord? user = null;
+        string empStatus = "";
         try
         {
             await using var cmd = new NpgsqlCommand(
                 """
                 SELECT u.id, u.email, u.password, u.role, u.employee_id, e.full_name, e.job_title,
                        COALESCE(u.is_active, TRUE) AS is_active,
-                       COALESCE(NULLIF(u.display_name, ''), e.full_name) AS display_name
+                       COALESCE(NULLIF(u.display_name, ''), e.full_name) AS display_name,
+                       COALESCE(e.status, '') AS emp_status
                 FROM users u
                 LEFT JOIN employees e ON e.id = u.employee_id
                 WHERE LOWER(u.email) = LOWER(@email)
@@ -37,6 +39,7 @@ public sealed class AuthService
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             if (await reader.ReadAsync(ct))
             {
+                empStatus = reader.IsDBNull(9) ? "" : reader.GetString(9);
                 user = new UserRecord
                 {
                     Id = reader.GetInt32(0),
@@ -90,7 +93,9 @@ public sealed class AuthService
         if (!PasswordHasher.Verify(user.Password, password))
             return (null, "Invalid email or password.");
 
-        if (!user.IsActive)
+        if (!user.IsActive ||
+            string.Equals(empStatus, "exited", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(empStatus, "deactivated", StringComparison.OrdinalIgnoreCase))
             return (null, "This account is inactive. Ask your admin to activate it again.");
 
         // Preferred locale + portal from roles (best-effort; missing columns/tables won't block login)

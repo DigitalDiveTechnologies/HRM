@@ -481,6 +481,44 @@ class NavThemeButton extends StatelessWidget {
   }
 }
 
+/// Language toggle — same chrome as theme button (EN ↔ ع).
+class NavLocaleButton extends StatelessWidget {
+  const NavLocaleButton({super.key, required this.isArabic, required this.onPressed});
+
+  final bool isArabic;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: T.surface(context),
+      borderRadius: BorderRadius.circular(kNavChromeRadius),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(kNavChromeRadius),
+        child: Container(
+          width: 40,
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(kNavChromeRadius),
+            border: Border.all(color: _navChromeBorder(context)),
+          ),
+          child: Text(
+            isArabic ? 'EN' : 'ع',
+            style: TextStyle(
+              fontSize: isArabic ? 12 : 16,
+              fontWeight: FontWeight.w800,
+              color: T.ink(context),
+              height: 1,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// User chip — cyan border, 6px radius (not pill). Portal `.user-chip`.
 class NavUserChip extends StatelessWidget {
   const NavUserChip({super.key, required this.label});
@@ -519,6 +557,8 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
     required this.isDark,
     required this.onOpenMenu,
     required this.onToggleTheme,
+    this.onToggleLocale,
+    this.isArabic = false,
     this.topInset = 0,
     this.menuBadgeCount = 0,
   });
@@ -528,6 +568,9 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   final bool isDark;
   final VoidCallback onOpenMenu;
   final VoidCallback onToggleTheme;
+  /// When set (e.g. ESS / Home), shows language button beside theme.
+  final VoidCallback? onToggleLocale;
+  final bool isArabic;
 
   /// Status-bar / notch inset from [MediaQuery.viewPadding.top].
   final double topInset;
@@ -576,6 +619,10 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
                           style: titleStyle,
                         ),
                       ),
+                      if (onToggleLocale != null) ...[
+                        const SizedBox(width: 8),
+                        NavLocaleButton(isArabic: isArabic, onPressed: onToggleLocale!),
+                      ],
                       const SizedBox(width: 8),
                       NavThemeButton(isDark: isDark, onPressed: onToggleTheme),
                     ],

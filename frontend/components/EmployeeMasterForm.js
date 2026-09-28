@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { getApiBase } from '../lib/auth';
+import { apiUpload, getApiBase, resolveDocUrl } from '../lib/auth';
 import { generateCompanyEmpCode } from '../lib/employeeMaster';
 import { v } from '../lib/format';
 
@@ -34,14 +34,6 @@ const ADDITIONAL_DOC_CATEGORIES = [
   'Salary Certificate',
   'Health Insurance Policy',
   'Other Document',
-];
-
-const DEFAULT_DEPARTMENTS = [
-  { id: 1, name: 'Human Resources' },
-  { id: 2, name: 'Engineering' },
-  { id: 3, name: 'Finance' },
-  { id: 4, name: 'Operations' },
-  { id: 5, name: 'Executive' },
 ];
 
 const NATIONALITIES = [
@@ -259,10 +251,38 @@ export default function EmployeeMasterForm({
     });
   };
 
+  const uploadOrCompressFile = async (file) => {
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await apiUpload('/documents/upload-file', fd);
+      if (res?.fileUrl) {
+        return {
+          fileUrl: res.fileUrl,
+          isImage: !!res.isImage,
+          fileSize: res.fileSize || `${(file.size / 1024).toFixed(1)} KB`,
+          fileType: res.fileType || file.type,
+        };
+      }
+    } catch (err) {
+      console.warn('API document upload failed, falling back to local dataUrl:', err);
+    }
+    const dataUrl = await compressImageFile(file);
+    const isImg = file?.type?.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(file?.name || '');
+    return {
+      fileUrl: dataUrl,
+      isImage: isImg,
+      fileSize: `${(file.size / 1024).toFixed(1)} KB`,
+      fileType: file?.type || (isImg ? 'image/jpeg' : 'application/pdf'),
+    };
+  };
+
   const handleDownloadDoc = (doc) => {
     if (!doc?.fileUrl) return;
+    const url = resolveDocUrl(doc.fileUrl);
     const a = document.createElement('a');
-    a.href = doc.fileUrl;
+    a.href = url;
+    a.target = '_blank';
     a.download = doc.fileName || doc.title || 'document';
     document.body.appendChild(a);
     a.click();
@@ -281,7 +301,6 @@ export default function EmployeeMasterForm({
     for (const file of files) {
       const check = validateDocFile(file);
       if (!check.valid) {
-        alert(check.error);
         e.target.value = '';
         return;
       }
@@ -290,18 +309,17 @@ export default function EmployeeMasterForm({
     try {
       const newDocs = await Promise.all(
         files.map(async (file, idx) => {
-          const dataUrl = await compressImageFile(file);
-          const isImg = file.type.startsWith('image/') || /\.(png|jpe?g)$/i.test(file.name);
+          const up = await uploadOrCompressFile(file);
           const titleSuffix = files.length > 1 ? ` (Part ${idx + 1})` : '';
           return {
             id: `${Date.now()}_${Math.random().toString(36).substr(2, 7)}`,
             type: docType,
             title: `${defaultTitle}${titleSuffix}`,
             fileName: file.name,
-            fileSize: (file.size / 1024).toFixed(1) + ' KB',
-            fileUrl: dataUrl,
-            fileType: file.type || (isImg ? 'image/jpeg' : 'application/pdf'),
-            isImage: isImg,
+            fileSize: up.fileSize,
+            fileUrl: up.fileUrl,
+            fileType: up.fileType,
+            isImage: up.isImage,
             uploadDate: new Date().toLocaleDateString(),
           };
         })
@@ -325,7 +343,6 @@ export default function EmployeeMasterForm({
     for (const file of files) {
       const check = validateDocFile(file);
       if (!check.valid) {
-        alert(check.error);
         if (docFileInputRef.current) docFileInputRef.current.value = '';
         return;
       }
@@ -334,17 +351,16 @@ export default function EmployeeMasterForm({
     try {
       const newDocs = await Promise.all(
         files.map(async (file) => {
-          const dataUrl = await compressImageFile(file);
-          const isImg = file.type.startsWith('image/') || /\.(png|jpe?g)$/i.test(file.name);
+          const up = await uploadOrCompressFile(file);
           return {
             id: `${Date.now()}_${Math.random().toString(36).substr(2, 7)}`,
             type: selectedDocType,
             title: docTitle.trim() || selectedDocType,
             fileName: file.name,
-            fileSize: (file.size / 1024).toFixed(1) + ' KB',
-            fileUrl: dataUrl,
-            fileType: file.type || (isImg ? 'image/jpeg' : 'application/pdf'),
-            isImage: isImg,
+            fileSize: up.fileSize,
+            fileUrl: up.fileUrl,
+            fileType: up.fileType,
+            isImage: up.isImage,
             uploadDate: new Date().toLocaleDateString(),
           };
         })
@@ -856,13 +872,13 @@ export default function EmployeeMasterForm({
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       style={{
-                        background: '#f8fafc',
-                        border: '1px solid #cbd5e1',
+                        background: 'var(--surface-alt, #f8fafc)',
+                        border: '1px solid var(--line, #cbd5e1)',
                         borderRadius: '6px',
                         padding: '4px 12px',
                         fontSize: '11.5px',
                         fontWeight: 600,
-                        color: '#334155',
+                        color: 'var(--ink, #334155)',
                         cursor: 'pointer',
                         width: '100%',
                         textAlign: 'center',
@@ -889,7 +905,7 @@ export default function EmployeeMasterForm({
                           }));
                         }}
                         style={{
-                          background: '#ffffff',
+                          background: 'var(--surface, #ffffff)',
                           border: '1px solid #fca5a5',
                           borderRadius: '6px',
                           padding: '3px 8px',
@@ -931,7 +947,7 @@ export default function EmployeeMasterForm({
 
                   <FieldRow label="Employee Code" helper="Auto-generated on company selection (editable)">
                     <input
-                      style={{ ...inputStyle, background: '#ffffff', fontWeight: 700, color: '#008fa8' }}
+                      style={{ ...inputStyle, background: 'var(--input-bg, #ffffff)', fontWeight: 700, color: '#008fa8' }}
                       placeholder="Code Auto Generated"
                       value={form.empCode || ''}
                       onChange={(e) => set('empCode', e.target.value)}
@@ -1276,17 +1292,16 @@ export default function EmployeeMasterForm({
                             if (!file) return;
                             const check = validateDocFile(file);
                             if (!check.valid) {
-                              alert(check.error);
                               e.target.value = '';
                               return;
                             }
                             try {
-                              const dataUrl = await compressImageFile(file);
+                              const up = await uploadOrCompressFile(file);
                               const updated = [...educations];
                               updated[idx] = {
                                 ...updated[idx],
                                 educationalCertificateName: file.name,
-                                educationalCertificateUrl: dataUrl,
+                                educationalCertificateUrl: up.fileUrl,
                               };
                               setForm((prev) => ({
                                 ...prev,
@@ -1294,7 +1309,7 @@ export default function EmployeeMasterForm({
                                 education: updated[0] || {},
                                 ...(idx === 0 ? {
                                   educationalCertificateName: file.name,
-                                  educationalCertificateUrl: dataUrl,
+                                  educationalCertificateUrl: up.fileUrl,
                                 } : {}),
                               }));
                             } catch (err) {
@@ -1338,7 +1353,8 @@ export default function EmployeeMasterForm({
                                   type="button"
                                   onClick={() => {
                                     const a = document.createElement('a');
-                                    a.href = edu.educationalCertificateUrl || form.educationalCertificateUrl;
+                                    a.href = resolveDocUrl(edu.educationalCertificateUrl || form.educationalCertificateUrl);
+                                    a.target = '_blank';
                                     a.download = edu.educationalCertificateName || form.educationalCertificateName || 'educational-certificate';
                                     document.body.appendChild(a);
                                     a.click();
@@ -1561,17 +1577,16 @@ export default function EmployeeMasterForm({
                             if (!file) return;
                             const check = validateDocFile(file);
                             if (!check.valid) {
-                              alert(check.error);
                               e.target.value = '';
                               return;
                             }
                             try {
-                              const dataUrl = await compressImageFile(file);
+                              const up = await uploadOrCompressFile(file);
                               const updated = [...experiences];
                               updated[idx] = {
                                 ...updated[idx],
                                 experienceLetterName: file.name,
-                                experienceLetterUrl: dataUrl,
+                                experienceLetterUrl: up.fileUrl,
                               };
                               setForm((prev) => ({
                                 ...prev,
@@ -1579,7 +1594,7 @@ export default function EmployeeMasterForm({
                                 workExperience: updated[0] || {},
                                 ...(idx === 0 ? {
                                   experienceLetterName: file.name,
-                                  experienceLetterUrl: dataUrl,
+                                  experienceLetterUrl: up.fileUrl,
                                 } : {}),
                               }));
                             } catch (err) {
@@ -1623,7 +1638,8 @@ export default function EmployeeMasterForm({
                                   type="button"
                                   onClick={() => {
                                     const a = document.createElement('a');
-                                    a.href = exp.experienceLetterUrl || form.experienceLetterUrl;
+                                    a.href = resolveDocUrl(exp.experienceLetterUrl || form.experienceLetterUrl);
+                                    a.target = '_blank';
                                     a.download = exp.experienceLetterName || form.experienceLetterName || 'experience-letter';
                                     document.body.appendChild(a);
                                     a.click();
@@ -1731,8 +1747,10 @@ export default function EmployeeMasterForm({
                     value={form.departmentId || ''}
                     onChange={(e) => set('departmentId', e.target.value)}
                   >
-                    <option value="">— Select Department —</option>
-                    {(departments && departments.length > 0 ? departments : DEFAULT_DEPARTMENTS).map((d) => (
+                    <option value="">
+                      {departments && departments.length > 0 ? '— Select Department —' : '— No Departments Configured —'}
+                    </option>
+                    {(departments || []).map((d) => (
                       <option key={v(d, 'id')} value={v(d, 'id')}>
                         {v(d, 'name')}
                       </option>
@@ -2103,7 +2121,7 @@ export default function EmployeeMasterForm({
                 {/* Upload Controls Bar */}
                 <div
                   style={{
-                    background: '#ffffff',
+                    background: 'var(--surface, #ffffff)',
                     border: '1px solid var(--line, #e2e8f0)',
                     borderRadius: '10px',
                     padding: '16px',
@@ -2199,7 +2217,7 @@ export default function EmployeeMasterForm({
                       style={{
                         padding: '24px',
                         textAlign: 'center',
-                        background: '#ffffff',
+                        background: 'var(--surface-alt, #ffffff)',
                         borderRadius: '8px',
                         border: '1px dashed var(--line, #cbd5e1)',
                         color: 'var(--muted, #64748b)',
@@ -2387,7 +2405,7 @@ export default function EmployeeMasterForm({
                 >
                   {previewDoc.isImage || (previewDoc.fileType && previewDoc.fileType.startsWith('image/')) || (previewDoc.fileName && /\.(png|jpe?g|webp|gif)$/i.test(previewDoc.fileName)) ? (
                     <img
-                      src={previewDoc.fileUrl}
+                      src={resolveDocUrl(previewDoc.fileUrl)}
                       alt={previewDoc.title || previewDoc.fileName}
                       style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain', borderRadius: 6 }}
                     />
@@ -2399,7 +2417,7 @@ export default function EmployeeMasterForm({
                         {previewDoc.fileSize || 'Document file'}
                       </div>
                       <a
-                        href={previewDoc.fileUrl}
+                        href={resolveDocUrl(previewDoc.fileUrl)}
                         target="_blank"
                         rel="noreferrer"
                         className="btn"

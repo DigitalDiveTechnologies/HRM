@@ -134,7 +134,6 @@ export default function SettingsRolesPage() {
   async function deleteRole(row) {
     const code = String(row.code || '').toLowerCase();
     if (code === 'employee' || code === 'admin') return;
-    if (!window.confirm(`Delete role “${row.name}”? Users keep their login; re-assign a role if needed.`)) return;
     setError('');
     setOk('');
     try {

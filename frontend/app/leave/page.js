@@ -167,12 +167,19 @@ export default function LeavePage() {
     return balanceEmployees.find((e) => String(e.id) === String(activeBalanceEmpId)) || null;
   }, [balanceEmployees, activeBalanceEmpId]);
 
+  // Selected leave detailed employee data (defined before currentEmpName/currentEmpCode to avoid TDZ reference errors)
+  const leaveEmp = useMemo(() => {
+    if (!selectedLeave) return null;
+    const empId = v(selectedLeave, 'employeeId', 'employee_id');
+    return (employees || []).find((e) => String(v(e, 'id') || e.id || '') === String(empId)) || null;
+  }, [selectedLeave, employees]);
+
   const currentEmpName = selectedLeave
-    ? (v(selectedLeave, 'fullName', 'full_name') || 'Select Employee')
+    ? (v(selectedLeave, 'fullName', 'full_name') || (leaveEmp ? v(leaveEmp, 'fullName', 'full_name') : '') || 'Select Employee')
     : (employees[0] ? v(employees[0], 'fullName', 'full_name') : 'Select Employee');
 
   const currentEmpCode = selectedLeave
-    ? (v(selectedLeave, 'empCode', 'emp_code') || (leaveEmp ? v(leaveEmp, 'jobTitle', 'job_title') : ''))
+    ? (v(selectedLeave, 'empCode', 'emp_code') || (leaveEmp ? (v(leaveEmp, 'empCode', 'emp_code') || v(leaveEmp, 'jobTitle', 'job_title')) : ''))
     : (employees[0] ? (v(employees[0], 'empCode', 'emp_code') || v(employees[0], 'jobTitle', 'job_title') || '') : '');
 
   const currentEmpId = selectedLeave
@@ -181,7 +188,7 @@ export default function LeavePage() {
 
   function handleSelectEmployee(emp) {
     if (!emp) return;
-    const empId = String(v(emp, 'id'));
+    const empId = String(v(emp, 'id') || emp.id || '');
     setSelectedBalanceEmpId(empId);
 
     const empLeaves = rows.filter((r) => String(v(r, 'employeeId', 'employee_id')) === empId);
@@ -189,11 +196,13 @@ export default function LeavePage() {
       const pending = empLeaves.find((r) => String(v(r, 'status')).toLowerCase() === 'pending');
       setSelectedLeave(pending || empLeaves[0]);
     } else {
+      const foundEmp = (employees || []).find((e) => String(v(e, 'id') || e.id || '') === empId);
       setSelectedLeave({
         id: `preview-${empId}`,
         employeeId: empId,
-        fullName: v(emp, 'fullName', 'full_name'),
-        empCode: v(emp, 'empCode', 'emp_code'),
+        fullName: emp.name || v(emp, 'fullName', 'full_name') || (foundEmp ? v(foundEmp, 'fullName', 'full_name') : 'Employee'),
+        empCode: emp.code || v(emp, 'empCode', 'emp_code') || (foundEmp ? v(foundEmp, 'empCode', 'emp_code') : ''),
+        departmentName: emp.dept || (foundEmp ? v(foundEmp, 'departmentName', 'department_name') : 'General Operations'),
         leaveType: 'Annual',
         days: 0,
         startDate: todayISO(),
@@ -374,8 +383,8 @@ export default function LeavePage() {
   }
 
   function canHrAct(row) {
-    const stage = v(row, 'workflowStage', 'workflow_stage');
-    return String(v(row, 'status')).toLowerCase() === 'pending' && stage === 'pending_hr';
+    if (!row || row.isSynthetic) return false;
+    return String(v(row, 'status') || '').toLowerCase() === 'pending';
   }
 
   // Compute stats
@@ -406,12 +415,7 @@ export default function LeavePage() {
     });
   }, [rows, typeFilter, statusFilter, searchFilter, localFilteredEmpIds]);
 
-  // Selected leave detailed data
-  const leaveEmp = useMemo(() => {
-    if (!selectedLeave) return null;
-    const empId = v(selectedLeave, 'employeeId', 'employee_id');
-    return employees.find((e) => String(v(e, 'id')) === String(empId)) || null;
-  }, [selectedLeave, employees]);
+
 
   const leaveApprovals = useMemo(() => {
     if (!selectedLeave) return [];
@@ -428,10 +432,18 @@ export default function LeavePage() {
     if (!selectedLeave) return [];
 
     const overallStatus = String(v(selectedLeave, 'status') || 'pending').toLowerCase();
+    const managerName = v(leaveEmp, 'managerName', 'manager_name') || 'Direct Manager';
+
+    if (overallStatus === 'no leave' || selectedLeave?.isSynthetic) {
+      return [
+        { num: 1, title: '1. Reporting Manager', name: managerName, status: 'waiting' },
+        { num: 2, title: '2. General Manager', name: 'Operations General Manager', status: 'waiting' },
+        { num: 3, title: '3. HR', name: 'Sara (HR Administration)', status: 'waiting' },
+      ];
+    }
+
     const l1 = leaveApprovals.find((a) => Number(v(a, 'levelNo', 'level_no')) === 1);
     const l2 = leaveApprovals.find((a) => Number(v(a, 'levelNo', 'level_no')) === 2);
-
-    const managerName = v(leaveEmp, 'managerName', 'manager_name') || 'Direct Manager';
 
     // Step 1: Reporting Manager
     let step1Status = 'pending';
@@ -811,6 +823,19 @@ export default function LeavePage() {
                       >
                         Rejected
                       </span>
+                    ) : String(v(selectedLeave, 'status')).toLowerCase() === 'no leave' ? (
+                      <span
+                        style={{
+                          background: 'var(--surface-alt, #f1f5f9)',
+                          color: 'var(--muted, #64748b)',
+                          fontWeight: 600,
+                          fontSize: '12px',
+                          padding: '4px 14px',
+                          borderRadius: 9999,
+                        }}
+                      >
+                        No Leave Requests
+                      </span>
                     ) : (
                       <span
                         style={{
@@ -845,7 +870,7 @@ export default function LeavePage() {
                           cursor: 'pointer',
                         }}
                       >
-                        ✓ Approve (HR)
+                        ✓ Approve
                       </button>
                       <button
                         type="button"

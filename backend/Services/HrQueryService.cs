@@ -1816,11 +1816,63 @@ public sealed class HrQueryService
             """, conn);
         cmd.Parameters.AddWithValue("eid", employeeId);
         cmd.Parameters.AddWithValue("title", title.Trim());
-        cmd.Parameters.AddWithValue("cat", string.IsNullOrWhiteSpace(category) ? "Laptop" : category.Trim());
+        cmd.Parameters.AddWithValue("cat", (object?)category?.Trim() ?? DBNull.Value);
         cmd.Parameters.AddWithValue("tag", (object?)tagNo?.Trim() ?? DBNull.Value);
         cmd.Parameters.AddWithValue("due", (object?)dueDate ?? DBNull.Value);
         var row = await ReadOneAsync(cmd, ct);
         return (row, null);
+    }
+
+    public async Task EnsureOnboardingCategoriesTableAsync(CancellationToken ct = default)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            CREATE TABLE IF NOT EXISTS onboarding_device_categories (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(120) NOT NULL UNIQUE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """, conn);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task<List<Dictionary<string, object?>>> OnboardingCategoriesAsync(CancellationToken ct)
+    {
+        await EnsureOnboardingCategoriesTableAsync(ct);
+        return await QueryConnAsync(
+            "SELECT id, name, created_at FROM onboarding_device_categories ORDER BY name ASC", ct);
+    }
+
+    public async Task<(Dictionary<string, object?>? Row, string? Error)> CreateOnboardingCategoryAsync(string name, CancellationToken ct)
+    {
+        var clean = name?.Trim();
+        if (string.IsNullOrWhiteSpace(clean)) return (null, "Category name is required.");
+        if (clean.Length > 100) clean = clean[..100];
+        await EnsureOnboardingCategoriesTableAsync(ct);
+        await using var conn = await OpenAsync(ct);
+        var exists = await ScalarIntAsync(conn,
+            "SELECT COUNT(*)::int FROM onboarding_device_categories WHERE LOWER(TRIM(name)) = LOWER(@name)",
+            ct, ("name", clean));
+        if (exists > 0) return (null, "Category already exists.");
+
+        await using var cmd = new NpgsqlCommand(
+            "INSERT INTO onboarding_device_categories (name) VALUES (@name) RETURNING id, name, created_at",
+            conn);
+        cmd.Parameters.AddWithValue("name", clean);
+        var row = await ReadOneAsync(cmd, ct);
+        return (row, null);
+    }
+
+    public async Task<bool> DeleteOnboardingCategoryAsync(int id, CancellationToken ct)
+    {
+        await EnsureOnboardingCategoriesTableAsync(ct);
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            "DELETE FROM onboarding_device_categories WHERE id = @id", conn);
+        cmd.Parameters.AddWithValue("id", id);
+        var rows = await cmd.ExecuteNonQueryAsync(ct);
+        return rows > 0;
     }
 
     public async Task<Dictionary<string, object?>?> UpdateAssetStatusAsync(int id, string status, CancellationToken ct)
@@ -3074,6 +3126,11 @@ public sealed class HrQueryService
                 "UPDATE employees SET status = 'exited' WHERE id = @eid", conn, (NpgsqlTransaction)tx);
             emp.Parameters.AddWithValue("eid", eid);
             await emp.ExecuteNonQueryAsync(ct);
+
+            await using var usr = new NpgsqlCommand(
+                "UPDATE users SET is_active = FALSE WHERE employee_id = @eid", conn, (NpgsqlTransaction)tx);
+            usr.Parameters.AddWithValue("eid", eid);
+            await usr.ExecuteNonQueryAsync(ct);
         }
 
         await tx.CommitAsync(ct);

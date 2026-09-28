@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppShell, { Badge } from '../../components/AppShell';
 import EmployeeMasterForm from '../../components/EmployeeMasterForm';
-import { api, apiBlob, apiUpload, getApiBase, getPermissions, getUser, normalizeRole } from '../../lib/auth';
+import { api, apiBlob, apiUpload, getApiBase, getPermissions, getUser, normalizeRole, resolveDocUrl } from '../../lib/auth';
 import {
   emptyMasterForm,
   masterFormFromEmployee,
@@ -125,6 +125,7 @@ function EmployeesContent() {
   const [history, setHistory] = useState([]);
   const [selected, setSelected] = useState(null);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editError, setEditError] = useState('');
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [createForm, setCreateForm] = useState(emptyMasterForm());
@@ -141,7 +142,8 @@ function EmployeesContent() {
     setPreviewDocModal(doc);
   };
 
-  const handleDownloadDoc = (url, fileName) => {
+  const handleDownloadDoc = (rawUrl, fileName) => {
+    const url = resolveDocUrl(rawUrl);
     const name = fileName || 'document';
     if (url && (url.startsWith('data:') || url.startsWith('blob:'))) {
       try {
@@ -601,12 +603,20 @@ function EmployeesContent() {
 
   async function saveEmployeeEdit(ev) {
     if (ev && ev.preventDefault) ev.preventDefault();
+    setEditError('');
     setError('');
     setMsg('');
     setSavingEdit(true);
     try {
-      const payload = masterPayloadFromForm(masterForm);
       const empId = v(selected, 'id');
+      const dupMsg = findCreateDuplicateMessage(masterForm, rows, empId);
+      if (dupMsg) {
+        setEditError(dupMsg);
+        setSavingEdit(false);
+        return;
+      }
+
+      const payload = masterPayloadFromForm(masterForm);
       const hadPhoto = Boolean(v(selected, 'photoPath', 'photo_path'));
       const isRemovingPhoto = Boolean(masterForm.photoRemoved && hadPhoto);
 
@@ -636,9 +646,10 @@ function EmployeesContent() {
         setMasterForm(masterFormFromEmployee(updated));
       }
       setIsEditingProfile(false);
+      setEditError('');
       await load().catch(() => {});
     } catch (err) {
-      setError(err.message || 'Failed to save changes.');
+      setEditError(err.message || 'Failed to save changes.');
     } finally {
       setSavingEdit(false);
     }
@@ -1769,15 +1780,22 @@ function EmployeesContent() {
               <EmployeeMasterForm
                 mode="edit"
                 form={masterForm}
-                setForm={setMasterForm}
+                setForm={(updater) => {
+                  setEditError('');
+                  setMasterForm(updater);
+                }}
                 departments={departments}
                 divisions={divisions}
                 designations={designations}
                 employmentTypes={employmentTypes}
                 managers={(Array.isArray(rows) ? rows : []).filter((r) => String(v(r, 'id')) !== String(v(selected, 'id')))}
                 saving={savingEdit}
+                error={editError}
                 onSubmit={saveEmployeeEdit}
-                onCancel={() => setIsEditingProfile(false)}
+                onCancel={() => {
+                  setIsEditingProfile(false);
+                  setEditError('');
+                }}
               />
             </div>
           ) : (
@@ -1798,7 +1816,7 @@ function EmployeesContent() {
                         <button
                           type="button"
                           className="card-edit-pencil"
-                          onClick={() => setIsEditingProfile(true)}
+                          onClick={() => { setEditError(''); setIsEditingProfile(true); }}
                           title="Edit Basic information"
                         >
                           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -1970,7 +1988,7 @@ function EmployeesContent() {
                         <button
                           type="button"
                           className="card-edit-pencil"
-                          onClick={() => setIsEditingProfile(true)}
+                          onClick={() => { setEditError(''); setIsEditingProfile(true); }}
                           title="Edit Address"
                         >
                           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -2004,7 +2022,7 @@ function EmployeesContent() {
                         <button
                           type="button"
                           className="card-edit-pencil"
-                          onClick={() => setIsEditingProfile(true)}
+                          onClick={() => { setEditError(''); setIsEditingProfile(true); }}
                           title="Edit Work Experience"
                         >
                           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -2154,7 +2172,7 @@ function EmployeesContent() {
                         <button
                           type="button"
                           className="card-edit-pencil"
-                          onClick={() => setIsEditingProfile(true)}
+                          onClick={() => { setEditError(''); setIsEditingProfile(true); }}
                           title="Edit Education"
                         >
                           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -2321,7 +2339,7 @@ function EmployeesContent() {
                         <button
                           type="button"
                           className="card-edit-pencil"
-                          onClick={() => setIsEditingProfile(true)}
+                          onClick={() => { setEditError(''); setIsEditingProfile(true); }}
                           title="Edit Job Details"
                         >
                           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -2613,7 +2631,7 @@ function EmployeesContent() {
                         <button
                           type="button"
                           className="card-edit-pencil"
-                          onClick={() => setIsEditingProfile(true)}
+                          onClick={() => { setEditError(''); setIsEditingProfile(true); }}
                           title="Edit Credentials"
                         >
                           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -2672,7 +2690,7 @@ function EmployeesContent() {
                         <button
                           type="button"
                           className="card-edit-pencil"
-                          onClick={() => setIsEditingProfile(true)}
+                          onClick={() => { setEditError(''); setIsEditingProfile(true); }}
                           title="Manage Documents"
                         >
                           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -3188,7 +3206,7 @@ function EmployeesContent() {
             >
               {!previewImgError && previewDocModal.fileUrl && (previewDocModal.isImage || (previewDocModal.fileType && previewDocModal.fileType.startsWith('image/')) || (previewDocModal.fileName && /\.(png|jpe?g|webp|gif)$/i.test(previewDocModal.fileName))) ? (
                 <img
-                  src={previewDocModal.fileUrl}
+                  src={resolveDocUrl(previewDocModal.fileUrl)}
                   alt={previewDocModal.title || previewDocModal.fileName}
                   onError={() => setPreviewImgError(true)}
                   style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain', borderRadius: 6 }}
@@ -3204,7 +3222,7 @@ function EmployeesContent() {
                   </div>
                   {previewDocModal.fileUrl && !previewDocModal.fileUrl.startsWith('blob:') ? (
                     <a
-                      href={previewDocModal.fileUrl}
+                      href={resolveDocUrl(previewDocModal.fileUrl)}
                       target="_blank"
                       rel="noreferrer"
                       className="btn"

@@ -124,7 +124,7 @@ export default function ExitPage() {
   async function setCaseStatus(id, status) {
     try {
       await api(`/exit/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
-      setMsg(status === 'completed' ? 'Exit completed â€” employee marked exited.' : `Case marked ${status}.`);
+      setMsg(status === 'completed' ? 'Exit completed — employee marked exited and deactivated.' : `Case marked ${status}.`);
       load();
     } catch (e) {
       setError(e.message);
@@ -239,9 +239,8 @@ export default function ExitPage() {
                   <td>{formatDate(v(r, 'lastWorkingDate', 'last_working_date'))}</td>
                   <td style={{ maxWidth: 220 }}>
                     <div className="muted" style={{ fontSize: 12 }}>
-                      EOSB {v(r, 'eosbAmount', 'eosb_amount') || 'â€”'} Â· {v(r, 'serviceYears', 'service_years') || 'â€”'} yrs
+                      EOSB {v(r, 'eosbAmount', 'eosb_amount') != null && v(r, 'eosbAmount', 'eosb_amount') !== '' ? v(r, 'eosbAmount', 'eosb_amount') : '—'} · {v(r, 'serviceYears', 'service_years') != null && v(r, 'serviceYears', 'service_years') !== '' ? `${v(r, 'serviceYears', 'service_years')} yrs` : '—'}
                     </div>
-                    <div className="muted" style={{ fontSize: 12 }}>{v(r, 'settlementNotes', 'settlement_notes') || 'â€”'}</div>
                   </td>
                   <td>
                     {v(r, 'checklistDone', 'checklist_done') || 0}/{v(r, 'checklistTotal', 'checklist_total') || 0}
@@ -251,19 +250,24 @@ export default function ExitPage() {
                   </td>
                   <td>
                     <div className="row-actions">
-                      <button type="button" className="btn secondary" onClick={() => openChecklist(v(r, 'id'))}>
-                        Checklist
-                      </button>
-                      {canManage ? (
-                        <button type="button" className="btn secondary" onClick={() => runSettlement(v(r, 'id'))}>
-                          Settlement
-                        </button>
-                      ) : null}
                       {canManage && String(v(r, 'status')) !== 'completed' ? (
-                        <button type="button" className="btn ok" onClick={() => setCaseStatus(v(r, 'id'), 'completed')}>
+                        <button
+                          type="button"
+                          className="btn ok"
+                          style={{
+                            background: '#10b981',
+                            color: '#ffffff',
+                            fontWeight: 600,
+                            padding: '6px 14px',
+                            borderRadius: '6px'
+                          }}
+                          onClick={() => setCaseStatus(v(r, 'id'), 'completed')}
+                        >
                           Complete
                         </button>
-                      ) : null}
+                      ) : (
+                        <span style={{ fontSize: '12px', color: '#10b981', fontWeight: 600 }}>Completed</span>
+                      )}
                     </div>
                   </td>
                 </tr>

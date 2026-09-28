@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import PortalShell from '@/components/PortalShell';
 import { api, session, value } from '@/lib/api';
@@ -53,8 +53,10 @@ export default function Dashboard() {
   const { t, locale } = useLocale();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  const [punching, setPunching] = useState(false);
+  const [punchMsg, setPunchMsg] = useState('');
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
     const id = session.get()?.user?.employeeId;
     if (!id) return;
     Promise.all([
@@ -74,11 +76,56 @@ export default function Dashboard() {
       .catch((e) => setError(e.message));
   }, []);
 
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
   const attendance = data?.ess?.attendance || [];
   const leaves = data?.ess?.leave || [];
   const balances = data?.balances || [];
   const onboarding = data?.onboarding || [];
   const notifications = data?.notifications || [];
+
+  const todayStr = new Date().toLocaleDateString('en-CA');
+  const isSameDay = (d1, d2) => d1 && d2 && String(d1).slice(0, 10) === String(d2).slice(0, 10);
+  const todayAtt = attendance.find((r) => isSameDay(value(r, 'workDate', 'work_date'), todayStr)) || null;
+  const isTodayRecord = Boolean(todayAtt && isSameDay(value(todayAtt, 'workDate', 'work_date'), todayStr));
+  const hasCheckedIn = Boolean(isTodayRecord && value(todayAtt, 'checkIn', 'check_in'));
+  const hasCheckedOut = Boolean(isTodayRecord && value(todayAtt, 'checkOut', 'check_out'));
+  const todayStatus = isTodayRecord
+    ? (hasCheckedOut ? 'Completed' : (hasCheckedIn ? 'Checked In' : 'Not marked'))
+    : 'Not marked';
+
+  async function quickPunch(type) {
+    const eid = session.get()?.user?.employeeId;
+    if (!eid || punching) return;
+    setPunching(true);
+    setError('');
+    setPunchMsg('');
+    try {
+      const now = new Date();
+      const workDate = now.toLocaleDateString('en-CA');
+      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+      if (type === 'in') {
+        await api('/attendance', {
+          method: 'POST',
+          body: JSON.stringify({ employeeId: eid, workDate, checkIn: timeStr, status: 'present', shiftName: 'General' }),
+        });
+        setPunchMsg(locale === 'ar' ? `تم تسجيل الحضور في ${timeStr}` : `Checked in at ${timeStr}`);
+      } else {
+        await api('/attendance', {
+          method: 'POST',
+          body: JSON.stringify({ employeeId: eid, workDate, checkOut: timeStr }),
+        });
+        setPunchMsg(locale === 'ar' ? `تم تسجيل الانصراف في ${timeStr}` : `Checked out at ${timeStr}`);
+      }
+      loadData();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setPunching(false);
+    }
+  }
 
   const remaining = balances.reduce(
     (sum, row) => sum + Number(value(row, 'remainingDays', 'remaining_days') || 0),
@@ -86,8 +133,6 @@ export default function Dashboard() {
   );
   const pendingOnboarding = onboarding.filter((x) => value(x, 'status') !== 'done').length;
   const unreadNotifs = notifications.filter((x) => !value(x, 'isRead', 'is_read')).length;
-  const todayAtt = attendance[0];
-  const todayStatus = todayAtt ? value(todayAtt, 'status') || 'Recorded' : 'Not marked';
   const onboardingPct = onboarding.length
     ? Math.round(((onboarding.length - pendingOnboarding) / onboarding.length) * 100)
     : 100;
@@ -163,12 +208,56 @@ export default function Dashboard() {
                     <h2>{t('recent_attendance')}</h2>
                     <p>{t('recent_attendance_sub')}</p>
                   </div>
-                  <Link href="/attendance">
-                    <button type="button" className="panel-btn">
-                      {t('all_attendance')}
-                    </button>
-                  </Link>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    {!hasCheckedIn ? (
+                      <button
+                        type="button"
+                        disabled={punching}
+                        onClick={() => quickPunch('in')}
+                        style={{
+                          background: '#10b981',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 6,
+                          padding: '6px 14px',
+                          fontWeight: 700,
+                          fontSize: '12.5px',
+                          cursor: punching ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {punching ? '...' : (locale === 'ar' ? '+ تسجيل حضور' : '+ Check In')}
+                      </button>
+                    ) : !hasCheckedOut ? (
+                      <button
+                        type="button"
+                        disabled={punching}
+                        onClick={() => quickPunch('out')}
+                        style={{
+                          background: '#e11d48',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 6,
+                          padding: '6px 14px',
+                          fontWeight: 700,
+                          fontSize: '12.5px',
+                          cursor: punching ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {punching ? '...' : (locale === 'ar' ? 'تسجيل انصراف' : 'Check Out')}
+                      </button>
+                    ) : null}
+                    <Link href="/attendance">
+                      <button type="button" className="panel-btn">
+                        {t('all_attendance')}
+                      </button>
+                    </Link>
+                  </div>
                 </div>
+                {punchMsg ? (
+                  <div style={{ margin: '8px 16px', padding: '6px 12px', background: 'rgba(16,185,129,0.12)', border: '1px solid #10b981', borderRadius: 6, color: '#065f46', fontSize: '12px', fontWeight: 600 }}>
+                    ✓ {punchMsg}
+                  </div>
+                ) : null}
                 {attendance.length ? (
                   <div className="table-wrap">
                     <table className="portal-table">

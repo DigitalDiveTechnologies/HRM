@@ -14,22 +14,36 @@ const KEY = 'gocs_selected_company_id';
  *   - If company selected but employee cache empty → null, null (safe fallback, show all)
  *   - If company selected AND cache exists → Set of matching employee IDs + emp_codes
  */
+export function setGlobalCompanyId(id) {
+  try {
+    if (id) {
+      sessionStorage.setItem(KEY, String(id));
+    } else {
+      sessionStorage.removeItem(KEY);
+    }
+    window.dispatchEvent(new Event('gocs_company_changed'));
+  } catch {}
+}
+
 export function useCompanyFilter() {
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [selectedCompany, setSelectedCompany] = useState(null);
+  const [companies, setCompanies] = useState([]);
   const [filteredEmpIds, setFilteredEmpIds] = useState(null);
   const [filteredEmpCodes, setFilteredEmpCodes] = useState(null);
 
   useEffect(() => {
+    let active = true;
+
     function computeFilter() {
       let id = '';
       try { id = sessionStorage.getItem(KEY) || ''; } catch {}
 
-      setSelectedCompanyId(id);
+      if (active) setSelectedCompanyId(id);
 
       // Read caches
       let employees = [];
-      let companies = [];
+      let compList = [];
       try {
         const ec = localStorage.getItem('gocs_cached_employees');
         if (ec) {
@@ -41,47 +55,94 @@ export function useCompanyFilter() {
         const dc = localStorage.getItem('gocs_cached_dashboard');
         if (dc) {
           const p = JSON.parse(dc);
-          if (Array.isArray(p?.companies)) companies = p.companies;
+          if (Array.isArray(p?.companies)) compList = p.companies;
           if (!employees.length && Array.isArray(p?.employees)) employees = p.employees;
         }
       } catch {}
       try {
-        if (!companies.length) {
+        if (!compList.length) {
           const divs = localStorage.getItem('gocs_cached_divisions');
           if (divs) {
             const parsed = JSON.parse(divs);
-            if (Array.isArray(parsed)) companies = parsed;
+            if (Array.isArray(parsed)) compList = parsed;
           }
         }
       } catch {}
 
-      const compList = Array.isArray(companies) ? companies : [];
-      const empList = Array.isArray(employees) ? employees : [];
+      if (active) setCompanies(compList);
 
       const foundComp = id && compList.length
         ? compList.find((c) => String(v(c, 'id')) === id) || null
         : null;
-      setSelectedCompany(foundComp);
+      if (active) setSelectedCompany(foundComp);
+
+      // If company selected but caches empty, attempt background fetch
+      if (id && (!employees.length || !compList.length) && typeof window !== 'undefined') {
+        import('./auth').then(({ api }) => {
+          Promise.allSettled([
+            api('/divisions?activeOnly=true'),
+            api('/employees'),
+          ]).then(([divRes, empRes]) => {
+            if (!active) return;
+            let updatedComp = compList;
+            let updatedEmp = employees;
+            if (divRes.status === 'fulfilled' && Array.isArray(divRes.value) && divRes.value.length) {
+              updatedComp = divRes.value;
+              setCompanies(updatedComp);
+              try { localStorage.setItem('gocs_cached_divisions', JSON.stringify(updatedComp)); } catch {}
+            }
+            if (empRes.status === 'fulfilled' && Array.isArray(empRes.value) && empRes.value.length) {
+              updatedEmp = empRes.value;
+              try { localStorage.setItem('gocs_cached_employees', JSON.stringify(updatedEmp)); } catch {}
+            }
+            // Recompute with fresh data
+            if (updatedComp.length || updatedEmp.length) {
+              const fc = id ? updatedComp.find((c) => String(v(c, 'id')) === id) || null : null;
+              setSelectedCompany(fc);
+              if (id && updatedEmp.length) {
+                const targetCode = fc ? String(v(fc, 'code') || '').toLowerCase().trim() : '';
+                const targetName = fc ? String(v(fc, 'name') || '').toLowerCase().trim() : '';
+                const matched = updatedEmp.filter((emp) => {
+                  if (!emp) return false;
+                  let md = {};
+                  try { md = typeof emp.masterData === 'string' ? JSON.parse(emp.masterData || '{}') : emp.masterData || {}; } catch {}
+                  const empDivId = String(v(emp, 'divisionId', 'division_id') || emp.companyId || emp.company_id || md.divisionId || (md.companyIds && md.companyIds[0]) || '').trim();
+                  const empDivCode = String(v(emp, 'divisionCode', 'division_code') || md.divisionCode || '').toLowerCase().trim();
+                  const empDivName = String(v(emp, 'divisionName', 'division_name') || md.divisionName || '').toLowerCase().trim();
+                  return (empDivId && empDivId === id) ||
+                    (targetCode && empDivCode && empDivCode === targetCode) ||
+                    (targetName && empDivName && empDivName === targetName);
+                });
+                setFilteredEmpIds(new Set(matched.map((e) => String(v(e, 'id'))).filter(Boolean)));
+                setFilteredEmpCodes(new Set(matched.map((e) => String(v(e, 'empCode', 'emp_code') || '')).filter(Boolean)));
+              }
+            }
+          }).catch(() => {});
+        }).catch(() => {});
+      }
 
       // No company selected = All Companies = no filter
       if (!id) {
-        setFilteredEmpIds(null);
-        setFilteredEmpCodes(null);
+        if (active) {
+          setFilteredEmpIds(null);
+          setFilteredEmpCodes(null);
+        }
         return;
       }
 
-      // If no employee cache available, show everything (safe fallback)
-      if (!empList.length) {
-        setFilteredEmpIds(null);
-        setFilteredEmpCodes(null);
+      // If no employee cache available yet, show all until hydrated
+      if (!employees.length) {
+        if (active) {
+          setFilteredEmpIds(null);
+          setFilteredEmpCodes(null);
+        }
         return;
       }
 
-      // Find company name/code for richer matching
       const targetCode = foundComp ? String(v(foundComp, 'code') || '').toLowerCase().trim() : '';
       const targetName = foundComp ? String(v(foundComp, 'name') || '').toLowerCase().trim() : '';
 
-      const matchingEmps = empList.filter((emp) => {
+      const matchingEmps = employees.filter((emp) => {
         if (!emp) return false;
         let md = {};
         try {
@@ -112,8 +173,10 @@ export function useCompanyFilter() {
         matchingEmps.map((emp) => String(v(emp, 'empCode', 'emp_code') || '')).filter(Boolean)
       );
 
-      setFilteredEmpIds(ids);
-      setFilteredEmpCodes(codes);
+      if (active) {
+        setFilteredEmpIds(ids);
+        setFilteredEmpCodes(codes);
+      }
     }
 
     computeFilter();
@@ -122,12 +185,20 @@ export function useCompanyFilter() {
     window.addEventListener('storage', computeFilter);
 
     return () => {
+      active = false;
       window.removeEventListener('gocs_company_changed', computeFilter);
       window.removeEventListener('storage', computeFilter);
     };
   }, []);
 
-  return { selectedCompanyId, selectedCompany, filteredEmpIds, filteredEmpCodes };
+  return {
+    selectedCompanyId,
+    selectedCompany,
+    companies,
+    filteredEmpIds,
+    filteredEmpCodes,
+    setCompanyId: setGlobalCompanyId,
+  };
 }
 
 /**
@@ -171,13 +242,17 @@ export function buildLocalEmpIds(employees, selectedCompanyId) {
     employees
       .filter((emp) => {
         if (!emp) return false;
+        let md = {};
+        try {
+          md = typeof emp.masterData === 'string' ? JSON.parse(emp.masterData || '{}') : (emp.masterData || {});
+        } catch { md = {}; }
         const divId = String(
-          emp.division_id ?? emp.divisionId ?? emp.company_id ?? emp.companyId ?? ''
+          emp.division_id ?? emp.divisionId ?? emp.company_id ?? emp.companyId ?? md.divisionId ?? (md.companyIds && md.companyIds[0]) ?? ''
         ).trim();
         return divId === id;
       })
       .map((emp) => String(emp.id || emp.Id || ''))
       .filter(Boolean)
   );
-  return ids; // Return even if empty — means company has no employees
+  return ids;
 }

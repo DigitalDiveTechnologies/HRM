@@ -92,7 +92,6 @@ export default function MastersPage() {
   }
 
   async function deleteMaster(kind, id, name) {
-    if (!window.confirm(`Are you sure you want to permanently delete "${name || 'this item'}"?`)) return;
     setMsg('');
     setError('');
     const path = kind === 'des' ? `/designations/${id}` : `/employment-types/${id}`;

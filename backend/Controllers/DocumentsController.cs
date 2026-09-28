@@ -171,4 +171,79 @@ public sealed class DocumentsController : ControllerBase
         var downloadName = Path.GetFileName(absolutePath);
         return PhysicalFile(absolutePath, contentType, downloadName);
     }
+
+    /// <summary>Upload a standalone document file (Passport, Emirates ID, Degree, etc.). Returns lightweight metadata without bloating DB.</summary>
+    [HttpPost("upload-file")]
+    [RequestSizeLimit(25_000_000)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 25_000_000)]
+    public async Task<IActionResult> UploadRawFile(IFormFile? file, CancellationToken ct)
+    {
+        if (file is null || file.Length <= 0)
+            return BadRequest(new { error = "File is required." });
+        if (file.Length > 25_000_000)
+            return BadRequest(new { error = "File exceeds the 25 MB limit." });
+
+        var ext = Path.GetExtension(file.FileName);
+        if (string.IsNullOrWhiteSpace(ext) || !AllowedExtensions.Contains(ext))
+            return BadRequest(new { error = "Unsupported file format. Please upload PNG, JPG, JPEG, WEBP, or PDF." });
+
+        var webRoot = string.IsNullOrWhiteSpace(_env.WebRootPath)
+            ? Path.Combine(_env.ContentRootPath, "wwwroot")
+            : _env.WebRootPath;
+        var uploadDir = Path.Combine(webRoot, "uploads", "documents");
+        Directory.CreateDirectory(uploadDir);
+
+        var safeName = Path.GetFileNameWithoutExtension(file.FileName);
+        safeName = string.Join("_", safeName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
+        if (string.IsNullOrWhiteSpace(safeName)) safeName = "document";
+        if (safeName.Length > 60) safeName = safeName[..60];
+
+        var storedName = $"{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}_{safeName}{ext.ToLowerInvariant()}";
+        var absolutePath = Path.Combine(uploadDir, storedName);
+        await using (var stream = System.IO.File.Create(absolutePath))
+        {
+            await file.CopyToAsync(stream, ct);
+        }
+
+        var relativeRef = $"uploads/documents/{storedName}";
+        var isImg = ext.Equals(".png", StringComparison.OrdinalIgnoreCase)
+                 || ext.Equals(".jpg", StringComparison.OrdinalIgnoreCase)
+                 || ext.Equals(".jpeg", StringComparison.OrdinalIgnoreCase)
+                 || ext.Equals(".webp", StringComparison.OrdinalIgnoreCase);
+
+        return Ok(new
+        {
+            fileUrl = relativeRef,
+            fileName = file.FileName,
+            fileSize = $"{(file.Length / 1024.0):0.0} KB",
+            fileType = file.ContentType,
+            isImage = isImg
+        });
+    }
+
+    /// <summary>Stream or download any uploaded document file by relative path.</summary>
+    [HttpGet("view")]
+    [AllowAnonymous]
+    public IActionResult ViewFile([FromQuery] string file)
+    {
+        if (string.IsNullOrWhiteSpace(file)) return BadRequest(new { error = "File parameter is required." });
+        if (file.Contains("..", StringComparison.Ordinal)) return BadRequest(new { error = "Invalid file path." });
+
+        var webRoot = string.IsNullOrWhiteSpace(_env.WebRootPath)
+            ? Path.Combine(_env.ContentRootPath, "wwwroot")
+            : _env.WebRootPath;
+        var clean = file.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+        var absolutePath = Path.GetFullPath(Path.Combine(webRoot, clean));
+        var uploadsRoot = Path.GetFullPath(Path.Combine(webRoot, "uploads"));
+        if (!absolutePath.StartsWith(uploadsRoot, StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { error = "Access denied: file must reside in uploads directory." });
+        if (!System.IO.File.Exists(absolutePath))
+            return NotFound(new { error = "Document file not found on server." });
+
+        var provider = new FileExtensionContentTypeProvider();
+        if (!provider.TryGetContentType(absolutePath, out var contentType))
+            contentType = "application/octet-stream";
+
+        return PhysicalFile(absolutePath, contentType);
+    }
 }

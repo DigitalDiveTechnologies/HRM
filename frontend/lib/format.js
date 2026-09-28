@@ -13,9 +13,16 @@ export function formatDate(value) {
 export function formatDateTime(value) {
   if (!value) return '-';
   try {
-    const d = new Date(value);
+    let str = String(value);
+    // DB returns timestamps without timezone info e.g. "2026-09-27T12:07:21"
+    // These are UTC — append 'Z' so JS parses as UTC and converts to device timezone
+    if (str.length >= 16 && !str.endsWith('Z') && !/[+\-]\d{2}:?\d{2}$/.test(str)) {
+      str += 'Z';
+    }
+    const d = new Date(str);
     if (isNaN(d.getTime())) return String(value).slice(0, 16);
-    return d.toLocaleString('en-US', {
+    // No locale override — browser uses device/region timezone automatically
+    return d.toLocaleString(undefined, {
       day: '2-digit',
       month: 'short',
       year: 'numeric',

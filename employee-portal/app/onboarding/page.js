@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import PortalShell from '@/components/PortalShell';
 import { api, value } from '@/lib/api';
 import { useLocale } from '@/lib/LocaleContext';
@@ -11,14 +11,49 @@ export default function Onboarding() {
   const { t, locale } = useLocale();
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
+  const [actionMsg, setActionMsg] = useState('');
   const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
+
+  const loadTasks = useCallback(async () => {
+    try {
+      const data = await api('/onboarding/my');
+      setRows(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    api('/onboarding/my')
-      .then((data) => setRows(Array.isArray(data) ? data : []))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
+    loadTasks();
+  }, [loadTasks]);
+
+  async function markDone(id) {
+    if (busyId) return;
+    setBusyId(id);
+    setError('');
+    setActionMsg('');
+    try {
+      await api(`/onboarding/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'done' }),
+      });
+      setActionMsg(locale === 'ar' ? 'تم تحديث حالة المهمة إلى مكتمل بنجاح!' : 'Task marked as completed successfully!');
+      setRows((prev) =>
+        prev.map((r) =>
+          value(r, 'id') === id
+            ? { ...r, status: 'done', signedAt: new Date().toISOString() }
+            : r
+        )
+      );
+    } catch (err) {
+      setError(err.message || 'Failed to update task');
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   const total = rows.length;
   const completed = rows.filter((r) => String(value(r, 'status') || '').toLowerCase() === 'done').length;
@@ -29,7 +64,28 @@ export default function Onboarding() {
       title={t('onboarding_title')}
       subtitle={t('onboarding_subtitle')}
     >
-      {error ? <div className="error-box">{error}</div> : null}
+      {error ? <div className="error-box" style={{ marginBottom: 16 }}>{error}</div> : null}
+      {actionMsg ? (
+        <div
+          style={{
+            background: 'rgba(16, 185, 129, 0.12)',
+            border: '1px solid #10b981',
+            color: '#065f46',
+            borderRadius: 8,
+            padding: '12px 16px',
+            marginBottom: 16,
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          <span>{actionMsg}</span>
+        </div>
+      ) : null}
 
       {/* KPI Top Cards */}
       <div className="dash-kpi-grid">
@@ -84,10 +140,11 @@ export default function Onboarding() {
               const status = String(value(r, 'status') || 'pending').toLowerCase();
               const isDone = status === 'done';
               const tag = value(r, 'tagNo', 'tag_no');
+              const taskId = value(r, 'id');
 
               return (
                 <div
-                  key={value(r, 'id') || i}
+                  key={taskId || i}
                   style={{
                     border: '1px solid var(--line)',
                     borderRadius: 8,
@@ -95,10 +152,10 @@ export default function Onboarding() {
                     background: 'var(--surface-alt)',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 10,
+                    gap: 12,
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span className={`status-pill ${isDone ? 'approved' : 'pending'}`}>
@@ -114,9 +171,39 @@ export default function Onboarding() {
                       </p>
                     </div>
 
-                    <div style={{ textAlign: locale === 'ar' ? 'left' : 'right', whiteSpace: 'nowrap' }}>
-                      <small style={{ fontSize: '11px', color: 'var(--muted)', display: 'block' }}>{t('due_date')}</small>
-                      <strong style={{ fontSize: '12.5px', color: 'var(--ink)' }}>{formatDate(value(r, 'dueDate', 'due_date'))}</strong>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <div style={{ textAlign: locale === 'ar' ? 'left' : 'right', whiteSpace: 'nowrap' }}>
+                        <small style={{ fontSize: '11px', color: 'var(--muted)', display: 'block' }}>{t('due_date')}</small>
+                        <strong style={{ fontSize: '12.5px', color: 'var(--ink)' }}>{formatDate(value(r, 'dueDate', 'due_date'))}</strong>
+                      </div>
+
+                      {!isDone ? (
+                        <button
+                          type="button"
+                          disabled={busyId === taskId}
+                          onClick={() => markDone(taskId)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '8px 14px',
+                            borderRadius: 8,
+                            border: 'none',
+                            background: '#10b981',
+                            color: '#ffffff',
+                            fontWeight: 700,
+                            fontSize: '12.5px',
+                            cursor: busyId === taskId ? 'not-allowed' : 'pointer',
+                            boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                          <span>{busyId === taskId ? (locale === 'ar' ? 'جاري التحديث…' : 'Updating…') : (locale === 'ar' ? 'تحديد كمكتمل' : 'Mark as Done')}</span>
+                        </button>
+                      ) : null}
                     </div>
                   </div>
 

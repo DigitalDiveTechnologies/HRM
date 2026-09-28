@@ -189,10 +189,12 @@ class _AppShellState extends State<AppShell> {
         title: _titleFor(route),
         userLabel: userLabel,
         isDark: app.themeMode == ThemeMode.dark,
+        isArabic: app.locale == 'ar',
         topInset: MediaQuery.viewPaddingOf(context).top,
         menuBadgeCount: app.menuAlertCategories,
         onOpenMenu: () => _scaffoldKey.currentState?.openDrawer(),
         onToggleTheme: () => app.toggleTheme(),
+        onToggleLocale: route == 'ess' ? () => app.toggleLocale() : null,
       ),
       drawer: _PortalDrawer(
         groups: groups,

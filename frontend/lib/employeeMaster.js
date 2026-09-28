@@ -521,21 +521,23 @@ export async function sha256HexOfFile(file) {
  * Returns an "already exists" message, or '' if ok.
  * Does NOT regenerate codes — company auto-generate stays separate.
  */
-export function findCreateDuplicateMessage(form, existingEmployees = []) {
+export function findCreateDuplicateMessage(form, existingEmployees = [], excludeId = null) {
   const code = String(form?.empCode || '').trim().toLowerCase();
   const email = String(form?.email || '').trim().toLowerCase();
   const list = Array.isArray(existingEmployees) ? existingEmployees : [];
 
   if (code) {
-    const hit = list.some(
-      (e) => String(v(e, 'empCode', 'emp_code') || '').trim().toLowerCase() === code
-    );
+    const hit = list.some((e) => {
+      if (excludeId != null && String(v(e, 'id')) === String(excludeId)) return false;
+      return String(v(e, 'empCode', 'emp_code') || '').trim().toLowerCase() === code;
+    });
     if (hit) return 'Employee code already exists.';
   }
   if (email) {
-    const hit = list.some(
-      (e) => String(v(e, 'email') || '').trim().toLowerCase() === email
-    );
+    const hit = list.some((e) => {
+      if (excludeId != null && String(v(e, 'id')) === String(excludeId)) return false;
+      return String(v(e, 'email') || '').trim().toLowerCase() === email;
+    });
     if (hit) return 'Email already exists.';
   }
   return '';

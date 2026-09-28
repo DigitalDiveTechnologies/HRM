@@ -261,3 +261,14 @@ export async function apiBlob(path) {
 
 /** @deprecated Prefer getApiBase() — kept for older imports. */
 export const API_BASE = PRODUCTION_API;
+
+/** Convert any document URL/ref to a direct accessible link (handles relative uploads, http, blob, and base64). */
+export function resolveDocUrl(url) {
+  if (!url) return '';
+  if (url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  const clean = url.replace(/^\//, '');
+  const base = getApiBase();
+  return `${base}/api/documents/view?file=${encodeURIComponent(clean)}`;
+}

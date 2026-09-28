@@ -44,20 +44,76 @@ export default function OnboardingPage() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Device categories state
+  const [deviceCategories, setDeviceCategories] = useState([]);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [catSaving, setCatSaving] = useState(false);
+  const [catError, setCatError] = useState('');
+
   // Form state for assigning device
   const [form, setForm] = useState({
     employeeId: '',
-    category: 'Laptop',
+    category: '',
     title: '',
     tagNo: '',
     dueDate: todayISO(),
   });
+
+  const loadCategories = useCallback(async () => {
+    try {
+      const cats = await api('/onboarding/categories');
+      if (Array.isArray(cats)) {
+        setDeviceCategories(cats);
+        return cats;
+      }
+    } catch {}
+    return [];
+  }, []);
+
+  async function handleAddCategory(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!newCatName.trim()) return;
+    setCatSaving(true);
+    setCatError('');
+    try {
+      const res = await api('/onboarding/categories', {
+        method: 'POST',
+        body: JSON.stringify({ name: newCatName.trim() }),
+      });
+      setNewCatName('');
+      const updatedCats = await loadCategories();
+      const addedName = res?.name || newCatName.trim();
+      setForm((f) => ({ ...f, category: f.category || addedName }));
+    } catch (err) {
+      setCatError(err.message || 'Failed to add category.');
+    } finally {
+      setCatSaving(false);
+    }
+  }
+
+  async function handleDeleteCategory(catId, catName) {
+    setCatSaving(true);
+    setCatError('');
+    try {
+      await api(`/onboarding/categories/${catId}`, { method: 'DELETE' });
+      await loadCategories();
+      setForm((f) => (f.category === catName ? { ...f, category: '' } : f));
+    } catch (err) {
+      setCatError(err.message || 'Failed to delete category.');
+    } finally {
+      setCatSaving(false);
+    }
+  }
 
   const load = useCallback(() => {
     setError('');
 
     // Instant & fast background employee sync
     loadEmployeesFast(setEmployees);
+
+    // Load categories
+    loadCategories();
 
     // Direct DB fetch for onboarding records (<150ms)
     fetchOnboardingDirect().then((directTasks) => {
@@ -80,7 +136,7 @@ export default function OnboardingPage() {
         }
       })
       .catch((e) => setError(e.message));
-  }, []);
+  }, [loadCategories]);
 
   useEffect(() => {
     const u = getUser();
@@ -108,7 +164,7 @@ export default function OnboardingPage() {
       setMsg('Device / checklist item assigned.');
       setForm({
         employeeId: '',
-        category: 'Laptop',
+        category: '',
         title: '',
         tagNo: '',
         dueDate: todayISO(),
@@ -279,9 +335,19 @@ export default function OnboardingPage() {
            ========================================================================= */}
         {canManage && showAddForm ? (
           <div className="card" style={{ padding: '22px', borderRadius: 12, border: '1px solid #00b8db' }}>
-            <h3 style={{ margin: '0 0 14px', fontSize: '15.5px', fontWeight: 700, color: 'var(--ink)' }}>
-              Assign Onboarding Device to Employee
-            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <h3 style={{ margin: 0, fontSize: '15.5px', fontWeight: 700, color: 'var(--ink)' }}>
+                Assign Onboarding Device to Employee
+              </h3>
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => { setCatError(''); setShowCategoryModal(true); }}
+                style={{ fontSize: '12px', padding: '5px 12px', borderRadius: 6, fontWeight: 600 }}
+              >
+                ⚙ Manage Categories
+              </button>
+            </div>
             <form onSubmit={handleAssignDevice} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
               <label className="field">
                 <span>Select Employee</span>
@@ -300,16 +366,26 @@ export default function OnboardingPage() {
               </label>
 
               <label className="field">
-                <span>Device Category</span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span>Device Category</span>
+                  <button
+                    type="button"
+                    onClick={() => { setCatError(''); setShowCategoryModal(true); }}
+                    style={{ background: 'none', border: 'none', color: '#00b8db', fontSize: '11px', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                  >
+                    + Add / Manage
+                  </button>
+                </div>
                 <select
                   value={form.category}
                   onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
                 >
-                  <option value="Laptop">Laptop / MacBook</option>
-                  <option value="Phone">Corporate Mobile / SIM</option>
-                  <option value="Desktop PC">Desktop PC</option>
-                  <option value="Display">Monitor / Display</option>
-                  <option value="Access Card">Office Access Keycard</option>
+                  <option value="">{deviceCategories.length ? 'Choose Category…' : 'No categories yet — click + Add'}</option>
+                  {deviceCategories.map((c) => (
+                    <option key={v(c, 'id')} value={v(c, 'name')}>
+                      {v(c, 'name')}
+                    </option>
+                  ))}
                 </select>
               </label>
 
@@ -440,12 +516,12 @@ export default function OnboardingPage() {
                   outline: 'none',
                 }}
               >
-                <option value="">All Devices</option>
-                <option value="laptop">Laptop / MacBook</option>
-                <option value="phone">Corporate Phone</option>
-                <option value="desktop pc">Desktop PC</option>
-                <option value="display">Display / Monitor</option>
-                <option value="access card">Access Card</option>
+                <option value="">All Categories</option>
+                {deviceCategories.map((c) => (
+                  <option key={v(c, 'id')} value={String(v(c, 'name')).toLowerCase()}>
+                    {v(c, 'name')}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -550,6 +626,152 @@ export default function OnboardingPage() {
           </div>
         </div>
       </div>
+
+      {/* =========================================================================
+          4. MANAGE CATEGORIES MODAL (Add & Delete Dynamic Categories)
+         ========================================================================= */}
+      {showCategoryModal ? (
+        <>
+          <div
+            className="backdrop show"
+            onClick={() => setShowCategoryModal(false)}
+            aria-hidden="true"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="manage-cat-title"
+            style={{
+              position: 'fixed',
+              left: '50%',
+              top: '18%',
+              transform: 'translateX(-50%)',
+              zIndex: 60,
+              width: 'min(460px, calc(100vw - 32px))',
+              background: 'var(--card, #fff)',
+              border: '1px solid var(--border, #d7e3ef)',
+              borderRadius: 14,
+              boxShadow: '0 20px 50px rgba(2, 11, 31, 0.25)',
+              padding: '24px 26px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <h3 id="manage-cat-title" style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--ink)' }}>
+                Manage Device Categories
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowCategoryModal(false)}
+                style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--muted)' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="muted" style={{ fontSize: '12.5px', margin: '0 0 16px' }}>
+              Add custom device categories or delete existing ones. Changes appear in the assignment dropdown immediately.
+            </p>
+
+            {catError ? (
+              <div style={{ padding: '8px 12px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', borderRadius: 6, fontSize: '12.5px', marginBottom: 12 }}>
+                {catError}
+              </div>
+            ) : null}
+
+            {/* Add Category Input & Button */}
+            <form onSubmit={handleAddCategory} style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+              <input
+                type="text"
+                placeholder="Category name (e.g. Laptop, Phone, SIM Card)"
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: '1px solid var(--line, #cbd5e1)',
+                  background: 'var(--surface, #fff)',
+                  color: 'var(--ink)',
+                  fontSize: '13px',
+                }}
+              />
+              <button
+                type="submit"
+                className="btn"
+                disabled={catSaving || !newCatName.trim()}
+                style={{
+                  background: '#00b8db',
+                  color: '#fff',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  borderRadius: 8,
+                  padding: '8px 16px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                + Add
+              </button>
+            </form>
+
+            {/* Existing Categories List */}
+            <div style={{ maxHeight: '240px', overflowY: 'auto', border: '1px solid var(--line, #e2e8f0)', borderRadius: 8, padding: '6px' }}>
+              {deviceCategories.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px 12px', color: 'var(--muted)', fontSize: '13px' }}>
+                  No categories added yet. Type a name above and click <strong>+ Add</strong>!
+                </div>
+              ) : (
+                deviceCategories.map((cat) => (
+                  <div
+                    key={v(cat, 'id')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      background: 'var(--surface-alt, #f8fafc)',
+                      marginBottom: 6,
+                    }}
+                  >
+                    <span style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--ink)' }}>
+                      {v(cat, 'name')}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={catSaving}
+                      onClick={() => handleDeleteCategory(v(cat, 'id'), v(cat, 'name'))}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#ef4444',
+                        cursor: 'pointer',
+                        padding: '4px 8px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        borderRadius: 4,
+                      }}
+                      title="Delete category"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div style={{ marginTop: 16, textAlign: 'right' }}>
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => setShowCategoryModal(false)}
+                style={{ padding: '8px 18px', borderRadius: 8, fontSize: '13px', fontWeight: 600 }}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </>
+      ) : null}
     </AppShell>
   );
 }
