@@ -22,6 +22,7 @@ import { useLocale } from '../lib/i18n/LocaleContext';
 import { useCompanyFilter } from '../lib/useCompanyFilter';
 import { subscribeSettingsRbacChanged } from '../lib/settingsSync';
 import { LOGO_ACCEPT, readLogoFileAsDataUrl } from '../lib/logoUpload';
+import { v } from '../lib/format';
 
 const ORG_BRAND_CACHE = 'gocs_org_brand';
 
@@ -234,7 +235,7 @@ export default function AppShell({ title, subtitle, actions, children }) {
   }, [pathname, ready]);
 
   const { badgeFor, clearBadge, menuCategories, toast, dismissToast } = usePortalAlerts(pathname, ready && Boolean(user));
-  const { selectedCompany } = useCompanyFilter();
+  const { selectedCompany, selectedCompanyId, companies, setCompanyId } = useCompanyFilter();
 
   if (!ready || !user) {
     return (
@@ -296,6 +297,7 @@ export default function AppShell({ title, subtitle, actions, children }) {
 
   const companyLogo = selectedCompany?.logo_url || selectedCompany?.logoUrl || '';
   const companyName = selectedCompany?.name || '';
+  const isDashboardPage = pathname === '/dashboard' || (pathname || '').startsWith('/dashboard/');
   const headerTitle = noPages || !pathAllowed ? 'No access' : title;
   const headerSubtitle =
     noPages || !pathAllowed
@@ -508,6 +510,33 @@ export default function AppShell({ title, subtitle, actions, children }) {
             </div>
             <div className="topbar-right">
               {actions}
+              {companies && companies.length > 0 && !isDashboardPage ? (
+                <select
+                  aria-label="Filter company"
+                  className="topbar-select"
+                  value={selectedCompanyId || ''}
+                  onChange={(e) => setCompanyId(e.target.value)}
+                  style={{
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    maxWidth: 180,
+                    borderRadius: 6,
+                    height: 40,
+                  }}
+                  title="Filter portal data by operating company"
+                >
+                  <option value="">🏢 All Companies</option>
+                  {companies.map((c, idx) => {
+                    const cid = String(v(c, 'id', 'Id') || c?.id || c?.Id || idx);
+                    const cname = v(c, 'name', 'Name') || c?.name || c?.Name || `Company #${cid}`;
+                    return (
+                      <option key={cid} value={cid}>
+                        {cname}
+                      </option>
+                    );
+                  })}
+                </select>
+              ) : null}
               <LanguageToggle />
               <ThemeToggle />
               <div className="user-chip">
