@@ -521,7 +521,7 @@ export default function AppShell({ title, subtitle, actions, children }) {
 
   const companyLogo = selectedCompany?.logo_url || selectedCompany?.logoUrl || '';
   const companyName = selectedCompany?.name || '';
-  const isDashboardPage = pathname === '/dashboard' || (pathname || '').startsWith('/dashboard/');
+  const isDashboardPage = pathname === '/dashboard' || (pathname || '').startsWith('/dashboard/') || pathname === '/ess' || (pathname || '').startsWith('/ess/');
   const headerTitle = noPages || !pathAllowed ? 'No access' : title;
   const headerSubtitle =
     noPages || !pathAllowed

@@ -1095,7 +1095,7 @@ export default function DashboardPage() {
                 fontWeight: 500,
               }}
             >
-              {currentDateFormatted} · Here&apos;s what&apos;s happening across your organisation today.
+              {currentDateFormatted} · You have {expiringDocsList.length} document{expiringDocsList.length === 1 ? '' : 's'} expiring and {pendingLeavesList.length} request{pendingLeavesList.length === 1 ? '' : 's'} in progress.
             </p>
           </div>
 
