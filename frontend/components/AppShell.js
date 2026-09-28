@@ -503,10 +503,65 @@ export default function AppShell({ title, subtitle, actions, children }) {
                   </span>
                 ) : null}
               </span>
-              <div>
-                <h2>{headerTitle}</h2>
-                <p>{headerSubtitle}</p>
-              </div>
+              {isDashboardPage ? (
+                <div className="topbar-search-wrap" style={{ display: 'flex', alignItems: 'center', flex: 1, maxWidth: 440, minWidth: 220 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      background: 'var(--surface-alt, #f8fafc)',
+                      border: '1px solid var(--line, #e2e8f0)',
+                      borderRadius: 10,
+                      padding: '8px 12px',
+                      color: 'var(--muted, #64748b)',
+                      fontSize: '13px',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+                    }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    <input
+                      type="text"
+                      placeholder="Search employees, documents, payslips..."
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        outline: 'none',
+                        width: '100%',
+                        fontSize: '13px',
+                        color: 'var(--ink, #0f172a)',
+                        padding: 0
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && e.target.value.trim()) {
+                          router.push(`/employees?search=${encodeURIComponent(e.target.value.trim())}`);
+                        }
+                      }}
+                    />
+                    <kbd style={{
+                      fontSize: '10.5px',
+                      fontWeight: 600,
+                      background: 'var(--surface, #ffffff)',
+                      border: '1px solid var(--line, #cbd5e1)',
+                      borderRadius: 4,
+                      padding: '2px 5px',
+                      color: 'var(--muted, #64748b)',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      ⌘K
+                    </kbd>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <h2>{headerTitle}</h2>
+                  <p>{headerSubtitle}</p>
+                </div>
+              )}
             </div>
             <div className="topbar-right">
               {actions}
@@ -537,11 +592,105 @@ export default function AppShell({ title, subtitle, actions, children }) {
                   })}
                 </select>
               ) : null}
-              <LanguageToggle />
-              <ThemeToggle />
-              <div className="user-chip">
-                {user.fullName || user.full_name || user.email} · {role}
-              </div>
+              {isDashboardPage ? (
+                <>
+                  <LanguageToggle />
+                  <ThemeToggle />
+                  <Link
+                    href="/notifications"
+                    style={{
+                      position: 'relative',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 38,
+                      height: 38,
+                      borderRadius: 8,
+                      border: '1px solid var(--line, #e2e8f0)',
+                      background: 'var(--surface, #ffffff)',
+                      color: 'var(--ink, #0f172a)',
+                      textDecoration: 'none',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title="Notifications"
+                  >
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                    </svg>
+                    {menuCategories > 0 ? (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: -3,
+                          right: -3,
+                          minWidth: 16,
+                          height: 16,
+                          padding: '0 4px',
+                          borderRadius: 999,
+                          background: '#ef4444',
+                          color: '#fff',
+                          fontSize: '9.5px',
+                          fontWeight: 700,
+                          lineHeight: '16px',
+                          textAlign: 'center',
+                          border: '1.5px solid var(--surface, #ffffff)'
+                        }}
+                      >
+                        {menuCategories > 99 ? '99+' : menuCategories}
+                      </span>
+                    ) : null}
+                  </Link>
+
+                  {/* User Avatar Chip (Matching Mockup) */}
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 9,
+                      padding: '4px 12px 4px 5px',
+                      borderRadius: 30,
+                      background: 'var(--surface, #ffffff)',
+                      border: '1px solid var(--line, #e2e8f0)',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+                        color: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 700,
+                        fontSize: '11px',
+                        letterSpacing: '0.5px'
+                      }}
+                    >
+                      {(user?.fullName || user?.full_name || user?.email || 'A').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+                      <span style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                        {user?.fullName || user?.full_name || 'Admin'}
+                      </span>
+                      <span style={{ fontSize: '10.5px', color: 'var(--muted, #64748b)', fontWeight: 500 }}>
+                        {role === 'super_admin' ? 'Super Admin' : role === 'admin' ? 'HR Admin' : role}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <LanguageToggle />
+                  <ThemeToggle />
+                  <div className="user-chip">
+                    {user?.fullName || user?.full_name || user?.email} · {role}
+                  </div>
+                </>
+              )}
             </div>
           </div>
           <div id="content">
