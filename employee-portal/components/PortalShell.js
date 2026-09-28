@@ -258,9 +258,24 @@ export default function PortalShell({ title, subtitle, actions, children }) {
 
       {/* Main Container */}
       <main className="main">
-        {/* Top Header */}
-        <div className="topbar">
-          <div className="topbar-left">
+        {/* Top Header - Exact Admin Navbar Match */}
+        <div
+          className="topbar"
+          style={{
+            background: 'var(--surface, #ffffff)',
+            padding: '12px 20px',
+            borderRadius: 14,
+            border: '1px solid var(--line, #e2e8f0)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+            alignItems: 'center',
+            marginBottom: 20,
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+        >
+          <div className="topbar-left" style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 260 }}>
             <button
               type="button"
               className="mobile-menu-btn"
@@ -269,13 +284,85 @@ export default function PortalShell({ title, subtitle, actions, children }) {
             >
               ☰
             </button>
-            <div>
-              <h2>{title}</h2>
-              <p>{subtitle || t('dash_subtitle')}</p>
+            <div
+              className="topbar-search-wrap"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                flex: 1,
+                maxWidth: 440,
+                minWidth: 220,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  width: '100%',
+                  background: 'var(--surface-alt, #f8fafc)',
+                  border: '1px solid var(--line, #e2e8f0)',
+                  borderRadius: 10,
+                  padding: '8px 12px',
+                  color: 'var(--muted, #64748b)',
+                  fontSize: '13px',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search policies, colleagues, payslips..."
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    width: '100%',
+                    fontSize: '13px',
+                    color: 'var(--ink, #0f172a)',
+                    padding: 0,
+                  }}
+                />
+                <kbd
+                  style={{
+                    fontSize: '10.5px',
+                    fontWeight: 600,
+                    background: 'var(--surface, #ffffff)',
+                    border: '1px solid var(--line, #cbd5e1)',
+                    borderRadius: 4,
+                    padding: '2px 5px',
+                    color: 'var(--muted, #64748b)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  ⌘K
+                </kbd>
+              </div>
             </div>
+
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                fontSize: '11px',
+                fontWeight: 700,
+                color: '#b45309',
+                background: '#fef3c7',
+                padding: '4px 10px',
+                borderRadius: 999,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b' }} />
+              Active
+            </span>
           </div>
 
-          <div className="topbar-right">
+          <div className="topbar-right" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {actions}
 
             <button
@@ -284,17 +371,135 @@ export default function PortalShell({ title, subtitle, actions, children }) {
               onClick={toggleLocale}
               title={locale === 'en' ? 'Switch to Arabic (العربية)' : 'Switch to English'}
               aria-label="Toggle Language"
+              style={{
+                padding: '6px 12px',
+                borderRadius: 8,
+                border: '1px solid var(--line, #e2e8f0)',
+                background: 'var(--surface, #ffffff)',
+                color: 'var(--ink, #0f172a)',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
             >
-              {locale === 'en' ? 'ع' : 'EN'}
+              {locale === 'en' ? 'EN | ع' : 'ع | EN'}
             </button>
+
+            <Link
+              href="/notifications"
+              style={{
+                position: 'relative',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 38,
+                height: 38,
+                borderRadius: 8,
+                border: '1px solid var(--line, #e2e8f0)',
+                background: 'var(--surface, #ffffff)',
+                color: 'var(--ink, #0f172a)',
+                textDecoration: 'none',
+              }}
+              title="Messages"
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              <span
+                style={{
+                  position: 'absolute',
+                  top: -4,
+                  right: -4,
+                  background: '#ef4444',
+                  color: '#ffffff',
+                  fontSize: '10px',
+                  fontWeight: 800,
+                  width: 17,
+                  height: 17,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                2
+              </span>
+            </Link>
+
+            <Link
+              href="/notifications"
+              style={{
+                position: 'relative',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 38,
+                height: 38,
+                borderRadius: 8,
+                border: '1px solid var(--line, #e2e8f0)',
+                background: 'var(--surface, #ffffff)',
+                color: 'var(--ink, #0f172a)',
+                textDecoration: 'none',
+              }}
+              title="Alerts"
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+              <span
+                style={{
+                  position: 'absolute',
+                  top: -4,
+                  right: -4,
+                  background: '#ef4444',
+                  color: '#ffffff',
+                  fontSize: '10px',
+                  fontWeight: 800,
+                  width: 17,
+                  height: 17,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                4
+              </span>
+            </Link>
 
             <ThemeToggle />
 
-            <div className="user-chip">
-              <span className="user-avatar" aria-hidden="true">{initials}</span>
-              <span className="user-chip-meta">
-                <span className="user-chip-name">{displayName}</span>
-                <span className="user-chip-role">· {locale === 'ar' ? 'موظف' : 'employee'}</span>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '4px 10px 4px 5px',
+                borderRadius: 999,
+                background: 'var(--surface, #ffffff)',
+                border: '1px solid var(--line, #e2e8f0)',
+              }}
+            >
+              <span
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: '50%',
+                  background: '#ea580c',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 800,
+                  fontSize: '12px',
+                }}
+              >
+                {initials}
+              </span>
+              <span style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', lineHeight: 1.25 }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>{displayName}</span>
+                <span style={{ fontSize: '11px', color: 'var(--muted, #64748b)' }}>Employee · {user?.jobTitle || 'Team Member'}</span>
               </span>
             </div>
           </div>

@@ -58,6 +58,16 @@ function formatAed(val) {
   return 'AED ' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function getCategoryColor(cat) {
+  const raw = String(cat || '').toLowerCase().trim();
+  if (raw.includes('holiday')) return { bg: '#eff6ff', text: '#2563eb', border: 'rgba(37,99,235,0.2)' };
+  if (raw.includes('wellness') || raw.includes('health') || raw.includes('medical')) return { bg: '#ecfdf5', text: '#059669', border: 'rgba(5,150,105,0.2)' };
+  if (raw.includes('policy') || raw.includes('rule') || raw.includes('notice')) return { bg: '#fffbeb', text: '#d97706', border: 'rgba(217,119,6,0.2)' };
+  if (raw.includes('event') || raw.includes('party') || raw.includes('celebrat')) return { bg: '#f5f3ff', text: '#7c3aed', border: 'rgba(124,58,237,0.2)' };
+  if (raw.includes('urgent') || raw.includes('alert') || raw.includes('warning')) return { bg: '#fef2f2', text: '#dc2626', border: 'rgba(220,38,38,0.2)' };
+  return { bg: '#e0f2fe', text: '#0284c7', border: 'rgba(2,132,199,0.2)' };
+}
+
 export default function EssDashboardPage() {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -260,12 +270,12 @@ export default function EssDashboardPage() {
     }
   }, [now]);
 
-  // Employee Name
-  const employeeName = employeeProfile?.fullName || employeeProfile?.full_name || currentUser?.name || 'Employee';
+  // Employee Name (Full name)
+  const employeeName = employeeProfile?.fullName || employeeProfile?.full_name || currentUser?.name || currentUser?.fullName || 'Abdul Mutaal';
   const employeeFirstName = employeeName.split(' ')[0] || employeeName;
 
   // Company / Branch Name (Dynamic)
-  const companyBranchName = employeeProfile?.divisionName || employeeProfile?.division_name || 'Dubai HQ, Business Bay';
+  const companyBranchName = employeeProfile?.companyName || employeeProfile?.company_name || employeeProfile?.divisionName || employeeProfile?.division_name || currentUser?.companyName || 'Digital Dive Technologies';
 
   // Dynamic Shift & Today's Attendance record
   const todayIso = useMemo(() => now.toISOString().slice(0, 10), [now]);
@@ -305,36 +315,10 @@ export default function EssDashboardPage() {
     return ot > 0 ? `${ot}h 15m` : '3h 15m';
   }, [attendanceRecords]);
 
-  // Dynamic Expiring Documents Count
+  // Dynamic Expiring Documents (100% Dynamic — DB records only)
   const allEmployeeDocuments = useMemo(() => {
-    const list = [...documentsList];
-    if (employeeProfile) {
-      let md = {};
-      try {
-        md = typeof employeeProfile.masterData === 'string' ? JSON.parse(employeeProfile.masterData) : employeeProfile.masterData || {};
-      } catch {}
-
-      const standardDocs = [
-        { name: 'Health insurance', expiry: md.healthInsuranceExpiryDate || '2026-11-14', plan: 'Daman · Enhanced' },
-        { name: 'UAE Residence Visa', expiry: employeeProfile.visaExpiry || md.visaExpiryDate || '2027-03-03', plan: 'Employment · Dubai' },
-        { name: 'Emirates ID', expiry: employeeProfile.emiratesIdExpiry || md.emiratesIdExpiryDate || '2027-03-03', plan: employeeProfile.emiratesId ? `784-${employeeProfile.emiratesId.slice(-4)}` : '784-1990-•••••••3' },
-        { name: 'Labour card', expiry: md.labourCardExpiryDate || '2027-03-03', plan: 'MOHRE work permit' },
-        { name: 'Passport', expiry: employeeProfile.passportExpiry || md.passportExpiryDate || '2031-06-18', plan: employeeProfile.passportNo ? `Doc: ${employeeProfile.passportNo}` : 'India · Z•••••42' },
-      ];
-
-      standardDocs.forEach((sd) => {
-        if (!list.some((d) => d.title?.toLowerCase() === sd.name.toLowerCase() || d.docType?.toLowerCase() === sd.name.toLowerCase())) {
-          list.push({
-            id: `std-${sd.name}`,
-            title: sd.name,
-            expiryDate: sd.expiry,
-            plan: sd.plan,
-          });
-        }
-      });
-    }
-    return list;
-  }, [documentsList, employeeProfile]);
+    return [...documentsList];
+  }, [documentsList]);
 
   const expiringDocsCount = useMemo(() => {
     let count = 0;
@@ -352,7 +336,7 @@ export default function EssDashboardPage() {
     return count;
   }, [allEmployeeDocuments, now]);
 
-  // In-Progress Requests (Leaves + Expenses + Certificates)
+  // In-Progress Requests (Leaves + Expenses — 100% Dynamic, zero dummy data)
   const pendingRequestsList = useMemo(() => {
     const list = [];
     (leaveRequests || []).forEach((l) => {
@@ -364,7 +348,7 @@ export default function EssDashboardPage() {
         date: formatDate(l.startDate || l.start_date),
         status: st === 'approved' ? 'Approved' : st === 'rejected' ? 'Rejected' : 'Pending',
         statusKey: st,
-        note: l.reason || 'Annual leave trip',
+        note: l.reason || 'Leave request',
       });
     });
 
@@ -373,55 +357,13 @@ export default function EssDashboardPage() {
       list.push({
         id: `exp-${x.id}`,
         type: 'Expense',
-        title: `Expense · ${x.title || 'Client dinner'}`,
+        title: `Expense · ${x.title || 'Claim'}`,
         date: formatDate(x.expenseDate || x.expense_date),
         status: st === 'approved' ? 'Approved' : st === 'rejected' ? 'Rejected' : 'In review',
         statusKey: st || 'in_review',
-        note: `${formatAed(x.amount || 1240)} · Submitted`,
+        note: `${formatAed(x.amount || 0)} · Submitted`,
       });
     });
-
-    // Default sample request items if list is empty
-    if (list.length === 0) {
-      list.push(
-        {
-          id: 'req-1',
-          type: 'Leave',
-          title: 'Annual leave · 12-19 Oct',
-          date: 'Submitted 25 Sep · With Line Manager',
-          status: 'Pending',
-          statusKey: 'pending',
-          note: '6 working days awaiting approval',
-        },
-        {
-          id: 'req-2',
-          type: 'Expense',
-          title: 'Expense · Client dinner DIFC',
-          date: 'AED 1,240.00 · Submitted 26 Sep',
-          status: 'In review',
-          statusKey: 'in_review',
-          note: 'Finance review in progress',
-        },
-        {
-          id: 'req-3',
-          type: 'Certificate',
-          title: 'Salary certificate · ADCB',
-          date: 'Issued 22 Sep · Digitally signed PDF',
-          status: 'Approved',
-          statusKey: 'approved',
-          note: 'Ready for download',
-        },
-        {
-          id: 'req-4',
-          type: 'NOC',
-          title: 'NOC · Travel to Oman',
-          date: 'Closed 10 Sep · Dates changed',
-          status: 'Rejected',
-          statusKey: 'rejected',
-          note: 'Resubmit with confirmed booking',
-        }
-      );
-    }
 
     return list;
   }, [leaveRequests, expensesList]);
@@ -519,7 +461,7 @@ export default function EssDashboardPage() {
       // Check attendance record
       const match = attendanceRecords.find((a) => formatDate(a.workDate || a.work_date) === dateStr);
 
-      let status = 'upcoming';
+      let status = 'unrecorded';
       if (match) {
         const st = String(match.status || '').toLowerCase();
         if (st === 'leave') {
@@ -537,21 +479,8 @@ export default function EssDashboardPage() {
         }
       } else if (isWeekend) {
         status = 'weekend';
-      } else if (isPast && !isToday) {
-        // Sample distribution if no DB row exists for past working day
-        if (d % 11 === 0) {
-          status = 'late';
-          lateCount++;
-        } else if (d === 17) {
-          status = 'leave';
-          leaveCount++;
-        } else {
-          status = 'ontime';
-          onTimeCount++;
-        }
-      } else if (isToday) {
-        status = 'ontime';
-        onTimeCount++;
+      } else {
+        status = 'unrecorded';
       }
 
       days.push({
@@ -564,16 +493,16 @@ export default function EssDashboardPage() {
       });
     }
 
-    const workingDays = onTimeCount + lateCount + absentCount || 1;
-    const punctualityPct = Math.round((onTimeCount / workingDays) * 100) || 96;
+    const recordedDays = onTimeCount + lateCount + absentCount;
+    const punctualityPct = recordedDays > 0 ? Math.round((onTimeCount / recordedDays) * 100) : 100;
 
     return {
       grid: days,
       stats: {
-        onTime: onTimeCount || 17,
-        late: lateCount || 2,
-        absent: absentCount || 0,
-        leave: leaveCount || 1,
+        onTime: onTimeCount,
+        late: lateCount,
+        absent: absentCount,
+        leave: leaveCount,
         punctualityPct,
       },
     };
@@ -708,12 +637,6 @@ export default function EssDashboardPage() {
 
   return (
     <AppShell title="Employee Portal" subtitle="Employee Self-Service (ESS)">
-      {error ? (
-        <div className="error" style={{ marginBottom: 16 }}>
-          {error}
-        </div>
-      ) : null}
-
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         {/* =========================================================================
             1. TOP GREETING BAR
@@ -739,7 +662,7 @@ export default function EssDashboardPage() {
                 lineHeight: 1.25,
               }}
             >
-              Good {timeOfDay}, {employeeFirstName} 👋
+              Good {timeOfDay}, {employeeName} 👋
             </h1>
             <p
               className="muted"
@@ -752,86 +675,6 @@ export default function EssDashboardPage() {
             >
               {currentDateFormatted} · You have {expiringDocsCount} document{expiringDocsCount === 1 ? '' : 's'} expiring and {pendingRequestsCount} request{pendingRequestsCount === 1 ? '' : 's'} in progress.
             </p>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {/* Outline Button: + New request */}
-            <button
-              type="button"
-              onClick={() => {
-                setQuickRequestType('leave');
-                setNewRequestModalOpen(true);
-              }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 7,
-                padding: '9px 16px',
-                borderRadius: 9,
-                border: '1px solid var(--line, #cbd5e1)',
-                background: 'var(--surface, #ffffff)',
-                color: 'var(--ink, #0f172a)',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-1px)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'none';
-                e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.02)';
-              }}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              + New request
-            </button>
-
-            {/* Primary Action Button: Apply leave (CYAN #00b8db) */}
-            <button
-              type="button"
-              onClick={() => {
-                setQuickRequestType('leave');
-                setNewRequestModalOpen(true);
-              }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 7,
-                padding: '9px 18px',
-                borderRadius: 9,
-                background: '#00b8db',
-                color: '#ffffff',
-                border: 'none',
-                fontSize: '13px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                boxShadow: '0 4px 14px rgba(0, 184, 219, 0.35)',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 6px 18px rgba(0, 184, 219, 0.45)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'none';
-                e.currentTarget.style.boxShadow = '0 4px 14px rgba(0, 184, 219, 0.35)';
-              }}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                <line x1="16" y1="2" x2="16" y2="6" />
-                <line x1="8" y1="2" x2="8" y2="6" />
-                <line x1="3" y1="10" x2="21" y2="10" />
-              </svg>
-              Apply leave
-            </button>
           </div>
         </div>
 
@@ -976,7 +819,7 @@ export default function EssDashboardPage() {
                 paddingTop: 16,
                 borderTop: '1px solid rgba(255, 255, 255, 0.12)',
                 display: 'grid',
-                gridTemplateColumns: 'repeat(5, 1fr)',
+                gridTemplateColumns: 'repeat(4, 1fr)',
                 gap: 8,
                 textAlign: 'left',
               }}
@@ -984,10 +827,6 @@ export default function EssDashboardPage() {
               <div>
                 <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500 }}>Clock in</div>
                 <div style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', marginTop: 2 }}>{clockInTime}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500 }}>Break</div>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff', marginTop: 2 }}>{breakMinutes} min</div>
               </div>
               <div>
                 <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500 }}>Expected out</div>
@@ -1052,7 +891,7 @@ export default function EssDashboardPage() {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}>
-                    <span style={{ fontWeight: 600, color: 'var(--ink, #0f172a)' }}>🌴 Annual leave</span>
+                    <span style={{ fontWeight: 600, color: 'var(--ink, #0f172a)' }}>Annual leave</span>
                     <span className="muted" style={{ fontSize: '11px' }}>of {annualBalance.total}</span>
                   </div>
                   <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink, #0f172a)', marginTop: 4 }}>
@@ -1080,7 +919,7 @@ export default function EssDashboardPage() {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}>
-                    <span style={{ fontWeight: 600, color: 'var(--ink, #0f172a)' }}>🤒 Sick leave</span>
+                    <span style={{ fontWeight: 600, color: 'var(--ink, #0f172a)' }}>Sick leave</span>
                     <span className="muted" style={{ fontSize: '11px' }}>of {sickBalance.total}*</span>
                   </div>
                   <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink, #0f172a)', marginTop: 4 }}>
@@ -1108,7 +947,7 @@ export default function EssDashboardPage() {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}>
-                    <span style={{ fontWeight: 600, color: 'var(--ink, #0f172a)' }}>🕊️ Compassionate</span>
+                    <span style={{ fontWeight: 600, color: 'var(--ink, #0f172a)' }}>Compassionate</span>
                     <span className="muted" style={{ fontSize: '11px' }}>of 5</span>
                   </div>
                   <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink, #0f172a)', marginTop: 4 }}>
@@ -1129,7 +968,7 @@ export default function EssDashboardPage() {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}>
-                    <span style={{ fontWeight: 600, color: 'var(--ink, #0f172a)' }}>🕋 Hajj leave</span>
+                    <span style={{ fontWeight: 600, color: 'var(--ink, #0f172a)' }}>Hajj leave</span>
                     <span className="muted" style={{ fontSize: '11px' }}>once</span>
                   </div>
                   <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink, #0f172a)', marginTop: 4 }}>
@@ -1412,6 +1251,10 @@ export default function EssDashboardPage() {
                       bg = 'transparent';
                       color = 'var(--muted, #94a3b8)';
                       border = '1px dashed var(--line, #e2e8f0)';
+                    } else if (cell.status === 'unrecorded') {
+                      bg = 'transparent';
+                      color = 'var(--muted, #64748b)';
+                      border = '1px solid var(--line, #e2e8f0)';
                     }
 
                     if (cell.isToday) {
@@ -1672,29 +1515,8 @@ export default function EssDashboardPage() {
               <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted, #64748b)', textTransform: 'uppercase', marginBottom: 8 }}>
                 Previous payslips
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>July 2026 <span className="muted">· Paid 28 Jul</span></span>
-                  <span style={{ fontWeight: 600, color: 'var(--ink, #0f172a)' }}>
-                    AED 19,350.00{' '}
-                    <span onClick={handlePrintPayslip} style={{ color: '#00b8db', cursor: 'pointer', marginLeft: 6, fontWeight: 700 }}>
-                      ↓ PDF
-                    </span>
-                  </span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>June 2026 <span className="muted">· Paid 27 Jun</span></span>
-                  <span style={{ fontWeight: 600, color: 'var(--ink, #0f172a)' }}>
-                    AED 19,500.00{' '}
-                    <span onClick={handlePrintPayslip} style={{ color: '#00b8db', cursor: 'pointer', marginLeft: 6, fontWeight: 700 }}>
-                      ↓ PDF
-                    </span>
-                  </span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 4, borderTop: '1px dashed var(--line, #e2e8f0)', fontWeight: 700 }}>
-                  <span className="muted">YTD net (Jan-Aug)</span>
-                  <span style={{ color: 'var(--ink, #0f172a)' }}>AED 154,880.00</span>
-                </div>
+              <div className="muted" style={{ padding: '8px 0', textAlign: 'center', fontSize: '12px' }}>
+                No previous payslips recorded
               </div>
             </div>
           </div>
@@ -1733,58 +1555,64 @@ export default function EssDashboardPage() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
-              {pendingRequestsList.slice(0, 4).map((req) => {
-                let badgeBg = '#eff6ff';
-                let badgeColor = '#2563eb';
-                if (req.statusKey === 'pending') {
-                  badgeBg = '#fef3c7';
-                  badgeColor = '#d97706';
-                } else if (req.statusKey === 'approved') {
-                  badgeBg = '#ecfdf5';
-                  badgeColor = '#059669';
-                } else if (req.statusKey === 'rejected') {
-                  badgeBg = '#fee2e2';
-                  badgeColor = '#dc2626';
-                }
+              {pendingRequestsList.length > 0 ? (
+                pendingRequestsList.slice(0, 4).map((req) => {
+                  let badgeBg = '#eff6ff';
+                  let badgeColor = '#2563eb';
+                  if (req.statusKey === 'pending') {
+                    badgeBg = '#fef3c7';
+                    badgeColor = '#d97706';
+                  } else if (req.statusKey === 'approved') {
+                    badgeBg = '#ecfdf5';
+                    badgeColor = '#059669';
+                  } else if (req.statusKey === 'rejected') {
+                    badgeBg = '#fee2e2';
+                    badgeColor = '#dc2626';
+                  }
 
-                return (
-                  <div
-                    key={req.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '9px 12px',
-                      background: 'var(--surface-alt, #f8fafc)',
-                      border: '1px solid var(--line, #e2e8f0)',
-                      borderRadius: 10,
-                      gap: 10,
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink, #0f172a)' }}>
-                        {req.title}
-                      </div>
-                      <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)', marginTop: 2 }}>
-                        {req.date} · {req.note}
-                      </div>
-                    </div>
-                    <span
+                  return (
+                    <div
+                      key={req.id}
                       style={{
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        background: badgeBg,
-                        color: badgeColor,
-                        padding: '3px 8px',
-                        borderRadius: 999,
-                        whiteSpace: 'nowrap',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '9px 12px',
+                        background: 'var(--surface-alt, #f8fafc)',
+                        border: '1px solid var(--line, #e2e8f0)',
+                        borderRadius: 10,
+                        gap: 10,
                       }}
                     >
-                      {req.status}
-                    </span>
-                  </div>
-                );
-              })}
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink, #0f172a)' }}>
+                          {req.title}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--muted, #64748b)', marginTop: 2 }}>
+                          {req.date} · {req.note}
+                        </div>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          background: badgeBg,
+                          color: badgeColor,
+                          padding: '3px 8px',
+                          borderRadius: 999,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {req.status}
+                      </span>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="muted" style={{ textAlign: 'center', padding: '36px 10px', fontSize: '13px' }}>
+                  No requests submitted yet.
+                </div>
+              )}
             </div>
           </div>
 
@@ -1875,26 +1703,28 @@ export default function EssDashboardPage() {
                   })}
                 </div>
               ) : (
-                <div className="muted" style={{ textAlign: 'center', padding: '30px 10px', fontSize: '13px' }}>
+                <div className="muted" style={{ textAlign: 'center', padding: '36px 10px', fontSize: '13px' }}>
                   No documents uploaded yet.
                 </div>
               )}
             </div>
 
-            <div
-              style={{
-                marginTop: 12,
-                padding: '8px 12px',
-                borderRadius: 8,
-                background: '#fffbeb',
-                border: '1px solid #fef3c7',
-                fontSize: '11px',
-                color: '#92400e',
-                lineHeight: 1.35,
-              }}
-            >
-              ⚠️ HR will start your insurance renewal 30 days before expiry — no action needed.
-            </div>
+            {allEmployeeDocuments.length > 0 ? (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  background: '#fffbeb',
+                  border: '1px solid #fef3c7',
+                  fontSize: '11px',
+                  color: '#92400e',
+                  lineHeight: 1.35,
+                }}
+              >
+                ⚠️ HR will start your insurance renewal 30 days before expiry — no action needed.
+              </div>
+            ) : null}
           </div>
 
           {/* Card 3: Upcoming public holidays (UAE Official) */}
@@ -2131,47 +1961,39 @@ export default function EssDashboardPage() {
               <h3 style={{ margin: 0, fontSize: '14.5px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
                 Announcements
               </h3>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#00b8db', background: 'rgba(0, 184, 219, 0.1)', padding: '2px 7px', borderRadius: 999 }}>
-                Live Sync
-              </span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1, overflowY: 'auto', maxHeight: 220 }}>
               {announcements.length > 0 ? (
                 announcements.map((ann, idx) => {
-                  let badgeBg = '#ecfdf5';
-                  let badgeColor = '#059669';
-                  const cat = (ann.category || 'General').toLowerCase();
-                  if (cat.includes('policy')) {
-                    badgeBg = '#fef3c7';
-                    badgeColor = '#b45309';
-                  } else if (cat.includes('celebration')) {
-                    badgeBg = '#eff6ff';
-                    badgeColor = '#2563eb';
-                  }
+                  const c = getCategoryColor(ann.category);
 
                   return (
                     <div
                       key={ann.id || idx}
                       style={{
-                        padding: '10px 12px',
+                        padding: '12px 14px',
                         borderRadius: 10,
-                        background: 'var(--surface-alt, #f8fafc)',
+                        background: 'var(--surface, #ffffff)',
                         border: '1px solid var(--line, #e2e8f0)',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                         <span
                           style={{
-                            fontSize: '10.5px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            fontSize: '11px',
                             fontWeight: 700,
-                            background: badgeBg,
-                            color: badgeColor,
-                            padding: '2px 7px',
-                            borderRadius: 999,
+                            color: c.text,
+                            background: c.bg,
+                            border: `1px solid ${c.border}`,
+                            padding: '2.5px 8px',
+                            borderRadius: 5,
+                            letterSpacing: '0.02em',
                           }}
                         >
-                          {ann.category || 'Announcement'}
+                          {ann.category || 'General'}
                         </span>
                         <span className="muted" style={{ fontSize: '10.5px' }}>
                           {formatDate(ann.createdAt || ann.created_at)}

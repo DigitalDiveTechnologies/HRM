@@ -1056,8 +1056,6 @@ export default function DashboardPage() {
 
   return (
     <AppShell title="Dashboard">
-      {error ? <div className="error" style={{ marginBottom: 14 }}>{error}</div> : null}
-
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* =========================================================================
