@@ -53,6 +53,17 @@ function getAvatarColor(name, index) {
   return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
 }
 
+function getInitials(name) {
+  if (!name || typeof name !== 'string') return '--';
+  const clean = name.trim().replace(/[^a-zA-Z0-9\s]/g, '');
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '--';
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 function getJoinerStatusPill(idx) {
   const statusCycle = [
     { label: 'Onboarded', bg: '#ecfdf5', text: '#059669' },
@@ -1003,6 +1014,7 @@ export default function DashboardPage() {
            ========================================================================= */}
         {canCompanies && companies.length > 0 ? (
           <div
+            className="admin-card-hover"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -1081,6 +1093,7 @@ export default function DashboardPage() {
           {/* Card 1: Total Employees -> /employees#all-employees */}
           <Link
             href="/employees#all-employees"
+            className="admin-card-hover"
             style={{
               textDecoration: 'none',
               background: 'var(--surface, #ffffff)',
@@ -1089,19 +1102,10 @@ export default function DashboardPage() {
               padding: '16px 14px',
               minHeight: 148,
               boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
               cursor: 'pointer',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.06)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'none';
-              e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.02)';
             }}
           >
             <div>
@@ -1131,6 +1135,7 @@ export default function DashboardPage() {
           {/* Card 2: Present Today -> /attendance */}
           <Link
             href="/attendance"
+            className="admin-card-hover"
             style={{
               textDecoration: 'none',
               background: 'var(--surface, #ffffff)',
@@ -1139,19 +1144,10 @@ export default function DashboardPage() {
               padding: '16px 14px',
               minHeight: 148,
               boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
               cursor: 'pointer',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.06)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'none';
-              e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.02)';
             }}
           >
             <div>
@@ -1178,6 +1174,7 @@ export default function DashboardPage() {
           {/* Card 3: On Leave Today -> /leave */}
           <Link
             href="/leave"
+            className="admin-card-hover"
             style={{
               textDecoration: 'none',
               background: 'var(--surface, #ffffff)',
@@ -1186,19 +1183,10 @@ export default function DashboardPage() {
               padding: '16px 14px',
               minHeight: 148,
               boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
               cursor: 'pointer',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.06)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'none';
-              e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.02)';
             }}
           >
             <div>
@@ -1228,6 +1216,7 @@ export default function DashboardPage() {
           {/* Card 4: Open Positions -> /departments */}
           <Link
             href="/departments"
+            className="admin-card-hover"
             style={{
               textDecoration: 'none',
               background: 'var(--surface, #ffffff)',
@@ -1236,19 +1225,10 @@ export default function DashboardPage() {
               padding: '16px 14px',
               minHeight: 148,
               boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
               cursor: 'pointer',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.06)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'none';
-              e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.02)';
             }}
           >
             <div>
@@ -1276,6 +1256,7 @@ export default function DashboardPage() {
           {/* Card 5: Pending Approvals -> /approvals */}
           <Link
             href="/approvals"
+            className="admin-card-hover"
             style={{
               textDecoration: 'none',
               background: 'var(--surface, #ffffff)',
@@ -1284,19 +1265,10 @@ export default function DashboardPage() {
               padding: '16px 14px',
               minHeight: 148,
               boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
               cursor: 'pointer',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.06)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'none';
-              e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.02)';
             }}
           >
             <div>
@@ -1324,6 +1296,7 @@ export default function DashboardPage() {
           {/* Card 6: Current Payroll -> /payroll */}
           <Link
             href="/payroll"
+            className="admin-card-hover"
             style={{
               textDecoration: 'none',
               background: 'var(--surface, #ffffff)',
@@ -1332,19 +1305,10 @@ export default function DashboardPage() {
               padding: '16px 14px',
               minHeight: 148,
               boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
               cursor: 'pointer',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.06)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'none';
-              e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.02)';
             }}
           >
             <div>
@@ -1383,6 +1347,7 @@ export default function DashboardPage() {
           {/* Action 1: Add Employee */}
           <Link
             href="/employees/create"
+            className="admin-action-pill-hover"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -1393,18 +1358,9 @@ export default function DashboardPage() {
               border: '1px solid var(--line, #e2e8f0)',
               textDecoration: 'none',
               boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 6px 18px rgba(0,0,0,0.06)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'none';
-              e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.02)';
             }}
           >
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: '#f5f3ff', color: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(0, 184, 219, 0.12)', color: '#00b8db', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
                 <circle cx="8.5" cy="7" r="4" />
@@ -1425,6 +1381,7 @@ export default function DashboardPage() {
           {/* Action 2: Run Payroll */}
           <Link
             href="/payroll"
+            className="admin-action-pill-hover"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -1435,15 +1392,6 @@ export default function DashboardPage() {
               border: '1px solid var(--line, #e2e8f0)',
               textDecoration: 'none',
               boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 6px 18px rgba(0,0,0,0.06)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'none';
-              e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.02)';
             }}
           >
             <div style={{ width: 40, height: 40, borderRadius: 10, background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -1464,6 +1412,7 @@ export default function DashboardPage() {
           {/* Action 3: Generate WPS SIF */}
           <Link
             href="/payroll"
+            className="admin-action-pill-hover"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -1474,15 +1423,6 @@ export default function DashboardPage() {
               border: '1px solid var(--line, #e2e8f0)',
               textDecoration: 'none',
               boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 6px 18px rgba(0,0,0,0.06)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'none';
-              e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.02)';
             }}
           >
             <div style={{ width: 40, height: 40, borderRadius: 10, background: '#fffbeb', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -1517,6 +1457,7 @@ export default function DashboardPage() {
         >
           {/* Card A: Attendance this week (Stacked Bar Chart) */}
           <div
+            className="admin-card-hover"
             style={{
               background: 'var(--surface, #ffffff)',
               border: '1px solid var(--line, #e2e8f0)',
@@ -1560,8 +1501,8 @@ export default function DashboardPage() {
                   display: 'flex',
                   alignItems: 'flex-end',
                   justifyContent: 'space-between',
-                  height: 150,
-                  paddingTop: 10,
+                  height: 165,
+                  paddingTop: 32,
                   borderBottom: '1px solid var(--line, #e2e8f0)',
                   position: 'relative',
                 }}
@@ -1585,40 +1526,46 @@ export default function DashboardPage() {
                         position: 'relative',
                       }}
                     >
-                      {item.isToday ? (
-                        <span
-                          style={{
-                            position: 'absolute',
-                            top: -12,
-                            fontSize: '9.5px',
-                            fontWeight: 700,
-                            color: '#00b8db',
-                            background: '#e0f2fe',
-                            padding: '1px 5px',
-                            borderRadius: 4,
-                          }}
-                        >
-                          Today
-                        </span>
-                      ) : null}
+                      {/* Bar wrapper with relative positioning for floating Today badge */}
+                      <div style={{ position: 'relative', width: 28, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        {item.isToday ? (
+                          <span
+                            className="attendance-today-badge"
+                            style={{
+                              position: 'absolute',
+                              bottom: 'calc(100% + 8px)',
+                              left: '50%',
+                              transform: 'translateX(-50%)',
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              padding: '2px 7px',
+                              borderRadius: 999,
+                              whiteSpace: 'nowrap',
+                              pointerEvents: 'none',
+                            }}
+                          >
+                            Today
+                          </span>
+                        ) : null}
 
-                      {/* Stacked Column Bar */}
-                      <div
-                        style={{
-                          width: 28,
-                          height: '100%',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          justifyContent: 'flex-end',
-                          borderRadius: 4,
-                          overflow: 'hidden',
-                          background: '#f1f5f9',
-                        }}
-                        title={`${item.day}: ${item.onTime} on-time, ${item.late} late, ${item.absent} absent`}
-                      >
-                        <div style={{ height: `${absentHeight}%`, background: '#cbd5e1' }} />
-                        <div style={{ height: `${lateHeight}%`, background: '#f59e0b' }} />
-                        <div style={{ height: `${onTimeHeight}%`, background: '#00b8db' }} />
+                        {/* Stacked Column Bar */}
+                        <div
+                          style={{
+                            width: 28,
+                            height: 105,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'flex-end',
+                            borderRadius: 4,
+                            overflow: 'hidden',
+                            background: 'var(--surface-alt, #f1f5f9)',
+                          }}
+                          title={`${item.day}: ${item.onTime} on-time, ${item.late} late, ${item.absent} absent`}
+                        >
+                          <div style={{ height: `${absentHeight}%`, background: '#cbd5e1' }} />
+                          <div style={{ height: `${lateHeight}%`, background: '#f59e0b' }} />
+                          <div style={{ height: `${onTimeHeight}%`, background: '#00b8db' }} />
+                        </div>
                       </div>
 
                       <span className="muted" style={{ fontSize: '11px', fontWeight: item.isToday ? 700 : 500, color: item.isToday ? 'var(--ink)' : undefined }}>
@@ -1633,6 +1580,7 @@ export default function DashboardPage() {
 
           {/* Card B: Headcount by department (Exact Match to Screenshot) */}
           <div
+            className="admin-card-hover"
             style={{
               background: 'var(--surface, #ffffff)',
               border: '1px solid var(--line, #e2e8f0)',
@@ -1726,6 +1674,7 @@ export default function DashboardPage() {
 
           {/* Card C: Payroll Trend (6-month curved line chart - dummy data as instructed) */}
           <div
+            className="admin-card-hover"
             style={{
               background: 'var(--surface, #ffffff)',
               border: '1px solid var(--line, #e2e8f0)',
@@ -1844,6 +1793,7 @@ export default function DashboardPage() {
         >
           {/* Column A: Pending Approvals */}
           <div
+            className="admin-card-hover"
             style={{
               background: 'var(--surface, #ffffff)',
               border: '1px solid var(--line, #e2e8f0)',
@@ -1930,7 +1880,7 @@ export default function DashboardPage() {
                             flexShrink: 0,
                           }}
                         >
-                          {empName.slice(0, 2).toUpperCase()}
+                          {getInitials(empName)}
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -2009,6 +1959,7 @@ export default function DashboardPage() {
 
           {/* Column B: Expiring Documents Table (Image 3 Pill Styling) */}
           <div
+            className="admin-card-hover"
             style={{
               background: 'var(--surface, #ffffff)',
               border: '1px solid var(--line, #e2e8f0)',
@@ -2142,6 +2093,7 @@ export default function DashboardPage() {
         >
           {/* Card 1: Who's on leave */}
           <div
+            className="admin-card-hover"
             style={{
               background: 'var(--surface, #ffffff)',
               border: '1px solid var(--line, #e2e8f0)',
@@ -2167,7 +2119,7 @@ export default function DashboardPage() {
                   <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                       <div style={{ width: 30, height: 30, borderRadius: '50%', background: getAvatarColor(item.name, idx), color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '11px', flexShrink: 0 }}>
-                        {item.name.slice(0, 2).toUpperCase()}
+                        {getInitials(item.name)}
                       </div>
                       <div>
                         <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink, #0f172a)' }}>{item.name}</div>
@@ -2187,8 +2139,9 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Card 2: Celebrations 🎉 */}
+          {/* Card 2: Celebrations */}
           <div
+            className="admin-card-hover"
             style={{
               background: 'var(--surface, #ffffff)',
               border: '1px solid var(--line, #e2e8f0)',
@@ -2213,7 +2166,7 @@ export default function DashboardPage() {
                   Celebrations
                 </h3>
               </div>
-              <span style={{ fontSize: '11px', fontWeight: 600, color: '#00b8db' }}>
+              <span className="celebration-this-week">
                 This week
               </span>
             </div>
@@ -2260,6 +2213,7 @@ export default function DashboardPage() {
 
           {/* Card 3: New Joiners (Clickable Link to Employee Details, Max 10, Multi-color Avatars) */}
           <div
+            className="admin-card-hover"
             style={{
               background: 'var(--surface, #ffffff)',
               border: '1px solid var(--line, #e2e8f0)',
@@ -2282,7 +2236,7 @@ export default function DashboardPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, maxHeight: 220, overflowY: 'auto' }}>
               {newJoiners.length > 0 ? (
                 newJoiners.map((emp, idx) => {
-                  const empName = v(emp, 'fullName', 'full_name') || 'Employee';
+                  const empName = v(emp, 'fullName', 'full_name') || `${v(emp, 'firstName', 'first_name') || ''} ${v(emp, 'lastName', 'last_name') || ''}`.trim() || 'Employee';
                   const title = v(emp, 'jobTitle', 'job_title') || 'Staff';
                   const dept = v(emp, 'department', 'department_name') || v(emp, 'departmentName') || '';
                   const joinDate = formatDate(v(emp, 'joiningDate', 'joining_date', 'createdAt'));
@@ -2327,7 +2281,7 @@ export default function DashboardPage() {
                             flexShrink: 0,
                           }}
                         >
-                          {empName.slice(0, 2).toUpperCase()}
+                          {getInitials(empName)}
                         </div>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink, #0f172a)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -2369,6 +2323,7 @@ export default function DashboardPage() {
             8. BOTTOM ROW: Announcements Card (+ Post)
            ========================================================================= */}
         <div
+          className="admin-card-hover"
           style={{
             background: 'var(--surface, #ffffff)',
             border: '1px solid var(--line, #e2e8f0)',
@@ -2607,6 +2562,7 @@ export default function DashboardPage() {
             9. FULL-WIDTH GRATUITY / EOSB LIABILITY BANNER (Bottom)
            ========================================================================= */}
         <div
+          className="admin-card-hover"
           style={{
             display: 'flex',
             alignItems: 'center',
