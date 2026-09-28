@@ -3,14 +3,12 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import AppShell, { Badge } from '../../components/AppShell';
+import AppShell from '../../components/AppShell';
 import { api, getPermissions, getUser, normalizeRole } from '../../lib/auth';
 import { formatDate, formatDateTime, formatLate, v } from '../../lib/format';
 import { canUseAnyPermission, canUsePermission } from '../../lib/nav';
 import { fetchEmployeesDirect, fetchDivisionsDirect } from '../../lib/dbDirect';
-import { getInstantEmployees, writeEmployeesCache } from '../../lib/employeeCache';
-
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+import { writeEmployeesCache } from '../../lib/employeeCache';
 
 const COMPANY_PERMS = [
   'company.create',
@@ -323,7 +321,6 @@ export default function DashboardPage() {
     ? filteredEmployees.length
     : Math.max(Number(data?.headcount || 0), employees.length);
 
-  // Present today
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   const todayAttendanceRecords = useMemo(() => {
@@ -401,10 +398,10 @@ export default function DashboardPage() {
     }
   }
 
-  // Dynamic Headcount by Department
+  // Dynamic Headcount by Department (Colors matching screenshot)
   const departmentHeadcount = useMemo(() => {
     const map = {};
-    const colors = ['#6366f1', '#00b8db', '#f97316', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#64748b'];
+    const colors = ['#4338ca', '#06b6d4', '#f59e0b', '#10b981', '#ec4899', '#94a3b8'];
     (filteredEmployees || []).forEach((emp) => {
       let dept = v(emp, 'departmentName', 'department_name');
       if (!dept) {
@@ -522,6 +519,10 @@ export default function DashboardPage() {
 
     return list.sort((a, b) => a.daysLeft - b.daysLeft);
   }, [filteredEmployees, docFilterDays]);
+
+  const criticalCount = useMemo(() => expiringDocsList.filter((d) => d.daysLeft <= 15).length, [expiringDocsList]);
+  const warningCount = useMemo(() => expiringDocsList.filter((d) => d.daysLeft > 15 && d.daysLeft <= 45).length, [expiringDocsList]);
+  const safeCount = useMemo(() => expiringDocsList.filter((d) => d.daysLeft > 45).length, [expiringDocsList]);
 
   // Dynamic Who is on leave
   const employeesOnLeave = useMemo(() => {
@@ -673,15 +674,15 @@ export default function DashboardPage() {
     } catch {}
   }
 
-  // Time-based dynamic greeting
+  // Exact time-of-day dynamic greeting (Morning, Afternoon/Noon, Evening/Night)
   const greetingText = useMemo(() => {
     const h = new Date().getHours();
-    if (h < 12) return 'Good morning';
-    if (h < 17) return 'Good afternoon';
+    if (h >= 5 && h < 12) return 'Good morning';
+    if (h >= 12 && h < 17) return 'Good afternoon';
     return 'Good evening';
   }, []);
 
-  const userName = currentUser?.fullName || currentUser?.full_name || 'Admin';
+  const userName = currentUser?.fullName || currentUser?.full_name || 'Super Admin';
   const currentDateFormatted = useMemo(() => {
     const d = new Date();
     return d.toLocaleDateString('en-US', {
@@ -910,252 +911,299 @@ export default function DashboardPage() {
         ) : null}
 
         {/* =========================================================================
-            3. TOP 6 KPI METRIC CARDS (Exact Mockup Match)
+            3. TOP 6 KPI METRIC CARDS (All Clickable, 1-Line Desktop, Exact Proportions)
            ========================================================================= */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
-            gap: 14,
-          }}
-        >
-          {/* Card 1: Total Employees */}
-          <div
+        <div className="dash-kpi-grid-6">
+          {/* Card 1: Total Employees -> /employees#all-employees */}
+          <Link
+            href="/employees#all-employees"
             style={{
+              textDecoration: 'none',
               background: 'var(--surface, #ffffff)',
               border: '1px solid var(--line, #e2e8f0)',
               borderRadius: 12,
-              padding: '16px 18px',
+              padding: '16px 14px',
+              minHeight: 148,
               boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
               transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-              cursor: 'default',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.05)';
+              e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.06)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'none';
               e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.02)';
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div style={{ width: 34, height: 34, borderRadius: 8, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4f46e5' }}>
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 8, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4f46e5' }}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                </div>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#10b981', background: '#ecfdf5', padding: '2px 7px', borderRadius: 999 }}>
+                  ▲ 3.2%
+                </span>
               </div>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#10b981', background: '#ecfdf5', padding: '2px 7px', borderRadius: 999 }}>
-                ▲ 3.2%
-              </span>
-            </div>
-            <div className="muted" style={{ fontSize: '12px', fontWeight: 500, marginBottom: 4 }}>Total employees</div>
-            <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.15 }}>
-              {totalEmployees}
+              <div className="muted" style={{ fontSize: '12px', fontWeight: 500, marginBottom: 4 }}>Total employees</div>
+              <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.15 }}>
+                {totalEmployees}
+              </div>
             </div>
             <div className="muted" style={{ fontSize: '11px', marginTop: 6 }}>
               +{newJoiners.length} joined this month
             </div>
-          </div>
+          </Link>
 
-          {/* Card 2: Present Today */}
-          <div
+          {/* Card 2: Present Today -> /attendance */}
+          <Link
+            href="/attendance"
             style={{
+              textDecoration: 'none',
               background: 'var(--surface, #ffffff)',
               border: '1px solid var(--line, #e2e8f0)',
               borderRadius: 12,
-              padding: '16px 18px',
+              padding: '16px 14px',
+              minHeight: 148,
               boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
               transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.05)';
+              e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.06)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'none';
               e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.02)';
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div style={{ width: 34, height: 34, borderRadius: 8, background: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 8, background: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </div>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#10b981', background: '#ecfdf5', padding: '2px 7px', borderRadius: 999 }}>
+                  {totalEmployees > 0 ? Math.round((presentTodayCount / totalEmployees) * 100) : 100}%
+                </span>
               </div>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#10b981', background: '#ecfdf5', padding: '2px 7px', borderRadius: 999 }}>
-                {totalEmployees > 0 ? Math.round((presentTodayCount / totalEmployees) * 100) : 100}%
-              </span>
-            </div>
-            <div className="muted" style={{ fontSize: '12px', fontWeight: 500, marginBottom: 4 }}>Present today</div>
-            <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.15 }}>
-              {presentTodayCount}
+              <div className="muted" style={{ fontSize: '12px', fontWeight: 500, marginBottom: 4 }}>Present today</div>
+              <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.15 }}>
+                {presentTodayCount}
+              </div>
             </div>
             <div className="muted" style={{ fontSize: '11px', marginTop: 6 }}>
               {lateCheckinsCount} late check-ins · 0 remote
             </div>
-          </div>
+          </Link>
 
-          {/* Card 3: On Leave Today */}
-          <div
+          {/* Card 3: On Leave Today -> /leave */}
+          <Link
+            href="/leave"
             style={{
+              textDecoration: 'none',
               background: 'var(--surface, #ffffff)',
               border: '1px solid var(--line, #e2e8f0)',
               borderRadius: 12,
-              padding: '16px 18px',
+              padding: '16px 14px',
+              minHeight: 148,
               boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
               transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.05)';
+              e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.06)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'none';
               e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.02)';
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div style={{ width: 34, height: 34, borderRadius: 8, background: '#fffbeb', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b' }}>
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                  <line x1="16" y1="2" x2="16" y2="6" />
-                  <line x1="8" y1="2" x2="8" y2="6" />
-                  <line x1="3" y1="10" x2="21" y2="10" />
-                </svg>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 8, background: '#fffbeb', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b' }}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                </div>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#f59e0b', background: '#fffbeb', padding: '2px 7px', borderRadius: 999 }}>
+                  Today
+                </span>
               </div>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#f59e0b', background: '#fffbeb', padding: '2px 7px', borderRadius: 999 }}>
-                Today
-              </span>
-            </div>
-            <div className="muted" style={{ fontSize: '12px', fontWeight: 500, marginBottom: 4 }}>On leave today</div>
-            <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.15 }}>
-              {todayOnLeaveCount}
+              <div className="muted" style={{ fontSize: '12px', fontWeight: 500, marginBottom: 4 }}>On leave today</div>
+              <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.15 }}>
+                {todayOnLeaveCount}
+              </div>
             </div>
             <div className="muted" style={{ fontSize: '11px', marginTop: 6 }}>
               {todayOnLeaveCount > 0 ? `${todayOnLeaveCount} active approved` : 'All staff available'}
             </div>
-          </div>
+          </Link>
 
-          {/* Card 4: Open Positions */}
-          <div
+          {/* Card 4: Open Positions -> /departments */}
+          <Link
+            href="/departments"
             style={{
+              textDecoration: 'none',
               background: 'var(--surface, #ffffff)',
               border: '1px solid var(--line, #e2e8f0)',
               borderRadius: 12,
-              padding: '16px 18px',
+              padding: '16px 14px',
+              minHeight: 148,
               boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
               transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.05)';
+              e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.06)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'none';
               e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.02)';
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div style={{ width: 34, height: 34, borderRadius: 8, background: '#f0f9ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0284c7' }}>
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
-                  <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
-                </svg>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 8, background: '#f0f9ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0284c7' }}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                  </svg>
+                </div>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#0284c7', background: '#f0f9ff', padding: '2px 7px', borderRadius: 999 }}>
+                  Hiring
+                </span>
               </div>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#0284c7', background: '#f0f9ff', padding: '2px 7px', borderRadius: 999 }}>
-                Hiring
-              </span>
-            </div>
-            <div className="muted" style={{ fontSize: '12px', fontWeight: 500, marginBottom: 4 }}>Open positions</div>
-            <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.15 }}>
-              {departmentHeadcount.length || 6}
+              <div className="muted" style={{ fontSize: '12px', fontWeight: 500, marginBottom: 4 }}>Open positions</div>
+              <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.15 }}>
+                {departmentHeadcount.length || 6}
+              </div>
             </div>
             <div className="muted" style={{ fontSize: '11px', marginTop: 6 }}>
               Across {departmentHeadcount.length || 6} active teams
             </div>
-          </div>
+          </Link>
 
-          {/* Card 5: Pending Approvals */}
-          <div
+          {/* Card 5: Pending Approvals -> /approvals */}
+          <Link
+            href="/approvals"
             style={{
+              textDecoration: 'none',
               background: 'var(--surface, #ffffff)',
               border: '1px solid var(--line, #e2e8f0)',
               borderRadius: 12,
-              padding: '16px 18px',
+              padding: '16px 14px',
+              minHeight: 148,
               boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
               transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.05)';
+              e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.06)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'none';
               e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.02)';
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div style={{ width: 34, height: 34, borderRadius: 8, background: '#fff1f2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f43f5e' }}>
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
-                </svg>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 8, background: '#fff1f2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f43f5e' }}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                </div>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#f43f5e', background: '#fff1f2', padding: '2px 7px', borderRadius: 999 }}>
+                  {pendingLeavesList.length > 0 ? `${pendingLeavesList.length} pending` : 'All clear'}
+                </span>
               </div>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#f43f5e', background: '#fff1f2', padding: '2px 7px', borderRadius: 999 }}>
-                {pendingLeavesList.length > 0 ? `${pendingLeavesList.length} pending` : 'All clear'}
-              </span>
-            </div>
-            <div className="muted" style={{ fontSize: '12px', fontWeight: 500, marginBottom: 4 }}>Pending approvals</div>
-            <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.15 }}>
-              {pendingLeavesList.length}
+              <div className="muted" style={{ fontSize: '12px', fontWeight: 500, marginBottom: 4 }}>Pending approvals</div>
+              <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.15 }}>
+                {pendingLeavesList.length}
+              </div>
             </div>
             <div className="muted" style={{ fontSize: '11px', marginTop: 6 }}>
               Leave {pendingLeavesList.length} · Docs {expiringDocsList.length}
             </div>
-          </div>
+          </Link>
 
-          {/* Card 6: Sep Payroll */}
-          <div
+          {/* Card 6: Current Payroll -> /payroll */}
+          <Link
+            href="/payroll"
             style={{
+              textDecoration: 'none',
               background: 'var(--surface, #ffffff)',
               border: '1px solid var(--line, #e2e8f0)',
               borderRadius: 12,
-              padding: '16px 18px',
+              padding: '16px 14px',
+              minHeight: 148,
               boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
               transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.05)';
+              e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.06)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'none';
               e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.02)';
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div style={{ width: 34, height: 34, borderRadius: 8, background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#059669' }}>
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="12" y1="1" x2="12" y2="23" />
-                  <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                </svg>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 8, background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#059669' }}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="1" x2="12" y2="23" />
+                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                  </svg>
+                </div>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#059669', background: '#f0fdf4', padding: '2px 7px', borderRadius: 999 }}>
+                  ▲ 2.1%
+                </span>
               </div>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#059669', background: '#f0fdf4', padding: '2px 7px', borderRadius: 999 }}>
-                ▲ 2.1%
-              </span>
-            </div>
-            <div className="muted" style={{ fontSize: '12px', fontWeight: 500, marginBottom: 4 }}>Current payroll</div>
-            <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.15 }}>
-              AED 3.42M
+              <div className="muted" style={{ fontSize: '12px', fontWeight: 500, marginBottom: 4 }}>Current payroll</div>
+              <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.15 }}>
+                AED 3.42M
+              </div>
             </div>
             <div className="muted" style={{ fontSize: '11px', marginTop: 6 }}>
               WPS run due end of month
             </div>
-          </div>
+          </Link>
         </div>
 
         {/* =========================================================================
@@ -1419,7 +1467,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Card B: Headcount by department (Modern Donut Chart + Legend) */}
+          {/* Card B: Headcount by department (Exact Match to Screenshot) */}
           <div
             style={{
               background: 'var(--surface, #ffffff)',
@@ -1431,44 +1479,43 @@ export default function DashboardPage() {
               flexDirection: 'column',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: '14.5px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
                 Headcount by department
               </h3>
-              <Link href="/departments" style={{ fontSize: '12px', fontWeight: 600, color: '#00b8db', textDecoration: 'none' }}>
+              <Link href="/departments" style={{ fontSize: '12px', fontWeight: 600, color: '#4f46e5', textDecoration: 'none' }}>
                 View all
               </Link>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 20, flex: 1 }}>
-              {/* Donut Chart SVG */}
-              <div style={{ width: 115, height: 115, position: 'relative', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 24, flex: 1 }}>
+              {/* Donut Chart SVG matching screenshot */}
+              <div style={{ width: 124, height: 124, position: 'relative', flexShrink: 0 }}>
                 <svg viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)', width: '100%', height: '100%' }}>
-                  <circle cx="50" cy="50" r="38" fill="none" stroke="#f1f5f9" strokeWidth="12" />
+                  <circle cx="50" cy="50" r="37" fill="none" stroke="#f1f5f9" strokeWidth="12" />
                   {(() => {
                     let cumulativePercent = 0;
-                    return departmentHeadcount.map((dept, i) => {
-                      const strokeDasharray = `${(dept.percent * 238.76) / 100} 238.76`;
-                      const strokeDashoffset = -((cumulativePercent * 238.76) / 100);
+                    return departmentHeadcount.map((dept) => {
+                      const strokeDasharray = `${(dept.percent * 232.48) / 100} 232.48`;
+                      const strokeDashoffset = -((cumulativePercent * 232.48) / 100);
                       cumulativePercent += dept.percent;
                       return (
                         <circle
                           key={dept.name}
                           cx="50"
                           cy="50"
-                          r="38"
+                          r="37"
                           fill="none"
                           stroke={dept.color}
                           strokeWidth="12"
                           strokeDasharray={strokeDasharray}
                           strokeDashoffset={strokeDashoffset}
-                          strokeLinecap="round"
                         />
                       );
                     });
                   })()}
                 </svg>
-                {/* Center text */}
+                {/* Center text inside donut */}
                 <div
                   style={{
                     position: 'absolute',
@@ -1480,29 +1527,29 @@ export default function DashboardPage() {
                     pointerEvents: 'none',
                   }}
                 >
-                  <span style={{ fontSize: '17px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1 }}>
+                  <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--ink, #0f172a)', lineHeight: 1.1 }}>
                     {totalEmployees}
                   </span>
-                  <span className="muted" style={{ fontSize: '9px', marginTop: 2 }}>
+                  <span className="muted" style={{ fontSize: '10.5px', marginTop: 1, color: '#94a3b8' }}>
                     employees
                   </span>
                 </div>
               </div>
 
-              {/* Department breakdown legend list */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 7, flex: 1, maxHeight: 155, overflowY: 'auto' }}>
+              {/* Department breakdown legend list matching screenshot */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1, maxHeight: 185, overflowY: 'auto' }}>
                 {departmentHeadcount.length > 0 ? (
                   departmentHeadcount.slice(0, 6).map((dept) => (
-                    <div key={dept.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11.5px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: dept.color, flexShrink: 0 }} />
-                        <span style={{ color: 'var(--ink, #0f172a)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div key={dept.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12.5px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                        <span style={{ width: 9, height: 9, borderRadius: 3, background: dept.color, flexShrink: 0 }} />
+                        <span style={{ color: 'var(--ink, #0f172a)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {dept.name}
                         </span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                        <span style={{ fontWeight: 700, color: 'var(--ink, #0f172a)' }}>{dept.count}</span>
-                        <span className="muted" style={{ fontSize: '10.5px' }}>{dept.percent}%</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 8 }}>
+                        <span style={{ fontWeight: 700, color: 'var(--ink, #0f172a)', fontSize: '13px' }}>{dept.count}</span>
+                        <span className="muted" style={{ fontSize: '12px', minWidth: 30, textAlign: 'right' }}>{dept.percent}%</span>
                       </div>
                     </div>
                   ))
@@ -1783,7 +1830,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Column B: Expiring Documents Table */}
+          {/* Column B: Expiring Documents Table (Image 3 Pill Styling) */}
           <div
             style={{
               background: 'var(--surface, #ffffff)',
@@ -1836,7 +1883,9 @@ export default function DashboardPage() {
                     expiringDocsList.slice(0, 6).map((doc, idx) => {
                       const isCritical = doc.daysLeft <= 15;
                       const isWarning = doc.daysLeft > 15 && doc.daysLeft <= 45;
-                      const statusColor = isCritical ? '#ef4444' : isWarning ? '#d97706' : '#10b981';
+                      const dotBg = isCritical ? '#dc2626' : isWarning ? '#d97706' : '#059669';
+                      const pillBg = isCritical ? '#fee2e2' : isWarning ? '#fef3c7' : '#d1fae5';
+                      const textColor = isCritical ? '#991b1b' : isWarning ? '#92400e' : '#065f46';
 
                       return (
                         <tr key={idx} style={{ borderBottom: '1px solid var(--line, #f1f5f9)' }}>
@@ -1857,13 +1906,18 @@ export default function DashboardPage() {
                           <td style={{ padding: '9px 6px', textAlign: 'right' }}>
                             <span
                               style={{
-                                color: statusColor,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 5,
+                                color: textColor,
+                                background: pillBg,
                                 fontWeight: 700,
                                 fontSize: '11px',
-                                borderBottom: `2px solid ${statusColor}`,
-                                paddingBottom: 1,
+                                padding: '3px 9px',
+                                borderRadius: 999,
                               }}
                             >
+                              <span style={{ width: 5, height: 5, borderRadius: '50%', background: dotBg }} />
                               {doc.daysLeft} days
                             </span>
                           </td>
@@ -1881,19 +1935,19 @@ export default function DashboardPage() {
               </table>
             </div>
 
-            {/* Bottom Legend Dots */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: '11px', marginTop: 14, paddingTop: 10, borderTop: '1px solid var(--line, #e2e8f0)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ef4444' }} />
-                <span className="muted">&lt; 15 days</span>
+            {/* Bottom Legend Pills (Matching Image 3) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '11px', marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--line, #e2e8f0)', flexWrap: 'wrap' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fee2e2', color: '#991b1b', padding: '3px 10px', borderRadius: 999, fontWeight: 600 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#dc2626' }} />
+                <span>&lt; 15 days: {criticalCount}</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f59e0b' }} />
-                <span className="muted">15–45 days</span>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fef3c7', color: '#92400e', padding: '3px 10px', borderRadius: 999, fontWeight: 600 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#d97706' }} />
+                <span>15–45 days: {warningCount}</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#10b981' }} />
-                <span className="muted">45+ days</span>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#d1fae5', color: '#065f46', padding: '3px 10px', borderRadius: 999, fontWeight: 600 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#059669' }} />
+                <span>45+ days: {safeCount}</span>
               </div>
             </div>
           </div>
@@ -2000,7 +2054,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Card 3: New Joiners (max 10 as requested) */}
+          {/* Card 3: New Joiners (Clickable Link to Employee Details, Max 10) */}
           <div
             style={{
               background: 'var(--surface, #ffffff)',
@@ -2021,14 +2075,34 @@ export default function DashboardPage() {
               </span>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1, maxHeight: 200, overflowY: 'auto' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, maxHeight: 210, overflowY: 'auto' }}>
               {newJoiners.length > 0 ? (
                 newJoiners.map((emp, idx) => {
                   const empName = v(emp, 'fullName', 'full_name') || 'Employee';
                   const title = v(emp, 'jobTitle', 'job_title') || 'Staff';
 
                   return (
-                    <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}>
+                    <Link
+                      key={idx}
+                      href={`/employees?search=${encodeURIComponent(empName)}#all-employees`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        fontSize: '12px',
+                        textDecoration: 'none',
+                        padding: '6px 8px',
+                        borderRadius: 8,
+                        transition: 'background 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'var(--surface-alt, #f8fafc)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                      }}
+                      title={`View details for ${empName}`}
+                    >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                         <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#0284c7', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '10.5px' }}>
                           {empName.slice(0, 2).toUpperCase()}
@@ -2041,7 +2115,7 @@ export default function DashboardPage() {
                       <span style={{ fontSize: '10px', fontWeight: 600, background: '#ecfdf5', color: '#059669', padding: '2px 6px', borderRadius: 4 }}>
                         Onboarded
                       </span>
-                    </div>
+                    </Link>
                   );
                 })
               ) : (

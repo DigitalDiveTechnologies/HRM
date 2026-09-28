@@ -2159,3 +2159,26 @@ html[dir='rtl'] .row-actions {
   color: #FFFFFF !important;
 }
 
+/* 6 KPI Cards Grid (Desktop 6-in-a-row, responsive wrap on tablet/mobile) */
+.dash-kpi-grid-6 {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+}
+@media (max-width: 1200px) {
+  .dash-kpi-grid-6 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 720px) {
+  .dash-kpi-grid-6 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .dash-kpi-grid-6 {
+    grid-template-columns: 1fr;
+  }
+}
+
+

@@ -484,7 +484,22 @@ export default function AppShell({ title, subtitle, actions, children }) {
           </button>
         </aside>
         <main className="main">
-          <div className="topbar">
+          <div
+            className="topbar"
+            style={
+              isDashboardPage
+                ? {
+                    background: 'var(--surface, #ffffff)',
+                    padding: '12px 20px',
+                    borderRadius: 14,
+                    border: '1px solid var(--line, #e2e8f0)',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                    alignItems: 'center',
+                    marginBottom: 20,
+                  }
+                : undefined
+            }
+          >
             <div className="topbar-left">
               <span className="menu-btn-wrap">
                 <button
@@ -618,7 +633,7 @@ export default function AppShell({ title, subtitle, actions, children }) {
                       <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                       <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                     </svg>
-                    {menuCategories > 0 ? (
+                    {badgeFor('/notifications') > 0 ? (
                       <span
                         style={{
                           position: 'absolute',
@@ -637,7 +652,7 @@ export default function AppShell({ title, subtitle, actions, children }) {
                           border: '1.5px solid var(--surface, #ffffff)'
                         }}
                       >
-                        {menuCategories > 99 ? '99+' : menuCategories}
+                        {badgeFor('/notifications') > 99 ? '99+' : badgeFor('/notifications')}
                       </span>
                     ) : null}
                   </Link>
