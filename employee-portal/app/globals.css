@@ -1310,3 +1310,44 @@ html[dir='rtl'] .sidebar-nav a:hover {
     transform: none !important;
   }
 }
+
+/* Card Smooth Hover */
+.admin-card-hover {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.22s ease !important;
+  will-change: transform, box-shadow;
+}
+
+.admin-card-hover:hover {
+  transform: translateY(-3px) !important;
+  box-shadow: 0 14px 28px -4px rgba(0, 184, 219, 0.12), 0 8px 16px -4px rgba(0, 0, 0, 0.06) !important;
+  border-color: rgba(0, 184, 219, 0.45) !important;
+}
+
+:root[data-theme='dark'] .admin-card-hover:hover {
+  transform: translateY(-4px) !important;
+  box-shadow: 0 16px 36px -4px rgba(0, 184, 219, 0.25), 0 8px 18px -4px rgba(0, 0, 0, 0.6) !important;
+  border-color: rgba(0, 184, 219, 0.65) !important;
+}
+
+/* Quick Action Pills Smooth Hover */
+.admin-action-pill-hover {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), 
+              box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), 
+              border-color 0.22s ease !important;
+  will-change: transform, box-shadow;
+}
+
+.admin-action-pill-hover:hover {
+  transform: translateY(-3px) !important;
+  box-shadow: 0 10px 22px -3px rgba(0, 184, 219, 0.16), 0 4px 10px -3px rgba(0, 0, 0, 0.05) !important;
+  border-color: rgba(0, 184, 219, 0.5) !important;
+}
+
+:root[data-theme='dark'] .admin-action-pill-hover:hover {
+  transform: translateY(-3px) !important;
+  box-shadow: 0 12px 26px -3px rgba(0, 184, 219, 0.3), 0 6px 14px -3px rgba(0, 0, 0, 0.5) !important;
+  border-color: rgba(0, 184, 219, 0.7) !important;
+}
+
