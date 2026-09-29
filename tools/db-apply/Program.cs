@@ -7,6 +7,13 @@ var files = args.Length > 0
     ? args
     : new[]
     {
+        "schema-core.sql",
+        "schema-divisions.sql",
+        "schema-employee-master.sql",
+        "schema-employee-photo.sql",
+        "schema-leave-workflow.sql",
+        "schema-certificates.sql",
+        "schema-payroll-division.sql",
         "schema-extensions.sql",
         "seed-extensions.sql",
         "schema-deep-features.sql",
@@ -28,6 +35,8 @@ var files = args.Length > 0
         "schema-rbac-permissions.sql",
         "seed-rbac-permissions.sql",
         "schema-rbac-custom-roles.sql",
+        "seed-admin-digitaldive-net.sql",
+        "seed-divisions.sql",
     };
 
 string? FindApiDir()
