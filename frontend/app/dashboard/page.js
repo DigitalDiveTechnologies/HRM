@@ -1532,7 +1532,7 @@ export default function DashboardPage() {
                 Add employee
               </span>
               <span className="muted" style={{ fontSize: '11.5px', marginTop: 2 }}>
-                Onboard with visa & contract
+                Onboard new staff with visa & contract
               </span>
             </div>
           </Link>
@@ -1563,7 +1563,7 @@ export default function DashboardPage() {
                 Run payroll
               </span>
               <span className="muted" style={{ fontSize: '11.5px', marginTop: 2 }}>
-                Current cycle · {totalEmployees} staff
+                Process monthly salaries & payslips
               </span>
             </div>
           </Link>
@@ -1598,7 +1598,7 @@ export default function DashboardPage() {
                 Generate WPS SIF
               </span>
               <span className="muted" style={{ fontSize: '11.5px', marginTop: 2 }}>
-                MOHRE salary file for bank
+                Export MOHRE salary file for bank transfer
               </span>
             </div>
           </Link>
