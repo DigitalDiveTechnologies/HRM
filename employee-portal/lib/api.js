@@ -27,6 +27,39 @@ export const session = {
   clear() { localStorage.removeItem('employee_portal_session'); },
 };
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Retry transient IIS Softaculous 403 / network blips (same host stability as admin portal). */
+async function fetchWithRetry(url, init, { retries = 12, delayMs = 1200 } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, init);
+      if ((res.status === 502 || res.status === 503 || res.status === 504 || res.status === 408) && attempt < retries) {
+        await sleep(delayMs);
+        continue;
+      }
+      if (res.status === 403 && attempt < retries) {
+        const clone = res.clone();
+        const data = await clone.json().catch(() => ({}));
+        // Empty IIS 403 (IP ban) — retry. Real API permission error has JSON.
+        if (!data?.error && !data?.title) {
+          await sleep(delayMs);
+          continue;
+        }
+      }
+      return res;
+    } catch (err) {
+      lastErr = err;
+      if (attempt >= retries) break;
+      await sleep(delayMs);
+    }
+  }
+  throw lastErr || new Error('Unable to reach the server. Check your connection and try again.');
+}
+
 export async function api(path, options = {}) {
   const current = session.get();
   const headers = {
@@ -39,7 +72,7 @@ export async function api(path, options = {}) {
   }
   let response;
   try {
-    response = await fetch(`${apiBase()}/api${path}`, {
+    response = await fetchWithRetry(`${apiBase()}/api${path}`, {
       ...options,
       headers,
     });
@@ -63,7 +96,7 @@ export async function apiBlob(path, options = {}) {
   const current = session.get();
   const base = apiBase();
   const url = path.startsWith('http') ? path : `${base}/api${path}`;
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     ...options,
     headers: {
       ...(current?.token ? { Authorization: `Bearer ${current.token}` } : {}),

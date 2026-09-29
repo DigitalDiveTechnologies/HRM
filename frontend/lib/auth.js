@@ -122,7 +122,13 @@ export function handleUnauthorized() {
 function statusMessage(status, data) {
   if (data?.error || data?.title) return data.error || data.title;
   if (status === 401) return 'Session expired — please sign in again.';
-  if (status === 403) return 'You do not have permission for this action.';
+  // Empty IIS 403 (Dynamic IP ban) has no JSON — treat as transient, not RBAC deny
+  if (status === 403) {
+    if (!data || (!data.error && !data.title)) {
+      return 'Service is updating. Please try again in a moment.';
+    }
+    return 'You do not have permission for this action.';
+  }
   if (status === 502 || status === 503 || status === 504) {
     return 'Service is updating. Please try again in a moment.';
   }
@@ -136,16 +142,23 @@ function sleep(ms) {
 }
 
 function isRetryableStatus(status) {
-  return status === 502 || status === 503 || status === 504 || status === 408;
+  // 403 without app JSON = IIS temporary IP block / Softaculous shield
+  return status === 502 || status === 503 || status === 504 || status === 408 || status === 403;
 }
 
-/** Retry when API is briefly offline (IIS app_offline / recycle during deploy). */
-async function fetchWithRetry(url, init, { retries = 8, delayMs = 1500 } = {}) {
+/** Retry when API is briefly offline (IIS recycle / Softaculous temporary 403). */
+async function fetchWithRetry(url, init, { retries = 12, delayMs = 1200 } = {}) {
   let lastErr;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const res = await fetch(url, init);
       if (isRetryableStatus(res.status) && attempt < retries) {
+        // Only auto-retry 403 when body isn't an API permission error
+        if (res.status === 403) {
+          const clone = res.clone();
+          const data = await clone.json().catch(() => ({}));
+          if (data?.error || data?.title) return res;
+        }
         await sleep(delayMs);
         continue;
       }
