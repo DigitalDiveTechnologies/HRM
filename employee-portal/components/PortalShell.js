@@ -371,60 +371,9 @@ export default function PortalShell({ title, subtitle, actions, children }) {
               onClick={toggleLocale}
               title={locale === 'en' ? 'Switch to Arabic (العربية)' : 'Switch to English'}
               aria-label="Toggle Language"
-              style={{
-                padding: '6px 12px',
-                borderRadius: 8,
-                border: '1px solid var(--line, #e2e8f0)',
-                background: 'var(--surface, #ffffff)',
-                color: 'var(--ink, #0f172a)',
-                fontSize: '12px',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
             >
-              {locale === 'en' ? 'EN | ع' : 'ع | EN'}
+              {locale === 'ar' ? 'EN' : 'ع'}
             </button>
-
-            <Link
-              href="/notifications"
-              style={{
-                position: 'relative',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 38,
-                height: 38,
-                borderRadius: 8,
-                border: '1px solid var(--line, #e2e8f0)',
-                background: 'var(--surface, #ffffff)',
-                color: 'var(--ink, #0f172a)',
-                textDecoration: 'none',
-              }}
-              title="Messages"
-            >
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-              </svg>
-              <span
-                style={{
-                  position: 'absolute',
-                  top: -4,
-                  right: -4,
-                  background: '#ef4444',
-                  color: '#ffffff',
-                  fontSize: '10px',
-                  fontWeight: 800,
-                  width: 17,
-                  height: 17,
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                2
-              </span>
-            </Link>
 
             <Link
               href="/notifications"

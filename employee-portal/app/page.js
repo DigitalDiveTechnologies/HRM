@@ -756,7 +756,7 @@ export default function EmployeePortalDashboard() {
                         fontWeight: 600,
                       }}
                     >
-                      <span style={{ color: '#00b8db' }}>📍</span> Inside geofence · {companyBranchName}
+                      <span style={{ color: '#00b8db' }}>📍</span> {companyBranchName}
                     </span>
 
                     <span
