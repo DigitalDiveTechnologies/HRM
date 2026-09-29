@@ -780,7 +780,39 @@ export default function AppShell({ title, subtitle, actions, children }) {
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && e.target.value.trim()) {
-                          router.push(`/employees?search=${encodeURIComponent(e.target.value.trim())}`);
+                          const val = e.target.value.trim();
+                          const lower = val.toLowerCase();
+                          if (lower === 'document' || lower === 'documents' || lower === 'doc' || lower === 'docs') {
+                            router.push('/documents');
+                          } else if (lower === 'payslip' || lower === 'payslips' || lower === 'payroll' || lower === 'salary' || lower === 'wps') {
+                            router.push('/payroll');
+                          } else if (lower === 'attendance' || lower === 'clock' || lower === 'shifts' || lower === 'shift') {
+                            router.push('/attendance');
+                          } else if (lower === 'leave' || lower === 'leaves' || lower === 'vacation') {
+                            router.push('/leave');
+                          } else if (lower === 'asset' || lower === 'assets' || lower === 'equipment') {
+                            router.push('/assets');
+                          } else if (lower === 'report' || lower === 'reports' || lower === 'analytics') {
+                            router.push('/reports');
+                          } else if (lower === 'onboarding' || lower === 'task' || lower === 'tasks') {
+                            router.push('/onboarding');
+                          } else if (lower === 'recruitment' || lower === 'candidate' || lower === 'candidates' || lower === 'jobs') {
+                            router.push('/recruitment');
+                          } else if (lower === 'training' || lower === 'course' || lower === 'courses') {
+                            router.push('/training');
+                          } else if (lower === 'travel' || lower === 'trip') {
+                            router.push('/travel');
+                          } else if (lower === 'compliance') {
+                            router.push('/compliance');
+                          } else if (lower === 'company' || lower === 'companies' || lower === 'division' || lower === 'divisions') {
+                            router.push('/divisions');
+                          } else if (lower === 'department' || lower === 'departments' || lower === 'dept') {
+                            router.push('/departments');
+                          } else if (lower === 'setting' || lower === 'settings' || lower === 'role' || lower === 'roles' || lower === 'permissions' || lower === 'permission') {
+                            router.push('/settings/roles');
+                          } else {
+                            router.push(`/employees?search=${encodeURIComponent(val)}`);
+                          }
                         }
                       }}
                     />

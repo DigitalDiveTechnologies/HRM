@@ -1109,6 +1109,29 @@ th {
   100% { background-position: -100% 0; }
 }
 
+@keyframes empCyanPulse {
+  0% {
+    box-shadow: 0 0 0 2px #00b8db, 0 0 10px rgba(0, 184, 219, 0.4);
+    background-color: rgba(0, 184, 219, 0.12);
+  }
+  50% {
+    box-shadow: 0 0 0 3px #00b8db, 0 0 24px rgba(0, 184, 219, 0.65);
+    background-color: rgba(0, 184, 219, 0.22);
+  }
+  100% {
+    box-shadow: 0 0 0 2px #00b8db, 0 0 10px rgba(0, 184, 219, 0.4);
+    background-color: rgba(0, 184, 219, 0.12);
+  }
+}
+
+.emp-row-highlighted {
+  animation: empCyanPulse 1.4s ease-in-out infinite !important;
+  outline: 2px solid #00b8db !important;
+  outline-offset: -1px !important;
+  position: relative !important;
+  z-index: 5 !important;
+}
+
 .input-with-picker {
   position: relative;
   display: block;

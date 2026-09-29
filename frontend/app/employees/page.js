@@ -243,6 +243,49 @@ function EmployeesContent() {
 
   const searchParams = useSearchParams();
   const queryId = searchParams ? searchParams.get('id') : null;
+  const querySearch = searchParams ? searchParams.get('search') : null;
+  const [highlightedEmpId, setHighlightedEmpId] = useState(null);
+
+  useEffect(() => {
+    if (querySearch !== null && querySearch !== undefined) {
+      setSearchTerm(querySearch);
+    }
+  }, [querySearch]);
+
+  useEffect(() => {
+    if (!querySearch || !Array.isArray(rows) || !rows.length) return;
+    const clean = querySearch.trim().toLowerCase();
+    if (!clean) return;
+
+    const matched = rows.find((r) => {
+      const name = String(v(r, 'fullName', 'full_name') || '').toLowerCase();
+      const code = String(v(r, 'empCode', 'emp_code') || '').toLowerCase();
+      const email = String(v(r, 'email') || '').toLowerCase();
+      return name.includes(clean) || code.includes(clean) || email.includes(clean) || clean.includes(name);
+    });
+
+    if (matched) {
+      const matchedId = String(v(matched, 'id'));
+      setHighlightedEmpId(matchedId);
+      setEmpPage(1);
+
+      const scrollTimer = setTimeout(() => {
+        const el = document.getElementById(`emp-row-${matchedId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 300);
+
+      const clearTimer = setTimeout(() => {
+        setHighlightedEmpId(null);
+      }, 5000);
+
+      return () => {
+        clearTimeout(scrollTimer);
+        clearTimeout(clearTimer);
+      };
+    }
+  }, [querySearch, rows]);
 
   useEffect(() => {
     if (queryId && Array.isArray(rows) && rows.length) {
@@ -1342,15 +1385,23 @@ function EmployeesContent() {
             </thead>
             <tbody>
               {paginatedEmployees.map((e) => {
-                const isSelected = selected && String(v(selected, 'id')) === String(v(e, 'id'));
+                const eid = String(v(e, 'id'));
+                const isSelected = selected && String(v(selected, 'id')) === eid;
+                const isHighlighted = highlightedEmpId && String(highlightedEmpId) === eid;
 
                 return (
                   <tr
-                    key={v(e, 'id')}
+                    key={eid}
+                    id={`emp-row-${eid}`}
+                    className={isHighlighted ? 'emp-row-highlighted' : ''}
                     style={{
                       cursor: 'pointer',
-                      background: isSelected ? 'rgba(0, 184, 219, 0.08)' : 'transparent',
-                      transition: 'background 0.15s ease',
+                      background: isHighlighted
+                        ? 'rgba(0, 184, 219, 0.18)'
+                        : isSelected
+                          ? 'rgba(0, 184, 219, 0.08)'
+                          : 'transparent',
+                      transition: 'background 0.2s ease, box-shadow 0.2s ease',
                     }}
                     onClick={() => openDetail(e)}
                   >
