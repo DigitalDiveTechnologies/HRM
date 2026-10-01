@@ -6,7 +6,7 @@ import { api, getPermissions, getUser, isAdminRole, normalizeRole } from '../../
 import { hasPermission } from '../../lib/nav';
 import { v } from '../../lib/format';
 
-const emptyDes = () => ({ name: '', code: '', jobFamily: '', grade: '', skillLevel: '' });
+const emptyDes = () => ({ name: '' });
 const emptyMaster = () => ({ name: '' });
 
 export default function MastersPage() {
@@ -50,10 +50,6 @@ export default function MastersPage() {
         method: 'POST',
         body: JSON.stringify({
           name: desForm.name.trim(),
-          code: desForm.code.trim() || null,
-          jobFamily: desForm.jobFamily.trim() || null,
-          grade: desForm.grade.trim() || null,
-          skillLevel: desForm.skillLevel.trim() || null,
         }),
       });
       setMsg('Designation added.');
@@ -105,7 +101,7 @@ export default function MastersPage() {
   }
 
   return (
-    <AppShell title="Designations & Employment Types" subtitle="Manage job designations (with grade/family) and employment types">
+    <AppShell title="Designations & Employment Types" subtitle="Manage job designations and employment types">
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
 
@@ -136,22 +132,6 @@ export default function MastersPage() {
                   Name
                   <input required value={desForm.name} onChange={(e) => setDesForm({ ...desForm, name: e.target.value })} placeholder="e.g. Software Engineer" />
                 </label>
-                <label className="field">
-                  Code
-                  <input value={desForm.code} onChange={(e) => setDesForm({ ...desForm, code: e.target.value.toUpperCase() })} placeholder="e.g. SE" />
-                </label>
-                <label className="field">
-                  Job family
-                  <input value={desForm.jobFamily} onChange={(e) => setDesForm({ ...desForm, jobFamily: e.target.value })} placeholder="e.g. Engineering" />
-                </label>
-                <label className="field">
-                  Grade
-                  <input value={desForm.grade} onChange={(e) => setDesForm({ ...desForm, grade: e.target.value })} placeholder="e.g. G5" />
-                </label>
-                <label className="field">
-                  Skill level
-                  <input value={desForm.skillLevel} onChange={(e) => setDesForm({ ...desForm, skillLevel: e.target.value })} placeholder="e.g. Mid" />
-                </label>
               </div>
               <button className="btn" type="submit">
                 Add designation
@@ -167,9 +147,6 @@ export default function MastersPage() {
                 <thead>
                   <tr>
                     <th>Name</th>
-                    <th>Code</th>
-                    <th>Family</th>
-                    <th>Grade</th>
                     <th>Status</th>
                     <th>Action</th>
                   </tr>
@@ -178,9 +155,6 @@ export default function MastersPage() {
                   {designations.map((r) => (
                     <tr key={v(r, 'id')}>
                       <td>{v(r, 'name')}</td>
-                      <td>{v(r, 'code') || '—'}</td>
-                      <td>{v(r, 'jobFamily', 'job_family') || '—'}</td>
-                      <td>{v(r, 'grade') || '—'}</td>
                       <td>
                         <Badge status={v(r, 'status')} />
                       </td>
@@ -209,7 +183,7 @@ export default function MastersPage() {
                   ))}
                   {!designations.length ? (
                     <tr>
-                      <td colSpan={6}>No rows yet.</td>
+                      <td colSpan={3}>No rows yet.</td>
                     </tr>
                   ) : null}
                 </tbody>

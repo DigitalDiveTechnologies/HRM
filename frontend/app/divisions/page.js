@@ -126,7 +126,7 @@ export default function DivisionsPage() {
   return (
     <AppShell
       title="Company Master"
-      subtitle="GOCs companies"
+              subtitle="Synergy companies"
       actions={
         <Link
           href="/divisions/management"

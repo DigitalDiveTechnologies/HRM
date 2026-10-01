@@ -13,6 +13,46 @@ public sealed class AuthService
         _db = db;
     }
 
+    /// <summary>
+    /// Reads the current account state from the database. JWTs are intentionally
+    /// short-lived snapshots, so this is used when refreshing an authenticated
+    /// session after an admin changes a user's role or status.
+    /// </summary>
+    public async Task<UserRecord?> GetCurrentUserAsync(int userId, CancellationToken ct = default)
+    {
+        await using var conn = _db.CreateConnection();
+        await conn.OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            SELECT u.id, u.email, u.role, u.employee_id,
+                   e.full_name, e.job_title,
+                   COALESCE(u.is_active, TRUE) AS is_active,
+                   COALESCE(NULLIF(u.display_name, ''), e.full_name) AS display_name
+            FROM users u
+            LEFT JOIN employees e ON e.id = u.employee_id
+            WHERE u.id = @id
+            LIMIT 1
+            """,
+            conn);
+        cmd.Parameters.AddWithValue("id", userId);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct)) return null;
+
+        return new UserRecord
+        {
+            Id = reader.GetInt32(0),
+            Email = reader.GetString(1),
+            Role = reader.GetString(2),
+            EmployeeId = reader.IsDBNull(3) ? null : reader.GetInt32(3),
+            FullName = reader.IsDBNull(7)
+                ? (reader.IsDBNull(4) ? null : reader.GetString(4))
+                : reader.GetString(7),
+            JobTitle = reader.IsDBNull(5) ? null : reader.GetString(5),
+            IsActive = reader.GetBoolean(6),
+            PreferredLocale = "en",
+        };
+    }
+
     public async Task<(UserRecord? User, string? Error)> ValidateLoginAsync(
         string email, string password, CancellationToken ct = default)
     {

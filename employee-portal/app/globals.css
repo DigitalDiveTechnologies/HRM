@@ -128,6 +128,28 @@ button, input, select, textarea { font-family: inherit; }
   color: var(--brand);
 }
 
+.brand-logo-image img {
+  display: block;
+  width: min(330px, 88vw);
+  height: auto;
+  max-height: 142px;
+  object-fit: contain;
+  padding: 12px 18px;
+  border: 1px solid rgba(0, 184, 219, 0.24);
+  border-radius: 12px;
+  background: linear-gradient(145deg, #ffffff 0%, #f4fbfd 100%);
+  box-shadow: 0 10px 24px rgba(0, 105, 130, 0.12);
+}
+
+.login-brand-name {
+  margin-top: 10px;
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-align: center;
+}
+
 .brand-tag {
   font-size: 11px;
   font-weight: 600;

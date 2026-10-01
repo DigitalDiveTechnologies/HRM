@@ -469,6 +469,7 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
     attachmentsNote: form.attachmentsNote?.trim() || '',
     naturalPerson: !!form.naturalPerson,
     dataProtectionStatus: form.dataProtectionStatus || 'none',
+    ...(form.password?.trim() ? { appPassword: form.password.trim() } : {}),
     photoRemoved: !!form.photoRemoved || (!form.photoPath && !form.photoPreview && !form.photoFile),
     photoPath: form.photoPath || '',
   };

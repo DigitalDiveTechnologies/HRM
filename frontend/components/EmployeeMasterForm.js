@@ -1080,7 +1080,40 @@ export default function EmployeeMasterForm({
                         </button>
                       </div>
                     </FieldRow>
-                  ) : null}
+                  ) : (
+                    <FieldRow label="App Login Password" helper="Optional — leave blank to keep the current password">
+                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          style={{ ...inputStyle, paddingRight: '42px' }}
+                          placeholder="Enter a new password (min 6 characters)"
+                          autoComplete="new-password"
+                          value={form.password || ''}
+                          onChange={(e) => set('password', e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((prev) => !prev)}
+                          aria-label={showPassword ? 'Hide password' : 'Show password'}
+                          title={showPassword ? 'Hide password' : 'Show password'}
+                          style={{
+                            position: 'absolute',
+                            right: '8px',
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: '#64748b',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '6px',
+                          }}
+                        >
+                          {showPassword ? 'Hide' : 'Show'}
+                        </button>
+                      </div>
+                    </FieldRow>
+                  )}
                 </div>
               </div>
             </SectionCard>

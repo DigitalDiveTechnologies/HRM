@@ -264,7 +264,7 @@ export default function Payslips() {
                     </div>
                     <div>
                       <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: 'var(--ink)' }}>
-                        {value(profile, 'divisionName', 'division_name') || 'GOCs HR'}
+                        {value(profile, 'divisionName', 'division_name') || 'Synergy HRM'}
                       </h2>
                       <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
                         Official Salary Statement
@@ -473,7 +473,7 @@ export default function Payslips() {
 
               {/* Footer Note */}
               <div style={{ textAlign: 'center', fontSize: '11.5px', color: 'var(--muted)', paddingTop: 14, borderTop: '1px solid var(--line)' }}>
-                This is a computer-generated salary slip and does not require a physical signature. Issued by GOCs HR Systems.
+                This is a computer-generated salary slip and does not require a physical signature. Issued by Synergy HRM Systems.
               </div>
             </div>
           ) : null}

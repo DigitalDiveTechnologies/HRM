@@ -134,7 +134,7 @@ public sealed class CertificatesController : ControllerBase
             return NotFound(new { error = "Certificate file missing on server." });
 
         var bytes = await System.IO.File.ReadAllBytesAsync(path, ct);
-        var downloadName = $"GOCs-Certificate-{id}.html";
+        var downloadName = $"Synergy-Certificate-{id}.html";
         return File(bytes, "text/html; charset=utf-8", downloadName);
     }
 }

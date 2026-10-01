@@ -80,7 +80,11 @@ New-FtpDirectory $RemoteRoot | Out-Null
 
 $files = Get-ChildItem $LocalDir -Recurse -File
 $lockedExt = @('.dll', '.exe', '.pdb')
-$staticFiles = $files | Where-Object { $lockedExt -notcontains $_.Extension.ToLowerInvariant() } | Sort-Object {
+$staticFiles = $files | Where-Object {
+  # Site4Now keeps web.config locked while the application is running. It is
+  # already provisioned on the server, so leave it in place during deployments.
+  $_.Name -ne 'web.config' -and $lockedExt -notcontains $_.Extension.ToLowerInvariant()
+} | Sort-Object {
   if ($_.Name -eq 'web.config') { 0 } else { 1 }
 }
 $binFiles = $files | Where-Object { $lockedExt -contains $_.Extension.ToLowerInvariant() } | Sort-Object Name
@@ -105,15 +109,16 @@ function Upload-Batch($batch) {
   }
 }
 
-# Keep API online while uploading configs/static assets
-Write-Host "Uploading non-binary files (API stays online)..."
-Upload-Batch $staticFiles
-
-# Brief offline window only for locked binaries
-Write-Host "Taking app offline for binaries..."
+# Site4Now can lock generated/static files while the API is running, so use
+# one short maintenance window for the complete publish output.
+Write-Host "Taking app offline for deployment..."
+Delete-FtpFile "$RemoteRoot/app_offline.htm"
 Send-FtpText "$RemoteRoot/app_offline.htm" "<!DOCTYPE html><html><body><p>Updating…</p></body></html>"
 Start-Sleep -Seconds 3
 try {
+  Write-Host "Uploading non-binary files..."
+  Upload-Batch $staticFiles
+  Write-Host "Uploading binaries..."
   Upload-Batch $binFiles
 } finally {
   Write-Host "Bringing app back online..."

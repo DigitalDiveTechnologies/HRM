@@ -85,15 +85,26 @@ public sealed class AuthController : ControllerBase
     [HttpGet("me")]
     public async Task<IActionResult> Me(CancellationToken ct)
     {
-        var role = CurrentUser.Role(User) ?? string.Empty;
-        var permissions = await _rbac.GetPermissionCodesForRoleAsync(role, ct);
+        if (!int.TryParse(CurrentUser.UserId(User), out var userId))
+            return Unauthorized();
+
+        // Do not trust the role embedded in the old JWT here. The account may
+        // have been reassigned from Settings → Users since this token was issued.
+        var current = await _auth.GetCurrentUserAsync(userId, ct);
+        if (current is null || !current.IsActive)
+            return Unauthorized();
+
+        var (token, expiresMinutes) = _jwt.CreateToken(current);
+        var permissions = await _rbac.GetPermissionCodesForRoleAsync(current.Role, ct);
         return Ok(new
         {
-            id = CurrentUser.UserId(User),
-            email = CurrentUser.Email(User),
-            role,
-            employeeId = CurrentUser.EmployeeId(User),
-            fullName = CurrentUser.Name(User),
+            token,
+            expiresInMinutes = expiresMinutes,
+            id = current.Id.ToString(),
+            email = current.Email,
+            role = current.Role,
+            employeeId = current.EmployeeId,
+            fullName = current.FullName,
             permissions,
         });
     }

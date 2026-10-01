@@ -226,8 +226,8 @@ export default function PortalShell({ title, subtitle, actions, children }) {
       {/* Sidebar */}
       <aside className={`sidebar${open ? ' open' : ''}`} id="emp-sidebar">
         <div className="sidebar-top">
-          <div className="brand-logo">
-            GOCs <span className="accent">HR</span>
+          <div className="brand-logo brand-logo-image">
+            <img src="/synergy-logo.png" alt="Synergy HR Management" />
           </div>
           <div className="brand-tag">{t('portal_tag')}</div>
         </div>

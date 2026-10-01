@@ -187,7 +187,7 @@ function EmployeesContent() {
 
     // Fallback if url is empty or dead: generate a safe file download so user never gets an error
     try {
-      const content = `Official Record for: ${name}\nOrganization: GOCS HR Portal\nDocument Type: Verified Attachment\nTimestamp: ${new Date().toLocaleString()}`;
+        const content = `Official Record for: ${name}\nOrganization: Synergy HRM\nDocument Type: Verified Attachment\nTimestamp: ${new Date().toLocaleString()}`;
       const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
       const blobUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -425,9 +425,13 @@ function EmployeesContent() {
   async function openDetail(e) {
     if (!e) return;
     const empId = String(v(e, 'id'));
+    const currentEmpId = selected ? String(v(selected, 'id')) : '';
     setShowProfilePassword(false);
     setIsEditingProfile(false);
-    setSelectedTab('Personal info');
+    // Refreshing the currently open employee (for example after Save Changes)
+    // must not send the user back to the first tab. Only reset the tab when
+    // the profile itself changes.
+    if (currentEmpId !== empId) setSelectedTab('Personal info');
     // Show list-row data immediately (password/designation) — never blank to "…"
     setSelected(e);
     try {
@@ -1785,10 +1789,13 @@ function EmployeesContent() {
             >
               {[
                 { id: 'Personal info', label: 'Personal info' },
-                { id: 'Employee details', label: 'Employee details' },
                 { id: 'Payroll', label: 'Payroll' },
                 { id: 'Documents', label: 'Documents' },
                 { id: 'Leave history', label: 'Leave history' },
+                // Keep this aligned with EmployeeMasterForm, where Employee
+                // details is the fifth tab. Otherwise Save makes it jump from
+                // position five in edit mode to position two in view mode.
+                { id: 'Employee details', label: 'Employee details' },
                 { id: 'Attendance', label: 'Attendance' },
               ].map((tab) => {
                 const isActive = selectedTab === tab.id;
@@ -2029,7 +2036,55 @@ function EmployeesContent() {
                     </div>
                   </div>
 
-                  {/* Card 2: Address (Full Width) */}
+                  {/* Card 2: App Login & Password Reset */}
+                  {canEditEmployee && isEditingProfile ? (
+                    <div className="emp-card">
+                      <h4 className="emp-card-title" style={{ margin: '0 0 6px' }}>
+                        Mobile App Security & Password Reset
+                      </h4>
+                      <p style={{ fontSize: '12.5px', color: 'var(--muted, #64748b)', margin: '0 0 16px' }}>
+                        Optional — only if you want to change the app password for <strong>{v(selected, 'email')}</strong>.
+                      </p>
+                      <form onSubmit={resetAppPassword} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <input
+                          required
+                          type="password"
+                          placeholder="Enter new app password (min 6 characters)"
+                          minLength={6}
+                          value={resetPassword}
+                          onChange={(e) => setResetPassword(e.target.value)}
+                          style={{
+                            minWidth: 280,
+                            padding: '8.5px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid var(--line, #cbd5e1)',
+                            background: 'var(--input-bg, #ffffff)',
+                            color: 'var(--ink, #0f172a)',
+                            fontSize: '13px',
+                          }}
+                        />
+                        <button
+                          className="btn"
+                          type="submit"
+                          disabled={resetting || !resetPassword.trim()}
+                          style={{
+                            background: '#00b8db',
+                            color: '#ffffff',
+                            fontWeight: 700,
+                            fontSize: '12.5px',
+                            padding: '9px 18px',
+                            borderRadius: '8px',
+                            border: 'none',
+                            cursor: resetting ? 'wait' : 'pointer',
+                          }}
+                        >
+                          {resetting ? 'Updating…' : 'Update App Password'}
+                        </button>
+                      </form>
+                    </div>
+                  ) : null}
+
+                  {/* Card 3: Address (Full Width) */}
                   <div className="emp-card">
                     <div className="emp-card-header">
                       <h4 className="emp-card-title">
@@ -2470,53 +2525,6 @@ function EmployeesContent() {
                     </div>
                   </div>
 
-                  {/* Card 2: App Login & Password Reset */}
-                  {canEditEmployee ? (
-                    <div className="emp-card">
-                      <h4 className="emp-card-title" style={{ margin: '0 0 6px' }}>
-                        Mobile App Security & Password Reset
-                      </h4>
-                      <p style={{ fontSize: '12.5px', color: 'var(--muted, #64748b)', margin: '0 0 16px' }}>
-                        Optional — only if you want to change the app password for <strong>{v(selected, 'email')}</strong>. Viewing does not require a reset.
-                      </p>
-                      <form onSubmit={resetAppPassword} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <input
-                          required
-                          type="password"
-                          placeholder="Enter new app password (min 6 characters)"
-                          minLength={6}
-                          value={resetPassword}
-                          onChange={(e) => setResetPassword(e.target.value)}
-                          style={{
-                            minWidth: 280,
-                            padding: '8.5px 12px',
-                            borderRadius: '8px',
-                            border: '1px solid var(--line, #cbd5e1)',
-                            background: 'var(--input-bg, #ffffff)',
-                            color: 'var(--ink, #0f172a)',
-                            fontSize: '13px',
-                          }}
-                        />
-                        <button
-                          className="btn"
-                          type="submit"
-                          disabled={resetting || !resetPassword.trim()}
-                          style={{
-                            background: '#00b8db',
-                            color: '#ffffff',
-                            fontWeight: 700,
-                            fontSize: '12.5px',
-                            padding: '9px 18px',
-                            borderRadius: '8px',
-                            border: 'none',
-                            cursor: resetting ? 'wait' : 'pointer',
-                          }}
-                        >
-                          {resetting ? 'Updating…' : 'Update App Password'}
-                        </button>
-                      </form>
-                    </div>
-                  ) : null}
                 </div>
               )}
 

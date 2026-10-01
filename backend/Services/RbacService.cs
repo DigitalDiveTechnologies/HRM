@@ -1,6 +1,7 @@
 using DigitalDive.Hr.Api.Data;
 using DigitalDive.Hr.Api.Models;
 using Npgsql;
+using NpgsqlTypes;
 
 namespace DigitalDive.Hr.Api.Services;
 
@@ -641,6 +642,31 @@ public sealed class RbacService
             if (!string.Equals(portal, "admin", StringComparison.OrdinalIgnoreCase)
                 && !string.Equals(portal, "users", StringComparison.OrdinalIgnoreCase))
                 return (null, "Only Admin portal roles can be assigned here.");
+
+            // Older databases still have the original users.role CHECK constraint,
+            // which only permits the built-in roles. Custom roles are stored in the
+            // roles table and must also be assignable to users.
+            if (roleCode is not ("super_admin" or "admin" or "manager" or "hr_officer" or "finance" or "viewer"))
+            {
+                await using var customRoleCompat = new NpgsqlCommand(
+                    """
+                    DO $$
+                    DECLARE conname text;
+                    BEGIN
+                      SELECT c.conname INTO conname
+                      FROM pg_constraint c
+                      JOIN pg_class t ON c.conrelid = t.oid
+                      WHERE t.relname = 'users'
+                        AND c.contype = 'c'
+                        AND c.conname ILIKE '%role%';
+                      IF conname IS NOT NULL THEN
+                        EXECUTE format('ALTER TABLE users DROP CONSTRAINT %I', conname);
+                      END IF;
+                    END $$;
+                    """,
+                    conn);
+                await customRoleCompat.ExecuteNonQueryAsync(ct);
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(req.Password))
@@ -668,25 +694,38 @@ public sealed class RbacService
                 return (null, "A user with this email already exists.");
         }
 
-        await using var update = new NpgsqlCommand(
-            """
-            UPDATE users SET
-              email = COALESCE(@email, email),
-              display_name = COALESCE(@display, display_name),
-              role = COALESCE(@role, role),
-              role_id = COALESCE(@roleId, role_id),
-              is_active = COALESCE(@active, is_active)
-            WHERE id = @id
-            """,
-            conn);
-        update.Parameters.AddWithValue("id", userId);
-        update.Parameters.AddWithValue("email", (object?)email ?? DBNull.Value);
-        update.Parameters.AddWithValue("display",
-            string.IsNullOrWhiteSpace(req.DisplayName) ? (object)DBNull.Value : req.DisplayName.Trim());
-        update.Parameters.AddWithValue("role", (object?)roleCode ?? DBNull.Value);
-        update.Parameters.AddWithValue("roleId", (object?)roleId ?? DBNull.Value);
-        update.Parameters.AddWithValue("active", req.IsActive.HasValue ? req.IsActive.Value : (object)DBNull.Value);
-        await update.ExecuteNonQueryAsync(ct);
+        var assignments = new List<string>();
+        await using var update = new NpgsqlCommand { Connection = conn };
+        update.Parameters.Add("id", NpgsqlDbType.Integer).Value = userId;
+
+        if (email is not null)
+        {
+            assignments.Add("email = @email");
+            update.Parameters.Add("email", NpgsqlDbType.Text).Value = email;
+        }
+        if (!string.IsNullOrWhiteSpace(req.DisplayName))
+        {
+            assignments.Add("display_name = @display");
+            update.Parameters.Add("display", NpgsqlDbType.Text).Value = req.DisplayName.Trim();
+        }
+        if (roleCode is not null && roleId is not null)
+        {
+            assignments.Add("role = @role");
+            assignments.Add("role_id = @role_id");
+            update.Parameters.Add("role", NpgsqlDbType.Text).Value = roleCode;
+            update.Parameters.Add("role_id", NpgsqlDbType.Integer).Value = roleId.Value;
+        }
+        if (req.IsActive.HasValue)
+        {
+            assignments.Add("is_active = @active");
+            update.Parameters.Add("active", NpgsqlDbType.Boolean).Value = req.IsActive.Value;
+        }
+
+        if (assignments.Count > 0)
+        {
+            update.CommandText = $"UPDATE users SET {string.Join(", ", assignments)} WHERE id = @id";
+            await update.ExecuteNonQueryAsync(ct);
+        }
 
         var all = await ListUsersAsync(ct);
         var user = all.FirstOrDefault(u => u.Id == userId);

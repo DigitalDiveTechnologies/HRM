@@ -37,7 +37,7 @@ public static class CertificateGeneratorService
     {
         var title = TypeLabel(certificateType);
         var entity = string.IsNullOrWhiteSpace(legalEntityName)
-            ? (string.IsNullOrWhiteSpace(division) ? "GOCs Global" : division!)
+            ? (string.IsNullOrWhiteSpace(division) ? "Synergy HR Management" : division!)
             : legalEntityName!;
         var basic = basicSalary is > 0 ? basicSalary.Value : 0m;
         var allow = allowances is > 0 ? allowances.Value : 0m;

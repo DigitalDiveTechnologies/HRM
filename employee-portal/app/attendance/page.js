@@ -6,6 +6,12 @@ import { api, session, value } from '@/lib/api';
 import { useLocale } from '@/lib/LocaleContext';
 
 const formatDate = (v) => (v ? new Date(v).toLocaleDateString() : '—');
+const localDateIso = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 export default function Attendance() {
   const { t, locale } = useLocale();
@@ -52,7 +58,7 @@ export default function Attendance() {
   }, [loadAttendance]);
 
   // Today's Date String YYYY-MM-DD
-  const todayStr = currentTime.toLocaleDateString('en-CA');
+  const todayStr = localDateIso(currentTime);
   const isSameDay = (d1, d2) => d1 && d2 && String(d1).slice(0, 10) === String(d2).slice(0, 10);
   const todayRow = rows.find((r) => isSameDay(value(r, 'workDate', 'work_date'), todayStr));
 
@@ -79,7 +85,7 @@ export default function Attendance() {
       }
 
       const now = new Date();
-      const workDate = now.toLocaleDateString('en-CA');
+      const workDate = localDateIso(now);
       const hours = String(now.getHours()).padStart(2, '0');
       const mins = String(now.getMinutes()).padStart(2, '0');
       const secs = String(now.getSeconds()).padStart(2, '0');

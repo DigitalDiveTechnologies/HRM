@@ -66,9 +66,10 @@ export default function Login() {
         }}
       >
         <div style={{ marginBottom: 24, textAlign: 'center' }}>
-          <div className="brand-logo" style={{ justifyContent: 'center', fontSize: 24 }}>
-            GOCs <span className="accent">HR</span>
+          <div className="brand-logo brand-logo-image" style={{ justifyContent: 'center' }}>
+            <img src="/synergy-logo.png" alt="Synergy HR Management" />
           </div>
+          <div className="login-brand-name">Synergy HRM</div>
           <div className="brand-tag" style={{ marginTop: 4 }}>EMPLOYEE SELF SERVICE PORTAL</div>
           <h1 style={{ fontSize: 20, fontWeight: 800, margin: '20px 0 6px', color: 'var(--ink)' }}>
             Welcome back

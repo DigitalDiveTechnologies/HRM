@@ -1621,6 +1621,11 @@ public sealed class HrQueryService
             catch { /* keep without */ }
         }
         var masterJson = SerializeMasterData(masterDict);
+        var newAppPassword = masterDict.TryGetValue("appPassword", out var appPasswordValue)
+            ? Convert.ToString(appPasswordValue)?.Trim()
+            : null;
+        if (!string.IsNullOrWhiteSpace(newAppPassword) && newAppPassword.Length < 6)
+            return (null, "App login password must be at least 6 characters.");
         var isPhotoRemoved = body.PhotoRemoved == true ||
                              (body.MasterData != null && body.MasterData.TryGetValue("photoRemoved", out var pr) && (pr is true || Convert.ToString(pr) == "true"));
 
@@ -1676,6 +1681,15 @@ public sealed class HrQueryService
             update.Parameters.AddWithValue("master", masterJson);
             update.Parameters.AddWithValue("id", id);
             await update.ExecuteNonQueryAsync(ct);
+
+            if (!string.IsNullOrWhiteSpace(newAppPassword))
+            {
+                await using var passwordUpdate = new NpgsqlCommand(
+                    "UPDATE users SET password = @hash WHERE employee_id = @eid", conn2);
+                passwordUpdate.Parameters.AddWithValue("hash", PasswordHasher.Hash(newAppPassword));
+                passwordUpdate.Parameters.AddWithValue("eid", id);
+                await passwordUpdate.ExecuteNonQueryAsync(ct);
+            }
 
             var updated = await EmployeeByIdAsync(id, ct);
             return (updated, null);
@@ -1963,8 +1977,8 @@ public sealed class HrQueryService
             await using (var upd = new NpgsqlCommand(
                              """
                              UPDATE attendance
-                             SET check_in = @cin::time,
-                                 check_out = @cout::time,
+                             SET check_in = CASE WHEN CAST(@cin AS text) IS NULL THEN NULL ELSE (@wd::date + CAST(@cin AS text)::time)::timestamptz END,
+                                 check_out = CASE WHEN CAST(@cout AS text) IS NULL THEN NULL ELSE (@wd::date + CAST(@cout AS text)::time)::timestamptz END,
                                  status = @status,
                                  late_minutes = @late,
                                  overtime_hours = GREATEST(COALESCE(overtime_hours, 0), @ot),
@@ -1974,6 +1988,7 @@ public sealed class HrQueryService
                              """, conn))
             {
                 upd.Parameters.AddWithValue("id", existingId.Value);
+                upd.Parameters.AddWithValue("wd", workDate);
                 upd.Parameters.AddWithValue("cin", (object?)effectiveCheckIn ?? DBNull.Value);
                 upd.Parameters.AddWithValue("cout", (object?)effectiveCheckOut ?? DBNull.Value);
                 upd.Parameters.AddWithValue("status", resolved.Status);
@@ -2000,7 +2015,10 @@ public sealed class HrQueryService
         await using var insert = new NpgsqlCommand(
             """
             INSERT INTO attendance (employee_id, work_date, check_in, check_out, status, late_minutes, overtime_hours, shift_name)
-            VALUES (@eid, @wd::date, @cin::time, @cout::time, @status, @late, @ot, @shift)
+            VALUES (@eid, @wd::date,
+                    CASE WHEN CAST(@cin AS text) IS NULL THEN NULL ELSE (@wd::date + CAST(@cin AS text)::time)::timestamptz END,
+                    CASE WHEN CAST(@cout AS text) IS NULL THEN NULL ELSE (@wd::date + CAST(@cout AS text)::time)::timestamptz END,
+                    @status, @late, @ot, @shift)
             RETURNING *
             """, conn);
         insert.Parameters.AddWithValue("eid", employeeId);
@@ -4607,7 +4625,7 @@ public sealed class HrQueryService
             legalEntity = DictGet(row, "division"),
             certificateType = DictGet(row, "certificateType", "certificate_type"),
             issuedAt = DictGet(row, "issuedAt", "issued_at"),
-            message = "This certificate was issued by GOCs HR and is authentic.",
+            message = "This certificate was issued by Synergy HRM and is authentic.",
         };
     }
 

@@ -1,4 +1,4 @@
-/* Digital Dive HR Portal — brand tokens (aligned with ZCode site) */
+/* Synergy HRM Portal brand tokens */
 
 :root {
   --color-bg-primary: #020B1F;
@@ -155,20 +155,27 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .login-brand {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 22px;
-  padding-bottom: 16px;
+  gap: 8px;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
   border-bottom: 1px solid var(--line);
 }
 .login-logo {
-  width: 44px;
-  height: 44px;
+  width: min(330px, 88vw);
+  height: auto;
+  max-height: 142px;
   object-fit: contain;
-  border-radius: 6px;
+  border-radius: 12px;
   flex-shrink: 0;
-  border: 1px solid rgba(0, 184, 219, 0.35);
-  background: #fff;
+  padding: 12px 18px;
+  border: 1px solid rgba(0, 184, 219, 0.24);
+  background: linear-gradient(145deg, #ffffff 0%, #f4fbfd 100%);
+  box-shadow: 0 10px 24px rgba(0, 105, 130, 0.12);
+}
+.login-brand-copy {
+  text-align: center;
 }
 .login-brand-sub {
   margin-top: 3px;
@@ -178,8 +185,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .brand-mark {
   display: inline-block;
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
+  font-size: 0.9rem;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--brand);
   font-weight: 700;
@@ -481,7 +488,17 @@ form > button,
   align-items: center;
   gap: 8px;
   flex-wrap: nowrap;
-  min-height: 28px;
+  min-height: 64px;
+}
+.sidebar-brand-logo {
+  width: 96px;
+  height: 64px;
+  object-fit: contain;
+  border-radius: 6px;
+  flex: 0 0 auto;
+  background: #ffffff;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 .sidebar .logo.brand-row > span {
   display: inline-flex;

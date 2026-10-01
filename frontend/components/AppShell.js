@@ -332,6 +332,9 @@ export default function AppShell({ title, subtitle, actions, children }) {
     api('/auth/me')
       .then((me) => {
         if (!me) return;
+        if (me.token) {
+          try { localStorage.setItem('hr_token', me.token); } catch {}
+        }
         const loginRole = normalizeRole(u);
         const meRole = String(me.role || me.Role || loginRole).toLowerCase();
         // Ignore bogus "admin" from old JWTs when this session logged in as another role
@@ -396,6 +399,9 @@ export default function AppShell({ title, subtitle, actions, children }) {
       api('/auth/me')
         .then((me) => {
           if (!me) return;
+          if (me.token) {
+            try { localStorage.setItem('hr_token', me.token); } catch {}
+          }
           const loginRole = normalizeRole(u);
           const meRole = String(me.role || me.Role || loginRole).toLowerCase();
           const role =
@@ -542,11 +548,12 @@ export default function AppShell({ title, subtitle, actions, children }) {
                   <>
                     {companyLogo ? (
                       <img
+                        className="sidebar-brand-logo"
                         src={companyLogo}
                         alt={companyName}
                         style={{
-                          height: 28,
-                          maxWidth: 42,
+                          height: 64,
+                          maxWidth: 112,
                           objectFit: 'contain',
                           borderRadius: 4,
                           flexShrink: 0,
@@ -564,11 +571,12 @@ export default function AppShell({ title, subtitle, actions, children }) {
                   <>
                     {allBrandLogo ? (
                       <img
+                        className="sidebar-brand-logo"
                         src={allBrandLogo}
                         alt={allBrandTitle}
                         style={{
-                          height: 28,
-                          maxWidth: 42,
+                          height: 64,
+                          maxWidth: 112,
                           objectFit: 'contain',
                           borderRadius: 4,
                           flexShrink: 0,
@@ -585,7 +593,7 @@ export default function AppShell({ title, subtitle, actions, children }) {
                       <button
                         type="button"
                         className="sidebar-brand-edit"
-                        title="Edit GOCs (All Companies) name & logo"
+                        title="Edit Synergy (All Companies) name & logo"
                         onClick={openBrandEdit}
                       >
                         Edit
@@ -1031,9 +1039,9 @@ export default function AppShell({ title, subtitle, actions, children }) {
             style={{ width: 'min(420px, 100%)', padding: 18, margin: 0 }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ margin: '0 0 6px', fontSize: '1.05rem' }}>Edit GOCs brand</h3>
+            <h3 style={{ margin: '0 0 6px', fontSize: '1.05rem' }}>Edit Synergy brand</h3>
             <p className="muted" style={{ margin: '0 0 14px', fontSize: 13 }}>
-              Only the main All Companies (GOCs) name and logo — not the list of companies below.
+              Only the main Synergy name and logo — not the list of companies below.
             </p>
             {brandError ? <div className="error" style={{ marginBottom: 10 }}>{brandError}</div> : null}
             <form onSubmit={saveOrgBrand} className="stack" style={{ gap: 12 }}>

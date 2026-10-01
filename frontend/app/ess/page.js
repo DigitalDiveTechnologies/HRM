@@ -275,7 +275,7 @@ export default function EssDashboardPage() {
   const employeeFirstName = employeeName.split(' ')[0] || employeeName;
 
   // Company / Branch Name (Dynamic)
-  const companyBranchName = employeeProfile?.companyName || employeeProfile?.company_name || employeeProfile?.divisionName || employeeProfile?.division_name || currentUser?.companyName || 'Digital Dive Technologies';
+  const companyBranchName = employeeProfile?.companyName || employeeProfile?.company_name || employeeProfile?.divisionName || employeeProfile?.division_name || currentUser?.companyName || 'Synergy HR Management';
 
   // Dynamic Shift & Today's Attendance record
   const todayIso = useMemo(() => now.toISOString().slice(0, 10), [now]);

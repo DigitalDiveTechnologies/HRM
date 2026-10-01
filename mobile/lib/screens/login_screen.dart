@@ -117,25 +117,26 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                             padding: const EdgeInsets.all(24),
                             child: FormSpacedColumn(
                               children: [
-                                Row(
+                                Column(
                                   children: [
                                     ClipRRect(
                                       borderRadius: BorderRadius.circular(14),
-                                      child: Image.asset('assets/logo.webp', width: 52, height: 52),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    const Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            Brand.loginTitle,
-                                            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, letterSpacing: -0.3),
-                                          ),
-                                          Text(Brand.loginSubtitle, style: TextStyle(fontSize: 12.5)),
-                                        ],
+                                      child: Image.asset(
+                                        'assets/synergy-logo.png',
+                                        width: 240,
+                                        height: 120,
+                                        fit: BoxFit.contain,
+                                        semanticLabel: Brand.loginTitle,
                                       ),
                                     ),
+                                    const SizedBox(height: 4),
+                                    const Text(
+                                      Brand.loginTitle,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 19, letterSpacing: -0.3),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    const Text(Brand.loginSubtitle, textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5)),
                                   ],
                                 ),
                                 Text(

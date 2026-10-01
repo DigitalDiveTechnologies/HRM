@@ -1,14 +1,14 @@
-/// GOCs client branding — swap logo/colors when client assets arrive (Phase 1B).
+/// Synergy HR Management branding.
 /// Demo logins and data stay unchanged (digitaldive.demo).
 class Brand {
   Brand._();
 
-  static const clientName = 'GOCs Global';
-  static const productName = 'GOCs HR';
-  static const appTitle = 'GOCs HR';
-  static const loginTitle = 'GOCs Global';
+  static const clientName = 'Synergy HR Management';
+  static const productName = 'Synergy HRM';
+  static const appTitle = 'Synergy HRM';
+  static const loginTitle = 'Synergy HR Management';
   static const loginSubtitle = 'Employee self-service';
-  static const shellTitle = 'GOCs HR';
+  static const shellTitle = 'Synergy HRM';
   static const demoNotice = 'Demo environment · sample data';
-  static const poweredBy = 'Digital Dive Technologies';
+  static const poweredBy = 'Synergy HR Management';
 }

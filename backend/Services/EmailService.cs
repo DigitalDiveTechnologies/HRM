@@ -241,7 +241,7 @@ public sealed class EmailService
         <html><body style="font-family:Segoe UI,Arial,sans-serif;color:#1a1a1a;line-height:1.5">
         <p>{WebUtility.HtmlEncode(greeting)}</p>
         {content}
-        <p style="color:#666;font-size:12px;margin-top:24px">GOCs Global · HR System (Digital Dive)</p>
+        <p style="color:#666;font-size:12px;margin-top:24px">Synergy HR Management · HR System</p>
         </body></html>
         """;
 

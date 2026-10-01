@@ -1,20 +1,20 @@
 /**
- * GOCs client branding — swap logo/colors here when client assets arrive.
+ * Synergy HR branding.
  */
 export const BRAND = {
-  clientName: 'GOCs Global',
-  productName: 'GOCs HR',
-  portalTitle: 'GOCs HR Portal',
-  portalHeading: 'HR Portal',
+  clientName: 'Synergy HR Management',
+  productName: 'Synergy HRM',
+  portalTitle: 'Synergy HRM Portal',
+  portalHeading: 'Synergy HRM',
   portalSubtitle: 'Administrator sign in',
-  sidebarTitle: 'GOCs',
-  sidebarAccent: 'HR',
-  sidebarTag: 'HR Portal · UAE',
+  sidebarTitle: 'Synergy',
+  sidebarAccent: 'HRM',
+  sidebarTag: 'HR Management Portal',
   loginTagline: 'Workforce Management · UAE',
-  poweredBy: 'Built by Digital Dive Technologies',
-  logoSrc: '/media/logo.webp',
-  logoAlt: 'GOCs Global',
-  employeeAppHint: 'Employees should use the GOCs HR mobile app.',
-  mobileAppName: 'GOCs HR',
+  poweredBy: 'Synergy HR Management',
+  logoSrc: '/media/synergy-logo.png',
+  logoAlt: 'Synergy HR Management',
+  employeeAppHint: 'Employees should use the Synergy HRM employee app.',
+  mobileAppName: 'Synergy HRM',
   mobileSubtitle: 'Employee self-service',
 };

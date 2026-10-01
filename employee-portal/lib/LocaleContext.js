@@ -5,7 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 const MESSAGES = {
   en: {
     // Navigation & Shell
-    portal_name: 'GOCs HR',
+    portal_name: 'Synergy HRM',
     portal_tag: 'Employee Portal',
     nav_dashboard: 'Dashboard',
     nav_attendance: 'Attendance',
@@ -170,7 +170,7 @@ const MESSAGES = {
   },
   ar: {
     // Navigation & Shell
-    portal_name: 'GOCs HR',
+    portal_name: 'Synergy HRM',
     portal_tag: 'بوابة الموظف',
     nav_dashboard: 'لوحة التحكم',
     nav_attendance: 'الحضور والانصراف',

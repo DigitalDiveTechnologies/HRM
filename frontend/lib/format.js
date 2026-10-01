@@ -188,7 +188,7 @@ export async function downloadDocumentFile(doc) {
   }
 
   const lines = [
-    'Digital Dive Technologies — HR Document',
+    'Synergy HR Management — HR Document',
     '=====================================',
     `Title: ${v(doc, 'title') || '-'}`,
     `Type: ${v(doc, 'docType', 'doc_type') || '-'}`,
@@ -199,7 +199,7 @@ export async function downloadDocumentFile(doc) {
     `Status: ${v(doc, 'status') || '-'}`,
     `File ref: ${fileRef || '-'}`,
     '',
-    'Generated from Digital Dive HR Portal.',
+    'Generated from Synergy HRM Portal.',
   ];
   const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);

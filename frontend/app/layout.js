@@ -6,8 +6,8 @@ export const metadata = {
   title: BRAND.portalTitle,
   description: `${BRAND.clientName} — ${BRAND.loginTagline}`,
   icons: {
-    icon: [{ url: BRAND.logoSrc, type: 'image/webp' }],
-    apple: [{ url: BRAND.logoSrc, type: 'image/webp' }],
+    icon: [{ url: BRAND.logoSrc, type: 'image/png' }],
+    apple: [{ url: BRAND.logoSrc, type: 'image/png' }],
   },
 };
 

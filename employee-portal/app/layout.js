@@ -1,7 +1,7 @@
 import './globals.css';
 import { LocaleProvider } from '@/lib/LocaleContext';
 
-export const metadata = { title: 'Digital Dive HR | Employee Portal', description: 'Employee self-service portal' };
+export const metadata = { title: 'Synergy HRM | Employee Portal', description: 'Synergy HR Management employee self-service portal' };
 
 export default function RootLayout({ children }) {
   return (

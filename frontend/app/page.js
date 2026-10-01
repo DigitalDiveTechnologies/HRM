@@ -65,8 +65,8 @@ export default function LoginPage() {
       <div className="login-card">
         <div className="login-brand">
           <img src={BRAND.logoSrc} alt={BRAND.logoAlt} className="login-logo" />
-          <div>
-            <div className="brand-mark">{BRAND.clientName}</div>
+          <div className="login-brand-copy">
+            <div className="brand-mark">{BRAND.productName}</div>
             <div className="login-brand-sub">{BRAND.loginTagline}</div>
           </div>
         </div>
