@@ -6,6 +6,14 @@ import { api, session, value } from '@/lib/api';
 import { useLocale } from '@/lib/LocaleContext';
 
 const formatDate = (v) => (v ? new Date(v).toLocaleDateString() : '—');
+const formatDurationMinutes = (minutes) => {
+  const total = Math.max(0, Math.round(Number(minutes) || 0));
+  if (total === 0) return '0m';
+  const hours = Math.floor(total / 60);
+  const mins = total % 60;
+  if (!hours) return `${mins}m`;
+  return mins ? `${hours}h ${mins}m` : `${hours}h`;
+};
 const localDateIso = (date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -340,10 +348,10 @@ export default function Attendance() {
         <div className="kpi-card red">
           <div className="kpi-info">
             <span className="kpi-title">{t('late_minutes')}</span>
-            <span className="kpi-val">{totalLateMins}m</span>
+            <span className="kpi-val">{formatDurationMinutes(totalLateMins)}</span>
             <span className="kpi-badge">{t('deduction_time')}</span>
           </div>
-          <div className="kpi-ring">{totalLateMins}m</div>
+          <div className="kpi-ring">{formatDurationMinutes(totalLateMins)}</div>
         </div>
       </div>
 
@@ -395,7 +403,7 @@ export default function Attendance() {
                           </span>
                         </td>
                         <td style={{ fontWeight: late > 0 ? 700 : 400, color: late > 0 ? '#b42318' : 'var(--muted)' }}>
-                          {late > 0 ? `${late} min` : '0 min'}
+                          {formatDurationMinutes(late)}
                         </td>
                       </tr>
                     );
