@@ -552,8 +552,8 @@ export default function AppShell({ title, subtitle, actions, children }) {
                         src={companyLogo}
                         alt={companyName}
                         style={{
-                          height: 64,
-                          maxWidth: 112,
+                          height: 84,
+                          maxWidth: 176,
                           objectFit: 'contain',
                           borderRadius: 4,
                           flexShrink: 0,
@@ -563,9 +563,11 @@ export default function AppShell({ title, subtitle, actions, children }) {
                         }}
                       />
                     ) : null}
-                    <span style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.02em' }}>
-                      {companyName} <span style={{ color: 'var(--primary, #00b8db)', fontWeight: 800 }}>HR</span>
-                    </span>
+                    <div className="sidebar-brand-copy">
+                      <span style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.02em' }}>
+                        {companyName} <span style={{ color: 'var(--primary, #00b8db)', fontWeight: 800 }}>HR</span>
+                      </span>
+                    </div>
                   </>
                 ) : (
                   <>
@@ -575,8 +577,8 @@ export default function AppShell({ title, subtitle, actions, children }) {
                         src={allBrandLogo}
                         alt={allBrandTitle}
                         style={{
-                          height: 64,
-                          maxWidth: 112,
+                          height: 84,
+                          maxWidth: 176,
                           objectFit: 'contain',
                           borderRadius: 4,
                           flexShrink: 0,
@@ -586,19 +588,21 @@ export default function AppShell({ title, subtitle, actions, children }) {
                         }}
                       />
                     ) : null}
-                    <span style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.02em' }}>
-                      {allBrandTitle}
-                    </span>
-                    {canEditOrgBrand ? (
-                      <button
-                        type="button"
-                        className="sidebar-brand-edit"
-                        title="Edit Synergy (All Companies) name & logo"
-                        onClick={openBrandEdit}
-                      >
-                        Edit
-                      </button>
-                    ) : null}
+                    <div className="sidebar-brand-copy">
+                      <span style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.02em' }}>
+                        {allBrandTitle}
+                      </span>
+                      {canEditOrgBrand ? (
+                        <button
+                          type="button"
+                          className="sidebar-brand-edit"
+                          title="Edit Synergy (All Companies) name & logo"
+                          onClick={openBrandEdit}
+                        >
+                          Edit
+                        </button>
+                      ) : null}
+                    </div>
                   </>
                 )}
               </div>

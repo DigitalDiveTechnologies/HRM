@@ -486,24 +486,28 @@ form > button,
 .sidebar .logo.brand-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: nowrap;
-  min-height: 64px;
+  flex-direction: column;
+  gap: 7px;
+  min-height: 118px;
 }
 .sidebar-brand-logo {
-  width: 96px;
-  height: 64px;
+  width: 176px;
+  height: 84px;
   object-fit: contain;
-  border-radius: 6px;
+  border-radius: 10px;
   flex: 0 0 auto;
   background: #ffffff;
-  padding: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 7px 10px;
+  border: 1px solid rgba(0, 184, 219, 0.18);
+  box-shadow: 0 5px 14px rgba(0, 105, 130, 0.08);
 }
-.sidebar .logo.brand-row > span {
+.sidebar-brand-copy {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  gap: 8px;
   line-height: 1;
+  min-height: 22px;
 }
 .sidebar-brand-edit {
   display: inline-flex;
@@ -532,7 +536,8 @@ form > button,
 .sidebar .tag {
   font-size: 0.75rem;
   color: var(--sidebar-muted);
-  margin-bottom: 0;
+  margin: 2px auto 0;
+  text-align: center;
 }
 
 .sidebar-top {
