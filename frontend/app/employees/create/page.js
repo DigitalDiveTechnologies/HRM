@@ -70,15 +70,16 @@ export default function CreateEmployeePage() {
 
       if (deptRes.status === 'fulfilled' && Array.isArray(deptRes.value)) setDepartments(deptRes.value);
 
-      let companies = divRes.status === 'fulfilled' && Array.isArray(divRes.value) ? divRes.value : [];
-      if (!companies.length) {
-        const retry = await api('/divisions').catch(() => []);
-        if (Array.isArray(retry) && retry.length) companies = retry;
+      let companies = divRes.status === 'fulfilled' && Array.isArray(divRes.value) ? divRes.value : null;
+      if (companies === null) {
+        const retry = await api('/divisions').catch(() => null);
+        if (Array.isArray(retry)) companies = retry;
       }
-      if (!companies.length && cached.length) companies = cached;
+      if (companies === null && cached.length) companies = cached;
+      companies = companies || [];
       setDivisions(companies);
       try {
-        if (companies.length) localStorage.setItem('gocs_cached_divisions', JSON.stringify(companies));
+        localStorage.setItem('gocs_cached_divisions', JSON.stringify(companies));
       } catch {}
       if (!companies.length) {
         setError('Companies list could not be loaded. Refresh the page or check company permissions.');
