@@ -347,12 +347,12 @@ function EmployeesContent() {
       api('/employment-types?activeOnly=true'),
     ]).then(async ([deptRes, divRes, desRes, empTypeRes]) => {
       if (deptRes.status === 'fulfilled' && Array.isArray(deptRes.value)) setDepartments(deptRes.value);
-      let companies = divRes.status === 'fulfilled' && Array.isArray(divRes.value) ? divRes.value : [];
-      if (!companies.length) {
-        const retry = await api('/divisions').catch(() => []);
+      let companies = divRes.status === 'fulfilled' && Array.isArray(divRes.value) ? divRes.value : null;
+      if (companies === null) {
+        const retry = await api('/divisions').catch(() => null);
         if (Array.isArray(retry)) companies = retry;
       }
-      if (!companies.length) {
+      if (companies === null) {
         try {
           const cached = localStorage.getItem('gocs_cached_divisions');
           if (cached) {
@@ -361,9 +361,10 @@ function EmployeesContent() {
           }
         } catch {}
       }
+      companies = companies || [];
       setDivisions(companies);
       try {
-        if (companies.length) localStorage.setItem('gocs_cached_divisions', JSON.stringify(companies));
+        localStorage.setItem('gocs_cached_divisions', JSON.stringify(companies));
       } catch {}
       if (desRes.status === 'fulfilled' && Array.isArray(desRes.value)) setDesignations(desRes.value);
       if (empTypeRes.status === 'fulfilled' && Array.isArray(empTypeRes.value)) setEmploymentTypes(empTypeRes.value);
