@@ -42,7 +42,7 @@ def close(ftp: FTP_TLS | None) -> None:
 
 
 def check_server_config(ftp: FTP_TLS) -> None:
-    names = {Path(name.rstrip("/")).name.lower() for name in ftp.nlst()}
+    names = {name.rstrip("/").replace("\\", "/").rsplit("/", 1)[-1].lower() for name in ftp.nlst()}
     if "appsettings.production.json" not in names:
         raise RuntimeError("Server appsettings.Production.json is missing; deployment stopped.")
     if "web.config" not in names:
