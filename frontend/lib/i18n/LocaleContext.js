@@ -48,7 +48,7 @@ export function LocaleProvider({ children }) {
         const base = (typeof window !== 'undefined'
           && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
           ? 'http://localhost:5088'
-          : (process.env.NEXT_PUBLIC_API_URL || 'https://digitaldivetech-001-site4.gtempurl.com/HRMDevelopment');
+          : (process.env.NEXT_PUBLIC_API_URL || 'https://digitaldivetech-001-site7.gtempurl.com');
         fetch(`${String(base).replace(/\/$/, '')}/api/auth/locale`, {
           method: 'PATCH',
           headers: {
