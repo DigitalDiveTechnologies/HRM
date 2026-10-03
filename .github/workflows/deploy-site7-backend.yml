@@ -3,7 +3,7 @@ name: Deploy site7 backend
 on:
   push:
     branches:
-      - main
+      - ci/site7-backend
     paths:
       - backend/**
       - tools/deploy-site7-backend.py
@@ -20,6 +20,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: site7-production
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
