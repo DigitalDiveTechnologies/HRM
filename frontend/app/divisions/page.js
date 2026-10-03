@@ -33,14 +33,11 @@ export default function DivisionsPage() {
     // 1. Fast path: direct DB query via Neon HTTP API (< 200ms)
     fetchDivisionsDirect().then((directData) => {
       if (!isMounted) return;
-      if (directData && Array.isArray(directData) && directData.length > 0) {
+      if (Array.isArray(directData)) {
         const sorted = sortCompaniesLatest(directData);
         setRows(sorted);
         setLoading(false);
-        try {
-          localStorage.setItem('gocs_cached_divisions', JSON.stringify(sorted));
-          writeCompaniesCache(sorted);
-        } catch {}
+        writeCompaniesCache(sorted);
       }
     }).catch(() => {});
 
@@ -48,14 +45,11 @@ export default function DivisionsPage() {
     api('/divisions')
       .then((data) => {
         if (!isMounted) return;
-        if (data && Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           const sorted = sortCompaniesLatest(data);
           setRows(sorted);
           setLoading(false);
-          try {
-            localStorage.setItem('gocs_cached_divisions', JSON.stringify(sorted));
-            writeCompaniesCache(sorted);
-          } catch {}
+          writeCompaniesCache(sorted);
         }
       })
       .catch((e) => {
