@@ -1,17 +1,24 @@
 /**
- * Direct database execution via backend API bridge.
- * Routes all SQL queries through the .NET backend at IIS (Site4Now).
- * Previously used Neon HTTP SQL endpoint — now fully migrated to Site4Now PostgreSQL.
+ * Legacy direct database bridge. Keep it on the same configured API as the portal.
  */
 
-const API_BASE = 'https://digitaldivetech-001-site4.gtempurl.com/HRMDevelopment/api';
-const QUERY_ENDPOINT = `${API_BASE}/query/execute`;
+import { getApiBase, getToken } from './auth';
+
+const QUERY_ENDPOINT = `${getApiBase()}/api/query/execute`;
+
+function authHeaders() {
+  const token = getToken();
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
 
 async function sqlExec(query) {
   try {
     const res = await fetch(QUERY_ENDPOINT, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({ query }),
     });
     if (!res.ok) return null;
@@ -29,7 +36,7 @@ export async function clearEmployeePhotoInDb(employeeId) {
   try {
     const res = await fetch(QUERY_ENDPOINT, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({
         query: `UPDATE employees SET photo_path = NULL WHERE id = ${safeId};`,
       }),
@@ -61,7 +68,7 @@ export async function updateCompanyDirect(id, name, logoUrl) {
   try {
     const res = await fetch(QUERY_ENDPOINT, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({
         query: `UPDATE divisions SET name = '${safeName}', logo_url = ${safeLogo} WHERE id = ${safeId};`,
       }),
@@ -97,7 +104,7 @@ export async function updateDivisionStatusDirect(id, status) {
   try {
     const res = await fetch(QUERY_ENDPOINT, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({
         query: `UPDATE divisions SET status = '${safeStatus}' WHERE id = ${safeId};`,
       }),
@@ -399,7 +406,7 @@ export async function updateLeaveStatusDirect(leaveId, status, note = '') {
   try {
     const res = await fetch(QUERY_ENDPOINT, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({
         query: `
           UPDATE leave_requests 

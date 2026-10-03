@@ -86,12 +86,12 @@ export function useCompanyFilter() {
             if (!active) return;
             let updatedComp = compList;
             let updatedEmp = employees;
-            if (divRes.status === 'fulfilled' && Array.isArray(divRes.value) && divRes.value.length) {
+            if (divRes.status === 'fulfilled' && Array.isArray(divRes.value)) {
               updatedComp = divRes.value;
               setCompanies(updatedComp);
               try { localStorage.setItem('gocs_cached_divisions', JSON.stringify(updatedComp)); } catch {}
             }
-            if (empRes.status === 'fulfilled' && Array.isArray(empRes.value) && empRes.value.length) {
+            if (empRes.status === 'fulfilled' && Array.isArray(empRes.value)) {
               updatedEmp = empRes.value;
               try { localStorage.setItem('gocs_cached_employees', JSON.stringify(updatedEmp)); } catch {}
             }
