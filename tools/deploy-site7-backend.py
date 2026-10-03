@@ -23,8 +23,24 @@ REQUIRED_RBAC_PATHS = {
 }
 
 
+class Site7FTP_TLS(FTP_TLS):
+    def storbinary(self, cmd, fp, blocksize=8192, callback=None, rest=None):
+        """Close the protected data socket without waiting for TLS close_notify.
+
+        The site7 FTP server accepts the upload but does not answer Python's
+        SSLSocket.unwrap() shutdown handshake on STOR connections.
+        """
+        self.voidcmd("TYPE I")
+        with self.transfercmd(cmd, rest) as conn:
+            while block := fp.read(blocksize):
+                conn.sendall(block)
+                if callback:
+                    callback(block)
+        return self.voidresp()
+
+
 def connect(password: str) -> FTP_TLS:
-    ftp = FTP_TLS(context=ssl.create_default_context(), timeout=30)
+    ftp = Site7FTP_TLS(context=ssl.create_default_context(), timeout=30)
     ftp.connect(FTP_HOST, 21)
     ftp.login(FTP_USER, password)
     ftp.prot_p()
@@ -146,8 +162,8 @@ def main() -> None:
     offline = False
     try:
         check_server_config(ftp)
-        ftp.storbinary("STOR /app_offline.htm", io.BytesIO(b"<html><body>Updating...</body></html>"))
         offline = True
+        ftp.storbinary("STOR /app_offline.htm", io.BytesIO(b"<html><body>Updating...</body></html>"))
         time.sleep(3)
         for path in files:
             upload(ftp, path, root)
