@@ -4,14 +4,6 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import PortalShell from '@/components/PortalShell';
 import { api, session } from '@/lib/api';
-import {
-  fetchEmployeesDirect,
-  fetchAttendanceDirect,
-  fetchLeavesDirect,
-  fetchLeaveBalancesDirect,
-  fetchDocumentsDirect,
-  fetchExpensesDirect,
-} from '@/lib/dbDirect';
 
 // Avatar Colors Palette matching Admin Portal
 const AVATAR_PALETTE = [
@@ -177,12 +169,12 @@ export default function EmployeePortalDashboard() {
       try {
         const eid = user?.employeeId || user?.employee_id;
         const [empRows, attRows, leaveRows, balRows, docRows, expRows] = await Promise.all([
-          fetchEmployeesDirect().catch(() => null),
-          fetchAttendanceDirect(eid).catch(() => null),
-          fetchLeavesDirect(eid).catch(() => null),
-          fetchLeaveBalancesDirect(eid).catch(() => null),
-          fetchDocumentsDirect().catch(() => null),
-          fetchExpensesDirect().catch(() => null),
+          api('/employees').catch(() => null),
+          api('/attendance').catch(() => null),
+          api('/leave').catch(() => null),
+          api('/leave/balances').catch(() => null),
+          api('/documents').catch(() => null),
+          api('/travel/expenses').catch(() => null),
         ]);
 
         if (!isMounted) return;

@@ -1,7 +1,7 @@
 import { firstAllowedPath } from './nav';
 
-/** Live backend on sir's FTP host — used when portal runs on Vercel/stage (not localhost). */
-const PRODUCTION_API = 'https://digitaldivetech-001-site4.gtempurl.com/HRMDevelopment';
+/** Site7 production API is the staging portal's configured backend. */
+const PRODUCTION_API = 'https://digitaldivetech-001-site7.gtempurl.com';
 
 /** Resolve API base at runtime so static builds work without NEXT_PUBLIC_API_URL baked in. */
 export function getApiBase() {
@@ -18,6 +18,25 @@ export function getApiBase() {
 
   return 'http://localhost:5088';
 }
+
+/** Clear browser-cached HR data when the portal switches backend environments. */
+function ensureCacheApiScope() {
+  if (typeof window === 'undefined') return;
+  try {
+    const scope = `${window.location.hostname}|${getApiBase()}`;
+    if (localStorage.getItem('gocs_cache_api_scope') !== scope) {
+      const staleKeys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('gocs_cached_')) staleKeys.push(key);
+      }
+      staleKeys.forEach((key) => localStorage.removeItem(key));
+      localStorage.setItem('gocs_cache_api_scope', scope);
+    }
+  } catch {}
+}
+
+if (typeof window !== 'undefined') ensureCacheApiScope();
 
 export function getToken() {
   if (typeof window === 'undefined') return null;
@@ -38,6 +57,7 @@ export function getUser() {
 }
 
 export function setSession(loginResponse) {
+  ensureCacheApiScope();
   const user = loginResponse.user || loginResponse.User || loginResponse;
   const token = loginResponse.token || loginResponse.Token || '';
   try {

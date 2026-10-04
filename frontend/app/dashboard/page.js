@@ -231,8 +231,10 @@ export default function DashboardPage() {
 
     if (allowCompanies) {
       fetchDivisionsDirect().then((divs) => {
-        if (Array.isArray(divs) && divs.length > 0) {
-          setCompanies(sortCompaniesLatest(divs));
+        if (Array.isArray(divs)) {
+          const current = sortCompaniesLatest(divs);
+          setCompanies(current);
+          writeCompaniesCache(current);
         }
       }).catch(() => {});
     }
@@ -274,15 +276,15 @@ export default function DashboardPage() {
     }
 
     const subTasks = [];
-    subTasks.push(allowEmployees ? api('/employees').catch(() => []) : Promise.resolve([]));
-    subTasks.push(allowCompanies ? api('/divisions').catch(() => []) : Promise.resolve([]));
+    subTasks.push(allowEmployees ? api('/employees').catch(() => null) : Promise.resolve(null));
+    subTasks.push(allowCompanies ? api('/divisions').catch(() => null) : Promise.resolve(null));
     subTasks.push(allowLeave ? api('/leave').catch(() => []) : Promise.resolve([]));
     subTasks.push(allowAttendance ? api('/attendance').catch(() => []) : Promise.resolve([]));
 
     Promise.all(subTasks)
       .then(([emps, divs, lv, att]) => {
-        const cleanEmps = Array.isArray(emps) && emps.length ? emps : null;
-        const cleanDivs = Array.isArray(divs) && divs.length ? sortCompaniesLatest(divs) : null;
+        const cleanEmps = Array.isArray(emps) ? emps : null;
+        const cleanDivs = Array.isArray(divs) ? sortCompaniesLatest(divs) : null;
         const cleanLeaves = Array.isArray(lv) ? lv : [];
         const cleanAtt = Array.isArray(att) ? att : [];
 
@@ -290,7 +292,10 @@ export default function DashboardPage() {
           setEmployees(cleanEmps);
           writeEmployeesCache(cleanEmps);
         }
-        if (cleanDivs) setCompanies(cleanDivs);
+        if (cleanDivs !== null) {
+          setCompanies(cleanDivs);
+          writeCompaniesCache(cleanDivs);
+        }
         setLeaves(cleanLeaves);
         setAttendanceList(cleanAtt);
 
@@ -301,8 +306,8 @@ export default function DashboardPage() {
             'gocs_cached_dashboard',
             JSON.stringify({
               ...cachedObj,
-              ...(cleanEmps ? { employees: cleanEmps } : {}),
-              ...(cleanDivs ? { companies: cleanDivs } : {}),
+              ...(cleanEmps !== null ? { employees: cleanEmps } : {}),
+              ...(cleanDivs !== null ? { companies: cleanDivs } : {}),
               leaves: cleanLeaves,
               attendanceList: cleanAtt,
               savedAt: Date.now(),

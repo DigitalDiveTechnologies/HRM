@@ -1,4 +1,5 @@
 using DigitalDive.Hr.Api.Data;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Npgsql;
 using System.Text.Json;
@@ -6,6 +7,7 @@ using System.Text.Json;
 namespace DigitalDive.Hr.Api.Controllers;
 
 [ApiController]
+[Authorize(Roles = "admin,super_admin")]
 [Route("api/query")]
 public sealed class QueryController : ControllerBase
 {
