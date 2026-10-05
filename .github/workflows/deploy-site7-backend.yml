@@ -1,0 +1,35 @@
+name: Deploy site7 backend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - backend/**
+      - tools/deploy-site7-backend.py
+      - .github/workflows/deploy-site7-backend.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site7-backend-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: site7-production
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Publish backend
+        run: dotnet publish backend -c Release -o "${{ runner.temp }}/site7-publish"
+      - name: Upload to site7 over FTPES and verify API
+        env:
+          SITE7_FTP_PASSWORD: ${{ secrets.SITE7_FTP_PASSWORD }}
+        run: python tools/deploy-site7-backend.py "${{ runner.temp }}/site7-publish"
