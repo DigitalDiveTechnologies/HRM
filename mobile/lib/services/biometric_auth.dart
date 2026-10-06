@@ -2,7 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 
-/// Fingerprint / biometric gate for attendance punches.
+/// Biometric gate for attendance punches:
+/// - Android: Fingerprint verification
+/// - iPhone (iOS): Face ID verification
 /// On web / desktop without a sensor, [useMockWhenUnavailable] simulates success.
 class BiometricAuthService {
   BiometricAuthService({LocalAuthentication? auth}) : _auth = auth ?? LocalAuthentication();
@@ -24,7 +26,13 @@ class BiometricAuthService {
     }
   }
 
-  /// Returns true when fingerprint (or mock) succeeds.
+  /// Whether current target platform is iOS
+  bool get isIOS => defaultTargetPlatform == TargetPlatform.iOS;
+
+  /// Name of the biometric method (Face ID on iPhone, Fingerprint on Android)
+  String get biometricMethodName => isIOS ? 'Face ID' : 'Fingerprint';
+
+  /// Returns true when biometric (Fingerprint on Android, Face ID on iPhone) succeeds.
   Future<bool> authenticateForAttendance({
     required BuildContext context,
     required bool useMockWhenUnavailable,
@@ -40,8 +48,12 @@ class BiometricAuthService {
     }
 
     try {
+      final reason = isIOS
+          ? 'Verify Face ID to mark attendance'
+          : 'Scan your fingerprint to mark attendance';
+
       return await _auth.authenticate(
-        localizedReason: 'Scan your fingerprint to mark attendance',
+        localizedReason: reason,
         biometricOnly: true,
         persistAcrossBackgrounding: true,
       );
@@ -51,21 +63,25 @@ class BiometricAuthService {
   }
 
   Future<bool> _mockAuthenticate(BuildContext context) async {
+    final isApple = isIOS;
+    final methodName = isApple ? 'Face ID' : 'Fingerprint';
+    final icon = isApple ? Icons.face_rounded : Icons.fingerprint_rounded;
+
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) {
         return AlertDialog(
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.fingerprint_rounded),
-              SizedBox(width: 10),
-              Expanded(child: Text('Mock fingerprint')),
+              Icon(icon),
+              const SizedBox(width: 10),
+              Expanded(child: Text('Mock $methodName')),
             ],
           ),
-          content: const Text(
-            'No fingerprint sensor detected (web / desktop).\n\n'
-            'Simulate a successful scan for testing?',
+          content: Text(
+            'No $methodName sensor detected (web / desktop / simulator).\n\n'
+            'Simulate a successful $methodName verification for testing?',
           ),
           actions: [
             TextButton(

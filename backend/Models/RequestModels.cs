@@ -20,6 +20,12 @@ public sealed class AttendanceCreateRequest
     public string? Status { get; set; }
     public string? ShiftName { get; set; }
     public decimal OvertimeHours { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+    public double? CheckInLatitude { get; set; }
+    public double? CheckInLongitude { get; set; }
+    public double? CheckOutLatitude { get; set; }
+    public double? CheckOutLongitude { get; set; }
 }
 
 public sealed class LeaveCreateRequest

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../services/api_client.dart';
 import '../services/biometric_auth.dart';
+import '../services/location_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
@@ -18,6 +19,7 @@ class AttendanceScreen extends StatefulWidget {
 
 class _AttendanceScreenState extends State<AttendanceScreen> {
   final _biometric = BiometricAuthService();
+  final _locationService = LocationService();
 
   List<dynamic> rows = [];
   bool loading = true;
@@ -27,10 +29,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   String workDate = todayIso();
   String status = 'present';
 
-  /// Chrome / Windows / no sensor → mock fingerprint for testing.
+  /// Chrome / Windows / no sensor → mock biometric for testing.
   bool mockFingerprint = kIsWeb || defaultTargetPlatform == TargetPlatform.windows;
   bool hardwareAvailable = false;
   bool checkingHardware = true;
+
+  bool get isIOS => defaultTargetPlatform == TargetPlatform.iOS;
+  String get biometricLabel => isIOS ? 'Face ID' : 'Fingerprint';
+  IconData get biometricIcon => isIOS ? Icons.face_rounded : Icons.fingerprint_rounded;
 
   @override
   void initState() {
@@ -112,6 +118,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       error = null;
     });
 
+    // 1. Biometric verification: Face ID on iPhone, Fingerprint on Android
     final ok = await _biometric.authenticateForAttendance(
       context: context,
       useMockWhenUnavailable: mockFingerprint,
@@ -122,10 +129,60 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     if (!ok) {
       setState(() {
         punching = false;
-        error = 'Fingerprint verification failed';
+        error = '$biometricLabel verification failed or cancelled.';
       });
       return;
     }
+
+    // 2. Strict Location Requirement: Location MUST be ON and GRANTED
+    final locResult = await _locationService.requireLocation(
+      allowMockOnDesktop: mockFingerprint,
+    );
+
+    if (!locResult.isSuccess || locResult.location == null) {
+      if (!mounted) return;
+      setState(() {
+        punching = false;
+        error = locResult.errorMessage ?? 'Location is strictly required to mark attendance.';
+      });
+
+      if (locResult.requiresLocationSettings || locResult.requiresAppSettings) {
+        await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.location_off_rounded, color: AppColors.danger),
+                SizedBox(width: 8),
+                Expanded(child: Text('Location Required')),
+              ],
+            ),
+            content: Text(
+              locResult.errorMessage ??
+                  'Location services are required to verify your attendance punch. Please enable location in device settings.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  _locationService.openAppropriateSettings(
+                    isAppSettings: locResult.requiresAppSettings,
+                  );
+                },
+                child: const Text('Open Settings'),
+              ),
+            ],
+          ),
+        );
+      }
+      return;
+    }
+
+    final loc = locResult.location!;
 
     final now = _nowHm();
     final body = <String, dynamic>{
@@ -138,9 +195,22 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     if (isCheckIn) {
       body['checkIn'] = now;
       body['checkOut'] = null;
+      if (loc != null) {
+        body['checkInLatitude'] = loc.latitude;
+        body['checkInLongitude'] = loc.longitude;
+      }
     } else {
       body['checkIn'] = _todayCheckIn() ?? checkInFallback();
       body['checkOut'] = now;
+      if (loc != null) {
+        body['checkOutLatitude'] = loc.latitude;
+        body['checkOutLongitude'] = loc.longitude;
+      }
+    }
+
+    if (loc != null) {
+      body['latitude'] = loc.latitude;
+      body['longitude'] = loc.longitude;
     }
 
     try {
@@ -150,10 +220,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             body: body,
           );
       if (!mounted) return;
+      final locText = loc != null ? ' (GPS: ${loc.latitude.toStringAsFixed(4)}, ${loc.longitude.toStringAsFixed(4)})' : '';
       setState(() {
         msg = isCheckIn
-            ? 'Check-in recorded at $now (fingerprint verified).'
-            : 'Check-out recorded at $now (fingerprint verified).';
+            ? 'Check-in recorded at $now ($biometricLabel verified$locText).'
+            : 'Check-out recorded at $now ($biometricLabel verified$locText).';
         punching = false;
       });
       await _load();
@@ -184,10 +255,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       child: ListView(
         padding: screenListPadding(context),
         children: [
-          const PageHero(
+          PageHero(
             title: 'Attendance',
-            subtitle: 'Fingerprint check-in / check-out',
-            trailing: Icon(Icons.fingerprint_rounded, color: Colors.white, size: 36),
+            subtitle: '$biometricLabel check-in / check-out',
+            trailing: Icon(biometricIcon, color: Colors.white, size: 36),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -209,7 +280,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 children: [
                   Text('Biometric punch', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
                   Text(
-                    'Scan fingerprint to Check-In or Check-Out. Works for Employee, Manager & HR.',
+                    'Verify $biometricLabel with location to Check-In or Check-Out. Works for Employee, Manager & HR.',
                     style: TextStyle(color: T.muted(context), fontSize: 12.5),
                   ),
                   if (error != null) Text(error!, style: const TextStyle(color: AppColors.danger)),
@@ -232,7 +303,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   if (!checkingHardware && !hardwareAvailable)
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Mock fingerprint (no sensor)'),
+                      title: Text('Mock $biometricLabel (no sensor)'),
                       subtitle: Text(
                         'Enable for Chrome / Windows testing',
                         style: TextStyle(color: T.muted(context), fontSize: 12),
@@ -243,7 +314,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     ),
                   if (hardwareAvailable)
                     Text(
-                      'Fingerprint sensor ready',
+                      '$biometricLabel sensor ready',
                       style: TextStyle(color: AppColors.ok, fontSize: 12.5, fontWeight: FontWeight.w600),
                     ),
                   Row(
@@ -279,7 +350,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             child: Text('Recent days', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
           ),
           if (loading) const ScreenLoader(),
-          if (!loading && rows.isEmpty) const EmptyHint('No attendance yet — punch in above.', icon: Icons.fingerprint_rounded),
+          if (!loading && rows.isEmpty) EmptyHint('No attendance yet — punch in above.', icon: biometricIcon),
           ...rows.map((raw) {
             final r = Map<String, dynamic>.from(raw as Map);
             final cin = pick(r, ['checkIn', 'check_in'], '-');
@@ -298,7 +369,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                         ),
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child: const Icon(Icons.fingerprint_rounded, color: AppColors.accent),
+                      child: Icon(biometricIcon, color: AppColors.accent),
                     ),
                     const SizedBox(width: 12),
                     Expanded(

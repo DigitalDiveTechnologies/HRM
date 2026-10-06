@@ -2636,6 +2636,7 @@ function EmployeesContent() {
                               <th>Net Salary</th>
                               <th>Method</th>
                               <th style={{ textAlign: 'center' }}>Status</th>
+                              <th style={{ textAlign: 'center' }}>Location</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -3070,6 +3071,7 @@ function EmployeesContent() {
                               <th>Duration</th>
                               <th>Reason</th>
                               <th style={{ textAlign: 'center' }}>Status</th>
+                              <th style={{ textAlign: 'center' }}>Location</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -3158,6 +3160,7 @@ function EmployeesContent() {
                               <th>Shift</th>
                               <th>Overtime</th>
                               <th style={{ textAlign: 'center' }}>Status</th>
+                              <th style={{ textAlign: 'center' }}>Location</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -3170,6 +3173,38 @@ function EmployeesContent() {
                                 <td>{v(a, 'overtimeHours', 'overtime_hours') ? `${v(a, 'overtimeHours', 'overtime_hours')} hrs` : '0 hrs'}</td>
                                 <td style={{ textAlign: 'center' }}>
                                   <Badge status={v(a, 'status') || 'present'} />
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  {(() => {
+                                    const lat = v(a, 'checkInLatitude', 'check_in_latitude') || v(a, 'latitude');
+                                    const lng = v(a, 'checkInLongitude', 'check_in_longitude') || v(a, 'longitude');
+                                    if (!lat || !lng) return <span className="muted">—</span>;
+                                    return (
+                                      <a
+                                        href={`https://www.google.com/maps?q=${lat},${lng}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        title="Open location in Google Maps"
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          width: 28,
+                                          height: 28,
+                                          borderRadius: 6,
+                                          background: 'rgba(0, 184, 219, 0.12)',
+                                          color: '#008fa8',
+                                          textDecoration: 'none',
+                                        }}
+                                      >
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                          <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+                                          <line x1="8" y1="2" x2="8" y2="18" />
+                                          <line x1="16" y1="6" x2="16" y2="22" />
+                                        </svg>
+                                      </a>
+                                    );
+                                  })()}
                                 </td>
                               </tr>
                             ))}

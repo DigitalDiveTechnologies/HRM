@@ -40,7 +40,11 @@ public sealed class AttendanceController : ControllerBase
 
         var row = await _hr.CreateAttendanceAsync(
             employeeId, body.WorkDate, body.CheckIn, body.CheckOut, body.Status,
-            body.OvertimeHours, body.ShiftName, ct);
+            body.OvertimeHours, body.ShiftName,
+            body.Latitude, body.Longitude,
+            body.CheckInLatitude, body.CheckInLongitude,
+            body.CheckOutLatitude, body.CheckOutLongitude,
+            ct);
         return CreatedAtAction(nameof(List), row);
     }
 }

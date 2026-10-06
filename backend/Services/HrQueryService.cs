@@ -1931,7 +1931,11 @@ public sealed class HrQueryService
 
     public async Task<Dictionary<string, object?>> CreateAttendanceAsync(
         int employeeId, string workDate, string? checkIn, string? checkOut, string? status,
-        decimal overtime, string? shiftName, CancellationToken ct)
+        decimal overtime, string? shiftName,
+        double? latitude = null, double? longitude = null,
+        double? checkInLatitude = null, double? checkInLongitude = null,
+        double? checkOutLatitude = null, double? checkOutLongitude = null,
+        CancellationToken ct = default)
     {
         await using var conn = await OpenAsync(ct);
 
@@ -1940,13 +1944,25 @@ public sealed class HrQueryService
         string? existingCheckIn = null;
         string? existingCheckOut = null;
         string? existingShift = null;
+        double? existingCheckInLat = null;
+        double? existingCheckInLng = null;
+        double? existingCheckOutLat = null;
+        double? existingCheckOutLng = null;
+        double? existingLat = null;
+        double? existingLng = null;
 
         await using (var find = new NpgsqlCommand(
                          """
                          SELECT id,
                                 CASE WHEN check_in IS NULL THEN NULL ELSE to_char(check_in, 'HH24:MI:SS') END,
                                 CASE WHEN check_out IS NULL THEN NULL ELSE to_char(check_out, 'HH24:MI:SS') END,
-                                shift_name
+                                shift_name,
+                                check_in_latitude,
+                                check_in_longitude,
+                                check_out_latitude,
+                                check_out_longitude,
+                                latitude,
+                                longitude
                          FROM attendance
                          WHERE employee_id = @eid AND work_date = @wd::date
                          ORDER BY (check_out IS NULL) DESC, id DESC
@@ -1962,6 +1978,12 @@ public sealed class HrQueryService
                 existingCheckIn = reader.IsDBNull(1) ? null : reader.GetString(1);
                 existingCheckOut = reader.IsDBNull(2) ? null : reader.GetString(2);
                 existingShift = reader.IsDBNull(3) ? null : reader.GetString(3);
+                existingCheckInLat = reader.IsDBNull(4) ? null : reader.GetDouble(4);
+                existingCheckInLng = reader.IsDBNull(5) ? null : reader.GetDouble(5);
+                existingCheckOutLat = reader.IsDBNull(6) ? null : reader.GetDouble(6);
+                existingCheckOutLng = reader.IsDBNull(7) ? null : reader.GetDouble(7);
+                existingLat = reader.IsDBNull(8) ? null : reader.GetDouble(8);
+                existingLng = reader.IsDBNull(9) ? null : reader.GetDouble(9);
             }
         }
 
@@ -1971,6 +1993,13 @@ public sealed class HrQueryService
         var shift = !string.IsNullOrWhiteSpace(shiftName)
             ? shiftName.Trim()
             : (!string.IsNullOrWhiteSpace(existingShift) ? existingShift!.Trim() : "General");
+
+        var effectiveCheckInLat = checkInLatitude ?? (checkOut is null ? latitude : null) ?? existingCheckInLat;
+        var effectiveCheckInLng = checkInLongitude ?? (checkOut is null ? longitude : null) ?? existingCheckInLng;
+        var effectiveCheckOutLat = checkOutLatitude ?? (checkOut is not null ? latitude : null) ?? existingCheckOutLat;
+        var effectiveCheckOutLng = checkOutLongitude ?? (checkOut is not null ? longitude : null) ?? existingCheckOutLng;
+        var effectiveLat = latitude ?? (checkOut is not null ? effectiveCheckOutLat : effectiveCheckInLat) ?? existingLat;
+        var effectiveLng = longitude ?? (checkOut is not null ? effectiveCheckOutLng : effectiveCheckInLng) ?? existingLng;
 
         if (existingId is > 0)
         {
@@ -1982,7 +2011,13 @@ public sealed class HrQueryService
                                  status = @status,
                                  late_minutes = @late,
                                  overtime_hours = GREATEST(COALESCE(overtime_hours, 0), @ot),
-                                 shift_name = @shift
+                                 shift_name = @shift,
+                                 check_in_latitude = COALESCE(@cin_lat, check_in_latitude),
+                                 check_in_longitude = COALESCE(@cin_lng, check_in_longitude),
+                                 check_out_latitude = COALESCE(@cout_lat, check_out_latitude),
+                                 check_out_longitude = COALESCE(@cout_lng, check_out_longitude),
+                                 latitude = COALESCE(@lat, latitude),
+                                 longitude = COALESCE(@lng, longitude)
                              WHERE id = @id
                              RETURNING *
                              """, conn))
@@ -1995,6 +2030,12 @@ public sealed class HrQueryService
                 upd.Parameters.AddWithValue("late", resolved.LateMinutes);
                 upd.Parameters.AddWithValue("ot", overtime);
                 upd.Parameters.AddWithValue("shift", shift);
+                upd.Parameters.AddWithValue("cin_lat", (object?)effectiveCheckInLat ?? DBNull.Value);
+                upd.Parameters.AddWithValue("cin_lng", (object?)effectiveCheckInLng ?? DBNull.Value);
+                upd.Parameters.AddWithValue("cout_lat", (object?)effectiveCheckOutLat ?? DBNull.Value);
+                upd.Parameters.AddWithValue("cout_lng", (object?)effectiveCheckOutLng ?? DBNull.Value);
+                upd.Parameters.AddWithValue("lat", (object?)effectiveLat ?? DBNull.Value);
+                upd.Parameters.AddWithValue("lng", (object?)effectiveLng ?? DBNull.Value);
                 var updated = await ReadOneAsync(upd, ct);
 
                 // Remove any leftover same-day duplicates from older buggy inserts
@@ -2014,11 +2055,13 @@ public sealed class HrQueryService
 
         await using var insert = new NpgsqlCommand(
             """
-            INSERT INTO attendance (employee_id, work_date, check_in, check_out, status, late_minutes, overtime_hours, shift_name)
+            INSERT INTO attendance (employee_id, work_date, check_in, check_out, status, late_minutes, overtime_hours, shift_name,
+                                    check_in_latitude, check_in_longitude, check_out_latitude, check_out_longitude, latitude, longitude)
             VALUES (@eid, @wd::date,
                     CASE WHEN CAST(@cin AS text) IS NULL THEN NULL ELSE (@wd::date + CAST(@cin AS text)::time)::timestamptz END,
                     CASE WHEN CAST(@cout AS text) IS NULL THEN NULL ELSE (@wd::date + CAST(@cout AS text)::time)::timestamptz END,
-                    @status, @late, @ot, @shift)
+                    @status, @late, @ot, @shift,
+                    @cin_lat, @cin_lng, @cout_lat, @cout_lng, @lat, @lng)
             RETURNING *
             """, conn);
         insert.Parameters.AddWithValue("eid", employeeId);
@@ -2029,6 +2072,12 @@ public sealed class HrQueryService
         insert.Parameters.AddWithValue("late", resolved.LateMinutes);
         insert.Parameters.AddWithValue("ot", overtime);
         insert.Parameters.AddWithValue("shift", shift);
+        insert.Parameters.AddWithValue("cin_lat", (object?)effectiveCheckInLat ?? DBNull.Value);
+        insert.Parameters.AddWithValue("cin_lng", (object?)effectiveCheckInLng ?? DBNull.Value);
+        insert.Parameters.AddWithValue("cout_lat", (object?)effectiveCheckOutLat ?? DBNull.Value);
+        insert.Parameters.AddWithValue("cout_lng", (object?)effectiveCheckOutLng ?? DBNull.Value);
+        insert.Parameters.AddWithValue("lat", (object?)effectiveLat ?? DBNull.Value);
+        insert.Parameters.AddWithValue("lng", (object?)effectiveLng ?? DBNull.Value);
         return (await ReadOneAsync(insert, ct))!;
     }
 

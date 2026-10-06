@@ -27,7 +27,6 @@ export default function Attendance() {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(true);
-  const [punching, setPunching] = useState(false);
   const [page, setPage] = useState(1);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [employeeId, setEmployeeId] = useState(null);
@@ -75,61 +74,6 @@ export default function Attendance() {
   const todayCheckIn = todayRow ? value(todayRow, 'checkIn', 'check_in') : null;
   const todayCheckOut = todayRow ? value(todayRow, 'checkOut', 'check_out') : null;
 
-  async function handlePunch(type) {
-    if (punching) return;
-    setError('');
-    setSuccessMsg('');
-    setPunching(true);
-
-    try {
-      let eid = employeeId;
-      if (!eid) {
-        const me = await api('/auth/me');
-        eid = me?.employeeId;
-        if (eid) setEmployeeId(eid);
-      }
-      if (!eid) {
-        throw new Error('Employee ID not found. Please log in again.');
-      }
-
-      const now = new Date();
-      const workDate = localDateIso(now);
-      const hours = String(now.getHours()).padStart(2, '0');
-      const mins = String(now.getMinutes()).padStart(2, '0');
-      const secs = String(now.getSeconds()).padStart(2, '0');
-      const timeStr = `${hours}:${mins}:${secs}`;
-
-      if (type === 'in') {
-        await api('/attendance', {
-          method: 'POST',
-          body: JSON.stringify({
-            employeeId: eid,
-            workDate,
-            checkIn: timeStr,
-            status: 'present',
-            shiftName: 'General',
-          }),
-        });
-        setSuccessMsg(locale === 'ar' ? `تم تسجيل الحضور بنجاح في ${timeStr}` : `Checked in successfully at ${timeStr}`);
-      } else {
-        await api('/attendance', {
-          method: 'POST',
-          body: JSON.stringify({
-            employeeId: eid,
-            workDate,
-            checkOut: timeStr,
-          }),
-        });
-        setSuccessMsg(locale === 'ar' ? `تم تسجيل الانصراف بنجاح في ${timeStr}` : `Checked out successfully at ${timeStr}`);
-      }
-
-      await loadAttendance();
-    } catch (err) {
-      setError(err.message || 'Failed to record attendance');
-    } finally {
-      setPunching(false);
-    }
-  }
 
   const total = rows.length;
   const presentCount = rows.filter((r) => String(value(r, 'status') || '').toLowerCase().includes('present')).length;
@@ -235,84 +179,30 @@ export default function Attendance() {
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          {!hasCheckedIn ? (
-            <button
-              type="button"
-              disabled={punching}
-              onClick={() => handlePunch('in')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '12px 24px',
-                borderRadius: 10,
-                border: 'none',
-                background: '#10b981',
-                color: '#ffffff',
-                fontWeight: 700,
-                fontSize: '15px',
-                cursor: punching ? 'not-allowed' : 'pointer',
-                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-                <polyline points="10 17 15 12 10 7" />
-                <line x1="15" y1="12" x2="3" y2="12" />
-              </svg>
-              <span>{punching ? (locale === 'ar' ? 'جاري التسجيل…' : 'Recording…') : (locale === 'ar' ? 'تسجيل حضور' : 'Check In')}</span>
-            </button>
-          ) : !hasCheckedOut ? (
-            <button
-              type="button"
-              disabled={punching}
-              onClick={() => handlePunch('out')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '12px 24px',
-                borderRadius: 10,
-                border: 'none',
-                background: '#e11d48',
-                color: '#ffffff',
-                fontWeight: 700,
-                fontSize: '15px',
-                cursor: punching ? 'not-allowed' : 'pointer',
-                boxShadow: '0 4px 12px rgba(225, 29, 72, 0.3)',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" />
-              </svg>
-              <span>{punching ? (locale === 'ar' ? 'جاري التسجيل…' : 'Recording…') : (locale === 'ar' ? 'تسجيل انصراف' : 'Check Out')}</span>
-            </button>
-          ) : (
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '10px 18px',
-                borderRadius: 8,
-                background: 'rgba(16, 185, 129, 0.15)',
-                color: '#065f46',
-                fontWeight: 700,
-                fontSize: '13.5px',
-              }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-              <span>{locale === 'ar' ? 'تم اكتمال حضور اليوم بنجاح' : 'Attendance completed for today'}</span>
-            </div>
-          )}
+        {/* Mobile App Only Notice */}
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '12px 18px',
+            borderRadius: 10,
+            background: 'rgba(0, 184, 219, 0.08)',
+            border: '1px solid rgba(0, 184, 219, 0.25)',
+            color: '#0284c7',
+            fontSize: '13px',
+            fontWeight: 600,
+          }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+            <line x1="12" y1="18" x2="12.01" y2="18" strokeWidth="3" />
+          </svg>
+          <span>
+            {locale === 'ar'
+              ? 'تسجيل الحضور والانصراف متاح فقط عبر تطبيق الهاتف مع التحقق البيومتري.'
+              : 'Attendance check-in & check-out are restricted to the mobile app with biometric verification.'}
+          </span>
         </div>
       </div>
 

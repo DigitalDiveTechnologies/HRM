@@ -160,6 +160,21 @@ public sealed class OpsScaleService
                 await idx.ExecuteNonQueryAsync(ct);
             }
 
+            await using (var locCols = new NpgsqlCommand(
+                """
+                ALTER TABLE attendance
+                  ADD COLUMN IF NOT EXISTS check_in_latitude DOUBLE PRECISION,
+                  ADD COLUMN IF NOT EXISTS check_in_longitude DOUBLE PRECISION,
+                  ADD COLUMN IF NOT EXISTS check_out_latitude DOUBLE PRECISION,
+                  ADD COLUMN IF NOT EXISTS check_out_longitude DOUBLE PRECISION,
+                  ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION,
+                  ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
+                """,
+                conn))
+            {
+                await locCols.ExecuteNonQueryAsync(ct);
+            }
+
             await using (var cfg = new NpgsqlCommand(
                 """
                 INSERT INTO system_config (key, value, description) VALUES

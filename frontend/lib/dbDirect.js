@@ -214,6 +214,11 @@ export async function fetchAttendanceDirect(employeeId = null) {
           a.check_in AS "checkIn", a.check_in, a.check_out AS "checkOut", a.check_out,
           a.shift_name AS "shiftName", a.shift_name, a.overtime_hours AS "overtimeHours", a.overtime_hours,
           a.late_minutes AS "lateMinutes", a.late_minutes, a.status,
+          a.latitude, a.longitude,
+          a.check_in_latitude AS "checkInLatitude", a.check_in_latitude,
+          a.check_in_longitude AS "checkInLongitude", a.check_in_longitude,
+          a.check_out_latitude AS "checkOutLatitude", a.check_out_latitude,
+          a.check_out_longitude AS "checkOutLongitude", a.check_out_longitude,
           e.full_name AS "fullName", e.full_name, e.emp_code AS "empCode", e.emp_code,
           e.division_id AS "divisionId", e.division_id
         FROM attendance a

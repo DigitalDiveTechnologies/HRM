@@ -67,6 +67,8 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>NSFaceIDUsageDescription</key>
-	<string>Scan your fingerprint or Face ID to mark attendance</string>
+	<string>Face ID verification is required to verify your identity for attendance check-in and check-out.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Your location is required to record coordinates during attendance check-in and check-out.</string>
 </dict>
 </plist>
