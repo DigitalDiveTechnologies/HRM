@@ -1,12 +1,14 @@
 'use client';
 
+const DEFAULT_API = 'https://digitaldivetech-001-site4.gtempurl.com/HRMDevelopment';
+
 const apiBase = () => {
   const configured = (process.env.NEXT_PUBLIC_API_URL || '').trim();
   if (configured) return configured.replace(/\/$/, '');
   if (typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname)) {
     return 'http://localhost:5088';
   }
-  throw new Error('NEXT_PUBLIC_API_URL is not configured');
+  return DEFAULT_API;
 };
 
 export const ACCOUNT_DEACTIVATED_EVENT = 'employee_portal_account_deactivated';
