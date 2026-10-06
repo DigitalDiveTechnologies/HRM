@@ -1,8 +1,8 @@
 param(
   [string]$LocalDir = (Join-Path $PSScriptRoot "..\backend\publish"),
   [string]$FtpHost = "win8083.site4now.net",
-  [string]$FtpUser = "mutaalhrm",
-  [string]$FtpPass = "HrmDev!9Qx#4Lp7@Nz2",
+  [string]$FtpUser = "HRMDevelopmentAPIs",
+  [string]$FtpPass = "8TXyVSi9auVSkCd@",
   [string]$RemoteRoot = "/HRMDevelopment"
 )
 
