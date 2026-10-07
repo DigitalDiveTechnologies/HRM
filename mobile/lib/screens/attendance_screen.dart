@@ -182,21 +182,31 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         punchStep = null;
         error = locResult.errorMessage ?? 'Location is strictly required to mark attendance.';
       });
+      await _probeLocation();
 
-      if (locResult.requiresLocationSettings || locResult.requiresAppSettings) {
+      // Show actionable dialog for any location failure (GPS off, permission denied, or settings needed)
+      if (mounted) {
+        final bool isGpsOff = locResult.requiresLocationSettings;
+        final bool isAppSettings = locResult.requiresAppSettings;
+
         await showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Row(
+            title: Row(
               children: [
-                Icon(Icons.location_off_rounded, color: AppColors.danger),
-                SizedBox(width: 8),
-                Expanded(child: Text('Location Required')),
+                Icon(
+                  isGpsOff ? Icons.location_off_rounded : Icons.lock_outline_rounded,
+                  color: AppColors.danger,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(isGpsOff ? 'Turn On Location (GPS)' : 'Location Permission Required'),
+                ),
               ],
             ),
             content: Text(
               locResult.errorMessage ??
-                  'Location services are required to verify your attendance punch. Please enable location in device settings.',
+                  'Location services and permissions are required to verify your attendance punch.',
             ),
             actions: [
               TextButton(
@@ -206,11 +216,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               FilledButton(
                 onPressed: () {
                   Navigator.of(ctx).pop();
-                  _locationService.openAppropriateSettings(
-                    isAppSettings: locResult.requiresAppSettings,
-                  );
+                  if (isGpsOff) {
+                    _locationService.openAppropriateSettings(isAppSettings: false);
+                  } else {
+                    _locationService.openAppropriateSettings(isAppSettings: true);
+                  }
                 },
-                child: const Text('Open Settings'),
+                child: Text(isGpsOff ? 'Open Location Settings' : 'Open App Settings'),
               ),
             ],
           ),
@@ -559,14 +571,47 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                           const SizedBox(width: 8),
                           const Expanded(
                             child: Text(
-                              'Location (GPS) is OFF — Required for punch',
+                              'Location (GPS) is OFF',
                               style: TextStyle(color: AppColors.danger, fontSize: 12, fontWeight: FontWeight.w600),
                             ),
                           ),
                           TextButton(
-                            onPressed: () => _locationService.openAppropriateSettings(isAppSettings: false),
+                            onPressed: () async {
+                              await _locationService.openAppropriateSettings(isAppSettings: false);
+                              await Future.delayed(const Duration(seconds: 1));
+                              await _probeLocation();
+                            },
                             style: TextButton.styleFrom(padding: EdgeInsets.zero, visualDensity: VisualDensity.compact),
                             child: const Text('Turn ON'),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (!locationPermissionGranted)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.warn.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.warn.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.lock_outline_rounded, color: AppColors.warn, size: 18),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Location Permission Needed',
+                              style: TextStyle(color: AppColors.warn, fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              await _locationService.requireLocation(allowMockOnDesktop: mockFingerprint);
+                              await _probeLocation();
+                            },
+                            style: TextButton.styleFrom(padding: EdgeInsets.zero, visualDensity: VisualDensity.compact),
+                            child: const Text('Grant Access'),
                           ),
                         ],
                       ),
@@ -587,7 +632,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                             child: Text(
                               liveLocationCoords != null
                                   ? 'GPS Ready ($liveLocationCoords)'
-                                  : 'GPS Location Active & Required',
+                                  : 'GPS Ready & Active',
                               style: const TextStyle(color: AppColors.ok, fontSize: 12, fontWeight: FontWeight.w600),
                             ),
                           ),

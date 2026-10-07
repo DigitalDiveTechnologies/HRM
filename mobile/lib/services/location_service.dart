@@ -65,7 +65,13 @@ class LocationService {
       }
 
       // Check last known position for instant preview
-      final last = await Geolocator.getLastKnownPosition();
+      final isAndroid = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+      Position? last;
+      try {
+        last = await Geolocator.getLastKnownPosition(forceAndroidLocationManager: isAndroid);
+        last ??= await Geolocator.getLastKnownPosition();
+      } catch (_) {}
+
       if (last != null) {
         return LocationCheckResult(
           location: AttendanceLocation(latitude: last.latitude, longitude: last.longitude),
@@ -97,7 +103,7 @@ class LocationService {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         return const LocationCheckResult(
-          errorMessage: 'Location (GPS) is turned off on your device. Please turn on location services to mark attendance.',
+          errorMessage: 'Device GPS / Location is turned OFF. Please turn on location services on your phone to mark attendance.',
           requiresLocationSettings: true,
         );
       }
@@ -105,17 +111,19 @@ class LocationService {
       // 2. Check and request permission
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
+        // Explicitly trigger the system runtime permission dialog
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
           return const LocationCheckResult(
-            errorMessage: 'Location permission is required to mark attendance. Please allow location access in the prompt.',
+            errorMessage: 'Location permission was denied. Please allow location access to verify attendance.',
+            requiresAppSettings: false,
           );
         }
       }
 
       if (permission == LocationPermission.deniedForever) {
         return const LocationCheckResult(
-          errorMessage: 'Location permission is permanently denied. Please enable location permissions in App Settings to proceed.',
+          errorMessage: 'Location permission is permanently denied. Please allow location in App Settings to proceed.',
           requiresAppSettings: true,
         );
       }
