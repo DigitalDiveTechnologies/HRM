@@ -120,53 +120,53 @@ class LocationService {
         );
       }
 
-      // 3. Resilient position acquisition:
-      // A. Try high accuracy (satellite / fused, 6s timeout)
+      // 3. Resilient position acquisition (each tier has a hard timeout so the
+      //    punch can never hang on "Acquiring GPS location…").
+      final isAndroid = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
       Position? position;
-      try {
-        position = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            timeLimit: Duration(seconds: 6),
-          ),
-        );
-      } catch (e) {
-        debugPrint('[LocationService] High accuracy position timed out or failed: $e');
-      }
 
-      // B. If high accuracy timed out (e.g. indoors/weak GPS), try medium/balanced accuracy (5s timeout)
-      if (position == null) {
+      Future<Position?> attempt(LocationSettings settings, int seconds, String label) async {
         try {
-          position = await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(
-              accuracy: LocationAccuracy.medium,
-              timeLimit: Duration(seconds: 5),
-            ),
-          );
+          return await Geolocator.getCurrentPosition(locationSettings: settings)
+              .timeout(Duration(seconds: seconds + 2));
         } catch (e) {
-          debugPrint('[LocationService] Medium accuracy position failed: $e');
+          debugPrint('[LocationService] $label failed: $e');
+          return null;
         }
       }
 
-      // C. If still null, fallback to last known cached position
+      LocationSettings settingsFor(LocationAccuracy accuracy, int seconds, {bool forceManager = false}) {
+        if (isAndroid) {
+          return AndroidSettings(
+            accuracy: accuracy,
+            timeLimit: Duration(seconds: seconds),
+            forceLocationManager: forceManager,
+          );
+        }
+        return LocationSettings(accuracy: accuracy, timeLimit: Duration(seconds: seconds));
+      }
+
+      // A. High accuracy (fused provider)
+      position = await attempt(settingsFor(LocationAccuracy.high, 8), 8, 'High accuracy');
+
+      // B. Android: native LocationManager (works without Google Play Services)
+      if (position == null && isAndroid) {
+        position = await attempt(
+          settingsFor(LocationAccuracy.high, 8, forceManager: true), 8, 'LocationManager');
+      }
+
+      // C. Medium / network accuracy
+      position ??= await attempt(settingsFor(LocationAccuracy.medium, 6), 6, 'Medium accuracy');
+
+      // D. Last known cached position
       if (position == null) {
         try {
-          position = await Geolocator.getLastKnownPosition();
+          position = await Geolocator.getLastKnownPosition(forceAndroidLocationManager: isAndroid)
+              .timeout(const Duration(seconds: 3));
+          position ??= await Geolocator.getLastKnownPosition().timeout(const Duration(seconds: 3));
         } catch (e) {
           debugPrint('[LocationService] Last known position failed: $e');
         }
-      }
-
-      // D. Final attempt: lowest accuracy for any coarse fix
-      if (position == null) {
-        try {
-          position = await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(
-              accuracy: LocationAccuracy.low,
-              timeLimit: Duration(seconds: 4),
-            ),
-          );
-        } catch (_) {}
       }
 
       if (position == null) {

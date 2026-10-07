@@ -38,6 +38,23 @@ public sealed class AttendanceController : ControllerBase
         if (string.IsNullOrWhiteSpace(body.WorkDate))
             return BadRequest(new { error = "workDate required" });
 
+        if (CurrentUser.IsEmployee(User))
+        {
+            var isCheckOut = !string.IsNullOrWhiteSpace(body.CheckOut);
+            var lat = isCheckOut ? (body.CheckOutLatitude ?? body.Latitude) : (body.CheckInLatitude ?? body.Latitude);
+            var lng = isCheckOut ? (body.CheckOutLongitude ?? body.Longitude) : (body.CheckInLongitude ?? body.Longitude);
+            if (lat is null || lng is null)
+                return BadRequest(new { error = "GPS location is required to mark attendance." });
+
+            var (hasCheckIn, hasCheckOut) = await _hr.AttendanceDayStateAsync(employeeId, body.WorkDate, ct);
+            if (!isCheckOut && hasCheckIn)
+                return Conflict(new { error = "You have already checked in today." });
+            if (isCheckOut && !hasCheckIn)
+                return Conflict(new { error = "Please check in before checking out." });
+            if (isCheckOut && hasCheckOut)
+                return Conflict(new { error = "You have already checked out today." });
+        }
+
         var row = await _hr.CreateAttendanceAsync(
             employeeId, body.WorkDate, body.CheckIn, body.CheckOut, body.Status,
             body.OvertimeHours, body.ShiftName,

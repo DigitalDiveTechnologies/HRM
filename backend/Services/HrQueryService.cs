@@ -1929,6 +1929,25 @@ public sealed class HrQueryService
             : await QueryConnAsync(sql, ct);
     }
 
+    /// Whether the employee already has a check-in / check-out recorded for the work day.
+    public async Task<(bool HasCheckIn, bool HasCheckOut)> AttendanceDayStateAsync(
+        int employeeId, string workDate, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            SELECT COALESCE(bool_or(check_in IS NOT NULL), FALSE),
+                   COALESCE(bool_or(check_out IS NOT NULL), FALSE)
+            FROM attendance
+            WHERE employee_id = @eid AND work_date = @wd::date
+            """, conn);
+        cmd.Parameters.AddWithValue("eid", employeeId);
+        cmd.Parameters.AddWithValue("wd", workDate);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct)) return (false, false);
+        return (reader.GetBoolean(0), reader.GetBoolean(1));
+    }
+
     public async Task<Dictionary<string, object?>> CreateAttendanceAsync(
         int employeeId, string workDate, string? checkIn, string? checkOut, string? status,
         decimal overtime, string? shiftName,

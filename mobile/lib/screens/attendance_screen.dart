@@ -114,20 +114,36 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     return '$h:$m';
   }
 
-  /// Today's check-in from list (if any), for pairing with check-out.
-  String? _todayCheckIn() {
+  /// Extracts "HH:mm" from API values like "2026-10-07T07:40:00" or "07:40:00".
+  String _hm(dynamic value) {
+    if (value == null) return '-';
+    var s = value.toString().trim();
+    if (s.isEmpty || s == '-') return '-';
+    final t = s.indexOf('T');
+    if (t >= 0) s = s.substring(t + 1);
+    final sp = s.indexOf(' ');
+    if (sp >= 0 && s.length > sp + 1 && s.contains('-')) s = s.substring(sp + 1);
+    return s.length >= 5 ? s.substring(0, 5) : s;
+  }
+
+  /// Today's attendance row (if any).
+  Map<String, dynamic>? _todayRow() {
+    final today = todayIso();
     for (final raw in rows) {
       final r = Map<String, dynamic>.from(raw as Map);
-      final date = formatDate(r['workDate'] ?? r['work_date']);
-      if (date == workDate || date == todayIso()) {
-        final cin = pick(r, ['checkIn', 'check_in'], '');
-        if (cin.isNotEmpty && cin != '-') {
-          return cin.length >= 5 ? cin.substring(0, 5) : cin;
-        }
-      }
+      if (formatDate(r['workDate'] ?? r['work_date']) == today) return r;
     }
     return null;
   }
+
+  bool _has(Map<String, dynamic>? r, List<String> keys) {
+    if (r == null) return false;
+    final v = pick(r, keys, '');
+    return v.isNotEmpty && v != '-';
+  }
+
+  bool get _checkedInToday => _has(_todayRow(), ['checkIn', 'check_in']);
+  bool get _checkedOutToday => _has(_todayRow(), ['checkOut', 'check_out']);
 
   Future<void> _punch({required bool isCheckIn}) async {
     final user = context.read<AppState>().user!;
@@ -136,35 +152,25 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       return;
     }
 
+    if (isCheckIn && _checkedInToday) {
+      setState(() => error = 'You have already checked in today.');
+      return;
+    }
+    if (!isCheckIn && (!_checkedInToday || _checkedOutToday)) {
+      setState(() => error = _checkedOutToday
+          ? 'You have already checked out today.'
+          : 'Please check in before checking out.');
+      return;
+    }
+
     setState(() {
       punching = true;
-      punchStep = 'Verifying $biometricLabel…';
+      punchStep = 'Acquiring GPS location…';
       msg = null;
       error = null;
     });
 
-    // 1. Biometric verification: Face ID on iPhone, Fingerprint on Android
-    final ok = await _biometric.authenticateForAttendance(
-      context: context,
-      useMockWhenUnavailable: mockFingerprint,
-    );
-
-    if (!mounted) return;
-
-    if (!ok) {
-      setState(() {
-        punching = false;
-        punchStep = null;
-        error = '$biometricLabel verification failed or was cancelled.';
-      });
-      return;
-    }
-
-    // 2. Strict Location Requirement: Location MUST be ON and GRANTED
-    setState(() {
-      punchStep = 'Acquiring GPS location…';
-    });
-
+    // 1. Strict Location Requirement: Location MUST be ON and GRANTED
     final locResult = await _locationService.requireLocation(
       allowMockOnDesktop: mockFingerprint,
     );
@@ -214,15 +220,33 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }
 
     final loc = locResult.location!;
+    if (!mounted) return;
     setState(() {
       liveLocationCoords = '${loc.latitude.toStringAsFixed(4)}, ${loc.longitude.toStringAsFixed(4)}';
-      punchStep = 'Submitting to server…';
+      punchStep = 'Location captured · Verifying $biometricLabel…';
     });
+
+    // 2. Biometric verification: Face ID on iPhone, Fingerprint on Android
+    final ok = await _biometric.authenticateForAttendance(
+      context: context,
+      useMockWhenUnavailable: mockFingerprint,
+    );
+    if (!mounted) return;
+    if (!ok) {
+      setState(() {
+        punching = false;
+        punchStep = null;
+        error = '$biometricLabel verification failed or was cancelled.';
+      });
+      return;
+    }
+
+    setState(() => punchStep = 'Submitting to server…');
 
     final now = _nowHm();
     final body = <String, dynamic>{
       'employeeId': user.employeeId,
-      'workDate': workDate.isEmpty ? todayIso() : workDate,
+      'workDate': todayIso(),
       'status': status,
       'overtimeHours': 0,
       'latitude': loc.latitude,
@@ -235,7 +259,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       body['checkInLatitude'] = loc.latitude;
       body['checkInLongitude'] = loc.longitude;
     } else {
-      body['checkIn'] = _todayCheckIn() ?? checkInFallback();
+      // Server keeps the existing check-in time for today's row.
+      body['checkIn'] = null;
       body['checkOut'] = now;
       body['checkOutLatitude'] = loc.latitude;
       body['checkOutLongitude'] = loc.longitude;
@@ -257,6 +282,36 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         punchStep = null;
       });
       await _load();
+      if (!mounted) return;
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: AppColors.ok),
+              const SizedBox(width: 8),
+              Expanded(child: Text(isCheckIn ? 'Checked in' : 'Checked out')),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Time: $now', style: const TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              Text('$biometricLabel: verified'),
+              const SizedBox(height: 8),
+              const Text('Location recorded:', style: TextStyle(fontWeight: FontWeight.w700)),
+              Text('Latitude: ${loc.latitude.toStringAsFixed(6)}'),
+              Text('Longitude: ${loc.longitude.toStringAsFixed(6)}'),
+            ],
+          ),
+          actions: [
+            FilledButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK')),
+          ],
+        ),
+      );
+
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -355,7 +410,91 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     );
   }
 
-  String checkInFallback() => '09:00';
+  /// Today's check-in / check-out times.
+  Widget _todaySummary(BuildContext context) {
+    final r = _todayRow();
+    final cin = r == null ? '-' : _hm(r['checkIn'] ?? r['check_in']);
+    final cout = r == null ? '-' : _hm(r['checkOut'] ?? r['check_out']);
+    Widget cell(String label, String value, IconData icon, Color color) => Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: color.withValues(alpha: 0.2)),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, size: 18, color: color),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, style: TextStyle(fontSize: 11, color: T.muted(context))),
+                    Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Today · ${todayIso()}', style: const TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            cell('Check-In', cin, Icons.login_rounded, AppColors.ok),
+            const SizedBox(width: 10),
+            cell('Check-Out', cout, Icons.logout_rounded, AppColors.warn),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Shows only the next allowed action for today.
+  Widget _punchAction() {
+    if (loading && rows.isEmpty) {
+      return const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator()));
+    }
+    if (_checkedInToday && _checkedOutToday) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.ok.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.verified_rounded, color: AppColors.ok),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Attendance completed for today. See you tomorrow!',
+                style: TextStyle(color: AppColors.ok, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    final isCheckIn = !_checkedInToday;
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: punching ? null : () => _punch(isCheckIn: isCheckIn),
+        icon: Icon(isCheckIn ? Icons.login_rounded : Icons.logout_rounded),
+        label: Text(punching ? 'Please wait…' : (isCheckIn ? 'Check-In' : 'Check-Out')),
+        style: FilledButton.styleFrom(
+          minimumSize: const Size.fromHeight(52),
+          backgroundColor: isCheckIn ? AppColors.accent : AppColors.warn,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -474,21 +613,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       ],
                     ),
 
-                  TextFormField(
-                    initialValue: workDate,
-                    decoration: const InputDecoration(labelText: 'Date', prefixIcon: Icon(Icons.calendar_today_outlined)),
-                    onChanged: (v) => workDate = v,
-                  ),
-                  DropdownButtonFormField<String>(
-                    initialValue: status,
-                    decoration: const InputDecoration(labelText: 'Status'),
-                    items: const [
-                      DropdownMenuItem(value: 'present', child: Text('Present')),
-                      DropdownMenuItem(value: 'late', child: Text('Late')),
-                      DropdownMenuItem(value: 'leave', child: Text('Leave')),
-                    ],
-                    onChanged: (v) => setState(() => status = v ?? 'present'),
-                  ),
+                  _todaySummary(context),
                   if (!checkingHardware && !hardwareAvailable)
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
@@ -506,30 +631,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       '$biometricLabel sensor ready',
                       style: const TextStyle(color: AppColors.ok, fontSize: 12.5, fontWeight: FontWeight.w600),
                     ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: punching ? null : () => _punch(isCheckIn: true),
-                          icon: const Icon(Icons.login_rounded),
-                          label: Text(punching ? '…' : 'Check-In'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: punching ? null : () => _punch(isCheckIn: false),
-                          icon: const Icon(Icons.logout_rounded),
-                          label: Text(punching ? '…' : 'Check-Out'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.accent,
-                            side: const BorderSide(color: AppColors.accent),
-                            minimumSize: const Size.fromHeight(48),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                  _punchAction(),
                 ],
               ),
             ),
@@ -574,7 +676,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                           Text(formatDate(r['workDate'] ?? r['work_date']), style: const TextStyle(fontWeight: FontWeight.w800)),
                           const SizedBox(height: 3),
                           Text(
-                            '${cin.length >= 5 ? cin.substring(0, 5) : cin} → ${cout.length >= 5 ? cout.substring(0, 5) : cout} · Late ${formatLate(r['lateMinutes'] ?? r['late_minutes'])}',
+                            '${_hm(cin)} → ${_hm(cout)} · Late ${formatLate(r['lateMinutes'] ?? r['late_minutes'])}',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                           if (hasLocation)
