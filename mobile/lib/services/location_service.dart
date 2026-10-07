@@ -38,6 +38,46 @@ class LocationCheckResult {
 
 /// Service to strictly enforce device GPS location during check-in / check-out.
 class LocationService {
+  /// Probes current location status without blocking (for UI indicator badges)
+  Future<LocationCheckResult> probeLocationStatus({bool allowMockOnDesktop = false}) async {
+    if (allowMockOnDesktop &&
+        (kIsWeb || defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.macOS)) {
+      return const LocationCheckResult(
+        location: AttendanceLocation(latitude: 25.204849, longitude: 55.270783),
+      );
+    }
+
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        return const LocationCheckResult(
+          errorMessage: 'Location service is disabled',
+          requiresLocationSettings: true,
+        );
+      }
+
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+        return LocationCheckResult(
+          errorMessage: 'Location permission not granted',
+          requiresAppSettings: permission == LocationPermission.deniedForever,
+        );
+      }
+
+      // Check last known position for instant preview
+      final last = await Geolocator.getLastKnownPosition();
+      if (last != null) {
+        return LocationCheckResult(
+          location: AttendanceLocation(latitude: last.latitude, longitude: last.longitude),
+        );
+      }
+
+      return const LocationCheckResult(errorMessage: 'Ready to acquire location');
+    } catch (_) {
+      return const LocationCheckResult(errorMessage: 'Unable to check location status');
+    }
+  }
+
   /// Strictly requires that location services are ON and permission is GRANTED.
   /// If location is off or permission is not granted, returns a failure result
   /// indicating the exact issue and whether settings need to be opened.
@@ -68,7 +108,7 @@ class LocationService {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
           return const LocationCheckResult(
-            errorMessage: 'Location permission is required to mark attendance. Please allow location access.',
+            errorMessage: 'Location permission is required to mark attendance. Please allow location access in the prompt.',
           );
         }
       }
@@ -80,13 +120,60 @@ class LocationService {
         );
       }
 
-      // 3. Acquire high-accuracy GPS coordinates
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 15),
-        ),
-      );
+      // 3. Resilient position acquisition:
+      // A. Try high accuracy (satellite / fused, 6s timeout)
+      Position? position;
+      try {
+        position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 6),
+          ),
+        );
+      } catch (e) {
+        debugPrint('[LocationService] High accuracy position timed out or failed: $e');
+      }
+
+      // B. If high accuracy timed out (e.g. indoors/weak GPS), try medium/balanced accuracy (5s timeout)
+      if (position == null) {
+        try {
+          position = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.medium,
+              timeLimit: Duration(seconds: 5),
+            ),
+          );
+        } catch (e) {
+          debugPrint('[LocationService] Medium accuracy position failed: $e');
+        }
+      }
+
+      // C. If still null, fallback to last known cached position
+      if (position == null) {
+        try {
+          position = await Geolocator.getLastKnownPosition();
+        } catch (e) {
+          debugPrint('[LocationService] Last known position failed: $e');
+        }
+      }
+
+      // D. Final attempt: lowest accuracy for any coarse fix
+      if (position == null) {
+        try {
+          position = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.low,
+              timeLimit: Duration(seconds: 4),
+            ),
+          );
+        } catch (_) {}
+      }
+
+      if (position == null) {
+        return const LocationCheckResult(
+          errorMessage: 'Unable to acquire GPS location. Please check your signal and ensure location is enabled.',
+        );
+      }
 
       return LocationCheckResult(
         location: AttendanceLocation(
@@ -97,7 +184,7 @@ class LocationService {
     } catch (e) {
       debugPrint('[LocationService] Failed to acquire GPS position: $e');
       return LocationCheckResult(
-        errorMessage: 'Unable to acquire GPS location. Please check your signal and ensure location is enabled.',
+        errorMessage: 'Location error: $e. Please verify location is enabled in settings.',
       );
     }
   }

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 
 /// Biometric gate for attendance punches:
-/// - Android: Fingerprint verification
+/// - Android: Fingerprint verification (with screen lock fallback if needed)
 /// - iPhone (iOS): Face ID verification
 /// On web / desktop without a sensor, [useMockWhenUnavailable] simulates success.
 class BiometricAuthService {
@@ -11,16 +11,16 @@ class BiometricAuthService {
 
   final LocalAuthentication _auth;
 
-  /// True when device reports biometric hardware we can use.
+  /// True when device reports biometric hardware or security support.
   Future<bool> get hasHardware async {
     try {
       if (kIsWeb) return false;
       final supported = await _auth.isDeviceSupported();
       if (!supported) return false;
       final canCheck = await _auth.canCheckBiometrics;
-      if (!canCheck) return false;
+      if (!canCheck) return supported;
       final types = await _auth.getAvailableBiometrics();
-      return types.isNotEmpty;
+      return types.isNotEmpty || supported;
     } catch (_) {
       return false;
     }
@@ -41,6 +41,17 @@ class BiometricAuthService {
 
     if (!hardware) {
       if (!useMockWhenUnavailable) {
+        // Check if device supports standard lock / credential
+        try {
+          final supported = await _auth.isDeviceSupported();
+          if (supported) {
+            return await _auth.authenticate(
+              localizedReason: 'Verify your device security to mark attendance',
+              biometricOnly: false,
+              persistAcrossBackgrounding: true,
+            );
+          }
+        } catch (_) {}
         return false;
       }
       if (!context.mounted) return false;
@@ -54,10 +65,14 @@ class BiometricAuthService {
 
       return await _auth.authenticate(
         localizedReason: reason,
-        biometricOnly: true,
+        biometricOnly: false,
         persistAcrossBackgrounding: true,
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[BiometricAuthService] Authentication error: $e');
+      if (useMockWhenUnavailable && context.mounted) {
+        return _mockAuthenticate(context);
+      }
       return false;
     }
   }
