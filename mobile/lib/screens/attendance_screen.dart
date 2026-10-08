@@ -388,11 +388,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
             body: body,
           );
       if (!mounted) return;
-      final locText = ' (GPS: ${loc.latitude.toStringAsFixed(4)}, ${loc.longitude.toStringAsFixed(4)})';
       setState(() {
         msg = isCheckIn
-            ? 'Check-in recorded at $now ($biometricLabel verified$locText).'
-            : 'Check-out recorded at $now ($biometricLabel verified$locText).';
+            ? 'Check-in recorded at $now ($biometricLabel & GPS verified).'
+            : 'Check-out recorded at $now ($biometricLabel & GPS verified).';
         punching = false;
         punchStep = null;
       });
@@ -416,9 +415,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
               const SizedBox(height: 8),
               Text('$biometricLabel: verified'),
               const SizedBox(height: 8),
-              const Text('Location recorded:', style: TextStyle(fontWeight: FontWeight.w700)),
-              Text('Latitude: ${loc.latitude.toStringAsFixed(6)}'),
-              Text('Longitude: ${loc.longitude.toStringAsFixed(6)}'),
+              const Text('GPS location: verified'),
             ],
           ),
           actions: [
@@ -721,36 +718,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
                           ),
                         ],
                       ),
-                    )
-                  else
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: AppColors.ok.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.ok.withValues(alpha: 0.25)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.my_location_rounded, color: AppColors.ok, size: 16),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              liveLocationCoords != null
-                                  ? 'GPS Ready ($liveLocationCoords)'
-                                  : 'GPS Ready & Active',
-                              style: const TextStyle(color: AppColors.ok, fontSize: 12, fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.refresh_rounded, size: 16, color: AppColors.ok),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            tooltip: 'Refresh location',
-                            onPressed: () => _probeLocation(requestPermission: true),
-                          ),
-                        ],
-                      ),
                     ),
 
                   if (error != null) Text(error!, style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600)),
@@ -831,23 +798,18 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                           if (hasLocation)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 3),
+                            const Padding(
+                              padding: EdgeInsets.only(top: 3),
                               child: Row(
                                 children: [
-                                  const Icon(Icons.location_on_rounded, size: 13, color: AppColors.accent),
-                                  const SizedBox(width: 3),
-                                  Expanded(
-                                    child: Text(
-                                      'GPS: ${inLat.toString().length > 7 ? inLat.toString().substring(0, 7) : inLat}, ${inLng.toString().length > 7 ? inLng.toString().substring(0, 7) : inLng}' +
-                                          (outLat != null ? ' · Out: ${outLat.toString().length > 7 ? outLat.toString().substring(0, 7) : outLat}' : ''),
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: AppColors.accent,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                                  Icon(Icons.location_on_rounded, size: 13, color: AppColors.accent),
+                                  SizedBox(width: 3),
+                                  Text(
+                                    'GPS Verified',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.accent,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                 ],

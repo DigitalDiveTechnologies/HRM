@@ -531,37 +531,6 @@ class _EssScreenState extends State<EssScreen> with WidgetsBindingObserver {
                             ),
                           ],
                         ),
-                      )
-                    else
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        margin: const EdgeInsets.only(bottom: 8),
-                        decoration: BoxDecoration(
-                          color: AppColors.ok.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.ok.withValues(alpha: 0.25)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.my_location_rounded, color: AppColors.ok, size: 16),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                liveLocationCoords != null
-                                    ? 'GPS Ready ($liveLocationCoords)'
-                                    : 'GPS Ready & Active',
-                                style: const TextStyle(color: AppColors.ok, fontSize: 12, fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.refresh_rounded, size: 16, color: AppColors.ok),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              tooltip: 'Refresh location',
-                              onPressed: () => _probeLocation(requestPermission: true),
-                            ),
-                          ],
-                        ),
                       ),
 
                     if (punchStep != null)
