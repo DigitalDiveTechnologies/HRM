@@ -38,8 +38,29 @@ class LocationCheckResult {
 
 /// Service to strictly enforce device GPS location during check-in / check-out.
 class LocationService {
-  /// Probes current location status without blocking (for UI indicator badges)
-  Future<LocationCheckResult> probeLocationStatus({bool allowMockOnDesktop = false}) async {
+  /// Proactively requests location permission if it hasn't been requested yet.
+  Future<LocationPermission> requestPermissionIfNeeded() async {
+    if (kIsWeb || defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.macOS) {
+      return LocationPermission.always;
+    }
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      return permission;
+    } catch (e) {
+      debugPrint('[LocationService] requestPermissionIfNeeded error: $e');
+      return LocationPermission.denied;
+    }
+  }
+
+  /// Probes current location status (for UI indicator badges).
+  /// If [requestPermission] is true and permission is currently denied, triggers the system permission dialog.
+  Future<LocationCheckResult> probeLocationStatus({
+    bool allowMockOnDesktop = false,
+    bool requestPermission = false,
+  }) async {
     if (allowMockOnDesktop &&
         (kIsWeb || defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.macOS)) {
       return const LocationCheckResult(
@@ -48,6 +69,20 @@ class LocationService {
     }
 
     try {
+      // 1. Check & optionally request permission
+      var permission = await Geolocator.checkPermission();
+      if (requestPermission && permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+        return LocationCheckResult(
+          errorMessage: 'Location permission not granted',
+          requiresAppSettings: permission == LocationPermission.deniedForever,
+        );
+      }
+
+      // 2. Check device GPS service
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         return const LocationCheckResult(
@@ -56,25 +91,28 @@ class LocationService {
         );
       }
 
-      final permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-        return LocationCheckResult(
-          errorMessage: 'Location permission not granted',
-          requiresAppSettings: permission == LocationPermission.deniedForever,
-        );
-      }
-
-      // Check last known position for instant preview
+      // 3. Check last known position for instant preview
       final isAndroid = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
-      Position? last;
+      Position? pos;
       try {
-        last = await Geolocator.getLastKnownPosition(forceAndroidLocationManager: isAndroid);
-        last ??= await Geolocator.getLastKnownPosition();
+        pos = await Geolocator.getLastKnownPosition(forceAndroidLocationManager: isAndroid);
+        pos ??= await Geolocator.getLastKnownPosition();
       } catch (_) {}
 
-      if (last != null) {
+      // If no cached position, try quick low-latency position (4s)
+      if (pos == null) {
+        try {
+          pos = await Geolocator.getCurrentPosition(
+            locationSettings: isAndroid
+                ? AndroidSettings(accuracy: LocationAccuracy.medium, timeLimit: const Duration(seconds: 4))
+                : const LocationSettings(accuracy: LocationAccuracy.medium, timeLimit: Duration(seconds: 4)),
+          ).timeout(const Duration(seconds: 5));
+        } catch (_) {}
+      }
+
+      if (pos != null) {
         return LocationCheckResult(
-          location: AttendanceLocation(latitude: last.latitude, longitude: last.longitude),
+          location: AttendanceLocation(latitude: pos.latitude, longitude: pos.longitude),
         );
       }
 
@@ -99,16 +137,7 @@ class LocationService {
     }
 
     try {
-      // 1. Check if device location services (GPS) are turned ON
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        return const LocationCheckResult(
-          errorMessage: 'Device GPS / Location is turned OFF. Please turn on location services on your phone to mark attendance.',
-          requiresLocationSettings: true,
-        );
-      }
-
-      // 2. Check and request permission
+      // 1. Check and request permission FIRST!
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         // Explicitly trigger the system runtime permission dialog
@@ -123,8 +152,17 @@ class LocationService {
 
       if (permission == LocationPermission.deniedForever) {
         return const LocationCheckResult(
-          errorMessage: 'Location permission is permanently denied. Please allow location in App Settings to proceed.',
+          errorMessage: 'Location permission is permanently denied in settings. Please allow location in App Settings to proceed.',
           requiresAppSettings: true,
+        );
+      }
+
+      // 2. Check if device location services (GPS) are turned ON
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        return const LocationCheckResult(
+          errorMessage: 'Device GPS / Location is turned OFF. Please turn on location services on your phone to mark attendance.',
+          requiresLocationSettings: true,
         );
       }
 
@@ -154,17 +192,17 @@ class LocationService {
         return LocationSettings(accuracy: accuracy, timeLimit: Duration(seconds: seconds));
       }
 
-      // A. High accuracy (fused provider)
-      position = await attempt(settingsFor(LocationAccuracy.high, 8), 8, 'High accuracy');
+      // A. High accuracy (fused provider, 7s)
+      position = await attempt(settingsFor(LocationAccuracy.high, 7), 7, 'High accuracy');
 
-      // B. Android: native LocationManager (works without Google Play Services)
+      // B. Medium / network accuracy (works fast indoors, 5s)
+      position ??= await attempt(settingsFor(LocationAccuracy.medium, 5), 5, 'Medium accuracy');
+
+      // C. Android: native LocationManager
       if (position == null && isAndroid) {
         position = await attempt(
-          settingsFor(LocationAccuracy.high, 8, forceManager: true), 8, 'LocationManager');
+          settingsFor(LocationAccuracy.high, 6, forceManager: true), 6, 'LocationManager');
       }
-
-      // C. Medium / network accuracy
-      position ??= await attempt(settingsFor(LocationAccuracy.medium, 6), 6, 'Medium accuracy');
 
       // D. Last known cached position
       if (position == null) {

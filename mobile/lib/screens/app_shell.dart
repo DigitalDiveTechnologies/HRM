@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../l10n/l10n.dart';
 import '../nav/app_nav.dart';
+import '../services/location_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/ui_kit.dart';
@@ -56,6 +57,7 @@ class _AppShellState extends State<AppShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<AppState>().refreshAlertBadges();
+      LocationService().requestPermissionIfNeeded();
     });
   }
 

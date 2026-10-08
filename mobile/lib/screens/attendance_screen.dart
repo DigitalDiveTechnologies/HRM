@@ -17,7 +17,7 @@ class AttendanceScreen extends StatefulWidget {
   State<AttendanceScreen> createState() => _AttendanceScreenState();
 }
 
-class _AttendanceScreenState extends State<AttendanceScreen> {
+class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBindingObserver {
   final _biometric = BiometricAuthService();
   final _locationService = LocationService();
 
@@ -38,6 +38,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   // Live Location status
   bool locationServiceEnabled = true;
   bool locationPermissionGranted = true;
+  bool locationPermissionPermanentlyDenied = false;
   String? liveLocationCoords;
 
   bool get isIOS => defaultTargetPlatform == TargetPlatform.iOS;
@@ -47,9 +48,24 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
     _probeHardware();
-    _probeLocation();
+    _initLocationFlow();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Re-probe location when returning from phone settings or quick settings
+      _probeLocation(requestPermission: false);
+    }
   }
 
   Future<void> _probeHardware() async {
@@ -62,13 +78,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     });
   }
 
-  Future<void> _probeLocation() async {
+  Future<void> _initLocationFlow() async {
+    // Proactively request permission when opening Attendance screen
+    await _probeLocation(requestPermission: true);
+  }
+
+  Future<void> _probeLocation({bool requestPermission = false}) async {
     final status = await _locationService.probeLocationStatus(
       allowMockOnDesktop: mockFingerprint,
+      requestPermission: requestPermission,
     );
     if (!mounted) return;
     setState(() {
       locationServiceEnabled = !status.requiresLocationSettings;
+      locationPermissionPermanentlyDenied = status.requiresAppSettings;
       locationPermissionGranted = !status.requiresAppSettings && status.errorMessage != 'Location permission not granted';
       if (status.location != null) {
         liveLocationCoords = '${status.location!.latitude.toStringAsFixed(4)}, ${status.location!.longitude.toStringAsFixed(4)}';
@@ -218,11 +241,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   Navigator.of(ctx).pop();
                   if (isGpsOff) {
                     _locationService.openAppropriateSettings(isAppSettings: false);
-                  } else {
+                  } else if (isAppSettings) {
                     _locationService.openAppropriateSettings(isAppSettings: true);
+                  } else {
+                    _probeLocation(requestPermission: true);
                   }
                 },
-                child: Text(isGpsOff ? 'Open Location Settings' : 'Open App Settings'),
+                child: Text(isGpsOff
+                    ? 'Open Location Settings'
+                    : (isAppSettings ? 'Open App Settings' : 'Grant Permission')),
               ),
             ],
           ),
@@ -557,7 +584,41 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   ),
 
                   // Live GPS Status Pill
-                  if (!locationServiceEnabled)
+                  if (!locationPermissionGranted)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.warn.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.warn.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.lock_outline_rounded, color: AppColors.warn, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              locationPermissionPermanentlyDenied
+                                  ? 'Location Denied in App Settings'
+                                  : 'Location Permission Needed',
+                              style: const TextStyle(color: AppColors.warn, fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              if (locationPermissionPermanentlyDenied) {
+                                await _locationService.openAppropriateSettings(isAppSettings: true);
+                              } else {
+                                await _probeLocation(requestPermission: true);
+                              }
+                            },
+                            style: TextButton.styleFrom(padding: EdgeInsets.zero, visualDensity: VisualDensity.compact),
+                            child: Text(locationPermissionPermanentlyDenied ? 'Open Settings' : 'Grant Access'),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (!locationServiceEnabled)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
@@ -578,40 +639,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                           TextButton(
                             onPressed: () async {
                               await _locationService.openAppropriateSettings(isAppSettings: false);
-                              await Future.delayed(const Duration(seconds: 1));
-                              await _probeLocation();
                             },
                             style: TextButton.styleFrom(padding: EdgeInsets.zero, visualDensity: VisualDensity.compact),
                             child: const Text('Turn ON'),
-                          ),
-                        ],
-                      ),
-                    )
-                  else if (!locationPermissionGranted)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: AppColors.warn.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.warn.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.lock_outline_rounded, color: AppColors.warn, size: 18),
-                          const SizedBox(width: 8),
-                          const Expanded(
-                            child: Text(
-                              'Location Permission Needed',
-                              style: TextStyle(color: AppColors.warn, fontSize: 12, fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () async {
-                              await _locationService.requireLocation(allowMockOnDesktop: mockFingerprint);
-                              await _probeLocation();
-                            },
-                            style: TextButton.styleFrom(padding: EdgeInsets.zero, visualDensity: VisualDensity.compact),
-                            child: const Text('Grant Access'),
                           ),
                         ],
                       ),
@@ -641,7 +671,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                             tooltip: 'Refresh location',
-                            onPressed: _probeLocation,
+                            onPressed: () => _probeLocation(requestPermission: true),
                           ),
                         ],
                       ),
