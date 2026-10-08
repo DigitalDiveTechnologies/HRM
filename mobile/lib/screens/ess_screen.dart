@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../brand.dart';
 import '../services/api_client.dart';
 import '../services/biometric_auth.dart';
+import '../services/location_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
@@ -20,11 +21,13 @@ class EssScreen extends StatefulWidget {
   State<EssScreen> createState() => _EssScreenState();
 }
 
-class _EssScreenState extends State<EssScreen> {
+class _EssScreenState extends State<EssScreen> with WidgetsBindingObserver {
   final _biometric = BiometricAuthService();
+  final _locationService = LocationService();
 
   bool loading = true;
   bool punching = false;
+  String? punchStep;
   String? error;
   String? punchMsg;
 
@@ -35,11 +38,128 @@ class _EssScreenState extends State<EssScreen> {
   bool mockFingerprint = kIsWeb || defaultTargetPlatform == TargetPlatform.windows;
   bool hardwareAvailable = false;
 
+  // Live Location status
+  bool locationServiceEnabled = true;
+  bool locationPermissionGranted = true;
+  bool locationPermissionPermanentlyDenied = false;
+  String? liveLocationCoords;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
     _probeHardware();
+    _initLocationFlow();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _probeLocation(requestPermission: false);
+    }
+  }
+
+  Future<void> _probeLocation({bool requestPermission = false}) async {
+    final status = await _locationService.probeLocationStatus(
+      allowMockOnDesktop: mockFingerprint,
+      requestPermission: requestPermission,
+    );
+    if (!mounted) return;
+    setState(() {
+      locationServiceEnabled = !status.requiresLocationSettings;
+      locationPermissionPermanentlyDenied = status.requiresAppSettings;
+      locationPermissionGranted = !status.requiresAppSettings && status.errorMessage != 'Location permission not granted';
+      if (status.location != null) {
+        liveLocationCoords = '${status.location!.latitude.toStringAsFixed(4)}, ${status.location!.longitude.toStringAsFixed(4)}';
+      }
+    });
+  }
+
+  Future<void> _initLocationFlow() async {
+    await _probeLocation(requestPermission: true);
+    if (!mounted) return;
+    if (locationPermissionPermanentlyDenied) {
+      await _showPermissionDialog(isAppSettings: true);
+    } else if (!locationServiceEnabled) {
+      await _showGpsOffDialog();
+    }
+  }
+
+  Future<void> _showPermissionDialog({required bool isAppSettings}) async {
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.lock_outline_rounded, color: AppColors.warn),
+            SizedBox(width: 8),
+            Expanded(child: Text('Location Permission Required')),
+          ],
+        ),
+        content: Text(
+          isAppSettings
+              ? 'Location permission was previously denied. Android requires you to enable Location in App Settings to mark attendance.\n\nTap "Open Settings" -> Permissions -> Location -> "Allow only while using the app".'
+              : 'Attendance tracking requires location permission to verify your attendance punch. Please allow location access.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              if (isAppSettings) {
+                _locationService.openAppropriateSettings(isAppSettings: true);
+              } else {
+                _probeLocation(requestPermission: true);
+              }
+            },
+            child: Text(isAppSettings ? 'Open Settings' : 'Grant Permission'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showGpsOffDialog() async {
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.location_off_rounded, color: AppColors.danger),
+            SizedBox(width: 8),
+            Expanded(child: Text('Turn On Location (GPS)')),
+          ],
+        ),
+        content: const Text(
+          'Device GPS / Location is turned OFF. Please turn on location services in device settings to verify your attendance punch.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _locationService.openAppropriateSettings(isAppSettings: false);
+            },
+            child: const Text('Turn ON GPS'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _probeHardware() async {
@@ -119,14 +239,116 @@ class _EssScreenState extends State<EssScreen> {
     return null;
   }
 
+  String? _todayCheckOut() {
+    final today = todayIso();
+    for (final raw in attendance) {
+      final r = Map<String, dynamic>.from(raw as Map);
+      final date = formatDate(r['workDate'] ?? r['work_date']);
+      if (date == today) {
+        final cout = pick(r, ['checkOut', 'check_out'], '');
+        if (cout.isNotEmpty && cout != '-') {
+          return cout.length >= 5 ? cout.substring(0, 5) : cout;
+        }
+      }
+    }
+    return null;
+  }
+
   Future<void> _punch({required bool isCheckIn}) async {
     final user = context.read<AppState>().user!;
-    if (user.employeeId == null) return;
+    if (user.employeeId == null) {
+      setState(() => error = 'No employee profile linked to this account.');
+      return;
+    }
+
+    final cin = _todayCheckIn();
+    final cout = _todayCheckOut();
+    if (isCheckIn && cin != null) {
+      setState(() => error = 'You have already checked in today.');
+      return;
+    }
+    if (!isCheckIn && (cin == null || cout != null)) {
+      setState(() => error = cout != null
+          ? 'You have already checked out today.'
+          : 'Please check in before checking out.');
+      return;
+    }
 
     setState(() {
       punching = true;
+      punchStep = 'Acquiring GPS location…';
       punchMsg = null;
       error = null;
+    });
+
+    final locResult = await _locationService.requireLocation(
+      allowMockOnDesktop: mockFingerprint,
+    );
+
+    if (!locResult.isSuccess || locResult.location == null) {
+      if (!mounted) return;
+      setState(() {
+        punching = false;
+        punchStep = null;
+        error = locResult.errorMessage ?? 'GPS location is required to mark attendance.';
+      });
+      await _probeLocation();
+
+      if (mounted) {
+        final bool isGpsOff = locResult.requiresLocationSettings;
+        final bool isAppSettings = locResult.requiresAppSettings;
+
+        await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Row(
+              children: [
+                Icon(
+                  isGpsOff ? Icons.location_off_rounded : Icons.lock_outline_rounded,
+                  color: AppColors.danger,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(isGpsOff ? 'Turn On Location (GPS)' : 'Location Permission Required'),
+                ),
+              ],
+            ),
+            content: Text(
+              locResult.errorMessage ??
+                  'Location services and permissions are required to verify your attendance punch.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  if (isGpsOff) {
+                    _locationService.openAppropriateSettings(isAppSettings: false);
+                  } else if (isAppSettings) {
+                    _locationService.openAppropriateSettings(isAppSettings: true);
+                  } else {
+                    _probeLocation(requestPermission: true);
+                  }
+                },
+                child: Text(isGpsOff
+                    ? 'Open Location Settings'
+                    : (isAppSettings ? 'Open App Settings' : 'Grant Permission')),
+              ),
+            ],
+          ),
+        );
+      }
+      return;
+    }
+
+    final loc = locResult.location!;
+    if (!mounted) return;
+    setState(() {
+      liveLocationCoords = '${loc.latitude.toStringAsFixed(4)}, ${loc.longitude.toStringAsFixed(4)}';
+      punchStep = 'Location captured · Verifying fingerprint…';
     });
 
     final ok = await _biometric.authenticateForAttendance(
@@ -137,10 +359,13 @@ class _EssScreenState extends State<EssScreen> {
     if (!ok) {
       setState(() {
         punching = false;
+        punchStep = null;
         error = 'Fingerprint verification failed';
       });
       return;
     }
+
+    setState(() => punchStep = 'Submitting to server…');
 
     final now = _nowHm();
     final body = <String, dynamic>{
@@ -148,9 +373,21 @@ class _EssScreenState extends State<EssScreen> {
       'workDate': todayIso(),
       'status': 'present',
       'overtimeHours': 0,
-      'checkIn': isCheckIn ? now : (_todayCheckIn() ?? '09:00'),
-      'checkOut': isCheckIn ? null : now,
+      'latitude': loc.latitude,
+      'longitude': loc.longitude,
     };
+
+    if (isCheckIn) {
+      body['checkIn'] = now;
+      body['checkOut'] = null;
+      body['checkInLatitude'] = loc.latitude;
+      body['checkInLongitude'] = loc.longitude;
+    } else {
+      body['checkIn'] = null;
+      body['checkOut'] = now;
+      body['checkOutLatitude'] = loc.latitude;
+      body['checkOutLongitude'] = loc.longitude;
+    }
 
     try {
       await context.read<AppState>().api.request('/attendance', method: 'POST', body: body);
@@ -158,6 +395,7 @@ class _EssScreenState extends State<EssScreen> {
       setState(() {
         punchMsg = isCheckIn ? 'Checked in at $now' : 'Checked out at $now';
         punching = false;
+        punchStep = null;
       });
       await _load();
       if (mounted) await context.read<AppState>().refreshTeamLead();
@@ -166,6 +404,14 @@ class _EssScreenState extends State<EssScreen> {
       setState(() {
         error = e.message;
         punching = false;
+        punchStep = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        error = e.toString();
+        punching = false;
+        punchStep = null;
       });
     }
   }
@@ -184,6 +430,7 @@ class _EssScreenState extends State<EssScreen> {
     final latestPay = latest == null ? null : money(latest['netPay'] ?? latest['net_pay']);
     final latestPeriod = latest == null ? null : pick(latest, ['periodLabel', 'period_label'], '-');
     final checkIn = _todayCheckIn();
+    final checkOut = _todayCheckOut();
 
     return RefreshIndicator(
       onRefresh: _load,
@@ -224,12 +471,113 @@ class _EssScreenState extends State<EssScreen> {
                     Text(
                       checkIn == null
                           ? 'Not checked in today · ${formatDate(todayIso())}'
-                          : 'Checked in at $checkIn · ${formatDate(todayIso())}',
+                          : (checkOut == null
+                              ? 'Checked in at $checkIn · ${formatDate(todayIso())}'
+                              : 'Checked in at $checkIn · Out at $checkOut · ${formatDate(todayIso())}'),
                       style: TextStyle(color: T.muted(context), fontSize: 13),
                     ),
+                    const SizedBox(height: 8),
+
+                    if (!locationServiceEnabled)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          color: AppColors.danger.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.location_off_rounded, color: AppColors.danger, size: 16),
+                            const SizedBox(width: 6),
+                            const Expanded(
+                              child: Text(
+                                'GPS is turned OFF on this phone',
+                                style: TextStyle(color: AppColors.danger, fontSize: 12, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            TextButton(
+                              style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
+                              onPressed: _showGpsOffDialog,
+                              child: const Text('Turn ON', style: TextStyle(fontSize: 12)),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (!locationPermissionGranted)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          color: AppColors.warn.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.warn.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.lock_outline_rounded, color: AppColors.warn, size: 16),
+                            const SizedBox(width: 6),
+                            const Expanded(
+                              child: Text(
+                                'Location permission required',
+                                style: TextStyle(color: AppColors.warn, fontSize: 12, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            TextButton(
+                              style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
+                              onPressed: () => _showPermissionDialog(isAppSettings: locationPermissionPermanentlyDenied),
+                              child: Text(locationPermissionPermanentlyDenied ? 'Settings' : 'Grant', style: const TextStyle(fontSize: 12)),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          color: AppColors.ok.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.ok.withValues(alpha: 0.25)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.my_location_rounded, color: AppColors.ok, size: 16),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                liveLocationCoords != null
+                                    ? 'GPS Ready ($liveLocationCoords)'
+                                    : 'GPS Ready & Active',
+                                style: const TextStyle(color: AppColors.ok, fontSize: 12, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.refresh_rounded, size: 16, color: AppColors.ok),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              tooltip: 'Refresh location',
+                              onPressed: () => _probeLocation(requestPermission: true),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    if (punchStep != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          children: [
+                            const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                            const SizedBox(width: 8),
+                            Text(punchStep!, style: const TextStyle(color: AppColors.accent, fontSize: 12.5, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
                     if (punchMsg != null)
                       Padding(
-                        padding: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.only(bottom: 8),
                         child: Text(punchMsg!, style: const TextStyle(color: AppColors.ok, fontWeight: FontWeight.w600)),
                       ),
                     if (!hardwareAvailable)
@@ -246,17 +594,17 @@ class _EssScreenState extends State<EssScreen> {
                       children: [
                         Expanded(
                           child: FilledButton.icon(
-                            onPressed: punching ? null : () => _punch(isCheckIn: true),
+                            onPressed: (punching || checkIn != null) ? null : () => _punch(isCheckIn: true),
                             icon: const Icon(Icons.login_rounded),
-                            label: Text(punching ? '…' : 'Check in'),
+                            label: Text(punching ? '…' : (checkIn != null ? 'Checked in' : 'Check in')),
                           ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: OutlinedButton.icon(
-                            onPressed: punching ? null : () => _punch(isCheckIn: false),
+                            onPressed: (punching || checkIn == null || checkOut != null) ? null : () => _punch(isCheckIn: false),
                             icon: const Icon(Icons.logout_rounded),
-                            label: const Text('Check out'),
+                            label: Text(checkOut != null ? 'Checked out' : 'Check out'),
                           ),
                         ),
                       ],

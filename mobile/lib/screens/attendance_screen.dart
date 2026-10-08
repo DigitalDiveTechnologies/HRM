@@ -81,6 +81,82 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
   Future<void> _initLocationFlow() async {
     // Proactively request permission when opening Attendance screen
     await _probeLocation(requestPermission: true);
+    if (!mounted) return;
+    if (locationPermissionPermanentlyDenied) {
+      await _showPermissionDialog(isAppSettings: true);
+    } else if (!locationServiceEnabled) {
+      await _showGpsOffDialog();
+    }
+  }
+
+  Future<void> _showPermissionDialog({required bool isAppSettings}) async {
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.lock_outline_rounded, color: AppColors.warn),
+            SizedBox(width: 8),
+            Expanded(child: Text('Location Permission Required')),
+          ],
+        ),
+        content: Text(
+          isAppSettings
+              ? 'Location permission was previously denied. Android requires you to enable Location in App Settings to mark attendance.\n\nTap "Open Settings" -> Permissions -> Location -> "Allow only while using the app".'
+              : 'Attendance tracking requires location permission to verify your attendance punch. Please allow location access.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              if (isAppSettings) {
+                _locationService.openAppropriateSettings(isAppSettings: true);
+              } else {
+                _probeLocation(requestPermission: true);
+              }
+            },
+            child: Text(isAppSettings ? 'Open Settings' : 'Grant Permission'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showGpsOffDialog() async {
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.location_off_rounded, color: AppColors.danger),
+            SizedBox(width: 8),
+            Expanded(child: Text('Turn On Location (GPS)')),
+          ],
+        ),
+        content: const Text(
+          'Device GPS / Location is turned OFF. Please turn on location services in device settings to verify your attendance punch.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _locationService.openAppropriateSettings(isAppSettings: false);
+            },
+            child: const Text('Turn ON GPS'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _probeLocation({bool requestPermission = false}) async {
