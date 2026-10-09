@@ -172,6 +172,10 @@ export function emptyMasterForm() {
     companyIds: [],
     finance: {
       basicSalary: '',
+      housingAllowance: '',
+      transportAllowance: '',
+      mobileAllowance: '',
+      otherAllowance: '',
       allowances: '',
       grossSalary: '',
       bankName: '',
@@ -343,7 +347,27 @@ export function masterFormFromEmployee(employee) {
           }]
         : [],
     companyIds: md.companyIds || (v(employee, 'divisionId', 'division_id') ? [String(v(employee, 'divisionId', 'division_id'))] : []),
-    finance: { ...base.finance, ...(md.finance || {}) },
+    finance: (() => {
+      const fin = md.finance || {};
+      const basic = cleanVal(fin.basicSalary ?? md.basicSalary ?? v(employee, 'basicSalary', 'basic_salary') ?? '');
+      const housing = cleanVal(fin.housingAllowance ?? md.housingAllowance ?? '');
+      const transport = cleanVal(fin.transportAllowance ?? md.transportAllowance ?? '');
+      const mobile = cleanVal(fin.mobileAllowance ?? md.mobileAllowance ?? '');
+      const other = cleanVal(fin.otherAllowance ?? md.otherAllowance ?? '');
+      const allow = cleanVal(fin.allowances ?? md.allowances ?? v(employee, 'allowances') ?? '');
+      const gross = cleanVal(fin.grossSalary ?? md.grossSalary ?? (basic ? String((Number(basic) || 0) + (Number(allow) || 0)) : ''));
+      return {
+        ...base.finance,
+        ...fin,
+        basicSalary: basic,
+        housingAllowance: housing,
+        transportAllowance: transport,
+        mobileAllowance: mobile,
+        otherAllowance: other,
+        allowances: allow,
+        grossSalary: gross,
+      };
+    })(),
     remarks: cleanVal(md.remarks || ''),
     attachmentsNote: cleanVal(md.attachmentsNote || ''),
     naturalPerson: md.naturalPerson !== false,
@@ -464,7 +488,32 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
     educations: cleanEducations,
     education: cleanEducations[0] || form.education || {},
     companyIds: form.companyIds?.length ? form.companyIds : (form.divisionId ? [String(form.divisionId)] : []),
-    finance: form.finance,
+    finance: (() => {
+      const fin = form.finance || {};
+      const h = Number(fin.housingAllowance) || 0;
+      const t = Number(fin.transportAllowance) || 0;
+      const m = Number(fin.mobileAllowance) || 0;
+      const o = Number(fin.otherAllowance) || 0;
+      const hasSpecific = (fin.housingAllowance !== '' && fin.housingAllowance !== undefined && fin.housingAllowance !== null)
+        || (fin.transportAllowance !== '' && fin.transportAllowance !== undefined && fin.transportAllowance !== null)
+        || (fin.mobileAllowance !== '' && fin.mobileAllowance !== undefined && fin.mobileAllowance !== null)
+        || (fin.otherAllowance !== '' && fin.otherAllowance !== undefined && fin.otherAllowance !== null);
+      const computedAllowances = hasSpecific ? (h + t + m + o) : (Number(fin.allowances) || 0);
+      const b = Number(fin.basicSalary) || 0;
+      const computedGross = fin.grossSalary !== '' && fin.grossSalary !== undefined && fin.grossSalary !== null
+        ? Number(fin.grossSalary)
+        : (b + computedAllowances);
+      return {
+        ...fin,
+        basicSalary: fin.basicSalary !== '' && fin.basicSalary !== undefined ? String(fin.basicSalary) : '0',
+        housingAllowance: fin.housingAllowance !== '' && fin.housingAllowance !== undefined ? String(fin.housingAllowance) : '',
+        transportAllowance: fin.transportAllowance !== '' && fin.transportAllowance !== undefined ? String(fin.transportAllowance) : '',
+        mobileAllowance: fin.mobileAllowance !== '' && fin.mobileAllowance !== undefined ? String(fin.mobileAllowance) : '',
+        otherAllowance: fin.otherAllowance !== '' && fin.otherAllowance !== undefined ? String(fin.otherAllowance) : '',
+        allowances: String(computedAllowances),
+        grossSalary: String(computedGross),
+      };
+    })(),
     remarks: form.remarks?.trim() || '',
     attachmentsNote: form.attachmentsNote?.trim() || '',
     naturalPerson: !!form.naturalPerson,
@@ -474,6 +523,9 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
     photoPath: form.photoPath || '',
   };
 
+  const basicNum = Number(masterData.finance?.basicSalary) || 0;
+  const allowNum = Number(masterData.finance?.allowances) || 0;
+
   const payload = {
     empCode: currentCode || undefined,
     firstName: fallbackFirstName,
@@ -481,6 +533,8 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
     lastName: form.lastName?.trim() || '',
     fullName,
     email,
+    basicSalary: basicNum,
+    allowances: allowNum,
     jobTitle: form.jobTitle?.trim() && form.jobTitle.trim() !== '—' && form.jobTitle.trim() !== '-'
       ? form.jobTitle.trim()
       : (form.designationId ? '' : ''),

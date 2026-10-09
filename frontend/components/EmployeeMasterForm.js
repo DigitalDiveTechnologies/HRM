@@ -705,11 +705,20 @@ export default function EmployeeMasterForm({
       education: { ...(prev.education || {}), [key]: val },
     }));
 
-  const setFinance = (key, val) =>
-    setForm((prev) => ({
-      ...prev,
-      finance: { ...(prev.finance || {}), [key]: val },
-    }));
+  const setFinance = (keyOrObj, val) =>
+    setForm((prev) => {
+      const current = prev.finance || {};
+      if (typeof keyOrObj === 'object' && keyOrObj !== null) {
+        return {
+          ...prev,
+          finance: { ...current, ...keyOrObj },
+        };
+      }
+      return {
+        ...prev,
+        finance: { ...current, [keyOrObj]: val },
+      };
+    });
 
   const handlePhotoSelect = (e) => {
     const file = e.target.files?.[0];
@@ -2279,7 +2288,7 @@ export default function EmployeeMasterForm({
                 onSectionSave={() => triggerSectionSuccess('Compensation & WPS details')}
                 isSaved={savedSectionName === 'Compensation & WPS details'}
               >
-                <FieldRow label="Basic Salary (AED)">
+                <FieldRow label="Basic Salary (AED)" required>
                   <input
                     style={inputStyle}
                     type="number"
@@ -2289,25 +2298,135 @@ export default function EmployeeMasterForm({
                     value={form.finance?.basicSalary || ''}
                     onChange={(e) => {
                       const basic = e.target.value;
-                      setFinance('basicSalary', basic);
-                      setFinance('grossSalary', String((Number(basic) || 0) + (Number(form.finance?.allowances) || 0)));
+                      const h = Number(form.finance?.housingAllowance) || 0;
+                      const t = Number(form.finance?.transportAllowance) || 0;
+                      const m = Number(form.finance?.mobileAllowance) || 0;
+                      const o = Number(form.finance?.otherAllowance) || 0;
+                      const hasSpecific = Boolean(form.finance?.housingAllowance || form.finance?.transportAllowance || form.finance?.mobileAllowance || form.finance?.otherAllowance);
+                      const totalAllow = hasSpecific ? (h + t + m + o) : (Number(form.finance?.allowances) || 0);
+                      const gross = (Number(basic) || 0) + totalAllow;
+                      setFinance({
+                        basicSalary: basic,
+                        grossSalary: String(gross),
+                      });
                     }}
                   />
                 </FieldRow>
 
-                <FieldRow label="Housing & Transport Allowance (AED)">
+                <FieldRow label="Housing Allowance (AED)">
                   <input
                     style={inputStyle}
                     type="number"
                     min="0"
                     step="any"
-                    placeholder="e.g. 2500"
-                    value={form.finance?.allowances || ''}
+                    placeholder="e.g. 1500"
+                    value={form.finance?.housingAllowance || ''}
                     onChange={(e) => {
-                      const allow = e.target.value;
-                      setFinance('allowances', allow);
-                      setFinance('grossSalary', String((Number(form.finance?.basicSalary) || 0) + (Number(allow) || 0)));
+                      const housing = e.target.value;
+                      const h = Number(housing) || 0;
+                      const t = Number(form.finance?.transportAllowance) || 0;
+                      const m = Number(form.finance?.mobileAllowance) || 0;
+                      const o = Number(form.finance?.otherAllowance) || 0;
+                      const totalAllow = h + t + m + o;
+                      const b = Number(form.finance?.basicSalary) || 0;
+                      setFinance({
+                        housingAllowance: housing,
+                        allowances: String(totalAllow),
+                        grossSalary: String(b + totalAllow),
+                      });
                     }}
+                  />
+                </FieldRow>
+
+                <FieldRow label="Transport Allowance (AED)">
+                  <input
+                    style={inputStyle}
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="e.g. 600"
+                    value={form.finance?.transportAllowance || ''}
+                    onChange={(e) => {
+                      const transport = e.target.value;
+                      const h = Number(form.finance?.housingAllowance) || 0;
+                      const t = Number(transport) || 0;
+                      const m = Number(form.finance?.mobileAllowance) || 0;
+                      const o = Number(form.finance?.otherAllowance) || 0;
+                      const totalAllow = h + t + m + o;
+                      const b = Number(form.finance?.basicSalary) || 0;
+                      setFinance({
+                        transportAllowance: transport,
+                        allowances: String(totalAllow),
+                        grossSalary: String(b + totalAllow),
+                      });
+                    }}
+                  />
+                </FieldRow>
+
+                <FieldRow label="Mobile Allowance (AED)">
+                  <input
+                    style={inputStyle}
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="e.g. 400"
+                    value={form.finance?.mobileAllowance || ''}
+                    onChange={(e) => {
+                      const mobile = e.target.value;
+                      const h = Number(form.finance?.housingAllowance) || 0;
+                      const t = Number(form.finance?.transportAllowance) || 0;
+                      const m = Number(mobile) || 0;
+                      const o = Number(form.finance?.otherAllowance) || 0;
+                      const totalAllow = h + t + m + o;
+                      const b = Number(form.finance?.basicSalary) || 0;
+                      setFinance({
+                        mobileAllowance: mobile,
+                        allowances: String(totalAllow),
+                        grossSalary: String(b + totalAllow),
+                      });
+                    }}
+                  />
+                </FieldRow>
+
+                <FieldRow label="Other Allowance (AED)">
+                  <input
+                    style={inputStyle}
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="e.g. 0"
+                    value={form.finance?.otherAllowance || ''}
+                    onChange={(e) => {
+                      const other = e.target.value;
+                      const h = Number(form.finance?.housingAllowance) || 0;
+                      const t = Number(form.finance?.transportAllowance) || 0;
+                      const m = Number(form.finance?.mobileAllowance) || 0;
+                      const o = Number(other) || 0;
+                      const totalAllow = h + t + m + o;
+                      const b = Number(form.finance?.basicSalary) || 0;
+                      setFinance({
+                        otherAllowance: other,
+                        allowances: String(totalAllow),
+                        grossSalary: String(b + totalAllow),
+                      });
+                    }}
+                  />
+                </FieldRow>
+
+                <FieldRow label="Total Allowances (AED)" helper="Sum of Housing, Transport, Mobile & Other allowances">
+                  <input
+                    style={{ ...inputStyle, background: 'var(--subtle, #f8fafc)', fontWeight: 600 }}
+                    type="number"
+                    readOnly
+                    placeholder="0"
+                    value={(() => {
+                      const h = Number(form.finance?.housingAllowance) || 0;
+                      const t = Number(form.finance?.transportAllowance) || 0;
+                      const m = Number(form.finance?.mobileAllowance) || 0;
+                      const o = Number(form.finance?.otherAllowance) || 0;
+                      const hasSpecific = Boolean(form.finance?.housingAllowance || form.finance?.transportAllowance || form.finance?.mobileAllowance || form.finance?.otherAllowance);
+                      return hasSpecific ? String(h + t + m + o) : (form.finance?.allowances || '0');
+                    })()}
                   />
                 </FieldRow>
 

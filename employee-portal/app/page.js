@@ -622,30 +622,53 @@ export default function EmployeePortalDashboard() {
       (employeeProfile?.allowances ?? md.totalAllowances ?? md.allowances ?? 0)
     );
 
-    // Allowance items from master data (UAE standard packages)
+    const fin = md?.finance || md || {};
+
+    // Allowance items from master data (strictly user-entered, never synthesized)
     const housing = Number(
       employeeProfile?.allowances?.housing ??
-      md.housingAllowance ??
-      md.housing_allowance ??
-      (totalAllowances > 0 ? Math.round(totalAllowances * 0.6) : 0)
+      employeeProfile?.housingAllowance ??
+      employeeProfile?.housing_allowance ??
+      fin.housingAllowance ??
+      fin.housing_allowance ??
+      0
     );
 
     const transport = Number(
       employeeProfile?.allowances?.transport ??
-      md.transportAllowance ??
-      md.transport_allowance ??
-      (totalAllowances > 0 ? Math.round(totalAllowances * 0.25) : 0)
+      employeeProfile?.transportAllowance ??
+      employeeProfile?.transport_allowance ??
+      fin.transportAllowance ??
+      fin.transport_allowance ??
+      0
     );
 
     const mobile = Number(
       employeeProfile?.allowances?.mobile ??
-      md.mobileAllowance ??
-      md.mobile_allowance ??
-      (totalAllowances > 0 ? Math.max(0, totalAllowances - housing - transport) : 0)
+      employeeProfile?.mobileAllowance ??
+      employeeProfile?.mobile_allowance ??
+      fin.mobileAllowance ??
+      fin.mobile_allowance ??
+      0
     );
 
+    const other = Number(
+      employeeProfile?.allowances?.other ??
+      employeeProfile?.otherAllowance ??
+      employeeProfile?.other_allowance ??
+      fin.otherAllowance ??
+      fin.other_allowance ??
+      0
+    );
+
+    const hasSpecificAllowances = Boolean(housing > 0 || transport > 0 || mobile > 0 || other > 0);
+    const generalAllowance = !hasSpecificAllowances && totalAllowances > 0 ? totalAllowances : 0;
+    const computedAllowances = hasSpecificAllowances ? (housing + transport + mobile + other) : totalAllowances;
+
     const overtime = Number((hasRealSlip && (slip.overtimePay ?? slip.overtime_pay)) ?? 0);
-    const gross = basic + housing + transport + mobile + overtime;
+    const gross = (hasRealSlip && (slip.grossSalary ?? slip.gross_salary))
+      ? Number(slip.grossSalary ?? slip.gross_salary)
+      : (basic + computedAllowances + overtime);
 
     // Deductions & Adjustments
     const slipDeductions = Number((hasRealSlip && slip.deductions) ?? 0);
@@ -699,6 +722,9 @@ export default function EmployeePortalDashboard() {
       housing,
       transport,
       mobile,
+      other,
+      generalAllowance,
+      totalAllowances: computedAllowances,
       overtime,
       gross,
       advance,
@@ -1548,18 +1574,36 @@ export default function EmployeePortalDashboard() {
                       <span className="muted">Basic salary</span>
                       <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.basic.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span className="muted">Housing allowance</span>
-                      <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.housing.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span className="muted">Transport allowance</span>
-                      <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.transport.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span className="muted">Mobile allowance</span>
-                      <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.mobile.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
-                    </div>
+                    {payslipData.housing > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span className="muted">Housing allowance</span>
+                        <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.housing.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                      </div>
+                    )}
+                    {payslipData.transport > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span className="muted">Transport allowance</span>
+                        <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.transport.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                      </div>
+                    )}
+                    {payslipData.mobile > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span className="muted">Mobile allowance</span>
+                        <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.mobile.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                      </div>
+                    )}
+                    {payslipData.other > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span className="muted">Other allowance</span>
+                        <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.other.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                      </div>
+                    )}
+                    {payslipData.generalAllowance > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span className="muted">Allowances</span>
+                        <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.generalAllowance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                      </div>
+                    )}
                     {payslipData.overtime > 0 ? (
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span className="muted">Overtime pay</span>
@@ -2725,18 +2769,36 @@ export default function EmployeePortalDashboard() {
                   <span>Basic salary:</span>
                   <strong>{formatAed(payslipData.basic)}</strong>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Housing allowance:</span>
-                  <strong>{formatAed(payslipData.housing)}</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Transport allowance:</span>
-                  <strong>{formatAed(payslipData.transport)}</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Mobile allowance:</span>
-                  <strong>{formatAed(payslipData.mobile)}</strong>
-                </div>
+                {payslipData.housing > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Housing allowance:</span>
+                    <strong>{formatAed(payslipData.housing)}</strong>
+                  </div>
+                )}
+                {payslipData.transport > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Transport allowance:</span>
+                    <strong>{formatAed(payslipData.transport)}</strong>
+                  </div>
+                )}
+                {payslipData.mobile > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Mobile allowance:</span>
+                    <strong>{formatAed(payslipData.mobile)}</strong>
+                  </div>
+                )}
+                {payslipData.other > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Other allowance:</span>
+                    <strong>{formatAed(payslipData.other)}</strong>
+                  </div>
+                )}
+                {payslipData.generalAllowance > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Allowances:</span>
+                    <strong>{formatAed(payslipData.generalAllowance)}</strong>
+                  </div>
+                )}
                 {payslipData.overtime > 0 ? (
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span>Overtime pay:</span>

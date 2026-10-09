@@ -208,6 +208,10 @@ function EmployeesContent() {
   const [showPayrollModal, setShowPayrollModal] = useState(false);
   const [payrollForm, setPayrollForm] = useState({
     basicSalary: '',
+    housingAllowance: '',
+    transportAllowance: '',
+    mobileAllowance: '',
+    otherAllowance: '',
     allowances: '',
     grossSalary: '',
     paymentMethod: 'WPS (SIF File Generation)',
@@ -739,14 +743,22 @@ function EmployeesContent() {
   function openPayrollModal() {
     const fin = selectedMd?.finance || {};
     const basic = fin.basicSalary !== undefined && fin.basicSalary !== null ? String(fin.basicSalary) : '';
+    const housing = fin.housingAllowance !== undefined && fin.housingAllowance !== null ? String(fin.housingAllowance) : '';
+    const transport = fin.transportAllowance !== undefined && fin.transportAllowance !== null ? String(fin.transportAllowance) : '';
+    const mobile = fin.mobileAllowance !== undefined && fin.mobileAllowance !== null ? String(fin.mobileAllowance) : '';
+    const other = fin.otherAllowance !== undefined && fin.otherAllowance !== null ? String(fin.otherAllowance) : '';
     const allow = fin.allowances !== undefined && fin.allowances !== null ? String(fin.allowances) : '';
     const gross = fin.grossSalary !== undefined && fin.grossSalary !== null ? String(fin.grossSalary) : (basic ? String(Number(basic || 0) + Number(allow || 0)) : '');
     setPayrollForm({
       basicSalary: basic,
+      housingAllowance: housing,
+      transportAllowance: transport,
+      mobileAllowance: mobile,
+      otherAllowance: other,
       allowances: allow,
       grossSalary: gross,
       paymentMethod: fin.paymentMethod || 'WPS (SIF File Generation)',
-      bankName: fin.bankName || '',
+      bankName: fin.bankName || 'Emirates NBD',
       iban: fin.iban || fin.accountNo || '',
     });
     setShowPayrollModal(true);
@@ -760,12 +772,27 @@ function EmployeesContent() {
     setSavingPayroll(true);
     try {
       const basicNum = Number(payrollForm.basicSalary) || 0;
-      const allowNum = Number(payrollForm.allowances) || 0;
-      const calcGross = payrollForm.grossSalary ? Number(payrollForm.grossSalary) : basicNum + allowNum;
+      const housingNum = Number(payrollForm.housingAllowance) || 0;
+      const transportNum = Number(payrollForm.transportAllowance) || 0;
+      const mobileNum = Number(payrollForm.mobileAllowance) || 0;
+      const otherNum = Number(payrollForm.otherAllowance) || 0;
+
+      const hasSpecific = Boolean(
+        payrollForm.housingAllowance !== '' ||
+        payrollForm.transportAllowance !== '' ||
+        payrollForm.mobileAllowance !== '' ||
+        payrollForm.otherAllowance !== ''
+      );
+      const allowNum = hasSpecific ? (housingNum + transportNum + mobileNum + otherNum) : (Number(payrollForm.allowances) || 0);
+      const calcGross = payrollForm.grossSalary ? Number(payrollForm.grossSalary) : (basicNum + allowNum);
 
       const updatedFinance = {
         ...(selectedMd?.finance || {}),
         basicSalary: String(basicNum),
+        housingAllowance: payrollForm.housingAllowance !== '' ? String(housingNum) : '',
+        transportAllowance: payrollForm.transportAllowance !== '' ? String(transportNum) : '',
+        mobileAllowance: payrollForm.mobileAllowance !== '' ? String(mobileNum) : '',
+        otherAllowance: payrollForm.otherAllowance !== '' ? String(otherNum) : '',
         allowances: String(allowNum),
         grossSalary: String(calcGross),
         paymentMethod: payrollForm.paymentMethod || 'WPS (SIF File Generation)',
@@ -784,6 +811,8 @@ function EmployeesContent() {
       await api(`/employees/${v(selected, 'id')}`, {
         method: 'PATCH',
         body: JSON.stringify({
+          basicSalary: basicNum,
+          allowances: allowNum,
           masterData: newMasterData,
         }),
       });
@@ -1068,10 +1097,16 @@ function EmployeesContent() {
                   value={payrollForm.basicSalary}
                   onChange={(e) => {
                     const basic = e.target.value;
+                    const h = Number(payrollForm.housingAllowance) || 0;
+                    const t = Number(payrollForm.transportAllowance) || 0;
+                    const m = Number(payrollForm.mobileAllowance) || 0;
+                    const o = Number(payrollForm.otherAllowance) || 0;
+                    const hasSpecific = Boolean(payrollForm.housingAllowance || payrollForm.transportAllowance || payrollForm.mobileAllowance || payrollForm.otherAllowance);
+                    const totalAllow = hasSpecific ? (h + t + m + o) : (Number(payrollForm.allowances) || 0);
                     setPayrollForm((prev) => ({
                       ...prev,
                       basicSalary: basic,
-                      grossSalary: String((Number(basic) || 0) + (Number(prev.allowances) || 0)),
+                      grossSalary: String((Number(basic) || 0) + totalAllow),
                     }));
                   }}
                   style={{
@@ -1087,20 +1122,27 @@ function EmployeesContent() {
 
               <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted, #475569)' }}>
-                  Housing & Transport Allowance (AED)
+                  Housing Allowance (AED)
                 </span>
                 <input
                   type="number"
                   min="0"
                   step="any"
-                  placeholder="e.g. 2500"
-                  value={payrollForm.allowances}
+                  placeholder="e.g. 1500"
+                  value={payrollForm.housingAllowance}
                   onChange={(e) => {
-                    const allow = e.target.value;
+                    const housing = e.target.value;
+                    const h = Number(housing) || 0;
+                    const t = Number(payrollForm.transportAllowance) || 0;
+                    const m = Number(payrollForm.mobileAllowance) || 0;
+                    const o = Number(payrollForm.otherAllowance) || 0;
+                    const totalAllow = h + t + m + o;
+                    const b = Number(payrollForm.basicSalary) || 0;
                     setPayrollForm((prev) => ({
                       ...prev,
-                      allowances: allow,
-                      grossSalary: String((Number(prev.basicSalary) || 0) + (Number(allow) || 0)),
+                      housingAllowance: housing,
+                      allowances: String(totalAllow),
+                      grossSalary: String(b + totalAllow),
                     }));
                   }}
                   style={{
@@ -1110,6 +1152,142 @@ function EmployeesContent() {
                     fontSize: '13px',
                     color: 'var(--ink, #0f172a)',
                     background: 'var(--input-bg, #ffffff)',
+                  }}
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted, #475569)' }}>
+                  Transport Allowance (AED)
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="e.g. 600"
+                  value={payrollForm.transportAllowance}
+                  onChange={(e) => {
+                    const transport = e.target.value;
+                    const h = Number(payrollForm.housingAllowance) || 0;
+                    const t = Number(transport) || 0;
+                    const m = Number(payrollForm.mobileAllowance) || 0;
+                    const o = Number(payrollForm.otherAllowance) || 0;
+                    const totalAllow = h + t + m + o;
+                    const b = Number(payrollForm.basicSalary) || 0;
+                    setPayrollForm((prev) => ({
+                      ...prev,
+                      transportAllowance: transport,
+                      allowances: String(totalAllow),
+                      grossSalary: String(b + totalAllow),
+                    }));
+                  }}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--line, #cbd5e1)',
+                    fontSize: '13px',
+                    color: 'var(--ink, #0f172a)',
+                    background: 'var(--input-bg, #ffffff)',
+                  }}
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted, #475569)' }}>
+                  Mobile Allowance (AED)
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="e.g. 400"
+                  value={payrollForm.mobileAllowance}
+                  onChange={(e) => {
+                    const mobile = e.target.value;
+                    const h = Number(payrollForm.housingAllowance) || 0;
+                    const t = Number(payrollForm.transportAllowance) || 0;
+                    const m = Number(mobile) || 0;
+                    const o = Number(payrollForm.otherAllowance) || 0;
+                    const totalAllow = h + t + m + o;
+                    const b = Number(payrollForm.basicSalary) || 0;
+                    setPayrollForm((prev) => ({
+                      ...prev,
+                      mobileAllowance: mobile,
+                      allowances: String(totalAllow),
+                      grossSalary: String(b + totalAllow),
+                    }));
+                  }}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--line, #cbd5e1)',
+                    fontSize: '13px',
+                    color: 'var(--ink, #0f172a)',
+                    background: 'var(--input-bg, #ffffff)',
+                  }}
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted, #475569)' }}>
+                  Other Allowance (AED)
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="e.g. 0"
+                  value={payrollForm.otherAllowance}
+                  onChange={(e) => {
+                    const other = e.target.value;
+                    const h = Number(payrollForm.housingAllowance) || 0;
+                    const t = Number(payrollForm.transportAllowance) || 0;
+                    const m = Number(payrollForm.mobileAllowance) || 0;
+                    const o = Number(other) || 0;
+                    const totalAllow = h + t + m + o;
+                    const b = Number(payrollForm.basicSalary) || 0;
+                    setPayrollForm((prev) => ({
+                      ...prev,
+                      otherAllowance: other,
+                      allowances: String(totalAllow),
+                      grossSalary: String(b + totalAllow),
+                    }));
+                  }}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--line, #cbd5e1)',
+                    fontSize: '13px',
+                    color: 'var(--ink, #0f172a)',
+                    background: 'var(--input-bg, #ffffff)',
+                  }}
+                />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted, #475569)' }}>
+                  Total Allowances (AED)
+                </span>
+                <input
+                  type="number"
+                  readOnly
+                  placeholder="0"
+                  value={(() => {
+                    const h = Number(payrollForm.housingAllowance) || 0;
+                    const t = Number(payrollForm.transportAllowance) || 0;
+                    const m = Number(payrollForm.mobileAllowance) || 0;
+                    const o = Number(payrollForm.otherAllowance) || 0;
+                    const hasSpecific = Boolean(payrollForm.housingAllowance || payrollForm.transportAllowance || payrollForm.mobileAllowance || payrollForm.otherAllowance);
+                    return hasSpecific ? String(h + t + m + o) : (payrollForm.allowances || '0');
+                  })()}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--line, #cbd5e1)',
+                    fontSize: '13px',
+                    color: 'var(--ink, #0f172a)',
+                    background: 'var(--subtle, #f8fafc)',
+                    fontWeight: 600,
                   }}
                 />
               </label>
@@ -2579,12 +2757,59 @@ function EmployeesContent() {
                         </div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
-                        <div className="emp-row-label">Housing & Transport Allowance</div>
-                        <div className="emp-row-val" style={{ fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
-                          {formatCompensation(selectedMd.finance?.allowances)}
+                      {Number(selectedMd.finance?.housingAllowance) > 0 && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
+                          <div className="emp-row-label">Housing Allowance</div>
+                          <div className="emp-row-val" style={{ fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                            {formatCompensation(selectedMd.finance?.housingAllowance)}
+                          </div>
                         </div>
-                      </div>
+                      )}
+
+                      {Number(selectedMd.finance?.transportAllowance) > 0 && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
+                          <div className="emp-row-label">Transport Allowance</div>
+                          <div className="emp-row-val" style={{ fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                            {formatCompensation(selectedMd.finance?.transportAllowance)}
+                          </div>
+                        </div>
+                      )}
+
+                      {Number(selectedMd.finance?.mobileAllowance) > 0 && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
+                          <div className="emp-row-label">Mobile Allowance</div>
+                          <div className="emp-row-val" style={{ fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                            {formatCompensation(selectedMd.finance?.mobileAllowance)}
+                          </div>
+                        </div>
+                      )}
+
+                      {Number(selectedMd.finance?.otherAllowance) > 0 && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
+                          <div className="emp-row-label">Other Allowance</div>
+                          <div className="emp-row-val" style={{ fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                            {formatCompensation(selectedMd.finance?.otherAllowance)}
+                          </div>
+                        </div>
+                      )}
+
+                      {!(Number(selectedMd.finance?.housingAllowance) > 0 || Number(selectedMd.finance?.transportAllowance) > 0 || Number(selectedMd.finance?.mobileAllowance) > 0 || Number(selectedMd.finance?.otherAllowance) > 0) && Number(selectedMd.finance?.allowances) > 0 && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
+                          <div className="emp-row-label">Allowances</div>
+                          <div className="emp-row-val" style={{ fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                            {formatCompensation(selectedMd.finance?.allowances)}
+                          </div>
+                        </div>
+                      )}
+
+                      {(Number(selectedMd.finance?.housingAllowance) > 0 || Number(selectedMd.finance?.transportAllowance) > 0 || Number(selectedMd.finance?.mobileAllowance) > 0 || Number(selectedMd.finance?.otherAllowance) > 0) && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
+                          <div className="emp-row-label">Total Allowances</div>
+                          <div className="emp-row-val" style={{ fontWeight: 700, color: 'var(--ink, #0f172a)' }}>
+                            {formatCompensation(selectedMd.finance?.allowances || (Number(selectedMd.finance?.housingAllowance || 0) + Number(selectedMd.finance?.transportAllowance || 0) + Number(selectedMd.finance?.mobileAllowance || 0) + Number(selectedMd.finance?.otherAllowance || 0)))}
+                          </div>
+                        </div>
+                      )}
 
                       <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: '14px', padding: '10px 0', alignItems: 'center' }}>
                         <div className="emp-row-label">Gross Monthly Remuneration</div>

@@ -515,26 +515,78 @@ export default function EssDashboardPage() {
       md = typeof employeeProfile?.masterData === 'string' ? JSON.parse(employeeProfile.masterData) : employeeProfile?.masterData || {};
     } catch {}
 
-    const basic = Number(employeeProfile?.basicSalary || md.basicSalary || 12000);
-    const housing = Number(employeeProfile?.allowances?.housing || md.housingAllowance || basic * 0.5 || 6000);
-    const transport = Number(employeeProfile?.allowances?.transport || md.transportAllowance || 1500);
-    const mobile = Number(employeeProfile?.allowances?.mobile || md.mobileAllowance || 500);
-    const gross = basic + housing + transport + mobile;
+    const fin = md?.finance || md || {};
 
-    const advance = 1000;
-    const lateDeduction = 150;
+    const basic = Number(
+      employeeProfile?.basicSalary ??
+      employeeProfile?.basic_salary ??
+      fin.basicSalary ??
+      fin.basic_salary ??
+      0
+    );
+
+    const totalAllowances = Number(
+      employeeProfile?.allowances ??
+      fin.totalAllowances ??
+      fin.allowances ??
+      0
+    );
+
+    const housing = Number(
+      employeeProfile?.allowances?.housing ??
+      employeeProfile?.housingAllowance ??
+      employeeProfile?.housing_allowance ??
+      fin.housingAllowance ??
+      fin.housing_allowance ??
+      0
+    );
+
+    const transport = Number(
+      employeeProfile?.allowances?.transport ??
+      employeeProfile?.transportAllowance ??
+      employeeProfile?.transport_allowance ??
+      fin.transportAllowance ??
+      fin.transport_allowance ??
+      0
+    );
+
+    const mobile = Number(
+      employeeProfile?.allowances?.mobile ??
+      employeeProfile?.mobileAllowance ??
+      employeeProfile?.mobile_allowance ??
+      fin.mobileAllowance ??
+      fin.mobile_allowance ??
+      0
+    );
+
+    const other = Number(
+      employeeProfile?.allowances?.other ??
+      employeeProfile?.otherAllowance ??
+      employeeProfile?.other_allowance ??
+      fin.otherAllowance ??
+      fin.other_allowance ??
+      0
+    );
+
+    const hasSpecificAllowances = Boolean(housing > 0 || transport > 0 || mobile > 0 || other > 0);
+    const generalAllowance = !hasSpecificAllowances && totalAllowances > 0 ? totalAllowances : 0;
+    const computedAllowances = hasSpecificAllowances ? (housing + transport + mobile + other) : totalAllowances;
+    const gross = basic + computedAllowances;
+
+    const advance = 0;
+    const lateDeduction = 0;
     const tax = 0;
-    const reimbursement = 620;
+    const reimbursement = 0;
     const netAdjust = -(advance + lateDeduction) + reimbursement;
     const netPay = gross + netAdjust;
 
-    const bankName = md.bankName || 'Emirates NBD';
-    const iban = md.iban || 'AE290331234567890124821';
-    const bankLast4 = iban.slice(-4) || '4821';
+    const bankName = fin.bankName || md.bankName || md.bank_name || employeeProfile?.bankName || 'Emirates NBD';
+    const iban = String(fin.iban || fin.accountNo || md.iban || md.accountNumber || md.account_no || employeeProfile?.iban || '').trim();
+    const bankLast4 = iban.length >= 4 ? iban.slice(-4) : (iban || '4821');
 
     // Dynamic WPS badge date
     const prevMonthName = new Date(now.getFullYear(), now.getMonth() - 1, 1).toLocaleDateString('en-US', { month: 'short' });
-    const wpsBadgeText = `Paid via WPS · 28 ${prevMonthName}`;
+    const wpsBadgeText = `Active Contract`;
 
     return {
       monthLabel: `${prevMonthName} ${now.getFullYear()}`,
@@ -543,6 +595,9 @@ export default function EssDashboardPage() {
       housing,
       transport,
       mobile,
+      other,
+      generalAllowance,
+      totalAllowances: computedAllowances,
       gross,
       advance,
       lateDeduction,
@@ -1392,18 +1447,36 @@ export default function EssDashboardPage() {
                       <span className="muted">Basic salary</span>
                       <strong style={{ color: 'var(--ink, #0f172a)' }}>{payslipData.basic.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span className="muted">Housing allowance</span>
-                      <strong style={{ color: 'var(--ink, #0f172a)' }}>{payslipData.housing.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span className="muted">Transport allowance</span>
-                      <strong style={{ color: 'var(--ink, #0f172a)' }}>{payslipData.transport.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span className="muted">Mobile allowance</span>
-                      <strong style={{ color: 'var(--ink, #0f172a)' }}>{payslipData.mobile.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
-                    </div>
+                    {payslipData.housing > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span className="muted">Housing allowance</span>
+                        <strong style={{ color: 'var(--ink, #0f172a)' }}>{payslipData.housing.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                      </div>
+                    )}
+                    {payslipData.transport > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span className="muted">Transport allowance</span>
+                        <strong style={{ color: 'var(--ink, #0f172a)' }}>{payslipData.transport.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                      </div>
+                    )}
+                    {payslipData.mobile > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span className="muted">Mobile allowance</span>
+                        <strong style={{ color: 'var(--ink, #0f172a)' }}>{payslipData.mobile.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                      </div>
+                    )}
+                    {payslipData.other > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span className="muted">Other allowance</span>
+                        <strong style={{ color: 'var(--ink, #0f172a)' }}>{payslipData.other.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                      </div>
+                    )}
+                    {payslipData.generalAllowance > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span className="muted">Allowances</span>
+                        <strong style={{ color: 'var(--ink, #0f172a)' }}>{payslipData.generalAllowance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 4, borderTop: '1px dashed var(--line, #e2e8f0)', fontWeight: 700 }}>
                       <span>Gross</span>
                       <span>{payslipData.gross.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
@@ -2472,30 +2545,54 @@ export default function EssDashboardPage() {
                   <span>Basic salary:</span>
                   <strong>{formatAed(payslipData.basic)}</strong>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Housing allowance:</span>
-                  <strong>{formatAed(payslipData.housing)}</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Transport allowance:</span>
-                  <strong>{formatAed(payslipData.transport)}</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Mobile allowance:</span>
-                  <strong>{formatAed(payslipData.mobile)}</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ef4444' }}>
-                  <span>Salary advance installment:</span>
-                  <strong>-{formatAed(payslipData.advance)}</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ef4444' }}>
-                  <span>Late check-in deduction:</span>
-                  <strong>-{formatAed(payslipData.lateDeduction)}</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981' }}>
-                  <span>Expense claim reimbursement:</span>
-                  <strong>+{formatAed(payslipData.reimbursement)}</strong>
-                </div>
+                {payslipData.housing > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Housing allowance:</span>
+                    <strong>{formatAed(payslipData.housing)}</strong>
+                  </div>
+                )}
+                {payslipData.transport > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Transport allowance:</span>
+                    <strong>{formatAed(payslipData.transport)}</strong>
+                  </div>
+                )}
+                {payslipData.mobile > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Mobile allowance:</span>
+                    <strong>{formatAed(payslipData.mobile)}</strong>
+                  </div>
+                )}
+                {payslipData.other > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Other allowance:</span>
+                    <strong>{formatAed(payslipData.other)}</strong>
+                  </div>
+                )}
+                {payslipData.generalAllowance > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Allowances:</span>
+                    <strong>{formatAed(payslipData.generalAllowance)}</strong>
+                  </div>
+                )}
+                {payslipData.advance > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ef4444' }}>
+                    <span>Salary advance installment:</span>
+                    <strong>-{formatAed(payslipData.advance)}</strong>
+                  </div>
+                )}
+                {payslipData.lateDeduction > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ef4444' }}>
+                    <span>Late check-in deduction:</span>
+                    <strong>-{formatAed(payslipData.lateDeduction)}</strong>
+                  </div>
+                )}
+                {payslipData.reimbursement > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981' }}>
+                    <span>Expense claim reimbursement:</span>
+                    <strong>+{formatAed(payslipData.reimbursement)}</strong>
+                  </div>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 10, borderTop: '2px solid var(--line, #e2e8f0)', fontSize: '15px', fontWeight: 800 }}>
                   <span>Total Net Payable:</span>
                   <span style={{ color: '#00b8db' }}>{formatAed(payslipData.netPay)}</span>
