@@ -2499,7 +2499,7 @@ public sealed class HrQueryService
             JOIN employees e ON e.id = p.employee_id
             LEFT JOIN divisions dv ON dv.id = e.division_id
             WHERE e.in_hr_ops = TRUE
-            ORDER BY p.generated_at DESC, p.id DESC
+            ORDER BY COALESCE(p.generated_at, p.created_at) DESC, p.id DESC
             """, ct);
 
     public Task<List<Dictionary<string, object?>>> DocumentsAsync(CancellationToken ct) =>

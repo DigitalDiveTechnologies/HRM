@@ -30,13 +30,17 @@ export default function PayrollPage() {
   const load = useCallback(() => {
     setError('');
     Promise.all([
-      api('/payroll'),
+      api('/payroll').catch((err) => {
+        console.error('Failed to load payslips:', err);
+        setError((prev) => prev || err?.message || 'Failed to load payslips');
+        return [];
+      }),
       api(`/payroll/summary?period=${encodeURIComponent(period)}`).catch(() => []),
       api('/payroll/runs').catch(() => []),
       api('/payroll/emiratisation').catch(() => null),
     ])
       .then(([payroll, sum, runList, emi]) => {
-        setRows(payroll);
+        setRows(payroll || []);
         setSummary(sum || []);
         setRuns(runList || []);
         setEmiratisation(emi);
