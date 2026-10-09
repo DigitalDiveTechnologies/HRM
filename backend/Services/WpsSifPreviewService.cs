@@ -95,9 +95,11 @@ public sealed class WpsSifPreviewService
         {
         await using var empCmd = new NpgsqlCommand(
             """
-            SELECT e.emp_code, e.full_name, e.basic_salary, e.allowances,
-                   e.master_data->>'iban' AS iban,
-                   e.master_data->>'molId' AS mol_id,
+            SELECT e.emp_code, e.full_name,
+                   COALESCE(NULLIF(e.basic_salary, 0), NULLIF(REGEXP_REPLACE(e.master_data->'finance'->>'basicSalary', '[^0-9.]', '', 'g'), '')::numeric, 0) AS basic_salary,
+                   COALESCE(NULLIF(e.allowances, 0), NULLIF(REGEXP_REPLACE(e.master_data->'finance'->>'allowances', '[^0-9.]', '', 'g'), '')::numeric, 0) AS allowances,
+                   COALESCE(e.master_data->'finance'->>'iban', e.master_data->'finance'->>'accountNo', e.master_data->>'iban') AS iban,
+                   COALESCE(e.master_data->'finance'->>'molId', e.master_data->'finance'->>'mol_id', e.master_data->>'molId') AS mol_id,
                    COALESCE(d.payroll_type, 'wps') AS payment_method
             FROM employees e
             LEFT JOIN divisions d ON d.id = e.division_id

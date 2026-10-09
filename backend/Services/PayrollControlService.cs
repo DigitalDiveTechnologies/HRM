@@ -180,10 +180,39 @@ public sealed class PayrollControlService
             string? Iban, string? Mol, bool IsEmirati, string? PensionAuth, decimal? PensionBase)>();
         await using (var empCmd = new NpgsqlCommand(
                          """
-                         SELECT e.id, e.emp_code, e.full_name, e.basic_salary, e.allowances,
-                                COALESCE(dv.payroll_type, 'wps') AS payroll_type,
-                                e.master_data->>'iban' AS iban,
-                                COALESCE(e.master_data->>'molId', e.master_data->>'mol_id') AS mol_id,
+                         SELECT e.id, e.emp_code, e.full_name,
+                                COALESCE(
+                                  NULLIF(e.basic_salary, 0),
+                                  NULLIF(REGEXP_REPLACE(e.master_data->'finance'->>'basicSalary', '[^0-9.]', '', 'g'), '')::numeric,
+                                  NULLIF(REGEXP_REPLACE(e.master_data->>'basicSalary', '[^0-9.]', '', 'g'), '')::numeric,
+                                  0
+                                ) AS basic_salary,
+                                COALESCE(
+                                  NULLIF(e.allowances, 0),
+                                  NULLIF(REGEXP_REPLACE(e.master_data->'finance'->>'allowances', '[^0-9.]', '', 'g'), '')::numeric,
+                                  NULLIF(REGEXP_REPLACE(e.master_data->>'allowances', '[^0-9.]', '', 'g'), '')::numeric,
+                                  0
+                                ) AS allowances,
+                                COALESCE(
+                                  CASE
+                                    WHEN lower(COALESCE(e.master_data->'finance'->>'paymentMethod', '')) LIKE '%bank%' THEN 'bank_transfer'
+                                    WHEN lower(COALESCE(e.master_data->'finance'->>'paymentMethod', '')) LIKE '%wps%' THEN 'wps'
+                                    ELSE NULL
+                                  END,
+                                  dv.payroll_type,
+                                  'wps'
+                                ) AS payroll_type,
+                                COALESCE(
+                                  e.master_data->'finance'->>'iban',
+                                  e.master_data->'finance'->>'accountNo',
+                                  e.master_data->>'iban'
+                                ) AS iban,
+                                COALESCE(
+                                  e.master_data->'finance'->>'molId',
+                                  e.master_data->'finance'->>'mol_id',
+                                  e.master_data->>'molId',
+                                  e.master_data->>'mol_id'
+                                ) AS mol_id,
                                 COALESCE(e.is_emirati, FALSE) AS is_emirati,
                                 e.pension_authority,
                                 e.pension_contribution_salary
