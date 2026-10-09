@@ -57,6 +57,20 @@ function formatAed(val) {
   return 'AED ' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function formatPeriod(period) {
+  if (!period) return 'Current';
+  const parts = String(period).split('-');
+  if (parts.length === 2) {
+    const year = parts[0];
+    const monthIndex = parseInt(parts[1], 10) - 1;
+    const date = new Date(year, monthIndex, 1);
+    if (!isNaN(date.getTime())) {
+      return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    }
+  }
+  return period;
+}
+
 function getCategoryColor(cat) {
   const raw = String(cat || '').toLowerCase().trim();
   if (raw.includes('holiday')) return { bg: '#eff6ff', text: '#2563eb', border: 'rgba(37,99,235,0.2)' };
@@ -81,6 +95,8 @@ export default function EmployeePortalDashboard() {
   const [documentsList, setDocumentsList] = useState([]);
   const [expensesList, setExpensesList] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
+  const [payslipsList, setPayslipsList] = useState([]);
+  const [selectedPayslip, setSelectedPayslip] = useState(null);
 
   // Modals
   const [newRequestModalOpen, setNewRequestModalOpen] = useState(false);
@@ -167,14 +183,24 @@ export default function EmployeePortalDashboard() {
 
     async function loadData() {
       try {
-        const eid = user?.employeeId || user?.employee_id;
-        const [empRows, attRows, leaveRows, balRows, docRows, expRows] = await Promise.all([
+        let eid = user?.employeeId || user?.employee_id;
+        if (!eid) {
+          try {
+            const me = await api('/auth/me');
+            if (me?.employeeId || me?.employee_id) {
+              eid = me.employeeId || me.employee_id;
+            }
+          } catch {}
+        }
+
+        const [empRows, attRows, leaveRows, balRows, docRows, expRows, essData] = await Promise.all([
           api('/employees').catch(() => null),
           api('/attendance').catch(() => null),
           api('/leave').catch(() => null),
           api('/leave/balances').catch(() => null),
           api('/documents').catch(() => null),
           api('/travel/expenses').catch(() => null),
+          eid ? api(`/ess/${eid}`).catch(() => null) : null,
         ]);
 
         if (!isMounted) return;
@@ -190,6 +216,19 @@ export default function EmployeePortalDashboard() {
         if (!currentEmp && employees.length > 0) {
           currentEmp = employees[0];
         }
+
+        // If essData was not loaded yet because eid was null initially, try with currentEmp
+        let resolvedEss = essData;
+        if (!resolvedEss && currentEmp?.id) {
+          try {
+            resolvedEss = await api(`/ess/${currentEmp.id}`);
+          } catch {}
+        }
+
+        if (resolvedEss?.profile) {
+          currentEmp = { ...currentEmp, ...resolvedEss.profile };
+        }
+
         if (!currentEmp) {
           currentEmp = {
             id: eid || 1,
@@ -206,15 +245,22 @@ export default function EmployeePortalDashboard() {
         }
         setEmployeeProfile(currentEmp);
 
+        // Real payslips from ESS
+        if (resolvedEss?.payslips && Array.isArray(resolvedEss.payslips)) {
+          setPayslipsList(resolvedEss.payslips);
+        }
+
         // Attendance
-        if (attRows) {
-          const filteredAtt = eid ? attRows.filter((a) => String(a.employeeId || a.employee_id) === String(currentEmp.id)) : attRows;
+        const finalAtt = attRows || resolvedEss?.attendance || [];
+        if (finalAtt && finalAtt.length > 0) {
+          const filteredAtt = eid ? finalAtt.filter((a) => String(a.employeeId || a.employee_id) === String(currentEmp.id)) : finalAtt;
           setAttendanceRecords(filteredAtt);
         }
 
         // Leaves
-        if (leaveRows) {
-          const filteredLeaves = eid ? leaveRows.filter((l) => String(l.employeeId || l.employee_id) === String(currentEmp.id)) : leaveRows;
+        const finalLeaves = leaveRows || resolvedEss?.leave || [];
+        if (finalLeaves && finalLeaves.length > 0) {
+          const filteredLeaves = eid ? finalLeaves.filter((l) => String(l.employeeId || l.employee_id) === String(currentEmp.id)) : finalLeaves;
           setLeaveRequests(filteredLeaves);
         }
 
@@ -225,8 +271,9 @@ export default function EmployeePortalDashboard() {
         }
 
         // Documents
-        if (docRows) {
-          const filteredDocs = docRows.filter((d) => String(d.employeeId || d.employee_id) === String(currentEmp.id));
+        const finalDocs = docRows || resolvedEss?.documents || [];
+        if (finalDocs && finalDocs.length > 0) {
+          const filteredDocs = finalDocs.filter((d) => String(d.employeeId || d.employee_id) === String(currentEmp.id));
           setDocumentsList(filteredDocs);
         }
 
@@ -509,51 +556,164 @@ export default function EmployeePortalDashboard() {
     };
   }, [now, attendanceRecords]);
 
-  // Payslip Data Breakdown
+  // Latest or currently selected payslip from real records
+  const latestPayslipRecord = useMemo(() => {
+    if (selectedPayslip) return selectedPayslip;
+    if (payslipsList && payslipsList.length > 0) return payslipsList[0];
+    return null;
+  }, [selectedPayslip, payslipsList]);
+
+  // Payslip Data Breakdown (Real data from database & employee profile)
   const payslipData = useMemo(() => {
     let md = {};
     try {
-      md = typeof employeeProfile?.masterData === 'string' ? JSON.parse(employeeProfile.masterData) : employeeProfile?.masterData || {};
+      md = typeof employeeProfile?.masterData === 'string'
+        ? JSON.parse(employeeProfile.masterData)
+        : (employeeProfile?.masterData || employeeProfile?.master_data || {});
     } catch {}
 
-    const basic = Number(employeeProfile?.basicSalary || md.basicSalary || 12000);
-    const housing = Number(employeeProfile?.allowances?.housing || md.housingAllowance || basic * 0.5 || 6000);
-    const transport = Number(employeeProfile?.allowances?.transport || md.transportAllowance || 1500);
-    const mobile = Number(employeeProfile?.allowances?.mobile || md.mobileAllowance || 500);
-    const gross = basic + housing + transport + mobile;
+    const slip = latestPayslipRecord;
+    const hasRealSlip = Boolean(slip);
 
-    const advance = 1000;
-    const lateDeduction = 150;
-    const tax = 0;
-    const reimbursement = 620;
-    const netAdjust = -(advance + lateDeduction) + reimbursement;
-    const netPay = gross + netAdjust;
+    // Period and payment status
+    let monthLabel = '';
+    let wpsBadgeText = '';
+    let isPaid = false;
+    let paymentChannel = 'UAE WPS (MOHRE compliant)';
 
-    const bankName = md.bankName || 'Emirates NBD';
-    const iban = md.iban || 'AE290331234567890124821';
-    const bankLast4 = iban.slice(-4) || '4821';
+    if (hasRealSlip) {
+      const rawPeriod = slip.periodLabel || slip.period_label || '';
+      monthLabel = formatPeriod(rawPeriod);
+      const pm = String(slip.paymentMethod || slip.payment_method || 'wps').toLowerCase();
+      const ref = slip.wpsRef || slip.wps_ref || '';
+      const createdDate = slip.createdAt || slip.created_at;
 
-    const prevMonthName = new Date(now.getFullYear(), now.getMonth() - 1, 1).toLocaleDateString('en-US', { month: 'short' });
-    const wpsBadgeText = `Paid via WPS · 28 ${prevMonthName}`;
+      let dateSuffix = '';
+      if (createdDate) {
+        try {
+          const d = new Date(createdDate);
+          dateSuffix = ` · ${d.getDate()} ${d.toLocaleDateString('en-US', { month: 'short' })}`;
+        } catch {}
+      }
+
+      if (pm.includes('bank') && !pm.includes('wps')) {
+        paymentChannel = 'Direct Bank Transfer';
+        wpsBadgeText = `Paid via Bank${dateSuffix}`;
+      } else {
+        paymentChannel = 'UAE WPS (MOHRE compliant)';
+        wpsBadgeText = `Paid via WPS${dateSuffix}`;
+      }
+      isPaid = true;
+    } else {
+      const prevMonthName = new Date(now.getFullYear(), now.getMonth() - 1, 1).toLocaleDateString('en-US', { month: 'short' });
+      monthLabel = `${prevMonthName} ${now.getFullYear()}`;
+      wpsBadgeText = `Active Contract`;
+      isPaid = false;
+    }
+
+    // Basic & Allowances
+    const basic = Number(
+      (hasRealSlip && (slip.basicSalary ?? slip.basic_salary)) ??
+      (employeeProfile?.basicSalary ?? employeeProfile?.basic_salary ?? md.basicSalary ?? md.basic_salary ?? 0)
+    );
+
+    const totalAllowances = Number(
+      (hasRealSlip && slip.allowances) ??
+      (employeeProfile?.allowances ?? md.totalAllowances ?? md.allowances ?? 0)
+    );
+
+    // Allowance items from master data (UAE standard packages)
+    const housing = Number(
+      employeeProfile?.allowances?.housing ??
+      md.housingAllowance ??
+      md.housing_allowance ??
+      (totalAllowances > 0 ? Math.round(totalAllowances * 0.6) : 0)
+    );
+
+    const transport = Number(
+      employeeProfile?.allowances?.transport ??
+      md.transportAllowance ??
+      md.transport_allowance ??
+      (totalAllowances > 0 ? Math.round(totalAllowances * 0.25) : 0)
+    );
+
+    const mobile = Number(
+      employeeProfile?.allowances?.mobile ??
+      md.mobileAllowance ??
+      md.mobile_allowance ??
+      (totalAllowances > 0 ? Math.max(0, totalAllowances - housing - transport) : 0)
+    );
+
+    const overtime = Number((hasRealSlip && (slip.overtimePay ?? slip.overtime_pay)) ?? 0);
+    const gross = basic + housing + transport + mobile + overtime;
+
+    // Deductions & Adjustments
+    const slipDeductions = Number((hasRealSlip && slip.deductions) ?? 0);
+
+    // Real approved expense claims for reimbursement
+    const reimbursement = (expensesList || [])
+      .filter((exp) => String(exp.status || '').toLowerCase() === 'approved')
+      .reduce((sum, exp) => sum + Number(exp.amount || 0), 0);
+
+    // Attendance late estimation
+    const lateDaysCount = calendarDays?.stats?.late || 0;
+    const dailyWage = basic > 0 ? Math.round(basic / 30) : 0;
+    const attendanceLateEst = lateDaysCount > 0 ? Math.round(lateDaysCount * (dailyWage * 0.25)) : 0;
+
+    let lateDeduction = 0;
+    let advance = 0;
+
+    if (hasRealSlip) {
+      if (slipDeductions > 0) {
+        if (attendanceLateEst > 0 && attendanceLateEst <= slipDeductions) {
+          lateDeduction = attendanceLateEst;
+          advance = slipDeductions - lateDeduction;
+        } else {
+          lateDeduction = 0;
+          advance = slipDeductions;
+        }
+      }
+    } else {
+      lateDeduction = attendanceLateEst;
+      advance = 0;
+    }
+
+    const totalDeductionsAmount = hasRealSlip ? slipDeductions : (lateDeduction + advance);
+    const netAdjust = reimbursement - totalDeductionsAmount;
+
+    const netPay = hasRealSlip
+      ? Number(slip.netPay ?? slip.net_pay ?? (gross + netAdjust))
+      : (gross + netAdjust);
+
+    // Bank Information
+    const bankName = md.bankName || md.bank_name || employeeProfile?.bankName || 'Emirates NBD';
+    const iban = String(md.iban || md.accountNumber || md.account_no || employeeProfile?.iban || '').trim();
+    const bankLast4 = iban.length >= 4 ? iban.slice(-4) : (iban || '4821');
 
     return {
-      monthLabel: `${prevMonthName} ${now.getFullYear()}`,
+      monthLabel,
       wpsBadgeText,
+      isPaid,
+      paymentChannel,
       basic,
       housing,
       transport,
       mobile,
+      overtime,
       gross,
       advance,
       lateDeduction,
-      tax,
+      tax: 0,
       reimbursement,
+      totalDeductions: totalDeductionsAmount,
       netAdjust,
       netPay,
       bankName,
       bankLast4,
+      hasRealSlip,
+      wpsRef: slip?.wpsRef || slip?.wps_ref || '',
     };
-  }, [employeeProfile, now]);
+  }, [latestPayslipRecord, employeeProfile, calendarDays, expensesList, now]);
 
   // Estimated Gratuity (EOSB) UAE Labour Law calculation
   const gratuityData = useMemo(() => {
@@ -1367,8 +1527,8 @@ export default function EmployeePortalDashboard() {
                   style={{
                     fontSize: '11px',
                     fontWeight: 700,
-                    color: '#059669',
-                    background: '#ecfdf5',
+                    color: payslipData.isPaid ? '#059669' : '#0284c7',
+                    background: payslipData.isPaid ? '#ecfdf5' : '#e0f2fe',
                     padding: '3px 8px',
                     borderRadius: 999,
                   }}
@@ -1400,6 +1560,12 @@ export default function EmployeePortalDashboard() {
                       <span className="muted">Mobile allowance</span>
                       <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.mobile.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
                     </div>
+                    {payslipData.overtime > 0 ? (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span className="muted">Overtime pay</span>
+                        <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.overtime.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                      </div>
+                    ) : null}
                     <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 4, borderTop: '1px dashed var(--line, #E4EEF3)', fontWeight: 700 }}>
                       <span>Gross</span>
                       <span>{payslipData.gross.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
@@ -1413,12 +1579,20 @@ export default function EmployeePortalDashboard() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span className="muted">Salary advance (2/6)</span>
-                      <span style={{ color: '#ef4444', fontWeight: 600 }}>-{payslipData.advance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                      <span className="muted">Salary advance</span>
+                      {payslipData.advance > 0 ? (
+                        <span style={{ color: '#ef4444', fontWeight: 600 }}>-{payslipData.advance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                      ) : (
+                        <span className="muted">0.00</span>
+                      )}
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span className="muted">Late deduction</span>
-                      <span style={{ color: '#ef4444', fontWeight: 600 }}>-{payslipData.lateDeduction.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                      {payslipData.lateDeduction > 0 ? (
+                        <span style={{ color: '#ef4444', fontWeight: 600 }}>-{payslipData.lateDeduction.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                      ) : (
+                        <span className="muted">0.00</span>
+                      )}
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span className="muted">Income tax</span>
@@ -1426,11 +1600,21 @@ export default function EmployeePortalDashboard() {
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span className="muted">Reimbursement (exp.)</span>
-                      <span style={{ color: '#10b981', fontWeight: 600 }}>+{payslipData.reimbursement.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                      {payslipData.reimbursement > 0 ? (
+                        <span style={{ color: '#10b981', fontWeight: 600 }}>+{payslipData.reimbursement.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                      ) : (
+                        <span className="muted">0.00</span>
+                      )}
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 4, borderTop: '1px dashed var(--line, #E4EEF3)', fontWeight: 700 }}>
                       <span>Net adjust.</span>
-                      <span style={{ color: '#ef4444' }}>-{Math.abs(payslipData.netAdjust).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                      {payslipData.netAdjust < 0 ? (
+                        <span style={{ color: '#ef4444' }}>-{Math.abs(payslipData.netAdjust).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                      ) : payslipData.netAdjust > 0 ? (
+                        <span style={{ color: '#10b981' }}>+{payslipData.netAdjust.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                      ) : (
+                        <span className="muted">0.00</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1462,7 +1646,10 @@ export default function EmployeePortalDashboard() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <button
                     type="button"
-                    onClick={() => setViewPayslipModalOpen(true)}
+                    onClick={() => {
+                      setSelectedPayslip(latestPayslipRecord);
+                      setViewPayslipModalOpen(true);
+                    }}
                     style={{
                       background: 'var(--surface, #ffffff)',
                       border: '1px solid var(--line, #cbd5e1)',
@@ -1477,9 +1664,8 @@ export default function EmployeePortalDashboard() {
                     View
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={handlePrintPayslip}
+                  <Link
+                    href="/payslips"
                     style={{
                       background: '#00b8db',
                       color: '#ffffff',
@@ -1492,6 +1678,7 @@ export default function EmployeePortalDashboard() {
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: 6,
+                      textDecoration: 'none',
                     }}
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -1500,19 +1687,86 @@ export default function EmployeePortalDashboard() {
                       <line x1="12" y1="15" x2="12" y2="3" />
                     </svg>
                     Download PDF
-                  </button>
+                  </Link>
                 </div>
               </div>
             </div>
 
             {/* Previous payslips list */}
             <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--line, #E4EEF3)', fontSize: '11.5px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted, #4a5565)', textTransform: 'uppercase', marginBottom: 8 }}>
-                Previous payslips
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted, #4a5565)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Previous payslips
+                </span>
+                {payslipsList && payslipsList.length > 4 ? (
+                  <Link href="/payslips" style={{ fontSize: '11px', color: '#00b8db', fontWeight: 700, textDecoration: 'none' }}>
+                    View all ({payslipsList.length}) →
+                  </Link>
+                ) : null}
               </div>
-              <div className="muted" style={{ padding: '8px 0', textAlign: 'center', fontSize: '12px' }}>
-                No previous payslips recorded
-              </div>
+
+              {payslipsList && payslipsList.length > 1 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {payslipsList.slice(1, 4).map((prevSlip, pIdx) => {
+                    const rawPeriod = prevSlip.periodLabel || prevSlip.period_label || '';
+                    const prevNet = Number(prevSlip.netPay ?? prevSlip.net_pay ?? 0);
+                    const prevMethod = String(prevSlip.paymentMethod || prevSlip.payment_method || 'wps').toUpperCase();
+                    const prevRef = prevSlip.wpsRef || prevSlip.wps_ref || `${prevMethod}-${prevSlip.id || pIdx}`;
+
+                    return (
+                      <div
+                        key={prevSlip.id || pIdx}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '7px 10px',
+                          borderRadius: 8,
+                          background: 'var(--surface-alt, #f8fafc)',
+                          border: '1px solid var(--line, #e2e8f0)',
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 600, color: 'var(--ink, #101828)', fontSize: '12px' }}>
+                            {formatPeriod(rawPeriod)}
+                          </div>
+                          <div style={{ fontSize: '10.5px', color: 'var(--muted, #64748b)' }}>
+                            {prevMethod.includes('BANK') ? 'Bank Transfer' : 'WPS Transfer'} · {prevRef}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: '12px', fontWeight: 700, color: '#059669' }}>
+                            {formatAed(prevNet)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedPayslip(prevSlip);
+                              setViewPayslipModalOpen(true);
+                            }}
+                            style={{
+                              background: 'var(--surface, #ffffff)',
+                              border: '1px solid var(--line, #cbd5e1)',
+                              padding: '3px 8px',
+                              borderRadius: 6,
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              color: 'var(--ink, #101828)',
+                            }}
+                          >
+                            View
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="muted" style={{ padding: '8px 0', textAlign: 'center', fontSize: '12px' }}>
+                  No previous payslips recorded
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -2410,7 +2664,10 @@ export default function EmployeePortalDashboard() {
             zIndex: 9999,
             padding: 16,
           }}
-          onClick={() => setViewPayslipModalOpen(false)}
+          onClick={() => {
+            setViewPayslipModalOpen(false);
+            setSelectedPayslip(null);
+          }}
         >
           <div
             style={{
@@ -2430,12 +2687,15 @@ export default function EmployeePortalDashboard() {
                   Payslip Breakdown · {payslipData.monthLabel}
                 </h3>
                 <div style={{ fontSize: '12px', color: 'var(--muted, #4a5565)', marginTop: 2 }}>
-                  {employeeName} · {employeeProfile?.empCode || 'EMP-0101'}
+                  {employeeName} · {employeeProfile?.empCode || employeeProfile?.emp_code || 'EMP-0101'}
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setViewPayslipModalOpen(false)}
+                onClick={() => {
+                  setViewPayslipModalOpen(false);
+                  setSelectedPayslip(null);
+                }}
                 style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--muted, #4a5565)' }}
               >
                 ✕
@@ -2446,7 +2706,7 @@ export default function EmployeePortalDashboard() {
               <div style={{ padding: '12px 14px', borderRadius: 10, background: 'var(--surface-alt, #EEF9FC)', border: '1px solid var(--line, #E4EEF3)', fontSize: '12.5px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                   <span className="muted">Payment Channel:</span>
-                  <strong>UAE WPS (MOHRE compliant)</strong>
+                  <strong>{payslipData.paymentChannel}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                   <span className="muted">Credited to:</span>
@@ -2454,7 +2714,9 @@ export default function EmployeePortalDashboard() {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span className="muted">Status:</span>
-                  <span style={{ color: '#059669', fontWeight: 700 }}>✓ Verified & Paid</span>
+                  <span style={{ color: payslipData.isPaid ? '#059669' : '#0284c7', fontWeight: 700 }}>
+                    {payslipData.isPaid ? '✓ Verified & Paid' : 'Active Contract Estimate'}
+                  </span>
                 </div>
               </div>
 
@@ -2475,18 +2737,36 @@ export default function EmployeePortalDashboard() {
                   <span>Mobile allowance:</span>
                   <strong>{formatAed(payslipData.mobile)}</strong>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ef4444' }}>
-                  <span>Salary advance installment:</span>
-                  <strong>-{formatAed(payslipData.advance)}</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ef4444' }}>
-                  <span>Late check-in deduction:</span>
-                  <strong>-{formatAed(payslipData.lateDeduction)}</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981' }}>
-                  <span>Expense claim reimbursement:</span>
-                  <strong>+{formatAed(payslipData.reimbursement)}</strong>
-                </div>
+                {payslipData.overtime > 0 ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Overtime pay:</span>
+                    <strong>{formatAed(payslipData.overtime)}</strong>
+                  </div>
+                ) : null}
+                {payslipData.advance > 0 ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ef4444' }}>
+                    <span>Salary advance installment:</span>
+                    <strong>-{formatAed(payslipData.advance)}</strong>
+                  </div>
+                ) : null}
+                {payslipData.lateDeduction > 0 ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ef4444' }}>
+                    <span>Late check-in deduction:</span>
+                    <strong>-{formatAed(payslipData.lateDeduction)}</strong>
+                  </div>
+                ) : null}
+                {payslipData.reimbursement > 0 ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10b981' }}>
+                    <span>Expense claim reimbursement:</span>
+                    <strong>+{formatAed(payslipData.reimbursement)}</strong>
+                  </div>
+                ) : null}
+                {payslipData.advance === 0 && payslipData.lateDeduction === 0 && payslipData.reimbursement === 0 ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted, #64748b)' }}>
+                    <span>Deductions & Adjustments:</span>
+                    <span>AED 0.00</span>
+                  </div>
+                ) : null}
                 <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 10, borderTop: '2px solid var(--line, #E4EEF3)', fontSize: '15px', fontWeight: 800 }}>
                   <span>Total Net Payable:</span>
                   <span style={{ color: '#00b8db' }}>{formatAed(payslipData.netPay)}</span>
@@ -2496,14 +2776,16 @@ export default function EmployeePortalDashboard() {
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
                 <button
                   type="button"
-                  onClick={() => setViewPayslipModalOpen(false)}
+                  onClick={() => {
+                    setViewPayslipModalOpen(false);
+                    setSelectedPayslip(null);
+                  }}
                   style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--line, #cbd5e1)', background: 'transparent', cursor: 'pointer', fontSize: '13px' }}
                 >
                   Close
                 </button>
-                <button
-                  type="button"
-                  onClick={handlePrintPayslip}
+                <Link
+                  href="/payslips"
                   style={{
                     padding: '8px 18px',
                     borderRadius: 8,
@@ -2516,10 +2798,11 @@ export default function EmployeePortalDashboard() {
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 6,
+                    textDecoration: 'none',
                   }}
                 >
-                  Download / Print PDF
-                </button>
+                  Official Statement & Print PDF
+                </Link>
               </div>
             </div>
           </div>
