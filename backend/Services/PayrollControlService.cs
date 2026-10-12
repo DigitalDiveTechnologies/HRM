@@ -191,6 +191,12 @@ public sealed class PayrollControlService
                                   NULLIF(e.allowances, 0),
                                   NULLIF(REGEXP_REPLACE(e.master_data->'finance'->>'allowances', '[^0-9.]', '', 'g'), '')::numeric,
                                   NULLIF(REGEXP_REPLACE(e.master_data->>'allowances', '[^0-9.]', '', 'g'), '')::numeric,
+                                  (
+                                    COALESCE(NULLIF(REGEXP_REPLACE(e.master_data->'finance'->>'housingAllowance', '[^0-9.]', '', 'g'), '')::numeric, 0) +
+                                    COALESCE(NULLIF(REGEXP_REPLACE(e.master_data->'finance'->>'transportAllowance', '[^0-9.]', '', 'g'), '')::numeric, 0) +
+                                    COALESCE(NULLIF(REGEXP_REPLACE(e.master_data->'finance'->>'mobileAllowance', '[^0-9.]', '', 'g'), '')::numeric, 0) +
+                                    COALESCE(NULLIF(REGEXP_REPLACE(e.master_data->'finance'->>'otherAllowance', '[^0-9.]', '', 'g'), '')::numeric, 0)
+                                  ),
                                   0
                                 ) AS allowances,
                                 COALESCE(
