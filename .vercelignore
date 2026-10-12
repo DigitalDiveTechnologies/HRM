@@ -1,0 +1,11 @@
+# Root .vercelignore to prevent uploading huge non-web folders
+mobile/
+backend/
+tools/
+docs/
+.git/
+node_modules/
+.next/
+*.lock
+*.cc
+*.cmake
