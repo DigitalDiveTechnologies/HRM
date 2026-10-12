@@ -47,12 +47,5 @@ BEGIN
   IF conname IS NOT NULL THEN
     EXECUTE format('ALTER TABLE users DROP CONSTRAINT %I', conname);
   END IF;
-  ALTER TABLE users ADD CONSTRAINT users_role_check
-    CHECK (LOWER(role) IN (
-      'super_admin', 'admin', 'manager', 'employee',
-      'hr_officer', 'finance', 'viewer'
-    ));
-EXCEPTION WHEN duplicate_object THEN
-  NULL;
 END $$;
 
