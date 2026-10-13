@@ -393,6 +393,8 @@ public sealed class HrQueryService
                          (SELECT COUNT(*)::int FROM employees WHERE division_id = divisions.id AND status != 'exited') AS employee_count
                   FROM divisions
                   WHERE status = 'active'
+                    AND LOWER(TRIM(name)) IN ('geoseas', 'royal ocean', 'srg')
+                  WHERE LOWER(TRIM(name)) IN ('geoseas', 'royal ocean', 'srg')
                   ORDER BY created_at DESC NULLS LAST, id DESC
                   """
                 : """
@@ -2914,6 +2916,14 @@ public sealed class HrQueryService
         };
     }
 
+    public async Task<Dictionary<string, object?>?> PayslipForEmployeeAsync(int employeeId, int payslipId, CancellationToken ct)
+    {
+        var rows = await QueryConnAsync(
+            "SELECT p.*, e.full_name, e.emp_code, e.job_title, d.name AS department_name, dv.name AS division_name FROM payslips p JOIN employees e ON e.id = p.employee_id LEFT JOIN departments d ON d.id = e.department_id LEFT JOIN divisions dv ON dv.id = e.division_id WHERE p.id = @pid AND p.employee_id = @eid",
+            ct, ("pid", payslipId), ("eid", employeeId));
+        return rows.FirstOrDefault();
+    }
+
     public async Task<Dictionary<string, object?>?> UpdateEssPhoneAsync(int employeeId, string? phone, CancellationToken ct)
     {
         await using var conn = await OpenAsync(ct);
@@ -3904,7 +3914,7 @@ public sealed class HrQueryService
 
     public async Task<Dictionary<string, object?>> CreateExpenseClaimAsync(
         int employeeId, string title, string? category, decimal amount, string? currency,
-        string? expenseDate, string? notes, CancellationToken ct)
+        string? expenseDate, string? notes, string? receiptFileRef, string? receiptFileName, CancellationToken ct)
     {
         await using var conn = await OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
@@ -3912,8 +3922,8 @@ public sealed class HrQueryService
         await using var cmd = new NpgsqlCommand(
             """
             INSERT INTO expense_claims
-              (employee_id, title, category, amount, currency, expense_date, notes, status)
-            VALUES (@eid, @title, @cat, @amount, @currency, COALESCE(@edate::date, CURRENT_DATE), @notes, 'pending')
+              (employee_id, title, category, amount, currency, expense_date, notes, receipt_file_ref, receipt_file_name, status)
+            VALUES (@eid, @title, @cat, @amount, @currency, COALESCE(@edate::date, CURRENT_DATE), @notes, @receipt, @receiptName, 'pending')
             RETURNING *
             """, conn, (NpgsqlTransaction)tx);
         cmd.Parameters.AddWithValue("eid", employeeId);
@@ -3923,6 +3933,8 @@ public sealed class HrQueryService
         cmd.Parameters.AddWithValue("currency", string.IsNullOrWhiteSpace(currency) ? "AED" : currency);
         cmd.Parameters.AddWithValue("edate", (object?)expenseDate ?? DBNull.Value);
         cmd.Parameters.AddWithValue("notes", (object?)notes ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("receipt", (object?)receiptFileRef ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("receiptName", (object?)receiptFileName ?? DBNull.Value);
         var row = (await ReadOneAsync(cmd, ct))!;
         var expenseId = Convert.ToInt32(row["id"]);
 

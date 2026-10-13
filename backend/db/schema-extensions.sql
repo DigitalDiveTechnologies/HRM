@@ -200,8 +200,13 @@ CREATE TABLE IF NOT EXISTS expense_claims (
   status TEXT NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending', 'approved', 'rejected', 'paid')),
   notes TEXT,
+  receipt_file_ref TEXT,
+  receipt_file_name TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE expense_claims ADD COLUMN IF NOT EXISTS receipt_file_ref TEXT;
+ALTER TABLE expense_claims ADD COLUMN IF NOT EXISTS receipt_file_name TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_candidates_job ON candidates(job_id);
 CREATE INDEX IF NOT EXISTS idx_candidates_stage ON candidates(stage);

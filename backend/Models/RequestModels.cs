@@ -204,6 +204,8 @@ public sealed class ExpenseClaimCreateRequest
     public string? Currency { get; set; }
     public string? ExpenseDate { get; set; }
     public string? Notes { get; set; }
+    public string? ReceiptFileRef { get; set; }
+    public string? ReceiptFileName { get; set; }
 }
 
 public sealed class DocumentCreateRequest
