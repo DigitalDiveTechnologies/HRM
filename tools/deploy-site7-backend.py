@@ -175,6 +175,14 @@ def main() -> None:
                 close(ftp)
                 ftp = connect(password)
                 ftp.delete("/app_offline.htm")
+        try:
+            wc = io.BytesIO()
+            ftp.retrbinary("RETR /web.config", wc.write)
+            ftp.storbinary("STOR /web.config", io.BytesIO(wc.getvalue()))
+            print("Touched web.config to recycle IIS application pool", flush=True)
+            time.sleep(5)
+        except Exception as e:
+            print(f"Warning: could not touch web.config: {e}", flush=True)
         close(ftp)
     verify_api()
 
