@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - ci/site7-backend
     paths:
       - backend/**
       - tools/deploy-site7-backend.py
