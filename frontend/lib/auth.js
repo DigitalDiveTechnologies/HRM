@@ -23,7 +23,7 @@ export function getApiBase() {
 function ensureCacheApiScope() {
   if (typeof window === 'undefined') return;
   try {
-    const scope = `${window.location.hostname}|${getApiBase()}`;
+    const scope = `${window.location.hostname}|${getApiBase()}|prod_db_v2`;
     if (localStorage.getItem('gocs_cache_api_scope') !== scope) {
       const staleKeys = [];
       for (let i = 0; i < localStorage.length; i++) {
