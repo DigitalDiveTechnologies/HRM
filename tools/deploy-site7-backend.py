@@ -66,6 +66,7 @@ def check_server_config(ftp: FTP_TLS) -> None:
 
     data = io.BytesIO()
     ftp.retrbinary("RETR /web.config", data.write)
+    print("=== SERVER WEB.CONFIG ===\n" + data.getvalue().decode('utf-8', errors='ignore'), flush=True)
     root = ET.fromstring(data.getvalue())
     production = any(
         node.attrib.get("name", "").upper() == "ASPNETCORE_ENVIRONMENT"
@@ -120,9 +121,11 @@ def upload(ftp: FTP_TLS, local: Path, root: Path) -> None:
         try:
             with local.open("rb") as stream:
                 ftp.storbinary(f"STOR /{relative}", stream, blocksize=256 * 1024)
-            print(f"Uploaded {relative}", flush=True)
+            size = ftp.size(f"/{relative}")
+            print(f"Uploaded {relative} (server size: {size})", flush=True)
             return
-        except Exception:
+        except Exception as exc:
+            print(f"Attempt {attempt} failed for {relative}: {exc}", flush=True)
             if attempt == 5:
                 raise
             time.sleep(3)
@@ -141,6 +144,8 @@ def verify_api() -> None:
             props = spec.get("components", {}).get("schemas", {}).get("AttendanceCreateRequest", {}).get("properties", {})
             has_lat = any(k.lower() == "latitude" for k in props.keys())
             if not has_lat:
+                if attempt == 15:
+                    raise RuntimeError("Site7 did not reload new assembly with GPS location within 75 seconds.")
                 print(f"[Attempt {attempt}] Server still serving older assembly (properties: {list(props.keys())}). Waiting for IIS restart...", flush=True)
                 time.sleep(5)
                 continue
@@ -173,7 +178,8 @@ def main() -> None:
         check_server_config(ftp)
         offline = True
         ftp.storbinary("STOR /app_offline.htm", io.BytesIO(b"<html><body>Updating...</body></html>"))
-        time.sleep(3)
+        print("Placed app_offline.htm, waiting 10s for IIS to terminate dotnet process...", flush=True)
+        time.sleep(10)
         for path in files:
             upload(ftp, path, root)
     finally:
