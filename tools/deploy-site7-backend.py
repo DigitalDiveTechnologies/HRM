@@ -129,23 +129,32 @@ def upload(ftp: FTP_TLS, local: Path, root: Path) -> None:
 
 
 def verify_api() -> None:
-    for attempt in range(1, 13):
+    for attempt in range(1, 16):
         try:
             with urlopen(f"{SITE_URL}/swagger/v1/swagger.json", timeout=20) as response:
-                paths = json.load(response)["paths"]
+                spec = json.load(response)
+            paths = spec["paths"]
             missing = REQUIRED_RBAC_PATHS - paths.keys()
             if missing:
                 raise RuntimeError(f"Missing RBAC routes: {', '.join(sorted(missing))}")
+
+            props = spec.get("components", {}).get("schemas", {}).get("AttendanceCreateRequest", {}).get("properties", {})
+            has_lat = any(k.lower() == "latitude" for k in props.keys())
+            if not has_lat:
+                print(f"[Attempt {attempt}] Server still serving older assembly (properties: {list(props.keys())}). Waiting for IIS restart...", flush=True)
+                time.sleep(5)
+                continue
+
             try:
                 urlopen(f"{SITE_URL}/api/rbac/permission-matrix", timeout=20)
             except HTTPError as exc:
                 if exc.code == 401:
-                    print("Verified site7 RBAC routes and unauthenticated 401.", flush=True)
+                    print("Verified site7 RBAC routes, unauthenticated 401, and GPS location schema.", flush=True)
                     return
                 raise RuntimeError(f"Permission matrix returned HTTP {exc.code}, expected 401") from exc
             raise RuntimeError("Permission matrix allowed an unauthenticated request.")
         except (RuntimeError, URLError, TimeoutError, KeyError, ValueError) as exc:
-            if attempt == 12:
+            if attempt == 15:
                 raise RuntimeError("Site7 did not pass post-deploy checks.") from exc
             time.sleep(5)
 
@@ -176,11 +185,18 @@ def main() -> None:
                 ftp = connect(password)
                 ftp.delete("/app_offline.htm")
         try:
+            import re
             wc = io.BytesIO()
             ftp.retrbinary("RETR /web.config", wc.write)
-            ftp.storbinary("STOR /web.config", io.BytesIO(wc.getvalue()))
-            print("Touched web.config to recycle IIS application pool", flush=True)
-            time.sleep(5)
+            content = wc.getvalue().decode("utf-8", errors="ignore")
+            content = re.sub(r"<!--\s*deploy-ts:.*?-->", "", content)
+            if "</configuration>" in content:
+                content = content.replace("</configuration>", f"  <!-- deploy-ts: {time.time()} -->\n</configuration>")
+            else:
+                content += f"\n<!-- deploy-ts: {time.time()} -->\n"
+            ftp.storbinary("STOR /web.config", io.BytesIO(content.encode("utf-8")))
+            print("Updated web.config timestamp to recycle IIS application pool", flush=True)
+            time.sleep(8)
         except Exception as e:
             print(f"Warning: could not touch web.config: {e}", flush=True)
         close(ftp)
