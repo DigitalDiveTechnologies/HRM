@@ -265,3 +265,28 @@ public sealed class CertificateDecisionRequest
     public string Status { get; set; } = string.Empty;
     public string? HrNote { get; set; }
 }
+
+public sealed class BenefitPlanCreateRequest
+{
+    public string Name { get; set; } = string.Empty;
+    public string? BenefitType { get; set; } = "medical_insurance";
+    public string ProviderName { get; set; } = string.Empty;
+    public string PolicyNumber { get; set; } = string.Empty;
+    public string? CoverageSummary { get; set; }
+    public decimal AnnualPremiumEmployer { get; set; } = 0m;
+    public decimal AnnualPremiumEmployee { get; set; } = 0m;
+    public bool IsActive { get; set; } = true;
+}
+
+public sealed class BenefitAssignRequest
+{
+    public int EmployeeId { get; set; }
+    public int BenefitPlanId { get; set; }
+    public string? MemberId { get; set; }
+    public string? CoverageTier { get; set; } = "employee_only";
+    public int DependentsCount { get; set; } = 0;
+    public string StartDate { get; set; } = string.Empty;
+    public string EndDate { get; set; } = string.Empty;
+    public string? Status { get; set; } = "active";
+}
+

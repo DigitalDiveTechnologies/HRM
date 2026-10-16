@@ -25,9 +25,18 @@ export const NAV = [
         ],
         roles: ['admin', 'manager', 'employee'],
       },
-      { href: '/reports', labelKey: 'nav_reports', permission: 'reports.view', roles: ['admin'] },
+      {
+        href: '/reports',
+        labelKey: 'nav_reports',
+        permission: 'reports.view',
+        roles: ['admin'],
+        children: [
+          { href: '/reports/builder', label: 'Report Builder', permission: 'reports.view', roles: ['admin'] },
+        ],
+      },
       { href: '/ops', label: 'Ops & Scale', permission: 'ops.view', roles: ['admin'] },
       { href: '/notifications', labelKey: 'nav_notifications', permission: 'notifications.view', roles: ['admin', 'manager', 'employee'] },
+      { href: '/announcements', label: 'Announcements', permission: 'dashboard.view', roles: ['admin'] },
     ],
   },
   {
@@ -65,9 +74,12 @@ export const NAV = [
       { href: '/attendance', labelKey: 'nav_attendance', permission: 'attendance.view', roles: ['admin', 'manager', 'employee'] },
       { href: '/leave', labelKey: 'nav_leave', permission: 'leave.view', roles: ['admin', 'manager', 'employee'] },
       { href: '/certificates', labelKey: 'nav_certificates', permission: 'certificates.view', roles: ['admin', 'manager', 'employee'] },
+      { href: '/benefits', label: 'Benefits & Insurance', permissions: ['payroll.view', 'employees.list'], roles: ['admin', 'manager'] },
+      { href: '/custom-fields', label: 'Custom Fields', permissions: ['employees.list', 'masters.departments'], roles: ['admin', 'manager'] },
       { href: '/payroll', label: 'Payroll', permission: 'payroll.view', roles: ['admin'] },
       { href: '/approvals', labelKey: 'nav_approvals', permission: 'approvals.view', roles: ['admin', 'manager'] },
     ],
+
   },
   {
     titleKey: 'nav_self_service',

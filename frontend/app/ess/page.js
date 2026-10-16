@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import AppShell from '../../components/AppShell';
-import { api, getUser, normalizeRole, isAdminRole } from '../../lib/auth';
+import { api, apiBlob, getUser, normalizeRole, isAdminRole } from '../../lib/auth';
 import { formatDate, formatDateTime, money, v } from '../../lib/format';
 import {
   fetchEmployeesDirect,
@@ -688,6 +688,27 @@ export default function EssDashboardPage() {
 
   function handlePrintPayslip() {
     window.print();
+  }
+
+  async function handleDownloadPayslip() {
+    const employeeId = employeeProfile?.id || getUser()?.employeeId || getUser()?.employee_id;
+    if (!employeeId) {
+      setError('Employee profile not found.');
+      return;
+    }
+    try {
+      const blob = await apiBlob(`/ess/${employeeId}/payslips/latest/pdf`);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Payslip-${employeeProfile?.empCode || employeeProfile?.emp_code || employeeId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message || 'Unable to download payslip PDF.');
+    }
   }
 
   return (
@@ -1557,7 +1578,7 @@ export default function EssDashboardPage() {
 
                   <button
                     type="button"
-                    onClick={handlePrintPayslip}
+                    onClick={handleDownloadPayslip}
                     style={{
                       background: '#00b8db',
                       color: '#ffffff',

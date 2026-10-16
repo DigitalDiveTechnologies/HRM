@@ -9,7 +9,7 @@ import { formatDate, formatDateTime, formatLate, v } from '../../lib/format';
 import { canUseAnyPermission, canUsePermission } from '../../lib/nav';
 import { fetchEmployeesDirect, fetchDivisionsDirect, updateLeaveStatusDirect, updateCompanyDirect, createCompanyDirect } from '../../lib/dbDirect';
 import { writeEmployeesCache } from '../../lib/employeeCache';
-import { upsertCompanyInCache, writeCompaniesCache } from '../../lib/companyCache';
+import { isAllowedCompany, upsertCompanyInCache, writeCompaniesCache } from '../../lib/companyCache';
 import { LOGO_ACCEPT, readLogoFileAsDataUrl, validateLogoFile } from '../../lib/logoUpload';
 
 const COMPANY_PERMS = [
@@ -20,7 +20,7 @@ const COMPANY_PERMS = [
 
 function sortCompaniesLatest(list) {
   if (!Array.isArray(list)) return [];
-  return [...list].sort((a, b) => {
+  return [...list].filter(isAllowedCompany).sort((a, b) => {
     const rawA = a?.created_at || a?.createdAt;
     const rawB = b?.created_at || b?.createdAt;
     const timeA = rawA ? new Date(rawA).getTime() : 0;
@@ -892,6 +892,33 @@ export default function DashboardPage() {
   });
 
   // Edit / Delete Announcements
+  useEffect(() => {
+    api('/announcements')
+      .then((res) => {
+        if (Array.isArray(res) && res.length > 0) {
+          const mapped = res.map((item) => {
+            const cat = item.category || 'General';
+            const c = getCategoryColor(cat);
+            return {
+              id: item.id,
+              category: cat,
+              tagBg: c.bg,
+              tagColor: c.text,
+              title: item.title,
+              desc: item.bodyHtml || item.body_html || item.content || item.desc || '',
+              requiresAck: item.requiresAck || item.requires_ack,
+              ackCount: item.ackCount || item.ack_count || 0,
+            };
+          });
+          setAnnouncements(mapped);
+          try {
+            localStorage.setItem('gocs_announcements', JSON.stringify(mapped));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const [editingAnnouncementIndex, setEditingAnnouncementIndex] = useState(null);
   const [editAnnouncementForm, setEditAnnouncementForm] = useState({
     title: '',
@@ -921,6 +948,21 @@ export default function DashboardPage() {
       title: postForm.title.trim(),
       desc: postForm.desc.trim() || 'No additional description provided.',
     };
+    api('/announcements', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: postForm.title.trim(),
+        category: catName,
+        desc: postForm.desc.trim() || 'No additional description provided.',
+        content: postForm.desc.trim() || 'No additional description provided.',
+        requiresAck: false,
+      }),
+    })
+      .then((created) => {
+        if (created?.id) newItem.id = created.id;
+      })
+      .catch(() => {});
+
     const nextList = [newItem, ...announcements];
     setAnnouncements(nextList);
     try {
@@ -931,6 +973,10 @@ export default function DashboardPage() {
   }
 
   function handleDeleteAnnouncement(idx) {
+    const item = announcements[idx];
+    if (item?.id) {
+      api(`/announcements/${item.id}`, { method: 'DELETE' }).catch(() => {});
+    }
     const nextList = announcements.filter((_, i) => i !== idx);
     setAnnouncements(nextList);
     try {

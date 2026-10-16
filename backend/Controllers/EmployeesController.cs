@@ -23,19 +23,28 @@ public sealed class EmployeesController : ControllerBase
     private readonly OrgFoundationService _org;
     private readonly IWebHostEnvironment _env;
     private readonly RbacService _rbac;
+    private readonly EmailService _email;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<EmployeesController> _logger;
 
     public EmployeesController(
         HrQueryService hr,
         EmployeeBulkService bulk,
         OrgFoundationService org,
         IWebHostEnvironment env,
-        RbacService rbac)
+        RbacService rbac,
+        EmailService email,
+        IServiceScopeFactory scopeFactory,
+        ILogger<EmployeesController> logger)
     {
         _hr = hr;
         _bulk = bulk;
         _org = org;
         _env = env;
         _rbac = rbac;
+        _email = email;
+        _scopeFactory = scopeFactory;
+        _logger = logger;
     }
 
     private async Task<bool> HasEmployeePermAsync(CancellationToken ct, params string[] codes)
@@ -170,6 +179,28 @@ public sealed class EmployeesController : ControllerBase
             await _hr.WriteAuditAsync(User.FindFirst("email")?.Value ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Email)?.Value,
                 CurrentUser.Role(User), "create", "employee", employeeId, "created with primary position", ct);
         }
+
+        // Task 1.1: Automated Welcome Email Dispatch (Non-blocking background task)
+        var empEmail = body.Email.Trim().ToLowerInvariant();
+        var empFullName = fullName;
+        var empPassword = string.IsNullOrWhiteSpace(body.Password) ? "demo123" : body.Password.Trim();
+        var empCode = Convert.ToString(employee?.GetValueOrDefault("emp_code") ?? body.EmpCode) ?? "";
+        var originHeader = Request.Headers.Origin.FirstOrDefault() ?? Request.Headers.Referer.FirstOrDefault();
+        var portalUrl = !string.IsNullOrWhiteSpace(originHeader) ? originHeader : "https://gocs-employee-portal.vercel.app";
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var emailSvc = scope.ServiceProvider.GetRequiredService<EmailService>();
+                await emailSvc.SendWelcomeEmailAsync(empEmail, empFullName, empPassword, empCode, portalUrl, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Background dispatch of welcome email failed for {Email}", empEmail);
+            }
+        });
 
         return Ok(new
         {

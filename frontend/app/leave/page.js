@@ -124,7 +124,42 @@ export default function LeavePage() {
   const [empSearch, setEmpSearch] = useState('');
   const [selectedBalanceEmpId, setSelectedBalanceEmpId] = useState('');
 
+  // Interactive Calendar State
+  const [departments, setDepartments] = useState([]);
+  const [calDate, setCalDate] = useState(() => new Date(2026, 9, 1)); // October 2026 default
+  const [calViewMode, setCalViewMode] = useState('month'); // 'month' | 'week'
+  const [calDeptFilter, setCalDeptFilter] = useState('');
+  const [showHolidaysTable, setShowHolidaysTable] = useState(false);
+
+  function toDateStr(d) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function handleCalPrev() {
+    if (calViewMode === 'month') {
+      setCalDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+    } else {
+      setCalDate((prev) => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() - 7));
+    }
+  }
+
+  function handleCalNext() {
+    if (calViewMode === 'month') {
+      setCalDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+    } else {
+      setCalDate((prev) => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 7));
+    }
+  }
+
+  function handleCalToday() {
+    setCalDate(new Date(2026, 9, 16));
+  }
+
   // Group unique employees for Master-Detail Leave Balances
+
   const balanceEmployees = useMemo(() => {
     const map = new Map();
     (employees || []).forEach((emp) => {
@@ -253,17 +288,24 @@ export default function LeavePage() {
         .catch(() => {});
 
       // Concurrently fetch with resilient fallback
-      const [leaveRes, balRes, empsRes, apprRes] = await Promise.allSettled([
+      const [leaveRes, balRes, empsRes, apprRes, deptsRes] = await Promise.allSettled([
         api('/leave'),
         api('/leave/balances'),
         api('/employees'),
         api('/approvals'),
+        api('/departments'),
       ]);
 
       const list = leaveRes.status === 'fulfilled' && Array.isArray(leaveRes.value) ? leaveRes.value : [];
       const bal = balRes.status === 'fulfilled' && Array.isArray(balRes.value) ? balRes.value : [];
       const emps = empsRes.status === 'fulfilled' && Array.isArray(empsRes.value) ? empsRes.value : [];
       const appr = apprRes.status === 'fulfilled' && Array.isArray(apprRes.value) ? apprRes.value : [];
+      const depts = deptsRes.status === 'fulfilled' && Array.isArray(deptsRes.value) ? deptsRes.value : [];
+
+      if (depts.length > 0) {
+        setDepartments(depts);
+      }
+
 
       if (list.length > 0) {
         setRows(list);
@@ -526,7 +568,147 @@ export default function LeavePage() {
     ];
   }, [selectedLeave, leaveEmp, leaveApprovals]);
 
+  // Enriched approved leaves for calendar with department & employee data
+  const enrichedApprovedLeaves = useMemo(() => {
+    return rows
+      .filter((r) => String(v(r, 'status')).toLowerCase() === 'approved')
+      .map((r) => {
+        const empId = String(v(r, 'employeeId', 'employee_id') || '');
+        const emp = (employees || []).find((e) => String(v(e, 'id') || e.id || '') === empId);
+        const deptName =
+          v(r, 'departmentName', 'department_name') ||
+          (emp ? v(emp, 'departmentName', 'department_name') : '') ||
+          'IT';
+        const deptId =
+          v(r, 'departmentId', 'department_id') ||
+          (emp ? v(emp, 'departmentId', 'department_id') : '');
+        const divId =
+          v(r, 'divisionId', 'division_id') ||
+          (emp ? v(emp, 'divisionId', 'division_id') : '');
+        const empName = v(r, 'fullName', 'full_name') || (emp ? v(emp, 'fullName', 'full_name') : 'Employee');
+        const empCode = v(r, 'empCode', 'emp_code') || (emp ? v(emp, 'empCode', 'emp_code') : '');
+        const leaveType = v(r, 'leaveType', 'leave_type') || 'Annual';
+        const startDate = String(v(r, 'startDate', 'start_date') || '').slice(0, 10);
+        const endDate = String(v(r, 'endDate', 'end_date') || '').slice(0, 10);
+        return {
+          ...r,
+          empId,
+          empName,
+          empCode,
+          deptName,
+          deptId: String(deptId),
+          divId: String(divId),
+          leaveType,
+          startDate,
+          endDate,
+        };
+      })
+      .filter((r) => {
+        if (localFilteredEmpIds && !localFilteredEmpIds.has(r.empId)) return false;
+        if (calDeptFilter && String(r.deptId) !== String(calDeptFilter) && r.deptName.toLowerCase() !== calDeptFilter.toLowerCase()) return false;
+        return true;
+      });
+  }, [rows, employees, localFilteredEmpIds, calDeptFilter]);
+
+  // Calendar Days Calculation (Month or Week grid)
+  const calendarDays = useMemo(() => {
+    const days = [];
+    const y = calDate.getFullYear();
+    const m = calDate.getMonth();
+
+    if (calViewMode === 'month') {
+      const firstDay = new Date(y, m, 1);
+      const lastDay = new Date(y, m + 1, 0);
+      const startDayOfWeek = firstDay.getDay(); // 0 is Sunday
+      const totalDays = lastDay.getDate();
+
+      const prevMonthLastDay = new Date(y, m, 0).getDate();
+      for (let i = startDayOfWeek - 1; i >= 0; i--) {
+        const d = new Date(y, m - 1, prevMonthLastDay - i);
+        days.push({ date: d, dateStr: toDateStr(d), isCurrentMonth: false });
+      }
+
+      for (let day = 1; day <= totalDays; day++) {
+        const d = new Date(y, m, day);
+        days.push({ date: d, dateStr: toDateStr(d), isCurrentMonth: true });
+      }
+
+      const remaining = (7 - (days.length % 7)) % 7;
+      for (let day = 1; day <= remaining; day++) {
+        const d = new Date(y, m + 1, day);
+        days.push({ date: d, dateStr: toDateStr(d), isCurrentMonth: false });
+      }
+    } else {
+      const currentDayOfWeek = calDate.getDay();
+      const startOfWeek = new Date(y, m, calDate.getDate() - currentDayOfWeek);
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + i);
+        days.push({ date: d, dateStr: toDateStr(d), isCurrentMonth: d.getMonth() === m });
+      }
+    }
+
+    const todayStr = '2026-10-16';
+
+    return days.map((dayItem) => {
+      const dStr = dayItem.dateStr;
+      const isToday = dStr === todayStr;
+      const dayLeaves = enrichedApprovedLeaves.filter((l) => l.startDate <= dStr && l.endDate >= dStr);
+
+      // Group leaves by department to detect absence overlap
+      const deptMap = {};
+      dayLeaves.forEach((l) => {
+        const dName = l.deptName || 'IT';
+        if (!deptMap[dName]) deptMap[dName] = [];
+        deptMap[dName].push(l);
+      });
+
+      const conflicts = [];
+      Object.entries(deptMap).forEach(([deptName, leaves]) => {
+        if (leaves.length >= 2) {
+          conflicts.push({
+            deptName,
+            count: leaves.length,
+            employees: leaves.map((l) => l.empName),
+          });
+        }
+      });
+
+      const holiday = UAE_HOLIDAYS_2026.find((h) => h.date === dStr) || null;
+
+      return {
+        ...dayItem,
+        isToday,
+        leaves: dayLeaves,
+        conflicts,
+        hasConflict: conflicts.length > 0,
+        holiday,
+      };
+    });
+  }, [calDate, calViewMode, enrichedApprovedLeaves]);
+
+  // All overlapping conflicts in current view for warning summary
+  const allPeriodConflicts = useMemo(() => {
+    const map = new Map();
+    calendarDays.forEach((d) => {
+      if (d.hasConflict) {
+        d.conflicts.forEach((c) => {
+          const key = `${d.dateStr}_${c.deptName}`;
+          if (!map.has(key)) {
+            map.set(key, {
+              dateStr: d.dateStr,
+              deptName: c.deptName,
+              count: c.count,
+              employees: c.employees,
+            });
+          }
+        });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+  }, [calendarDays]);
+
   return (
+
     <AppShell title="Leave Request Details" subtitle="Employee leave requests, multi-level approval pipeline & balances">
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 14, color: 'var(--ok, #10b981)', fontWeight: 600 }}>{msg}</div> : null}
@@ -1740,38 +1922,524 @@ export default function LeavePage() {
         </div>
 
         {/* =========================================================================
-            5. UAE HOLIDAY CALENDAR (2026)
+            5. INTERACTIVE TEAM TIME-OFF CALENDAR & CONFLICT WARNINGS (Task 2.1)
            ========================================================================= */}
-        <div className="card" style={{ padding: '20px', borderRadius: 14 }}>
-          <div className="panel-title" style={{ marginBottom: 14 }}>
+        <div className="card" style={{ padding: '24px', borderRadius: 14 }}>
+          {/* Header & Controls */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14, marginBottom: 20 }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>UAE Holiday Calendar (2026)</h3>
-              <p className="muted" style={{ margin: '2px 0 0', fontSize: '12px' }}>
-                Official United Arab Emirates public and national holidays
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: 8,
+                    background: 'rgba(0, 184, 219, 0.12)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#008fa8',
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700 }}>Team Time-Off Calendar</h3>
+                  <p className="muted" style={{ margin: '2px 0 0', fontSize: '12px' }}>
+                    Visual team leave planner, public holidays & departmental absence overlap warnings
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter and Navigation Toolbar */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              {/* Department Selector */}
+              <select
+                value={calDeptFilter}
+                onChange={(e) => setCalDeptFilter(e.target.value)}
+                style={{
+                  fontSize: '12.5px',
+                  padding: '7px 12px',
+                  borderRadius: 8,
+                  border: '1px solid var(--line-strong, #cbd5e1)',
+                  background: 'var(--surface, #ffffff)',
+                  color: 'var(--ink, #0f172a)',
+                  outline: 'none',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                <option value="">All Departments</option>
+                {departments.map((d) => (
+                  <option key={v(d, 'id')} value={v(d, 'name') || v(d, 'id')}>
+                    {v(d, 'name')}
+                  </option>
+                ))}
+              </select>
+
+              {/* Month / Week View Mode Toggle */}
+              <div
+                style={{
+                  display: 'inline-flex',
+                  background: 'var(--surface-alt, #f1f5f9)',
+                  padding: 3,
+                  borderRadius: 8,
+                  border: '1px solid var(--line, #e2e8f0)',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setCalViewMode('month')}
+                  style={{
+                    padding: '5px 12px',
+                    fontSize: '12px',
+                    fontWeight: calViewMode === 'month' ? 700 : 500,
+                    borderRadius: 6,
+                    border: 'none',
+                    background: calViewMode === 'month' ? '#00b8db' : 'transparent',
+                    color: calViewMode === 'month' ? '#ffffff' : 'var(--muted, #64748b)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  Month
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCalViewMode('week')}
+                  style={{
+                    padding: '5px 12px',
+                    fontSize: '12px',
+                    fontWeight: calViewMode === 'week' ? 700 : 500,
+                    borderRadius: 6,
+                    border: 'none',
+                    background: calViewMode === 'week' ? '#00b8db' : 'transparent',
+                    color: calViewMode === 'week' ? '#ffffff' : 'var(--muted, #64748b)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  Week
+                </button>
+              </div>
+
+              {/* Prev / Today / Next Navigation */}
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <button
+                  type="button"
+                  onClick={handleCalPrev}
+                  className="btn"
+                  style={{
+                    padding: '6px 10px',
+                    fontSize: '12px',
+                    background: 'var(--surface-alt, #f8fafc)',
+                    border: '1px solid var(--line, #cbd5e1)',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                  }}
+                  title="Previous"
+                >
+                  ◀
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCalToday}
+                  className="btn"
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    background: 'var(--surface-alt, #f8fafc)',
+                    border: '1px solid var(--line, #cbd5e1)',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCalNext}
+                  className="btn"
+                  style={{
+                    padding: '6px 10px',
+                    fontSize: '12px',
+                    background: 'var(--surface-alt, #f8fafc)',
+                    border: '1px solid var(--line, #cbd5e1)',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                  }}
+                  title="Next"
+                >
+                  ▶
+                </button>
+              </div>
+
+              {/* Month & Year Label */}
+              <div
+                style={{
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  color: 'var(--ink, #0f172a)',
+                  minWidth: 120,
+                  textAlign: 'right',
+                }}
+              >
+                {calDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </div>
             </div>
           </div>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th style={{ width: '160px' }}>Date</th>
-                  <th>Public Holiday</th>
-                </tr>
-              </thead>
-              <tbody>
-                {UAE_HOLIDAYS_2026.map((h) => (
-                  <tr key={h.date}>
-                    <td>
-                      <strong style={{ color: 'var(--ink)' }}>{formatDate(h.date)}</strong>
-                    </td>
-                    <td>{h.name}</td>
-                  </tr>
+
+          {/* Absence Overlap Alert Banner (When 2+ staff in same department on leave) */}
+          {allPeriodConflicts.length > 0 ? (
+            <div
+              style={{
+                marginBottom: 18,
+                padding: '14px 18px',
+                borderRadius: 10,
+                background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(239, 68, 68, 0.08))',
+                border: '1px solid rgba(245, 158, 11, 0.4)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: '18px' }}>⚠️</span>
+                <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#b45309' }}>
+                  Absence Overlap Warning: {allPeriodConflicts.length} department schedule conflict(s) detected!
+                </div>
+              </div>
+              <div style={{ fontSize: '12.5px', color: '#78350f', lineHeight: 1.5 }}>
+                Two or more staff members in the same department are on leave on the same date. Review overlapping assignments below to ensure adequate operational coverage:
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                {allPeriodConflicts.map((c, idx) => (
+                  <div
+                    key={`${c.dateStr}-${c.deptName}-${idx}`}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.85)',
+                      border: '1px solid rgba(245, 158, 11, 0.5)',
+                      borderRadius: 6,
+                      padding: '4px 10px',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      color: '#92400e',
+                    }}
+                  >
+                    📅 <strong>{c.dateStr}</strong> — <strong>{c.deptName}</strong> ({c.employees.join(', ')})
+                  </div>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Calendar Grid Table */}
+          <div style={{ overflowX: 'auto' }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(7, minmax(130px, 1fr))',
+                gap: 6,
+                minWidth: 840,
+              }}
+            >
+              {/* Day Headers */}
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((dName, idx) => (
+                <div
+                  key={dName}
+                  style={{
+                    textAlign: 'center',
+                    padding: '8px 4px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: idx === 0 || idx === 6 ? '#008fa8' : 'var(--muted, #64748b)',
+                    background: 'var(--surface-alt, #f8fafc)',
+                    borderRadius: 6,
+                  }}
+                >
+                  {dName}
+                </div>
+              ))}
+
+              {/* Day Cells */}
+              {calendarDays.map((dayItem) => {
+                const dayNum = dayItem.date.getDate();
+                const isSunOrSat = dayItem.date.getDay() === 0 || dayItem.date.getDay() === 6;
+
+                return (
+                  <div
+                    key={dayItem.dateStr}
+                    style={{
+                      minHeight: 115,
+                      borderRadius: 8,
+                      padding: '8px',
+                      boxSizing: 'border-box',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4,
+                      background: dayItem.hasConflict
+                        ? 'rgba(245, 158, 11, 0.08)'
+                        : dayItem.isToday
+                        ? 'rgba(0, 184, 219, 0.06)'
+                        : !dayItem.isCurrentMonth
+                        ? 'var(--surface-alt, #f8fafc)'
+                        : 'var(--surface, #ffffff)',
+                      border: dayItem.hasConflict
+                        ? '2px solid #f59e0b'
+                        : dayItem.isToday
+                        ? '2px solid #00b8db'
+                        : '1px solid var(--line, #e2e8f0)',
+                      opacity: !dayItem.isCurrentMonth && calViewMode === 'month' ? 0.55 : 1,
+                      transition: 'border 0.15s ease',
+                    }}
+                  >
+                    {/* Top Row in Cell: Date Number & Holiday / Conflict Badges */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span
+                        style={{
+                          fontSize: '12px',
+                          fontWeight: dayItem.isToday ? 800 : 600,
+                          color: dayItem.isToday
+                            ? '#ffffff'
+                            : !dayItem.isCurrentMonth
+                            ? 'var(--muted, #94a3b8)'
+                            : isSunOrSat
+                            ? '#008fa8'
+                            : 'var(--ink, #0f172a)',
+                          background: dayItem.isToday ? '#00b8db' : 'transparent',
+                          width: dayItem.isToday ? 22 : 'auto',
+                          height: dayItem.isToday ? 22 : 'auto',
+                          borderRadius: dayItem.isToday ? '50%' : 'none',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        {dayNum}
+                      </span>
+
+                      {/* Conflict Indicator in cell */}
+                      {dayItem.hasConflict ? (
+                        <span
+                          title={dayItem.conflicts.map((c) => `${c.deptName}: ${c.employees.join(', ')}`).join('\n')}
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            padding: '1px 5px',
+                            borderRadius: 4,
+                            background: '#fef3c7',
+                            color: '#b45309',
+                            border: '1px solid rgba(245, 158, 11, 0.5)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 2,
+                            cursor: 'help',
+                          }}
+                        >
+                          ⚠️ {dayItem.conflicts.reduce((sum, c) => sum + c.count, 0)} overlap
+                        </span>
+                      ) : null}
+                    </div>
+
+                    {/* UAE Public Holiday Pill */}
+                    {dayItem.holiday ? (
+                      <div
+                        style={{
+                          fontSize: '10.5px',
+                          fontWeight: 700,
+                          padding: '3px 6px',
+                          borderRadius: 5,
+                          background: 'rgba(16, 185, 129, 0.14)',
+                          color: '#065f46',
+                          border: '1px solid rgba(16, 185, 129, 0.3)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                        title={`UAE Public Holiday: ${dayItem.holiday.name}`}
+                      >
+                        🕌 {dayItem.holiday.name}
+                      </div>
+                    ) : null}
+
+                    {/* Approved Leaves Event Pills */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 2, overflowY: 'auto', maxHeight: 85 }}>
+                      {dayItem.leaves.map((l) => {
+                        const lType = String(l.leaveType || '').toLowerCase();
+                        const isAnnual = lType === 'annual';
+                        const isSick = lType === 'sick';
+                        const isCasual = lType === 'casual';
+                        const isMaternity = lType === 'maternity';
+
+                        const pillBg = isAnnual
+                          ? 'rgba(0, 184, 219, 0.14)'
+                          : isSick
+                          ? 'rgba(234, 179, 8, 0.18)'
+                          : isCasual
+                          ? 'rgba(168, 85, 247, 0.16)'
+                          : isMaternity
+                          ? 'rgba(236, 72, 153, 0.16)'
+                          : 'var(--surface-alt, #f1f5f9)';
+
+                        const pillColor = isAnnual
+                          ? '#008fa8'
+                          : isSick
+                          ? '#b45309'
+                          : isCasual
+                          ? '#7e22ce'
+                          : isMaternity
+                          ? '#be185d'
+                          : 'var(--ink, #334155)';
+
+                        const pillBorder = isAnnual
+                          ? 'rgba(0, 184, 219, 0.35)'
+                          : isSick
+                          ? 'rgba(234, 179, 8, 0.4)'
+                          : isCasual
+                          ? 'rgba(168, 85, 247, 0.35)'
+                          : isMaternity
+                          ? 'rgba(236, 72, 153, 0.35)'
+                          : 'var(--line, #cbd5e1)';
+
+                        return (
+                          <div
+                            key={`${l.id}-${dayItem.dateStr}`}
+                            onClick={() => {
+                              setSelectedLeave(l);
+                              const el = document.getElementById('leave-request-details-section');
+                              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }}
+                            title={`${l.empName} (${l.deptName}) - ${l.leaveType} Leave\nDates: ${l.startDate} to ${l.endDate}\nReason: ${l.reason || 'Personal'}`}
+                            style={{
+                              fontSize: '11px',
+                              padding: '2px 6px',
+                              borderRadius: 4,
+                              background: pillBg,
+                              color: pillColor,
+                              border: `1px solid ${pillBorder}`,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              lineHeight: 1.25,
+                              transition: 'transform 0.1s ease',
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
+                          >
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: pillColor, flexShrink: 0 }} />
+                            <span style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {l.empName}
+                            </span>
+                            <span style={{ fontSize: '9.5px', opacity: 0.85 }}>({l.deptName})</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
+
+          {/* Calendar Legend & UAE Holiday Collapsible Table Toggle */}
+          <div
+            style={{
+              marginTop: 18,
+              paddingTop: 14,
+              borderTop: '1px solid var(--line, #e2e8f0)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 12,
+            }}
+          >
+            {/* Legend */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', fontSize: '11.5px' }}>
+              <span className="muted" style={{ fontWeight: 600 }}>Legend:</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: 'rgba(0, 184, 219, 0.3)', border: '1px solid #00b8db' }} />
+                <span>Annual Leave</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: 'rgba(234, 179, 8, 0.3)', border: '1px solid #f59e0b' }} />
+                <span>Sick Leave</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: 'rgba(168, 85, 247, 0.3)', border: '1px solid #a855f7' }} />
+                <span>Casual Leave</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: 'rgba(236, 72, 153, 0.3)', border: '1px solid #ec4899' }} />
+                <span>Maternity Leave</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: 'rgba(16, 185, 129, 0.3)', border: '1px solid #10b981' }} />
+                <span>UAE Holiday</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: 'rgba(245, 158, 11, 0.25)', border: '2px solid #f59e0b' }} />
+                <span style={{ fontWeight: 700, color: '#b45309' }}>Absence Overlap (2+ Dept Staff)</span>
+              </div>
+            </div>
+
+            {/* Toggle Table Button */}
+            <button
+              type="button"
+              className="btn"
+              onClick={() => setShowHolidaysTable((prev) => !prev)}
+              style={{
+                fontSize: '12px',
+                padding: '5px 12px',
+                background: 'var(--surface-alt, #f8fafc)',
+                border: '1px solid var(--line, #cbd5e1)',
+                borderRadius: 6,
+                cursor: 'pointer',
+              }}
+            >
+              {showHolidaysTable ? 'Hide Official Holidays List ▲' : 'View Official UAE Holidays List (2026) ▼'}
+            </button>
+          </div>
+
+          {/* Optional Collapsible UAE Holidays List */}
+          {showHolidaysTable ? (
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px dashed var(--line, #e2e8f0)' }}>
+              <h4 style={{ margin: '0 0 10px', fontSize: '13.5px', fontWeight: 700 }}>Official UAE Public Holidays (2026)</h4>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '160px' }}>Date</th>
+                      <th>Public Holiday</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {UAE_HOLIDAYS_2026.map((h) => (
+                      <tr key={h.date}>
+                        <td>
+                          <strong style={{ color: 'var(--ink)' }}>{formatDate(h.date)}</strong>
+                        </td>
+                        <td>{h.name}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
         </div>
+
       </div>
     </AppShell>
   );

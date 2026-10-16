@@ -191,6 +191,7 @@ export function emptyMasterForm() {
     photoPath: '',
     photoPreview: '',
     photoFile: null,
+    customFields: {},
   };
 }
 
@@ -521,6 +522,7 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
     ...(form.password?.trim() ? { appPassword: form.password.trim() } : {}),
     photoRemoved: !!form.photoRemoved || (!form.photoPath && !form.photoPreview && !form.photoFile),
     photoPath: form.photoPath || '',
+    ...(form.customFields || {}),
   };
 
   const basicNum = Number(masterData.finance?.basicSalary) || 0;

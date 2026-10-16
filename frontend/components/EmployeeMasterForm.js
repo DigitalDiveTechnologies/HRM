@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { apiUpload, getApiBase, resolveDocUrl } from '../lib/auth';
+import { useEffect, useRef, useState } from 'react';
+import { api, apiUpload, getApiBase, resolveDocUrl } from '../lib/auth';
 import { generateCompanyEmpCode } from '../lib/employeeMaster';
 import { v } from '../lib/format';
 
@@ -131,6 +131,7 @@ const FORM_TABS = [
   { id: 'Employee details', label: 'Employee details' },
   { id: 'Documents', label: 'Documents' },
   { id: 'Payroll', label: 'Payroll' },
+  { id: 'Custom fields', label: 'Custom fields' },
 ];
 
 export default function EmployeeMasterForm({
@@ -171,7 +172,36 @@ export default function EmployeeMasterForm({
     }
   };
 
-  // Custom Documents state for Tab 3
+  // Dynamic Custom Fields State (Task 2.4 - JSONB Engine)
+  const [customFields, setCustomFields] = useState([]);
+  const [customFieldsLoading, setCustomFieldsLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setCustomFieldsLoading(true);
+    api('/custom-fields')
+      .then((res) => {
+        if (active && Array.isArray(res)) setCustomFields(res);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setCustomFieldsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleCustomFieldChange = (key, value) => {
+    setForm((prev) => ({
+      ...prev,
+      [key]: value,
+      customFields: {
+        ...(prev.customFields || {}),
+        [key]: value,
+      },
+    }));
+  };
   const [selectedDocType, setSelectedDocType] = useState('Visa');
   const [docTitle, setDocTitle] = useState('');
   const [previewDoc, setPreviewDoc] = useState(null);
@@ -2642,6 +2672,101 @@ export default function EmployeeMasterForm({
                 </div>
               </div>
             </>
+          ) : null}
+
+          {/* =========================================================================
+              TAB 8: DYNAMIC CUSTOM FIELDS (Task 2.4 - JSONB Engine)
+             ========================================================================= */}
+          {activeTab === 'Custom fields' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <SectionCard title="Dynamic Custom Attributes & Operational Fields">
+                <p style={{ margin: '0 0 16px', fontSize: '12.5px', color: 'var(--muted, #64748b)', lineHeight: 1.5 }}>
+                  These organization-defined attributes are stored directly inside the employee&apos;s extensible JSONB profile (<code>master_data</code>).
+                </p>
+
+                {customFieldsLoading ? (
+                  <div style={{ padding: '24px', textAlign: 'center', color: 'var(--muted, #64748b)', fontSize: '13px' }}>
+                    Loading custom field definitions…
+                  </div>
+                ) : customFields.length === 0 ? (
+                  <div style={{ padding: '24px', textAlign: 'center', background: 'var(--surface-alt, #f8fafc)', borderRadius: 10, border: '1px dashed var(--line, #cbd5e1)' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink, #101828)' }}>No custom fields defined yet</div>
+                    <div style={{ fontSize: '12px', color: 'var(--muted, #64748b)', marginTop: 4 }}>
+                      Define fields like Sea Crew ID, Offshore Clearance, or Uniform Size in Custom Fields Manager.
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    {customFields.map((field) => {
+                      const value = form.customFields?.[field.fieldKey] ?? form[field.fieldKey] ?? form.master_data?.[field.fieldKey] ?? '';
+                      let parsedOptions = [];
+                      if (Array.isArray(field.optionsJson)) {
+                        parsedOptions = field.optionsJson;
+                      } else if (typeof field.optionsJson === 'string') {
+                        try {
+                          parsedOptions = JSON.parse(field.optionsJson);
+                        } catch {}
+                      }
+
+                      return (
+                        <FieldRow
+                          key={field.id}
+                          label={field.label}
+                          required={field.isRequired}
+                          helper={`Key: ${field.fieldKey} · Group: ${field.tabGroup || 'custom'}`}
+                        >
+                          {field.fieldType === 'select' ? (
+                            <select
+                              className="emp-input"
+                              value={value}
+                              onChange={(e) => handleCustomFieldChange(field.fieldKey, e.target.value)}
+                              required={field.isRequired}
+                            >
+                              <option value="">— Select {field.label} —</option>
+                              {parsedOptions.map((opt, i) => {
+                                const val = typeof opt === 'object' && opt !== null ? (opt.value || opt.label) : opt;
+                                const lbl = typeof opt === 'object' && opt !== null ? (opt.label || opt.value) : opt;
+                                return (
+                                  <option key={i} value={val}>
+                                    {lbl}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                          ) : field.fieldType === 'number' ? (
+                            <input
+                              type="number"
+                              className="emp-input"
+                              placeholder={`Enter ${field.label.toLowerCase()}…`}
+                              value={value}
+                              onChange={(e) => handleCustomFieldChange(field.fieldKey, e.target.value)}
+                              required={field.isRequired}
+                            />
+                          ) : field.fieldType === 'date' ? (
+                            <input
+                              type="date"
+                              className="emp-input"
+                              value={value ? String(value).slice(0, 10) : ''}
+                              onChange={(e) => handleCustomFieldChange(field.fieldKey, e.target.value)}
+                              required={field.isRequired}
+                            />
+                          ) : (
+                            <input
+                              type="text"
+                              className="emp-input"
+                              placeholder={`Enter ${field.label.toLowerCase()}…`}
+                              value={value}
+                              onChange={(e) => handleCustomFieldChange(field.fieldKey, e.target.value)}
+                              required={field.isRequired}
+                            />
+                          )}
+                        </FieldRow>
+                      );
+                    })}
+                  </div>
+                )}
+              </SectionCard>
+            </div>
           ) : null}
 
           {/* Form Actions Footer */}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { v } from './format';
+import { isAllowedCompany } from './companyCache';
 
 const KEY = 'gocs_selected_company_id';
 
@@ -55,7 +56,7 @@ export function useCompanyFilter() {
         const dc = localStorage.getItem('gocs_cached_dashboard');
         if (dc) {
           const p = JSON.parse(dc);
-          if (Array.isArray(p?.companies)) compList = p.companies;
+          if (Array.isArray(p?.companies)) compList = p.companies.filter(isAllowedCompany);
           if (!employees.length && Array.isArray(p?.employees)) employees = p.employees;
         }
       } catch {}
@@ -64,7 +65,7 @@ export function useCompanyFilter() {
           const divs = localStorage.getItem('gocs_cached_divisions');
           if (divs) {
             const parsed = JSON.parse(divs);
-            if (Array.isArray(parsed)) compList = parsed;
+            if (Array.isArray(parsed)) compList = parsed.filter(isAllowedCompany);
           }
         }
       } catch {}
@@ -87,7 +88,7 @@ export function useCompanyFilter() {
             let updatedComp = compList;
             let updatedEmp = employees;
             if (divRes.status === 'fulfilled' && Array.isArray(divRes.value)) {
-              updatedComp = divRes.value;
+              updatedComp = divRes.value.filter(isAllowedCompany);
               setCompanies(updatedComp);
               try { localStorage.setItem('gocs_cached_divisions', JSON.stringify(updatedComp)); } catch {}
             }

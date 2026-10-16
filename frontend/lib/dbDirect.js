@@ -4,7 +4,9 @@
 
 import { getApiBase, getToken } from './auth';
 
-const QUERY_ENDPOINT = `${getApiBase()}/api/query/execute`;
+function getQueryEndpoint() {
+  return `${getApiBase()}/api/query/execute`;
+}
 
 function authHeaders() {
   const token = getToken();
@@ -16,7 +18,7 @@ function authHeaders() {
 
 async function sqlExec(query) {
   try {
-    const res = await fetch(QUERY_ENDPOINT, {
+    const res = await fetch(getQueryEndpoint(), {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({ query }),
@@ -34,7 +36,7 @@ export async function clearEmployeePhotoInDb(employeeId) {
   const safeId = parseInt(employeeId, 10);
   if (!safeId || isNaN(safeId)) return false;
   try {
-    const res = await fetch(QUERY_ENDPOINT, {
+    const res = await fetch(getQueryEndpoint(), {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({
@@ -394,7 +396,7 @@ export async function fetchTravelDirect() {
 export async function fetchExpensesDirect() {
   try {
     const rows = await sqlExec(
-      `SELECT x.id, x.employee_id AS "employeeId", x.employee_id, x.title, x.category, x.amount, x.currency, x.expense_date AS "expenseDate", x.expense_date, x.status, x.notes, e.full_name AS "fullName", e.full_name, e.emp_code AS "empCode", e.emp_code FROM expense_claims x JOIN employees e ON e.id = x.employee_id ORDER BY x.id DESC LIMIT 300;`
+      `SELECT x.id, x.employee_id AS "employeeId", x.employee_id, x.title, x.category, x.amount, x.currency, x.expense_date AS "expenseDate", x.expense_date, x.status, x.notes, x.receipt_file_ref AS "receiptFileRef", x.receipt_file_ref, x.receipt_file_name AS "receiptFileName", x.receipt_file_name, e.full_name AS "fullName", e.full_name, e.emp_code AS "empCode", e.emp_code FROM expense_claims x JOIN employees e ON e.id = x.employee_id ORDER BY x.id DESC LIMIT 300;`
     );
     return rows ?? null;
   } catch (err) {

@@ -143,6 +143,46 @@ public sealed class EmailService
         await SendSafeAsync(employee.Email, $"Certificate issued — {typeLabel}", body, ct);
     }
 
+    public async Task SendWelcomeEmailAsync(
+        string toEmail,
+        string fullName,
+        string tempPassword,
+        string employeeCode,
+        string? portalUrl,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(toEmail)) return;
+
+        var url = string.IsNullOrWhiteSpace(portalUrl) ? "https://gocs-employee-portal.vercel.app" : portalUrl.Trim();
+        var subject = "Welcome to GOCs — Your Account & Access Details";
+        var safeName = WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(fullName) ? "Team Member" : fullName.Trim());
+        var safeEmail = WebUtility.HtmlEncode(toEmail.Trim());
+        var safeCode = WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(employeeCode) ? "—" : employeeCode.Trim());
+        var safePassword = WebUtility.HtmlEncode(tempPassword);
+        var safeUrl = WebUtility.HtmlEncode(url);
+
+        var content = $"""
+            <p>Welcome to <strong>GOCs</strong>! Your employee profile and digital portal account have been successfully created.</p>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px 20px;margin:20px 0;">
+                <p style="margin:0 0 8px 0;font-size:14px;"><strong>Employee ID:</strong> {safeCode}</p>
+                <p style="margin:0 0 8px 0;font-size:14px;"><strong>Login Email:</strong> {safeEmail}</p>
+                <p style="margin:0 0 8px 0;font-size:14px;"><strong>Temporary Password:</strong> <code style="background:#e0f2fe;color:#0369a1;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:13px;">{safePassword}</code></p>
+            </div>
+            <p style="margin:16px 0;">You can sign in to the <strong>Employee Self-Service Portal</strong> to view your payslips, apply for leaves, track attendance, and manage documents:</p>
+            <p style="margin:20px 0;">
+                <a href="{safeUrl}" style="background:#00b8db;color:#ffffff;text-decoration:none;padding:10px 22px;border-radius:6px;font-weight:600;display:inline-block;font-size:14px;">Sign In to Employee Portal &rarr;</a>
+            </p>
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px 18px;margin:20px 0;">
+                <p style="margin:0 0 6px 0;font-size:13px;font-weight:700;color:#166534;">Mobile App Access</p>
+                <p style="margin:0;font-size:12.5px;color:#14532d;">Download the <strong>GOCs HR Mobile App</strong> on iOS and Android to clock in/out, check live duty schedules, and receive instant approval notifications on the go.</p>
+            </div>
+            <p style="font-size:12px;color:#64748b;margin-top:16px;">* For security, please update your temporary password immediately upon your first sign in.</p>
+            """;
+
+        var body = Html($"Hello {safeName},", content);
+        await SendSafeAsync(toEmail, subject, body, ct);
+    }
+
     private async Task SendSafeAsync(string to, string subject, string htmlBody, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(to))

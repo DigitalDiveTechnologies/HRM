@@ -246,4 +246,101 @@ public sealed class DocumentsController : ControllerBase
 
         return PhysicalFile(absolutePath, contentType);
     }
+
+    /// <summary>
+    /// POST /api/documents/sign
+    /// Captures legally binding electronic signature for documents, handbooks, NDAs, and asset receipts.
+    /// </summary>
+    [HttpPost("sign")]
+    public async Task<IActionResult> SignDocument([FromBody] SignDocumentRequest body, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(body.SignatureBase64))
+            return BadRequest(new { error = "signatureBase64 is required" });
+        if (string.IsNullOrWhiteSpace(body.DocumentType))
+            return BadRequest(new { error = "documentType is required" });
+        if (body.DocumentId <= 0)
+            return BadRequest(new { error = "valid documentId is required" });
+
+        var empId = body.EmployeeId;
+        if (!empId.HasValue || empId.Value <= 0)
+        {
+            empId = CurrentUser.EmployeeId(User);
+        }
+
+        if (!empId.HasValue || empId.Value <= 0)
+        {
+            var email = CurrentUser.Email(User);
+            if (!string.IsNullOrWhiteSpace(email))
+            {
+                empId = await _hr.FindEmployeeIdByEmailAsync(email, ct);
+            }
+        }
+
+        if (!empId.HasValue || empId.Value <= 0)
+        {
+            return BadRequest(new { error = "Employee profile not found for signer." });
+        }
+
+        var signerEmail = CurrentUser.Email(User) ?? "employee@digitaldive.demo";
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+        var docSha = !string.IsNullOrWhiteSpace(body.DocumentSha256)
+            ? body.DocumentSha256.Trim()
+            : System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{body.DocumentType}:{body.DocumentId}:{empId}")).ToString() ?? "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+        var (sigId, signedAt, error) = await _hr.RecordDigitalSignatureAsync(
+            body.DocumentType.Trim().ToLowerInvariant(),
+            body.DocumentId,
+            empId.Value,
+            signerEmail,
+            body.SignatureBase64.Trim(),
+            docSha,
+            ip,
+            ct);
+
+        if (error is not null)
+        {
+            return BadRequest(new { error });
+        }
+
+        return Ok(new
+        {
+            ok = true,
+            signatureId = sigId,
+            documentType = body.DocumentType,
+            documentId = body.DocumentId,
+            employeeId = empId.Value,
+            signerEmail,
+            signedAt,
+            ipAddress = ip,
+            message = "Document successfully signed and recorded."
+        });
+    }
+
+    /// <summary>
+    /// GET /api/documents/signatures
+    /// Get digital signatures for a document or employee.
+    /// </summary>
+    [HttpGet("signatures")]
+    public async Task<IActionResult> GetSignatures([FromQuery] string? documentType, [FromQuery] int? documentId, [FromQuery] int? employeeId, CancellationToken ct)
+    {
+        var role = CurrentUser.Role(User).ToLowerInvariant();
+        var currentEmpId = CurrentUser.EmployeeId(User);
+
+        int? targetEmpId = employeeId;
+        if (role == "employee")
+        {
+            targetEmpId = currentEmpId;
+        }
+
+        var list = await _hr.GetDigitalSignaturesAsync(documentType, documentId, targetEmpId, ct);
+        return Ok(list);
+    }
 }
+
+public sealed record SignDocumentRequest(
+    string DocumentType,
+    int DocumentId,
+    int? EmployeeId,
+    string SignatureBase64,
+    string? DocumentSha256);
+

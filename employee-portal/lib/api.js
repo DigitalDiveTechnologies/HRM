@@ -1,14 +1,24 @@
 'use client';
 
-const DEFAULT_API = 'https://digitaldivetech-001-site4.gtempurl.com/HRMDevelopment';
+const DEV_API = 'https://digitaldivetech-001-site4.gtempurl.com/HRMDevelopment';
+const STAGE_API = 'https://digitaldivetech-001-site7.gtempurl.com';
 
-const apiBase = () => {
+export const apiBase = () => {
   const configured = (process.env.NEXT_PUBLIC_API_URL || '').trim();
   if (configured) return configured.replace(/\/$/, '');
-  if (typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname)) {
-    return 'http://localhost:5088';
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname.toLowerCase();
+    if (['localhost', '127.0.0.1'].includes(host)) {
+      return 'http://localhost:5088';
+    }
+    if (host.includes('digitaldive-dev.digital') || host.includes('dev')) {
+      return DEV_API;
+    }
+    if (host.includes('digitaldive-stage.digital') || host.includes('stage')) {
+      return STAGE_API;
+    }
   }
-  return DEFAULT_API;
+  return DEV_API;
 };
 
 export const ACCOUNT_DEACTIVATED_EVENT = 'employee_portal_account_deactivated';

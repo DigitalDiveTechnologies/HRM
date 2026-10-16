@@ -1,5 +1,6 @@
 using System.Text;
 using DigitalDive.Hr.Api.Helpers;
+using DigitalDive.Hr.Api.Models;
 using DigitalDive.Hr.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -54,6 +55,36 @@ public sealed class ReportsController : ControllerBase
             return File(Encoding.UTF8.GetBytes(csv), "text/csv", file);
         }
         catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpPost("export-custom")]
+    public async Task<IActionResult> ExportCustom([FromBody] CustomReportRequest body, CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "reports.view")) return Forbid();
+        try
+        {
+            var (file, csv, _) = await _ops.ExportCustomCsvAsync(body.Columns, body.Filters, CurrentUser.Email(User), ct);
+            return File(Encoding.UTF8.GetBytes(csv), "text/csv; charset=utf-8", file);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpPost("preview-custom")]
+    public async Task<IActionResult> PreviewCustom([FromBody] CustomReportRequest body, CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "reports.view")) return Forbid();
+        try
+        {
+            var preview = await _ops.PreviewCustomReportAsync(body.Columns, body.Filters, ct);
+            return Ok(preview);
+        }
+        catch (Exception ex)
         {
             return BadRequest(new { error = ex.Message });
         }

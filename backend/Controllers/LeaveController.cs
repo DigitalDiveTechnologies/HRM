@@ -37,6 +37,18 @@ public sealed class LeaveController : ControllerBase
         return Ok(await _hr.LeaveBalancesAsync(only, ct));
     }
 
+    [HttpGet("calendar")]
+    public async Task<IActionResult> Calendar(
+        [FromQuery] string? start,
+        [FromQuery] string? end,
+        [FromQuery] int? departmentId,
+        [FromQuery] int? divisionId,
+        CancellationToken ct)
+    {
+        return Ok(await _hr.LeaveCalendarAsync(start, end, departmentId, divisionId, ct));
+    }
+
+
     [HttpGet("team/summary")]
     public async Task<IActionResult> TeamSummary(CancellationToken ct)
     {

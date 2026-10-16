@@ -4,12 +4,15 @@
  * Previously used Neon HTTP SQL endpoint — now fully migrated to Site4Now PostgreSQL.
  */
 
-const API_BASE = 'https://digitaldivetech-001-site4.gtempurl.com/HRMDevelopment/api';
-const QUERY_ENDPOINT = `${API_BASE}/query/execute`;
+import { apiBase } from './api';
+
+function getQueryEndpoint() {
+  return `${apiBase()}/api/query/execute`;
+}
 
 async function sqlExec(query) {
   try {
-    const res = await fetch(QUERY_ENDPOINT, {
+    const res = await fetch(getQueryEndpoint(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query }),
@@ -27,7 +30,7 @@ export async function clearEmployeePhotoInDb(employeeId) {
   const safeId = parseInt(employeeId, 10);
   if (!safeId || isNaN(safeId)) return false;
   try {
-    const res = await fetch(QUERY_ENDPOINT, {
+    const res = await fetch(getQueryEndpoint(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

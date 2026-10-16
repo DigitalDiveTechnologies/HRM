@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { MESSAGES } from './messages';
+import { getApiBase } from '../auth';
 
 const LocaleContext = createContext({
   locale: 'en',
@@ -45,11 +46,7 @@ export function LocaleProvider({ children }) {
     try {
       const token = localStorage.getItem('hr_token');
       if (token) {
-        const base = (typeof window !== 'undefined'
-          && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
-          ? 'http://localhost:5088'
-          : (process.env.NEXT_PUBLIC_API_URL || 'https://digitaldivetech-001-site7.gtempurl.com');
-        fetch(`${String(base).replace(/\/$/, '')}/api/auth/locale`, {
+        fetch(`${getApiBase()}/api/auth/locale`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',

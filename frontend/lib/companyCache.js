@@ -1,6 +1,12 @@
+export const ALLOWED_COMPANY_NAMES = new Set(['srg', 'royal ocean', 'geoseas']);
+
+export function isAllowedCompany(company) {
+  return ALLOWED_COMPANY_NAMES.has(String(company?.name || '').trim().toLowerCase());
+}
+
 export function sortCompaniesLatest(list) {
   if (!Array.isArray(list)) return [];
-  return [...list].sort((a, b) => {
+  return [...list].filter(isAllowedCompany).sort((a, b) => {
     const rawA = a?.created_at || a?.createdAt;
     const rawB = b?.created_at || b?.createdAt;
     const timeA = rawA ? new Date(rawA).getTime() : 0;

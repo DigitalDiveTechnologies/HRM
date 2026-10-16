@@ -123,7 +123,12 @@ export default function ReportsPage() {
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="panel-title">
             <h3>Scale analytics pack</h3>
-            <Link className="btn secondary" href="/ops">Ops console</Link>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Link className="btn" style={{ background: '#00b8db', color: '#fff', fontWeight: 700 }} href="/reports/builder">
+                🌟 Custom Report Builder
+              </Link>
+              <Link className="btn secondary" href="/ops">Ops console</Link>
+            </div>
           </div>
           <div className="toolbar-metrics" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
             <div className="metric-chip"><span className="chip-label">Pending approvals</span><span className="chip-val">{data.widgets?.pendingApprovals ?? '—'}</span></div>

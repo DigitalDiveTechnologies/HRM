@@ -2,6 +2,7 @@ import { firstAllowedPath } from './nav';
 
 /** Site7 production API is the staging portal's configured backend. */
 const PRODUCTION_API = 'https://digitaldivetech-001-site7.gtempurl.com';
+const DEV_API = 'https://digitaldivetech-001-site4.gtempurl.com/HRMDevelopment';
 
 /** Resolve API base at runtime so static builds work without NEXT_PUBLIC_API_URL baked in. */
 export function getApiBase() {
@@ -12,6 +13,9 @@ export function getApiBase() {
     const host = window.location.hostname.toLowerCase();
     if (host === 'localhost' || host === '127.0.0.1') {
       return 'http://localhost:5088';
+    }
+    if (host.includes('digitaldive-dev.digital') || host.includes('dev')) {
+      return DEV_API;
     }
     return PRODUCTION_API;
   }

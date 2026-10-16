@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import PortalShell from '@/components/PortalShell';
-import { api, session, value } from '@/lib/api';
+import { api, apiBlob, session, value } from '@/lib/api';
 import { useLocale } from '@/lib/LocaleContext';
 
 const formatDate = (v) => (v ? new Date(v).toLocaleDateString() : '—');
@@ -66,6 +66,17 @@ export default function Payslips() {
     window.print();
   }
 
+  async function handleDownloadPdf() {
+    if (!currentSlip) return;
+    const employeeId = session.get()?.user?.employeeId || profile.id;
+    const blob = await apiBlob(`/ess/${employeeId}/payslips/${value(currentSlip, 'id')}/pdf`);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Payslip-${value(currentSlip, 'periodLabel', 'period_label') || value(currentSlip, 'id')}.pdf`;
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  }
+
   return (
     <PortalShell
       title={locale === 'ar' ? 'قسائم الراتب والتعويضات' : 'Payslips & Compensation'}
@@ -74,7 +85,7 @@ export default function Payslips() {
         currentSlip ? (
           <button
             type="button"
-            onClick={handlePrint}
+            onClick={handleDownloadPdf}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -95,7 +106,7 @@ export default function Payslips() {
               <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
               <rect x="6" y="14" width="12" height="8" />
             </svg>
-            <span>{locale === 'ar' ? 'طباعة القسيمة' : 'Print Payslip'}</span>
+            <span>{locale === 'ar' ? 'تحميل القسيمة PDF' : 'Download Payslip PDF'}</span>
           </button>
         ) : null
       }

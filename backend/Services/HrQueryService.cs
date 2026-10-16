@@ -1,5 +1,6 @@
 using System.Data;
 using System.Data.Common;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using DigitalDive.Hr.Api.Data;
@@ -2176,6 +2177,47 @@ public sealed class HrQueryService
             : await QueryConnAsync(sql, ct);
     }
 
+    public async Task<List<Dictionary<string, object?>>> LeaveCalendarAsync(
+        string? start, string? end, int? departmentId, int? divisionId, CancellationToken ct)
+    {
+        string? startStr = null;
+        if (!string.IsNullOrWhiteSpace(start) && DateTime.TryParse(start, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var s))
+        {
+            startStr = s.ToString("yyyy-MM-dd");
+        }
+
+        string? endStr = null;
+        if (!string.IsNullOrWhiteSpace(end) && DateTime.TryParse(end, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var e))
+        {
+            endStr = e.ToString("yyyy-MM-dd");
+        }
+
+        var sql =
+            """
+            SELECT l.id, l.employee_id, l.leave_type, l.start_date, l.end_date, l.days, l.reason, l.status,
+                   e.full_name, e.emp_code, e.department_id, e.division_id,
+                   d.name AS department_name,
+                   dv.name AS division_name
+            FROM leave_requests l
+            JOIN employees e ON e.id = l.employee_id
+            LEFT JOIN departments d ON d.id = e.department_id
+            LEFT JOIN divisions dv ON dv.id = e.division_id
+            WHERE l.status = 'approved'
+              AND (@start::text IS NULL OR l.end_date >= @start::date)
+              AND (@end::text IS NULL OR l.start_date <= @end::date)
+              AND (@deptId::int IS NULL OR e.department_id = @deptId)
+              AND (@divId::int IS NULL OR e.division_id = @divId)
+            ORDER BY l.start_date ASC, e.full_name ASC
+            """;
+
+        return await QueryConnAsync(sql, ct,
+            ("start", (object?)startStr ?? DBNull.Value),
+            ("end", (object?)endStr ?? DBNull.Value),
+            ("deptId", (object?)departmentId ?? DBNull.Value),
+            ("divId", (object?)divisionId ?? DBNull.Value));
+    }
+
+
     public async Task<List<Dictionary<string, object?>>> LeaveBalancesAsync(int? onlyEmployeeId, CancellationToken ct)
     {
         var sql =
@@ -2557,6 +2599,94 @@ public sealed class HrQueryService
             ORDER BY d.expiry_date NULLS LAST, d.id DESC
             """, ct);
 
+    public async Task<int?> FindEmployeeIdByEmailAsync(string email, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            "SELECT id FROM employees WHERE LOWER(TRIM(email)) = LOWER(TRIM(@email)) LIMIT 1", conn);
+        cmd.Parameters.AddWithValue("email", email.Trim());
+        var o = await cmd.ExecuteScalarAsync(ct);
+        return o is null or DBNull ? null : Convert.ToInt32(o);
+    }
+
+    public async Task<(int? Id, string? SignedAt, string? Error)> RecordDigitalSignatureAsync(
+        string documentType,
+        int documentId,
+        int employeeId,
+        string signerEmail,
+        string signatureBase64,
+        string documentSha256,
+        string ipAddress,
+        CancellationToken ct)
+    {
+        try
+        {
+            await using var conn = await OpenAsync(ct);
+            const string sql = """
+                INSERT INTO digital_signatures (
+                    document_type, document_id, employee_id, signer_email,
+                    signature_base64, document_sha256, ip_address, signed_at
+                )
+                VALUES (
+                    @docType, @docId, @empId, @email,
+                    @sigBase64, @sha, @ip, NOW()
+                )
+                RETURNING id, signed_at;
+                """;
+
+            await using var cmd = new NpgsqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("docType", documentType);
+            cmd.Parameters.AddWithValue("docId", documentId);
+            cmd.Parameters.AddWithValue("empId", employeeId);
+            cmd.Parameters.AddWithValue("email", signerEmail);
+            cmd.Parameters.AddWithValue("sigBase64", signatureBase64);
+            cmd.Parameters.AddWithValue("sha", documentSha256);
+            cmd.Parameters.AddWithValue("ip", ipAddress);
+
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            if (await reader.ReadAsync(ct))
+            {
+                var id = reader.GetInt32(0);
+                var dt = reader.GetDateTime(1).ToString("yyyy-MM-ddTHH:mm:ss");
+                return (id, dt, null);
+            }
+
+            return (null, null, "Failed to record signature.");
+        }
+        catch (Exception ex)
+        {
+            return (null, null, ex.Message);
+        }
+    }
+
+    public async Task<List<Dictionary<string, object?>>> GetDigitalSignaturesAsync(
+        string? documentType,
+        int? documentId,
+        int? employeeId,
+        CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        var sql = """
+            SELECT ds.id, ds.document_type, ds.document_id, ds.employee_id,
+                   e.full_name AS employee_name, e.emp_code,
+                   ds.signer_email, ds.signature_base64, ds.document_sha256,
+                   ds.ip_address, ds.signed_at
+            FROM digital_signatures ds
+            JOIN employees e ON e.id = ds.employee_id
+            WHERE (@docType IS NULL OR ds.document_type = @docType)
+              AND (@docId IS NULL OR ds.document_id = @docId)
+              AND (@empId IS NULL OR ds.employee_id = @empId)
+            ORDER BY ds.signed_at DESC;
+            """;
+
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("docType", (object?)documentType ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("docId", (object?)documentId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("empId", (object?)employeeId ?? DBNull.Value);
+
+        return await ReadAllAsync(cmd, ct);
+    }
+
     public Task<List<Dictionary<string, object?>>> DocumentsForEmployeeAsync(int employeeId, CancellationToken ct) =>
         QueryConnAsync(
             """
@@ -2919,7 +3049,7 @@ public sealed class HrQueryService
     public async Task<Dictionary<string, object?>?> PayslipForEmployeeAsync(int employeeId, int payslipId, CancellationToken ct)
     {
         var rows = await QueryConnAsync(
-            "SELECT p.*, e.full_name, e.emp_code, e.job_title, d.name AS department_name, dv.name AS division_name FROM payslips p JOIN employees e ON e.id = p.employee_id LEFT JOIN departments d ON d.id = e.department_id LEFT JOIN divisions dv ON dv.id = e.division_id WHERE p.id = @pid AND p.employee_id = @eid",
+            "SELECT p.*, e.full_name, e.emp_code, e.job_title, d.name AS department_name, dv.name AS division_name FROM payslips p JOIN employees e ON e.id = p.employee_id LEFT JOIN departments d ON d.id = e.department_id LEFT JOIN divisions dv ON dv.id = e.division_id WHERE p.employee_id = @eid AND (@pid = 0 OR p.id = @pid) ORDER BY p.id DESC LIMIT 1",
             ct, ("pid", payslipId), ("eid", employeeId));
         return rows.FirstOrDefault();
     }
@@ -4899,7 +5029,355 @@ public sealed class HrQueryService
         return row;
     }
 
+    public Task<List<Dictionary<string, object?>>> BenefitPlansAsync(bool activeOnly, CancellationToken ct) =>
+        QueryConnAsync(
+            activeOnly
+                ? """
+                  SELECT bp.*,
+                         (SELECT COUNT(*)::int FROM employee_benefits eb WHERE eb.benefit_plan_id = bp.id AND eb.status = 'active') AS enrolled_count
+                  FROM benefit_plans bp
+                  WHERE bp.is_active = TRUE
+                  ORDER BY bp.id DESC
+                  """
+                : """
+                  SELECT bp.*,
+                         (SELECT COUNT(*)::int FROM employee_benefits eb WHERE eb.benefit_plan_id = bp.id AND eb.status = 'active') AS enrolled_count
+                  FROM benefit_plans bp
+                  ORDER BY bp.id DESC
+                  """,
+            ct);
+
+    public async Task<Dictionary<string, object?>?> BenefitPlanByIdAsync(int id, CancellationToken ct)
+    {
+        var rows = await QueryConnAsync(
+            """
+            SELECT bp.*,
+                   (SELECT COUNT(*)::int FROM employee_benefits eb WHERE eb.benefit_plan_id = bp.id AND eb.status = 'active') AS enrolled_count
+            FROM benefit_plans bp
+            WHERE bp.id = @id
+            """, ct, ("id", id));
+        return rows.FirstOrDefault();
+    }
+
+    public async Task<(Dictionary<string, object?>? Row, string? Error)> CreateBenefitPlanAsync(
+        string name, string? benefitType, string providerName, string policyNumber,
+        string? coverageSummary, decimal annualPremiumEmployer, decimal annualPremiumEmployee,
+        bool isActive, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return (null, "Plan name is required.");
+        if (string.IsNullOrWhiteSpace(providerName)) return (null, "Provider name is required.");
+        if (string.IsNullOrWhiteSpace(policyNumber)) return (null, "Policy number is required.");
+
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            INSERT INTO benefit_plans (
+                name, benefit_type, provider_name, policy_number, coverage_summary,
+                annual_premium_employer, annual_premium_employee, is_active
+            )
+            VALUES (
+                @name, @btype, @provider, @policy, @summary,
+                @premEmployer, @premEmployee, @active
+            )
+            RETURNING id
+            """, conn);
+        cmd.Parameters.AddWithValue("name", name.Trim());
+        cmd.Parameters.AddWithValue("btype", string.IsNullOrWhiteSpace(benefitType) ? "medical_insurance" : benefitType.Trim());
+        cmd.Parameters.AddWithValue("provider", providerName.Trim());
+        cmd.Parameters.AddWithValue("policy", policyNumber.Trim());
+        cmd.Parameters.AddWithValue("summary", (object?)coverageSummary?.Trim() ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("premEmployer", annualPremiumEmployer);
+        cmd.Parameters.AddWithValue("premEmployee", annualPremiumEmployee);
+        cmd.Parameters.AddWithValue("active", isActive);
+
+        var id = Convert.ToInt32(await cmd.ExecuteScalarAsync(ct));
+        return (await BenefitPlanByIdAsync(id, ct), null);
+    }
+
+    public async Task<Dictionary<string, object?>?> EmployeeBenefitAssignmentByIdAsync(int id, CancellationToken ct)
+    {
+        var rows = await QueryConnAsync(
+            """
+            SELECT eb.*,
+                   bp.name AS plan_name, bp.benefit_type, bp.provider_name, bp.policy_number,
+                   bp.coverage_summary, bp.annual_premium_employer, bp.annual_premium_employee,
+                   e.full_name, e.emp_code, e.department_id, e.division_id,
+                   d.name AS department_name, dv.name AS division_name
+            FROM employee_benefits eb
+            JOIN benefit_plans bp ON bp.id = eb.benefit_plan_id
+            JOIN employees e ON e.id = eb.employee_id
+            LEFT JOIN departments d ON d.id = e.department_id
+            LEFT JOIN divisions dv ON dv.id = e.division_id
+            WHERE eb.id = @id
+            """, ct, ("id", id));
+        return rows.FirstOrDefault();
+    }
+
+    public async Task<(Dictionary<string, object?>? Row, string? Error)> AssignEmployeeBenefitAsync(
+        int employeeId, int benefitPlanId, string? memberId, string? coverageTier,
+        int dependentsCount, string startDate, string endDate, string? status, CancellationToken ct)
+    {
+        if (employeeId <= 0) return (null, "Valid employee ID is required.");
+        if (benefitPlanId <= 0) return (null, "Valid benefit plan ID is required.");
+        if (string.IsNullOrWhiteSpace(startDate) || !DateTime.TryParse(startDate, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var sDate))
+            return (null, "Valid start date is required.");
+        if (string.IsNullOrWhiteSpace(endDate) || !DateTime.TryParse(endDate, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var eDate))
+            return (null, "Valid end date is required.");
+
+        var plan = await BenefitPlanByIdAsync(benefitPlanId, ct);
+        if (plan is null) return (null, "Benefit plan not found.");
+
+        await using var conn = await OpenAsync(ct);
+        var empExists = await ScalarIntAsync(conn, "SELECT COUNT(*)::int FROM employees WHERE id = @eid", ct, ("eid", employeeId));
+        if (empExists == 0) return (null, "Employee not found.");
+
+        var tier = string.IsNullOrWhiteSpace(coverageTier) ? "employee_only" : coverageTier.Trim().ToLowerInvariant();
+        var stat = string.IsNullOrWhiteSpace(status) ? "active" : status.Trim().ToLowerInvariant();
+
+        await using var cmd = new NpgsqlCommand(
+            """
+            INSERT INTO employee_benefits (
+                employee_id, benefit_plan_id, member_id, coverage_tier,
+                dependents_count, start_date, end_date, status
+            )
+            VALUES (
+                @eid, @pid, @memberId, @tier,
+                @depCount, @start::date, @end::date, @status
+            )
+            RETURNING id
+            """, conn);
+        cmd.Parameters.AddWithValue("eid", employeeId);
+        cmd.Parameters.AddWithValue("pid", benefitPlanId);
+        cmd.Parameters.AddWithValue("memberId", (object?)memberId?.Trim() ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("tier", tier);
+        cmd.Parameters.AddWithValue("depCount", Math.Max(0, dependentsCount));
+        cmd.Parameters.AddWithValue("start", sDate.ToString("yyyy-MM-dd"));
+        cmd.Parameters.AddWithValue("end", eDate.ToString("yyyy-MM-dd"));
+        cmd.Parameters.AddWithValue("status", stat);
+
+        var id = Convert.ToInt32(await cmd.ExecuteScalarAsync(ct));
+        var row = await EmployeeBenefitAssignmentByIdAsync(id, ct);
+        return (row, null);
+    }
+
+    public async Task<List<Dictionary<string, object?>>> EmployeeBenefitsListAsync(
+        int? employeeId, int? planId, string? status, CancellationToken ct)
+    {
+        var sql =
+            """
+            SELECT eb.*,
+                   bp.name AS plan_name, bp.benefit_type, bp.provider_name, bp.policy_number,
+                   bp.coverage_summary, bp.annual_premium_employer, bp.annual_premium_employee,
+                   e.full_name, e.emp_code, e.department_id, e.division_id,
+                   d.name AS department_name, dv.name AS division_name
+            FROM employee_benefits eb
+            JOIN benefit_plans bp ON bp.id = eb.benefit_plan_id
+            JOIN employees e ON e.id = eb.employee_id
+            LEFT JOIN departments d ON d.id = e.department_id
+            LEFT JOIN divisions dv ON dv.id = e.division_id
+            WHERE (@eid::int IS NULL OR eb.employee_id = @eid)
+              AND (@pid::int IS NULL OR eb.benefit_plan_id = @pid)
+              AND (@status::text IS NULL OR LOWER(eb.status) = LOWER(@status))
+            ORDER BY eb.id DESC
+            """;
+        return await QueryConnAsync(sql, ct,
+            ("eid", (object?)employeeId ?? DBNull.Value),
+            ("pid", (object?)planId ?? DBNull.Value),
+            ("status", (object?)status ?? DBNull.Value));
+    }
+
+    public async Task<List<Dictionary<string, object?>>> MyBenefitsAsync(int employeeId, CancellationToken ct)
+    {
+        var sql =
+            """
+            SELECT eb.id, eb.employee_id, eb.benefit_plan_id, eb.member_id, eb.coverage_tier,
+                   eb.dependents_count, eb.start_date, eb.end_date, eb.status, eb.created_at,
+                   bp.name AS plan_name, bp.benefit_type, bp.provider_name, bp.policy_number,
+                   bp.coverage_summary, bp.annual_premium_employer, bp.annual_premium_employee,
+                   e.full_name, e.emp_code, e.job_title,
+                   d.name AS department_name, dv.name AS division_name
+            FROM employee_benefits eb
+            JOIN benefit_plans bp ON bp.id = eb.benefit_plan_id
+            JOIN employees e ON e.id = eb.employee_id
+            LEFT JOIN departments d ON d.id = e.department_id
+            LEFT JOIN divisions dv ON dv.id = e.division_id
+            WHERE eb.employee_id = @eid
+            ORDER BY CASE WHEN LOWER(eb.status) = 'active' THEN 0 ELSE 1 END, eb.id DESC
+            """;
+        return await QueryConnAsync(sql, ct, ("eid", employeeId));
+    }
+
+    private static decimal ToDecimalValue(object? value)
+    {
+        if (value is null or DBNull) return 0m;
+        if (value is decimal d) return d;
+        if (value is int i) return i;
+        if (value is long l) return l;
+        if (value is double dbl) return (decimal)dbl;
+        if (value is float f) return (decimal)f;
+        if (value is JsonElement je)
+        {
+            if (je.ValueKind == JsonValueKind.Number && je.TryGetDecimal(out var decVal)) return decVal;
+            if (je.ValueKind == JsonValueKind.String && decimal.TryParse(je.GetString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var strDec)) return strDec;
+            return 0m;
+        }
+        var s = Convert.ToString(value, CultureInfo.InvariantCulture);
+        return decimal.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed) ? parsed : 0m;
+    }
+
+    private static decimal ReadMasterDecimal(Dictionary<string, object?> md, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            if (md.TryGetValue(key, out var val) && val is not null)
+            {
+                var dec = ToDecimalValue(val);
+                if (dec != 0m) return dec;
+            }
+        }
+        if (md.TryGetValue("finance", out var finObj) && finObj is not null)
+        {
+            var finMd = NormalizeMasterDict(finObj);
+            foreach (var key in keys)
+            {
+                if (finMd.TryGetValue(key, out var val) && val is not null)
+                {
+                    var dec = ToDecimalValue(val);
+                    if (dec != 0m) return dec;
+                }
+            }
+        }
+        return 0m;
+    }
+
+    public async Task<Dictionary<string, object?>> TotalRewardsAsync(int employeeId, CancellationToken ct)
+    {
+        var sql =
+            """
+            SELECT e.id, e.emp_code, e.full_name, e.job_title, e.join_date, e.basic_salary, e.allowances,
+                   e.master_data,
+                   d.name AS department_name, dv.name AS division_name
+            FROM employees e
+            LEFT JOIN departments d ON d.id = e.department_id
+            LEFT JOIN divisions dv ON dv.id = e.division_id
+            WHERE e.id = @eid
+            """;
+        var rows = await QueryConnAsync(sql, ct, ("eid", employeeId));
+        if (rows.Count == 0)
+        {
+            return new Dictionary<string, object?> { ["error"] = "Employee not found." };
+        }
+
+        var emp = rows[0];
+        var basicSalary = ToDecimalValue(emp.GetValueOrDefault("basic_salary"));
+        var totalAllowances = ToDecimalValue(emp.GetValueOrDefault("allowances"));
+        var joinDateRaw = emp.GetValueOrDefault("join_date");
+        DateTime joinDate = joinDateRaw switch
+        {
+            DateTime dt => dt,
+            DateOnly d => d.ToDateTime(TimeOnly.MinValue),
+            string s when DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed) => parsed,
+            _ => DateTime.UtcNow.AddYears(-1)
+        };
+
+        var masterData = NormalizeMasterDict(emp.GetValueOrDefault("master_data"));
+        var housing = ReadMasterDecimal(masterData, "housingAllowance", "housing_allowance", "housing");
+        var transport = ReadMasterDecimal(masterData, "transportAllowance", "transport_allowance", "transport");
+        var mobile = ReadMasterDecimal(masterData, "mobileAllowance", "mobile_allowance", "mobile");
+        var other = ReadMasterDecimal(masterData, "otherAllowance", "other_allowance", "other");
+        var flight = ReadMasterDecimal(masterData, "flightAllowance", "flight_allowance", "ticket_allowance", "annual_flight_allowance");
+        if (flight == 0m)
+        {
+            flight = 3500.00m;
+        }
+
+        if (housing + transport + mobile + other > 0)
+        {
+            totalAllowances = housing + transport + mobile + other;
+        }
+
+        var grossMonthly = basicSalary + totalAllowances;
+        var annualCashSalary = grossMonthly * 12m;
+        var annualBasicSalary = basicSalary * 12m;
+        var annualAllowances = totalAllowances * 12m;
+
+        var benefitsList = await MyBenefitsAsync(employeeId, ct);
+        decimal annualEmployerBenefits = 0m;
+        foreach (var b in benefitsList)
+        {
+            if (string.Equals(Convert.ToString(b.GetValueOrDefault("status")), "active", StringComparison.OrdinalIgnoreCase))
+            {
+                annualEmployerBenefits += ToDecimalValue(b.GetValueOrDefault("annual_premium_employer"));
+            }
+        }
+
+        var serviceDays = (DateTime.UtcNow.Date - joinDate.Date).TotalDays;
+        var serviceYears = Math.Max(0.0, serviceDays / 365.25);
+        decimal accruedGratuity = 0m;
+        try
+        {
+            var eosbRes = await _eosb.CalculatePreviewAsync(basicSalary, serviceYears, 0, "uae_mainland", ct);
+            if (eosbRes != null)
+            {
+                var json = JsonSerializer.Serialize(eosbRes);
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("eosbAmount", out var amtElem) && amtElem.TryGetDecimal(out var amt))
+                {
+                    accruedGratuity = amt;
+                }
+            }
+        }
+        catch
+        {
+            var daily = basicSalary / 30m;
+            var y1 = Math.Min(serviceYears, 5.0);
+            var y2 = Math.Max(0.0, serviceYears - 5.0);
+            accruedGratuity = Math.Round((daily * 21m * (decimal)y1) + (daily * 30m * (decimal)y2), 2);
+        }
+
+        var totalAnnualValue = annualCashSalary + annualEmployerBenefits + accruedGratuity + flight;
+
+        return new Dictionary<string, object?>
+        {
+            ["employeeId"] = employeeId,
+            ["employeeCode"] = emp.GetValueOrDefault("emp_code"),
+            ["fullName"] = emp.GetValueOrDefault("full_name"),
+            ["jobTitle"] = emp.GetValueOrDefault("job_title"),
+            ["departmentName"] = emp.GetValueOrDefault("department_name"),
+            ["divisionName"] = emp.GetValueOrDefault("division_name"),
+            ["joinDate"] = joinDate.ToString("yyyy-MM-dd"),
+            ["serviceYears"] = Math.Round(serviceYears, 2),
+            ["monthlyBasicSalary"] = basicSalary,
+            ["monthlyAllowances"] = totalAllowances,
+            ["monthlyGrossSalary"] = grossMonthly,
+            ["allowancesBreakdown"] = new Dictionary<string, decimal>
+            {
+                ["housing"] = housing,
+                ["transport"] = transport,
+                ["mobile"] = mobile,
+                ["other"] = other > 0 ? other : Math.Max(0, totalAllowances - (housing + transport + mobile))
+            },
+            ["annualBasicSalary"] = annualBasicSalary,
+            ["annualAllowances"] = annualAllowances,
+            ["annualCashSalary"] = annualCashSalary,
+            ["annualEmployerBenefits"] = annualEmployerBenefits,
+            ["accruedGratuity"] = accruedGratuity,
+            ["annualFlightAllowance"] = flight,
+            ["totalAnnualValue"] = totalAnnualValue,
+            ["benefits"] = benefitsList,
+            ["shareDistribution"] = new Dictionary<string, object>
+            {
+                ["basicPct"] = totalAnnualValue > 0 ? Math.Round((annualBasicSalary / totalAnnualValue) * 100m, 1) : 0,
+                ["allowancesPct"] = totalAnnualValue > 0 ? Math.Round((annualAllowances / totalAnnualValue) * 100m, 1) : 0,
+                ["benefitsPct"] = totalAnnualValue > 0 ? Math.Round((annualEmployerBenefits / totalAnnualValue) * 100m, 1) : 0,
+                ["gratuityPct"] = totalAnnualValue > 0 ? Math.Round((accruedGratuity / totalAnnualValue) * 100m, 1) : 0,
+                ["flightPct"] = totalAnnualValue > 0 ? Math.Round((flight / totalAnnualValue) * 100m, 1) : 0,
+            }
+        };
+    }
+
     private static string ToCamel(string name)
+
     {
         if (string.IsNullOrEmpty(name)) return name;
         if (!name.Contains('_'))

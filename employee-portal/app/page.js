@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import PortalShell from '@/components/PortalShell';
-import { api, session } from '@/lib/api';
+import { api, apiBlob, session } from '@/lib/api';
 
 // Avatar Colors Palette matching Admin Portal
 const AVATAR_PALETTE = [
@@ -81,6 +81,84 @@ function getCategoryColor(cat) {
   return { bg: '#e0f2fe', text: '#0284c7', border: 'rgba(2,132,199,0.2)' };
 }
 
+const DEFAULT_COMPANY_LINKS = [
+  { id: 1, title: 'MOHRE UAE Portal', url: 'https://www.mohre.gov.ae', iconKey: 'globe', category: 'Government & Labour' },
+  { id: 2, title: 'UAE PASS Digital ID', url: 'https://selfcare.uaepass.ae', iconKey: 'shield', category: 'Government & Labour' },
+  { id: 3, title: 'Corporate Webmail (Office 365)', url: 'https://outlook.office.com', iconKey: 'mail', category: 'Productivity' },
+  { id: 4, title: 'Medical Insurance (Daman)', url: 'https://www.damanhealth.ae', iconKey: 'heart', category: 'Health & Wellness' },
+  { id: 5, title: 'IT Service Desk & Support', url: 'https://support.digitaldive.demo', iconKey: 'life-buoy', category: 'IT & Operations' },
+  { id: 6, title: 'Employee Handbook & Policies', url: '/documents', iconKey: 'book', category: 'Company Resources' },
+  { id: 7, title: 'GOCs Learning Center', url: '/onboarding', iconKey: 'award', category: 'Career & Training' },
+  { id: 8, title: 'Dubai Health Authority (DHA)', url: 'https://www.dha.gov.ae', iconKey: 'activity', category: 'Health & Wellness' },
+];
+
+function renderQuickLinkIcon(key) {
+  const k = String(key || '').toLowerCase();
+  switch (k) {
+    case 'globe':
+      return (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="2" y1="12" x2="22" y2="12" />
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1 4-10z" />
+        </svg>
+      );
+    case 'shield':
+      return (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        </svg>
+      );
+    case 'mail':
+      return (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect width="20" height="16" x="2" y="4" rx="2" />
+          <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+        </svg>
+      );
+    case 'heart':
+    case 'activity':
+      return (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+        </svg>
+      );
+    case 'life-buoy':
+      return (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <circle cx="12" cy="12" r="4" />
+          <line x1="4.93" y1="4.93" x2="9.17" y2="9.17" />
+          <line x1="14.83" y1="14.83" x2="19.07" y2="19.07" />
+          <line x1="14.83" y1="9.17" x2="19.07" y2="4.93" />
+          <line x1="4.93" y1="19.07" x2="9.17" y2="14.83" />
+        </svg>
+      );
+    case 'book':
+      return (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z" />
+          <path d="M6 2v20" />
+        </svg>
+      );
+    case 'award':
+      return (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="8" r="7" />
+          <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
+        </svg>
+      );
+    default:
+      return (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+          <polyline points="15 3 21 3 21 9" />
+          <line x1="10" y1="14" x2="21" y2="3" />
+        </svg>
+      );
+  }
+}
+
 export default function EmployeePortalDashboard() {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -95,10 +173,17 @@ export default function EmployeePortalDashboard() {
   const [documentsList, setDocumentsList] = useState([]);
   const [expensesList, setExpensesList] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
+  const [companyLinks, setCompanyLinks] = useState([]);
   const [payslipsList, setPayslipsList] = useState([]);
   const [selectedPayslip, setSelectedPayslip] = useState(null);
+  const [payslipDownloading, setPayslipDownloading] = useState(false);
+  const [myBenefits, setMyBenefits] = useState([]);
+  const [totalRewards, setTotalRewards] = useState(null);
+  const [rewardsDownloading, setRewardsDownloading] = useState(false);
+  const [compViewTab, setCompViewTab] = useState('payslip');
 
   // Modals
+
   const [newRequestModalOpen, setNewRequestModalOpen] = useState(false);
   const [correctionModalOpen, setCorrectionModalOpen] = useState(false);
   const [viewPayslipModalOpen, setViewPayslipModalOpen] = useState(false);
@@ -113,8 +198,23 @@ export default function EmployeePortalDashboard() {
   // Clock live timer
   const [liveWorkedMinutes, setLiveWorkedMinutes] = useState(402); // ~6h 42m
 
-  // Load announcements from localStorage & listen for updates
-  const loadAnnouncementsFromStorage = useCallback(() => {
+  // Load announcements from API with localStorage cache fallback
+  const [acknowledgingId, setAcknowledgingId] = useState(null);
+
+  const loadAnnouncements = useCallback(async () => {
+    try {
+      const res = await api('/announcements');
+      if (Array.isArray(res) && res.length > 0) {
+        setAnnouncements(res);
+        try {
+          localStorage.setItem('gocs_announcements', JSON.stringify(res));
+        } catch {}
+        return;
+      }
+    } catch (e) {
+      console.warn('API announcements fetch error, checking local cache:', e);
+    }
+
     if (typeof window === 'undefined') return;
     try {
       const stored = localStorage.getItem('gocs_announcements');
@@ -130,39 +230,61 @@ export default function EmployeePortalDashboard() {
     // Default sample announcements if none stored
     setAnnouncements([
       {
-        id: 'ann-1',
+        id: 1,
         title: 'Annual medical check-up',
         category: 'Wellness',
         content: 'DHA-approved clinic on-site 6-8 Oct. Book your slot with HR Operations.',
         createdAt: new Date().toISOString(),
+        requiresAck: false,
       },
       {
-        id: 'ann-2',
+        id: 2,
         title: 'Hybrid work policy v2.1',
         category: 'Policy',
         content: 'Effective 1 Oct 2026. Review revised remote attendance guidelines in employee handbook.',
         createdAt: new Date(Date.now() - 86400000).toISOString(),
+        requiresAck: true,
+        hasAcknowledged: false,
       },
       {
-        id: 'ann-3',
+        id: 3,
         title: 'Maria Santos turns a year wiser',
         category: 'Celebration',
         content: 'Cake & tea at 4 PM tomorrow in Pantry L12. Everyone is welcome!',
         createdAt: new Date(Date.now() - 172800000).toISOString(),
+        requiresAck: false,
       },
     ]);
   }, []);
 
+  const handleAcknowledge = async (annId) => {
+    if (!annId || acknowledgingId) return;
+    setAcknowledgingId(annId);
+    try {
+      await api(`/announcements/${annId}/acknowledge`, { method: 'POST' });
+      setAnnouncements((prev) =>
+        prev.map((a) => (a.id === annId ? { ...a, hasAcknowledged: true, has_acknowledged: true, acknowledgedAt: new Date().toISOString() } : a))
+      );
+    } catch (err) {
+      console.error('Failed to acknowledge announcement:', err);
+      setAnnouncements((prev) =>
+        prev.map((a) => (a.id === annId ? { ...a, hasAcknowledged: true, has_acknowledged: true } : a))
+      );
+    } finally {
+      setAcknowledgingId(null);
+    }
+  };
+
   useEffect(() => {
-    loadAnnouncementsFromStorage();
-    const handleAnnChange = () => loadAnnouncementsFromStorage();
+    loadAnnouncements();
+    const handleAnnChange = () => loadAnnouncements();
     window.addEventListener('gocs_announcements_updated', handleAnnChange);
     window.addEventListener('storage', handleAnnChange);
     return () => {
       window.removeEventListener('gocs_announcements_updated', handleAnnChange);
       window.removeEventListener('storage', handleAnnChange);
     };
-  }, [loadAnnouncementsFromStorage]);
+  }, [loadAnnouncements]);
 
   // Main initial data loader
   useEffect(() => {
@@ -193,15 +315,18 @@ export default function EmployeePortalDashboard() {
           } catch {}
         }
 
-        const [empRows, attRows, leaveRows, balRows, docRows, expRows, essData] = await Promise.all([
+        const [empRows, attRows, leaveRows, balRows, docRows, expRows, linksRows, essData, benefitsRows] = await Promise.all([
           api('/employees').catch(() => null),
           api('/attendance').catch(() => null),
           api('/leave').catch(() => null),
           api('/leave/balances').catch(() => null),
           api('/documents').catch(() => null),
           api('/travel/expenses').catch(() => null),
+          api('/company-links').catch(() => null),
           eid ? api(`/ess/${eid}`).catch(() => null) : null,
+          api('/ess/my-benefits').catch(() => null),
         ]);
+
 
         if (!isMounted) return;
 
@@ -282,7 +407,25 @@ export default function EmployeePortalDashboard() {
           const filteredExp = expRows.filter((x) => String(x.employeeId || x.employee_id) === String(currentEmp.id));
           setExpensesList(filteredExp);
         }
+
+        if (Array.isArray(linksRows) && linksRows.length > 0) {
+          setCompanyLinks(linksRows);
+        }
+
+        if (Array.isArray(benefitsRows) && benefitsRows.length > 0) {
+          setMyBenefits(benefitsRows);
+        }
+
+        if (currentEmp?.id) {
+          try {
+            const trData = await api(`/ess/${currentEmp.id}/total-rewards`);
+            if (trData && !trData.error) {
+              setTotalRewards(trData);
+            }
+          } catch {}
+        }
       } catch (err) {
+
         console.error('Portal load error:', err);
         setError(err.message || 'Failed to load employee portal data');
       } finally {
@@ -819,6 +962,99 @@ export default function EmployeePortalDashboard() {
 
   function handlePrintPayslip() {
     window.print();
+  }
+
+  async function handleDownloadPayslip() {
+    if (payslipDownloading) return;
+    const employeeId = employeeProfile?.id || currentUser?.employeeId || currentUser?.employee_id || session.get()?.user?.employeeId;
+    if (!employeeId) {
+      setActionSuccessMsg('Unable to identify the employee account.');
+      return;
+    }
+
+    setPayslipDownloading(true);
+    setActionSuccessMsg('');
+    try {
+      const payslipId = latestPayslipRecord?.id;
+      const path = payslipId
+        ? `/ess/${employeeId}/payslips/${payslipId}/pdf`
+        : `/ess/${employeeId}/payslips/latest/pdf`;
+      const blob = await apiBlob(path);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Payslip-${latestPayslipRecord?.periodLabel || latestPayslipRecord?.period_label || payslipId || 'latest'}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setActionSuccessMsg('Payslip PDF downloaded.');
+    } catch (err) {
+      setActionSuccessMsg(err?.message || 'Unable to download the payslip PDF.');
+    } finally {
+      setPayslipDownloading(false);
+    }
+  }
+
+  const computedRewards = useMemo(() => {
+    if (totalRewards && !totalRewards.error) {
+      return totalRewards;
+    }
+    const basicMonthly = Number(payslipData.basic || 12000);
+    const allowMonthly = Number(payslipData.totalAllowances || 8000);
+    const grossMonthly = basicMonthly + allowMonthly;
+    const annualCash = grossMonthly * 12;
+    const benefitsAnnual = (myBenefits || []).reduce((acc, b) => acc + Number(b.annualPremiumEmployer || b.annual_premium_employer || 0), 0) || 7200;
+    const gratuity = Number(gratuityData.accruedTotal || 0);
+    const flight = 3500;
+    const totalVal = annualCash + benefitsAnnual + gratuity + flight;
+    return {
+      monthlyBasicSalary: basicMonthly,
+      monthlyAllowances: allowMonthly,
+      monthlyGrossSalary: grossMonthly,
+      annualBasicSalary: basicMonthly * 12,
+      annualAllowances: allowMonthly * 12,
+      annualCashSalary: annualCash,
+      annualEmployerBenefits: benefitsAnnual,
+      accruedGratuity: gratuity,
+      annualFlightAllowance: flight,
+      totalAnnualValue: totalVal,
+      shareDistribution: {
+        basicPct: totalVal > 0 ? Math.round(((basicMonthly * 12) / totalVal) * 100) : 50,
+        allowancesPct: totalVal > 0 ? Math.round(((allowMonthly * 12) / totalVal) * 100) : 30,
+        benefitsPct: totalVal > 0 ? Math.round((benefitsAnnual / totalVal) * 100) : 8,
+        gratuityPct: totalVal > 0 ? Math.round((gratuity / totalVal) * 100) : 9,
+        flightPct: totalVal > 0 ? Math.round((flight / totalVal) * 100) : 3,
+      }
+    };
+  }, [totalRewards, payslipData, myBenefits, gratuityData]);
+
+  async function handleDownloadRewardsPdf() {
+    if (rewardsDownloading) return;
+    const employeeId = employeeProfile?.id || currentUser?.employeeId || currentUser?.employee_id || session.get()?.user?.employeeId;
+    if (!employeeId) {
+      setActionSuccessMsg('Unable to identify the employee account.');
+      return;
+    }
+
+    setRewardsDownloading(true);
+    setActionSuccessMsg('');
+    try {
+      const blob = await apiBlob(`/ess/${employeeId}/total-rewards/pdf`);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Total-Rewards-Statement-${employeeProfile?.empCode || 'EMP'}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setActionSuccessMsg('Total Rewards Statement PDF downloaded.');
+    } catch (err) {
+      setActionSuccessMsg(err?.message || 'Unable to download the rewards statement PDF.');
+    } finally {
+      setRewardsDownloading(false);
+    }
   }
 
   return (
@@ -1545,195 +1781,390 @@ export default function EmployeePortalDashboard() {
             }}
           >
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--ink, #101828)' }}>
-                  Latest payslip · {payslipData.monthLabel}
-                </h3>
-                <span
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    color: payslipData.isPaid ? '#059669' : '#0284c7',
-                    background: payslipData.isPaid ? '#ecfdf5' : '#e0f2fe',
-                    padding: '3px 8px',
-                    borderRadius: 999,
-                  }}
-                >
-                  {payslipData.wpsBadgeText}
-                </span>
-              </div>
-
-              {/* Earnings vs Deductions Table */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, fontSize: '12px', marginBottom: 16 }}>
-                <div>
-                  <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted, #4a5565)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
-                    Earnings
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span className="muted">Basic salary</span>
-                      <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.basic.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
-                    </div>
-                    {payslipData.housing > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span className="muted">Housing allowance</span>
-                        <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.housing.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
-                      </div>
-                    )}
-                    {payslipData.transport > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span className="muted">Transport allowance</span>
-                        <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.transport.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
-                      </div>
-                    )}
-                    {payslipData.mobile > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span className="muted">Mobile allowance</span>
-                        <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.mobile.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
-                      </div>
-                    )}
-                    {payslipData.other > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span className="muted">Other allowance</span>
-                        <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.other.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
-                      </div>
-                    )}
-                    {payslipData.generalAllowance > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span className="muted">Allowances</span>
-                        <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.generalAllowance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
-                      </div>
-                    )}
-                    {payslipData.overtime > 0 ? (
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span className="muted">Overtime pay</span>
-                        <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.overtime.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
-                      </div>
-                    ) : null}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 4, borderTop: '1px dashed var(--line, #E4EEF3)', fontWeight: 700 }}>
-                      <span>Gross</span>
-                      <span>{payslipData.gross.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted, #4a5565)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
-                    Deductions
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span className="muted">Salary advance</span>
-                      {payslipData.advance > 0 ? (
-                        <span style={{ color: '#ef4444', fontWeight: 600 }}>-{payslipData.advance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                      ) : (
-                        <span className="muted">0.00</span>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span className="muted">Late deduction</span>
-                      {payslipData.lateDeduction > 0 ? (
-                        <span style={{ color: '#ef4444', fontWeight: 600 }}>-{payslipData.lateDeduction.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                      ) : (
-                        <span className="muted">0.00</span>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span className="muted">Income tax</span>
-                      <span className="muted">0.00</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span className="muted">Reimbursement (exp.)</span>
-                      {payslipData.reimbursement > 0 ? (
-                        <span style={{ color: '#10b981', fontWeight: 600 }}>+{payslipData.reimbursement.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                      ) : (
-                        <span className="muted">0.00</span>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 4, borderTop: '1px dashed var(--line, #E4EEF3)', fontWeight: 700 }}>
-                      <span>Net adjust.</span>
-                      {payslipData.netAdjust < 0 ? (
-                        <span style={{ color: '#ef4444' }}>-{Math.abs(payslipData.netAdjust).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                      ) : payslipData.netAdjust > 0 ? (
-                        <span style={{ color: '#10b981' }}>+{payslipData.netAdjust.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                      ) : (
-                        <span className="muted">0.00</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Highlighted Net Pay Box */}
-              <div
-                style={{
-                  background: 'rgba(0, 184, 219, 0.08)',
-                  border: '1px solid rgba(0, 184, 219, 0.25)',
-                  borderRadius: 12,
-                  padding: '14px 18px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  flexWrap: 'wrap',
-                  gap: 12,
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: '11px', color: 'var(--muted, #4a5565)', fontWeight: 500 }}>
-                    Net pay credited · {payslipData.bankName} ****{payslipData.bankLast4}
-                  </div>
-                  <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink, #101828)', marginTop: 2, letterSpacing: '-0.02em' }}>
-                    {formatAed(payslipData.netPay)}
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {/* Tab Selector Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+                <div style={{ display: 'inline-flex', background: 'var(--surface-alt, #EEF9FC)', padding: 3, borderRadius: 10, border: '1px solid var(--line, #E4EEF3)' }}>
                   <button
                     type="button"
-                    onClick={() => {
-                      setSelectedPayslip(latestPayslipRecord);
-                      setViewPayslipModalOpen(true);
-                    }}
+                    onClick={() => setCompViewTab('payslip')}
                     style={{
-                      background: 'var(--surface, #ffffff)',
-                      border: '1px solid var(--line, #cbd5e1)',
-                      color: 'var(--ink, #101828)',
-                      padding: '7px 12px',
-                      borderRadius: 8,
+                      border: 'none',
+                      background: compViewTab === 'payslip' ? '#ffffff' : 'transparent',
+                      color: compViewTab === 'payslip' ? '#00b8db' : 'var(--muted, #4a5565)',
+                      fontWeight: compViewTab === 'payslip' ? 700 : 500,
                       fontSize: '12px',
-                      fontWeight: 600,
+                      padding: '6px 14px',
+                      borderRadius: 8,
                       cursor: 'pointer',
+                      boxShadow: compViewTab === 'payslip' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+                      transition: 'all 0.15s ease',
                     }}
                   >
-                    View
+                    Monthly Payslip
                   </button>
-
-                  <Link
-                    href="/payslips"
+                  <button
+                    type="button"
+                    onClick={() => setCompViewTab('total-rewards')}
                     style={{
-                      background: '#00b8db',
-                      color: '#ffffff',
                       border: 'none',
-                      padding: '7px 14px',
-                      borderRadius: 8,
+                      background: compViewTab === 'total-rewards' ? '#ffffff' : 'transparent',
+                      color: compViewTab === 'total-rewards' ? '#00b8db' : 'var(--muted, #4a5565)',
+                      fontWeight: compViewTab === 'total-rewards' ? 700 : 500,
                       fontSize: '12px',
-                      fontWeight: 700,
+                      padding: '6px 14px',
+                      borderRadius: 8,
                       cursor: 'pointer',
+                      boxShadow: compViewTab === 'total-rewards' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+                      transition: 'all 0.15s ease',
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: 6,
-                      textDecoration: 'none',
+                      gap: 4,
                     }}
                   >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                      <polyline points="7 10 12 15 17 10" />
-                      <line x1="12" y1="15" x2="12" y2="3" />
-                    </svg>
-                    Download PDF
-                  </Link>
+                    <span>🌟</span> Total Rewards
+                  </button>
                 </div>
+
+                {compViewTab === 'payslip' ? (
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: payslipData.isPaid ? '#059669' : '#0284c7',
+                      background: payslipData.isPaid ? '#ecfdf5' : '#e0f2fe',
+                      padding: '3px 8px',
+                      borderRadius: 999,
+                    }}
+                  >
+                    {payslipData.wpsBadgeText}
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: '#0369a1',
+                      background: '#e0f2fe',
+                      padding: '3px 8px',
+                      borderRadius: 999,
+                    }}
+                  >
+                    Annual Value · UAE Law
+                  </span>
+                )}
               </div>
+
+              {compViewTab === 'payslip' ? (
+                <>
+                  {/* Earnings vs Deductions Table */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, fontSize: '12px', marginBottom: 16 }}>
+                    <div>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted, #4a5565)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
+                        Earnings
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span className="muted">Basic salary</span>
+                          <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.basic.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                        </div>
+                        {payslipData.housing > 0 && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span className="muted">Housing allowance</span>
+                            <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.housing.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                          </div>
+                        )}
+                        {payslipData.transport > 0 && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span className="muted">Transport allowance</span>
+                            <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.transport.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                          </div>
+                        )}
+                        {payslipData.mobile > 0 && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span className="muted">Mobile allowance</span>
+                            <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.mobile.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                          </div>
+                        )}
+                        {payslipData.other > 0 && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span className="muted">Other allowance</span>
+                            <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.other.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                          </div>
+                        )}
+                        {payslipData.generalAllowance > 0 && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span className="muted">Allowances</span>
+                            <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.generalAllowance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                          </div>
+                        )}
+                        {payslipData.overtime > 0 ? (
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span className="muted">Overtime pay</span>
+                            <strong style={{ color: 'var(--ink, #101828)' }}>{payslipData.overtime.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                          </div>
+                        ) : null}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 4, borderTop: '1px dashed var(--line, #E4EEF3)', fontWeight: 700 }}>
+                          <span>Gross</span>
+                          <span>{payslipData.gross.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted, #4a5565)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
+                        Deductions
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span className="muted">Salary advance</span>
+                          {payslipData.advance > 0 ? (
+                            <span style={{ color: '#ef4444', fontWeight: 600 }}>-{payslipData.advance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                          ) : (
+                            <span className="muted">0.00</span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span className="muted">Late deduction</span>
+                          {payslipData.lateDeduction > 0 ? (
+                            <span style={{ color: '#ef4444', fontWeight: 600 }}>-{payslipData.lateDeduction.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                          ) : (
+                            <span className="muted">0.00</span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span className="muted">Income tax</span>
+                          <span className="muted">0.00</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span className="muted">Reimbursement (exp.)</span>
+                          {payslipData.reimbursement > 0 ? (
+                            <span style={{ color: '#10b981', fontWeight: 600 }}>+{payslipData.reimbursement.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                          ) : (
+                            <span className="muted">0.00</span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 4, borderTop: '1px dashed var(--line, #E4EEF3)', fontWeight: 700 }}>
+                          <span>Net adjust.</span>
+                          {payslipData.netAdjust < 0 ? (
+                            <span style={{ color: '#ef4444' }}>-{Math.abs(payslipData.netAdjust).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                          ) : payslipData.netAdjust > 0 ? (
+                            <span style={{ color: '#10b981' }}>+{payslipData.netAdjust.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                          ) : (
+                            <span className="muted">0.00</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Highlighted Net Pay Box */}
+                  <div
+                    style={{
+                      background: 'rgba(0, 184, 219, 0.08)',
+                      border: '1px solid rgba(0, 184, 219, 0.25)',
+                      borderRadius: 12,
+                      padding: '14px 18px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: 12,
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '11px', color: 'var(--muted, #4a5565)', fontWeight: 500 }}>
+                        Net pay credited · {payslipData.bankName} ****{payslipData.bankLast4}
+                      </div>
+                      <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--ink, #101828)', marginTop: 2, letterSpacing: '-0.02em' }}>
+                        {formatAed(payslipData.netPay)}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPayslip(latestPayslipRecord);
+                          setViewPayslipModalOpen(true);
+                        }}
+                        style={{
+                          background: 'var(--surface, #ffffff)',
+                          border: '1px solid var(--line, #cbd5e1)',
+                          color: 'var(--ink, #101828)',
+                          padding: '7px 12px',
+                          borderRadius: 8,
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        View
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleDownloadPayslip}
+                        disabled={payslipDownloading}
+                        style={{
+                          background: '#00b8db',
+                          color: '#ffffff',
+                          border: 'none',
+                          padding: '7px 14px',
+                          borderRadius: 8,
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          opacity: payslipDownloading ? 0.7 : 1,
+                        }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="7 10 12 15 17 10" />
+                          <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                        {payslipDownloading ? 'Downloading…' : 'Download PDF'}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* TOTAL REWARDS TAB VIEW */
+                <div>
+                  {/* Distribution Progress Bar */}
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted, #4a5565)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Compensation Distribution
+                      </span>
+                      <span style={{ fontSize: '11.5px', color: '#0284c7', fontWeight: 600 }}>
+                        Formula: (12 × Gross) + Benefits + EOSB + Flight
+                      </span>
+                    </div>
+
+                    <div style={{ width: '100%', height: 10, borderRadius: 999, display: 'flex', overflow: 'hidden', background: 'var(--line, #e2e8f0)' }}>
+                      <div title={`Base Salary: ${computedRewards.shareDistribution?.basicPct}%`} style={{ width: `${computedRewards.shareDistribution?.basicPct || 50}%`, background: '#00b8db' }} />
+                      <div title={`Allowances: ${computedRewards.shareDistribution?.allowancesPct}%`} style={{ width: `${computedRewards.shareDistribution?.allowancesPct || 28}%`, background: '#0284c7' }} />
+                      <div title={`Employer Medical: ${computedRewards.shareDistribution?.benefitsPct}%`} style={{ width: `${computedRewards.shareDistribution?.benefitsPct || 8}%`, background: '#10b981' }} />
+                      <div title={`Accrued EOSB: ${computedRewards.shareDistribution?.gratuityPct}%`} style={{ width: `${computedRewards.shareDistribution?.gratuityPct || 10}%`, background: '#8b5cf6' }} />
+                      <div title={`Flight Allowance: ${computedRewards.shareDistribution?.flightPct}%`} style={{ width: `${computedRewards.shareDistribution?.flightPct || 4}%`, background: '#f59e0b' }} />
+                    </div>
+
+                    {/* Legend */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 8, fontSize: '10.5px', color: 'var(--muted, #4a5565)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: 2, background: '#00b8db' }} />
+                        <span>Base ({computedRewards.shareDistribution?.basicPct}%)</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: 2, background: '#0284c7' }} />
+                        <span>Allowances ({computedRewards.shareDistribution?.allowancesPct}%)</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: 2, background: '#10b981' }} />
+                        <span>Healthcare ({computedRewards.shareDistribution?.benefitsPct}%)</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: 2, background: '#8b5cf6' }} />
+                        <span>EOSB ({computedRewards.shareDistribution?.gratuityPct}%)</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: 2, background: '#f59e0b' }} />
+                        <span>Flight ({computedRewards.shareDistribution?.flightPct}%)</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 4 Cards Grid of Rewards Elements */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, fontSize: '11.5px', marginBottom: 14 }}>
+                    <div style={{ background: 'var(--surface-alt, #EEF9FC)', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line, #E4EEF3)' }}>
+                      <div style={{ fontSize: '10.5px', color: 'var(--muted, #4a5565)', fontWeight: 600, textTransform: 'uppercase' }}>Annual Cash Salary</div>
+                      <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--ink, #101828)', marginTop: 2 }}>
+                        AED {Number(computedRewards.annualCashSalary || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#0284c7', marginTop: 1 }}>12 × Gross (Basic + Allowances)</div>
+                    </div>
+
+                    <div style={{ background: 'var(--surface-alt, #EEF9FC)', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line, #E4EEF3)' }}>
+                      <div style={{ fontSize: '10.5px', color: 'var(--muted, #4a5565)', fontWeight: 600, textTransform: 'uppercase' }}>Employer Benefits</div>
+                      <div style={{ fontSize: '15px', fontWeight: 800, color: '#10b981', marginTop: 2 }}>
+                        AED {Number(computedRewards.annualEmployerBenefits || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--muted, #4a5565)', marginTop: 1 }}>Corporate Health & Insurance</div>
+                    </div>
+
+                    <div style={{ background: 'var(--surface-alt, #EEF9FC)', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line, #E4EEF3)' }}>
+                      <div style={{ fontSize: '10.5px', color: 'var(--muted, #4a5565)', fontWeight: 600, textTransform: 'uppercase' }}>Accrued Gratuity</div>
+                      <div style={{ fontSize: '15px', fontWeight: 800, color: '#8b5cf6', marginTop: 2 }}>
+                        AED {Number(computedRewards.accruedGratuity || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--muted, #4a5565)', marginTop: 1 }}>Statutory UAE Labour Law EOSB</div>
+                    </div>
+
+                    <div style={{ background: 'var(--surface-alt, #EEF9FC)', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line, #E4EEF3)' }}>
+                      <div style={{ fontSize: '10.5px', color: 'var(--muted, #4a5565)', fontWeight: 600, textTransform: 'uppercase' }}>Flight Allowance</div>
+                      <div style={{ fontSize: '15px', fontWeight: 800, color: '#f59e0b', marginTop: 2 }}>
+                        AED {Number(computedRewards.annualFlightAllowance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--muted, #4a5565)', marginTop: 1 }}>Annual Home Return Ticket</div>
+                    </div>
+                  </div>
+
+                  {/* Grand Total Bar and Download Button */}
+                  <div
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(0, 184, 219, 0.12) 0%, rgba(3, 105, 161, 0.08) 100%)',
+                      border: '1px solid rgba(0, 184, 219, 0.3)',
+                      borderRadius: 12,
+                      padding: '12px 16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: 12,
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '11px', color: 'var(--muted, #4a5565)', fontWeight: 600, textTransform: 'uppercase' }}>
+                        Total Annual Rewards Value
+                      </div>
+                      <div style={{ fontSize: '24px', fontWeight: 800, color: '#0369a1', marginTop: 2, letterSpacing: '-0.02em' }}>
+                        AED {Number(computedRewards.totalAnnualValue || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleDownloadRewardsPdf}
+                      disabled={rewardsDownloading}
+                      style={{
+                        background: '#0284c7',
+                        color: '#ffffff',
+                        border: 'none',
+                        padding: '8px 16px',
+                        borderRadius: 8,
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        boxShadow: '0 2px 6px rgba(2, 132, 199, 0.3)',
+                        opacity: rewardsDownloading ? 0.7 : 1,
+                      }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg>
+                      {rewardsDownloading ? 'Generating PDF…' : 'Download Rewards Statement (PDF)'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Previous payslips list */}
@@ -2254,10 +2685,13 @@ export default function EmployeePortalDashboard() {
               </h3>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1, overflowY: 'auto', maxHeight: 220 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, overflowY: 'auto', maxHeight: 250 }}>
               {announcements.length > 0 ? (
                 announcements.map((ann, idx) => {
                   const c = getCategoryColor(ann.category);
+                  const isAckRequired = Boolean(ann.requiresAck || ann.requires_ack);
+                  const isAcked = Boolean(ann.hasAcknowledged || ann.has_acknowledged);
+                  const isPinned = Boolean(ann.isPinned || ann.is_pinned);
 
                   return (
                     <div
@@ -2266,36 +2700,86 @@ export default function EmployeePortalDashboard() {
                         padding: '12px 14px',
                         borderRadius: 10,
                         background: 'var(--surface, #ffffff)',
-                        border: '1px solid var(--line, #e2e8f0)',
+                        border: isAckRequired && !isAcked
+                          ? '1.5px solid rgba(245, 158, 11, 0.45)'
+                          : '1px solid var(--line, #e2e8f0)',
+                        boxShadow: isAckRequired && !isAcked ? '0 2px 8px rgba(245, 158, 11, 0.08)' : 'none',
+                        position: 'relative',
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                        <span
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            color: c.text,
-                            background: c.bg,
-                            border: `1px solid ${c.border}`,
-                            padding: '2.5px 8px',
-                            borderRadius: 5,
-                            letterSpacing: '0.02em',
-                          }}
-                        >
-                          {ann.category || 'General'}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              color: c.text,
+                              background: c.bg,
+                              border: `1px solid ${c.border}`,
+                              padding: '2.5px 8px',
+                              borderRadius: 5,
+                              letterSpacing: '0.02em',
+                            }}
+                          >
+                            {ann.category || 'General'}
+                          </span>
+                          {isPinned && (
+                            <span style={{ fontSize: '10.5px', fontWeight: 600, color: '#0284c7', background: '#e0f2fe', padding: '2px 6px', borderRadius: 4 }}>
+                              📌 Pinned
+                            </span>
+                          )}
+                        </div>
                         <span className="muted" style={{ fontSize: '10.5px' }}>
-                          {formatDate(ann.createdAt || ann.created_at)}
+                          {formatDate(ann.publishedAt || ann.published_at || ann.createdAt || ann.created_at)}
                         </span>
                       </div>
                       <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink, #101828)' }}>
                         {ann.title}
                       </div>
-                      <div style={{ fontSize: '11.5px', color: 'var(--muted, #4a5565)', marginTop: 3, lineHeight: 1.35 }}>
-                        {ann.content || ann.description}
+                      <div style={{ fontSize: '11.5px', color: 'var(--muted, #4a5565)', marginTop: 3, lineHeight: 1.4 }}>
+                        {ann.bodyHtml || ann.body_html || ann.content || ann.desc || ann.description}
                       </div>
+
+                      {/* Compliance Read Receipt Action */}
+                      {isAckRequired && (
+                        <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed var(--line, #e2e8f0)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          {isAcked ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '11px', fontWeight: 600, color: '#059669' }}>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                              Acknowledged
+                            </span>
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 8 }}>
+                              <span style={{ fontSize: '11px', color: '#d97706', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                ⚠️ Requires confirmation
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleAcknowledge(ann.id)}
+                                disabled={acknowledgingId === ann.id}
+                                style={{
+                                  background: 'linear-gradient(135deg, #00b8db, #0284c7)',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  borderRadius: 6,
+                                  padding: '5px 12px',
+                                  fontSize: '11.5px',
+                                  fontWeight: 600,
+                                  cursor: acknowledgingId === ann.id ? 'wait' : 'pointer',
+                                  boxShadow: '0 1px 3px rgba(0, 184, 219, 0.25)',
+                                  transition: 'all 0.15s ease',
+                                }}
+                              >
+                                {acknowledgingId === ann.id ? 'Confirming...' : 'Acknowledge & Confirm'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })
@@ -2309,8 +2793,266 @@ export default function EmployeePortalDashboard() {
         </div>
 
         {/* =========================================================================
+            6.5 CORPORATE QUICK LINKS & RESOURCES (4-Column Card Grid)
+           ========================================================================= */}
+        <div
+          className="admin-card-hover"
+          style={{
+            background: 'var(--surface, #ffffff)',
+            border: '1px solid var(--line, #e2e8f0)',
+            borderRadius: 14,
+            padding: '20px 22px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00b8db' }} />
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--ink, #101828)' }}>
+                Corporate Quick Links & Resources
+              </h3>
+            </div>
+            <span className="muted" style={{ fontSize: '12px' }}>
+              Official Portals & Internal Services
+            </span>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+              gap: 12,
+            }}
+          >
+            {(companyLinks.length > 0 ? companyLinks : DEFAULT_COMPANY_LINKS).map((link, idx) => (
+              <a
+                key={link.id || idx}
+                href={link.url}
+                target={link.url && link.url.startsWith('http') ? '_blank' : '_self'}
+                rel="noopener noreferrer"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '12px 14px',
+                  borderRadius: 10,
+                  background: 'var(--card-subtle, #f8fafc)',
+                  border: '1px solid var(--line, #e2e8f0)',
+                  textDecoration: 'none',
+                  transition: 'all 0.15s ease',
+                  cursor: 'pointer',
+                }}
+                className="admin-card-hover"
+              >
+                <div
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 8,
+                    background: 'rgba(0, 184, 219, 0.12)',
+                    color: '#0097b2',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  {renderQuickLinkIcon(link.iconKey || link.icon_key)}
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div
+                    style={{
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      color: 'var(--ink, #101828)',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {link.title}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '11px',
+                      color: 'var(--muted, #64748b)',
+                      marginTop: 2,
+                    }}
+                  >
+                    {link.category || 'General'}
+                  </div>
+                </div>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#94a3b8"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ flexShrink: 0 }}
+                >
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                  <polyline points="15 3 21 3 21 9" />
+                  <line x1="10" y1="14" x2="21" y2="3" />
+                </svg>
+              </a>
+            ))}
+          </div>
+        </div>
+
+        {/* =========================================================================
+            6.8 DIGITAL MEDICAL INSURANCE & HEALTHCARE BENEFITS CARD (Task 2.2)
+           ========================================================================= */}
+        {myBenefits && myBenefits.length > 0 ? (
+          <div
+            className="admin-card-hover"
+            style={{
+              borderRadius: 16,
+              padding: '24px',
+              background: 'linear-gradient(135deg, #092c42 0%, #0369a1 50%, #0284c7 100%)',
+              color: '#ffffff',
+              boxShadow: '0 10px 25px rgba(2, 132, 199, 0.2)',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                top: -40,
+                right: -40,
+                width: 160,
+                height: 160,
+                borderRadius: '50%',
+                background: 'rgba(255, 255, 255, 0.08)',
+                pointerEvents: 'none',
+              }}
+            />
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14, marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    background: 'rgba(255, 255, 255, 0.15)',
+                    backdropFilter: 'blur(8px)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#38bdf8',
+                  }}
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+                  </svg>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.85 }}>
+                    DIGITAL HEALTHCARE INSURANCE CARD
+                  </div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, marginTop: 2 }}>
+                    {myBenefits[0].providerName || myBenefits[0].provider_name || 'Corporate Health Insurance'}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span
+                  style={{
+                    padding: '4px 12px',
+                    borderRadius: 9999,
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    backdropFilter: 'blur(4px)',
+                  }}
+                >
+                  {myBenefits[0].planName || myBenefits[0].plan_name}
+                </span>
+                <span
+                  style={{
+                    padding: '4px 12px',
+                    borderRadius: 9999,
+                    background: '#10b981',
+                    color: '#ffffff',
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                  }}
+                >
+                  ACTIVE
+                </span>
+              </div>
+            </div>
+
+            {/* Insurance Card Details Grid */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gap: 14,
+                padding: '16px 0',
+                borderTop: '1px solid rgba(255, 255, 255, 0.2)',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
+                marginBottom: 16,
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '10.5px', opacity: 0.8, textTransform: 'uppercase' }}>INSURED MEMBER</div>
+                <div style={{ fontSize: '14.5px', fontWeight: 700, marginTop: 2 }}>
+                  {employeeProfile?.fullName || employeeProfile?.full_name || 'Employee'}
+                </div>
+                <div style={{ fontSize: '11.5px', opacity: 0.85 }}>
+                  Emp Code: {employeeProfile?.empCode || employeeProfile?.emp_code}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: '10.5px', opacity: 0.8, textTransform: 'uppercase' }}>MEMBER ID / CARD #</div>
+                <div style={{ fontSize: '14.5px', fontWeight: 700, marginTop: 2 }}>
+                  {myBenefits[0].memberId || myBenefits[0].member_id || '—'}
+                </div>
+                <div style={{ fontSize: '11.5px', opacity: 0.85 }}>
+                  Policy: {myBenefits[0].policyNumber || myBenefits[0].policy_number}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: '10.5px', opacity: 0.8, textTransform: 'uppercase' }}>COVERAGE TIER</div>
+                <div style={{ fontSize: '14.5px', fontWeight: 700, marginTop: 2 }}>
+                  {String(myBenefits[0].coverageTier || myBenefits[0].coverage_tier).toLowerCase() === 'family'
+                    ? `Family Coverage (${myBenefits[0].dependentsCount || myBenefits[0].dependents_count || 0} Dependents)`
+                    : 'Employee Only'}
+                </div>
+                <div style={{ fontSize: '11.5px', opacity: 0.85 }}>
+                  Valid: {formatDate(myBenefits[0].startDate || myBenefits[0].start_date)} to {formatDate(myBenefits[0].endDate || myBenefits[0].end_date)}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: '10.5px', opacity: 0.8, textTransform: 'uppercase' }}>ANNUAL EMPLOYER SUBSIDY</div>
+                <div style={{ fontSize: '15px', fontWeight: 800, color: '#34d399', marginTop: 2 }}>
+                  AED {Number(myBenefits[0].annualPremiumEmployer || myBenefits[0].annual_premium_employer || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </div>
+                <div style={{ fontSize: '11.5px', opacity: 0.85 }}>100% Employer Funded</div>
+              </div>
+            </div>
+
+            {myBenefits[0].coverageSummary || myBenefits[0].coverage_summary ? (
+              <div style={{ fontSize: '12px', opacity: 0.9, lineHeight: 1.5 }}>
+                ℹ️ {myBenefits[0].coverageSummary || myBenefits[0].coverage_summary}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {/* =========================================================================
             7. BOTTOM BANNER: END-OF-SERVICE BENEFIT (EOSB / GRATUITY)
            ========================================================================= */}
+
         <div
           className="admin-card-hover"
           style={{

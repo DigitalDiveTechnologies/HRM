@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import PortalShell from '@/components/PortalShell';
 import { api, value } from '@/lib/api';
 import { useLocale } from '@/lib/LocaleContext';
@@ -119,6 +120,77 @@ export default function Onboarding() {
           </div>
           <div className="kpi-ring">{completed}</div>
         </div>
+      </div>
+
+      {/* Interactive Wizard Banner */}
+      <div
+        style={{
+          background: 'linear-gradient(135deg, rgba(30, 58, 138, 0.08) 0%, rgba(14, 165, 233, 0.12) 100%)',
+          border: '1px solid rgba(14, 165, 233, 0.3)',
+          borderRadius: 12,
+          padding: '20px 24px',
+          marginBottom: 20,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 16,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 10,
+              background: '#0284c7',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+              <polyline points="10 9 9 9 8 9" />
+            </svg>
+          </div>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#0f172a' }}>
+              {locale === 'ar' ? 'معالج التهيئة والتعيين الموحد' : 'Unified New Hire Onboarding Wizard'}
+            </h3>
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: '#475569' }}>
+              {locale === 'ar'
+                ? 'أكمل مرحلة التعريف والتحقق من وثائق الهوية والتوقيع الرقمي بنقرة واحدة.'
+                : 'Complete your 3-stage induction, verify UAE residency documents, and sign your policy packet.'}
+            </p>
+          </div>
+        </div>
+        <Link
+          href="/onboarding/wizard"
+          style={{
+            background: '#0284c7',
+            color: '#fff',
+            padding: '10px 20px',
+            borderRadius: 8,
+            textDecoration: 'none',
+            fontSize: 14,
+            fontWeight: 600,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
+          }}
+        >
+          <span>{locale === 'ar' ? 'بدء المعالج التفاعلي' : 'Launch Wizard'}</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </Link>
       </div>
 
       {/* Onboarding Tasks List */}

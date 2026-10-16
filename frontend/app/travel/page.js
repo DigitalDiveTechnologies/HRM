@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AppShell, { Badge } from '../../components/AppShell';
-import { api, getUser, getPermissions, normalizeRole } from '../../lib/auth';
+import { api, apiUpload, getUser, getPermissions, normalizeRole, resolveDocUrl } from '../../lib/auth';
 import { canUsePermission } from '../../lib/nav';
 import { formatDate, money, currencyCode, todayISO, v } from '../../lib/format';
 import { useCompanyFilter } from '../../lib/useCompanyFilter';
@@ -58,6 +58,7 @@ export default function TravelPage() {
     expenseDate: todayISO(),
     notes: '',
   });
+  const [expenseReceipt, setExpenseReceipt] = useState(null);
 
   const [busyKey, setBusyKey] = useState('');
 
@@ -111,6 +112,7 @@ export default function TravelPage() {
   }, [load]);
 
   const canCreateTravel = canManage || role === 'manager' || role === 'employee';
+  const canCreateExpense = canManage || role === 'employee';
   const selfId = getUser()?.employeeId || getUser()?.employee_id;
 
   async function createTravel(e) {
@@ -148,13 +150,22 @@ export default function TravelPage() {
     setMsg('');
     setError('');
     try {
+      let receipt = null;
+      if (expenseReceipt) {
+        const formData = new FormData();
+        formData.append('file', expenseReceipt);
+        receipt = await apiUpload('/travel/expenses/upload-receipt', formData);
+      }
+      const employeeId = role === 'employee' ? Number(selfId) : Number(expenseForm.employeeId);
       await api('/travel/expenses', {
         method: 'POST',
         body: JSON.stringify({
           ...expenseForm,
-          employeeId: Number(expenseForm.employeeId),
+          employeeId,
           amount: Number(expenseForm.amount),
           currency: currencyCode(),
+          receiptFileRef: receipt?.fileRef,
+          receiptFileName: receipt?.fileName,
         }),
       });
       setMsg('Expense claim created.');
@@ -166,6 +177,9 @@ export default function TravelPage() {
         expenseDate: todayISO(),
         notes: '',
       });
+      setExpenseReceipt(null);
+      const receiptInput = document.getElementById('expense-receipt');
+      if (receiptInput) receiptInput.value = '';
       load();
     } catch (err) {
       setError(err.message);
@@ -339,7 +353,7 @@ export default function TravelPage() {
         </div>
       </div>
 
-      {canManage ? (
+      {canCreateExpense ? (
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="panel-title">
             <h3>New expense claim</h3>
@@ -348,14 +362,16 @@ export default function TravelPage() {
             <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
               <label className="field">
                 Employee
-                <select required value={expenseForm.employeeId} onChange={(e) => setExpenseForm({ ...expenseForm, employeeId: e.target.value })}>
-                  <option value="">Select…</option>
-                  {employees.filter(e => !filteredEmpIds || filteredEmpIds.has(String(v(e, 'id')))).map((e) => (
-                    <option key={v(e, 'id')} value={v(e, 'id')}>
-                      {v(e, 'fullName', 'full_name')} ({v(e, 'empCode', 'emp_code')})
-                    </option>
-                  ))}
-                </select>
+                {role === 'employee' ? <input value={getUser()?.fullName || getUser()?.full_name || 'Current employee'} disabled /> : (
+                  <select required value={expenseForm.employeeId} onChange={(e) => setExpenseForm({ ...expenseForm, employeeId: e.target.value })}>
+                    <option value="">Select…</option>
+                    {employees.filter(e => !filteredEmpIds || filteredEmpIds.has(String(v(e, 'id')))).map((e) => (
+                      <option key={v(e, 'id')} value={v(e, 'id')}>
+                        {v(e, 'fullName', 'full_name')} ({v(e, 'empCode', 'emp_code')})
+                      </option>
+                    ))}
+                  </select>
+                )}
               </label>
               <label className="field">
                 Title
@@ -372,6 +388,10 @@ export default function TravelPage() {
               <label className="field">
                 Date
                 <input type="date" value={expenseForm.expenseDate} onChange={(e) => setExpenseForm({ ...expenseForm, expenseDate: e.target.value })} />
+              </label>
+              <label className="field">
+                Invoice / receipt
+                <input id="expense-receipt" required type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={(e) => setExpenseReceipt(e.target.files?.[0] || null)} />
               </label>
             </div>
             <label className="field">
@@ -399,6 +419,7 @@ export default function TravelPage() {
                 <th>Amount</th>
                 <th>Date</th>
                 <th>Status</th>
+                <th>Invoice</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -415,6 +436,13 @@ export default function TravelPage() {
                     <td>{formatDate(v(x, 'expenseDate', 'expense_date'))}</td>
                     <td>
                       <Badge status={status} />
+                    </td>
+                    <td>
+                      {v(x, 'receiptFileRef', 'receipt_file_ref') ? (
+                        <a href={resolveDocUrl(v(x, 'receiptFileRef', 'receipt_file_ref'))} target="_blank" rel="noreferrer">
+                          View invoice
+                        </a>
+                      ) : '—'}
                     </td>
                     <td>
                       {canManage && status === 'pending' ? (
@@ -442,7 +470,7 @@ export default function TravelPage() {
               })}
               {!expenses.length ? (
                 <tr>
-                  <td colSpan={7}>No expense claims.</td>
+                  <td colSpan={8}>No expense claims.</td>
                 </tr>
               ) : null}
             </tbody>
