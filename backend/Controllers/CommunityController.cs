@@ -849,7 +849,7 @@ public sealed class CommunityController : ControllerBase
         await using (var cmd = new NpgsqlCommand(
             """
             SELECT r.employee_id, r.status, r.responded_at,
-                   e.first_name, e.last_name, e.emp_code, e.email,
+                   e.full_name, e.emp_code, e.email,
                    COALESCE(d.name, 'General Organization') AS department_name,
                    e.job_title
             FROM company_event_rsvps r
@@ -867,14 +867,13 @@ public sealed class CommunityController : ControllerBase
                 var empId = reader.GetInt32(0);
                 var status = reader.GetString(1);
                 var respondedAt = reader.GetDateTime(2);
-                var fn = reader.IsDBNull(3) ? "" : reader.GetString(3);
-                var ln = reader.IsDBNull(4) ? "" : reader.GetString(4);
-                var empCode = reader.IsDBNull(5) ? "" : reader.GetString(5);
-                var email = reader.IsDBNull(6) ? "" : reader.GetString(6);
-                var dept = reader.GetString(7);
-                var job = reader.IsDBNull(8) ? "" : reader.GetString(8);
+                var fullName = reader.IsDBNull(3) ? "" : reader.GetString(3);
+                var empCode = reader.IsDBNull(4) ? "" : reader.GetString(4);
+                var email = reader.IsDBNull(5) ? "" : reader.GetString(5);
+                var dept = reader.GetString(6);
+                var job = reader.IsDBNull(7) ? "" : reader.GetString(7);
 
-                var fullName = $"{fn} {ln}".Trim();
+                fullName = fullName.Trim();
                 if (string.IsNullOrWhiteSpace(fullName)) fullName = "Employee #" + empId;
 
                 if (string.Equals(status, "attending", StringComparison.OrdinalIgnoreCase)) attendingCount++;

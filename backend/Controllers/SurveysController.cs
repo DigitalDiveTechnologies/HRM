@@ -457,7 +457,7 @@ public sealed class SurveysController : ControllerBase
             """
             SELECT r.id, r.submitted_at, r.nps_score, r.feedback_text, r.answers_json::text,
                    COALESCE(d.name, 'General Organization') AS department_name,
-                   e.first_name, e.last_name, e.emp_code
+                   e.full_name, e.emp_code
             FROM wellbeing_survey_responses r
             LEFT JOIN departments d ON d.id = r.department_id
             LEFT JOIN employees e ON e.id = r.employee_id
@@ -487,10 +487,9 @@ public sealed class SurveysController : ControllerBase
                 }
                 else
                 {
-                    var fn = reader.IsDBNull(6) ? "" : reader.GetString(6);
-                    var ln = reader.IsDBNull(7) ? "" : reader.GetString(7);
-                    var ec = reader.IsDBNull(8) ? "EMP" : reader.GetString(8);
-                    respondentName = string.IsNullOrWhiteSpace($"{fn} {ln}".Trim()) ? "Employee" : $"{fn} {ln}".Trim();
+                    var fn = reader.IsDBNull(6) ? "Employee" : reader.GetString(6);
+                    var ec = reader.IsDBNull(7) ? "EMP" : reader.GetString(7);
+                    respondentName = string.IsNullOrWhiteSpace(fn) ? "Employee" : fn.Trim();
                     respondentCode = ec;
                 }
 
