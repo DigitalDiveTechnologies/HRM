@@ -4042,8 +4042,15 @@ public sealed class HrQueryService
 
         foreach (var r in rows)
         {
-            var perf = Convert.ToDecimal(r["performance_rating"] ?? 3.0m);
-            var pot = Convert.ToDecimal(r["potential_rating"] ?? 3.0m);
+            var perfVal = r.TryGetValue("performanceRating", out var p1) && p1 != null
+                ? p1
+                : (r.TryGetValue("performance_rating", out var p2) ? p2 : null);
+            var potVal = r.TryGetValue("potentialRating", out var pt1) && pt1 != null
+                ? pt1
+                : (r.TryGetValue("potential_rating", out var pt2) ? pt2 : null);
+
+            var perf = perfVal != null ? Convert.ToDecimal(perfVal) : 3.0m;
+            var pot = potVal != null ? Convert.ToDecimal(potVal) : 3.0m;
 
             string perfTier = perf < 3.0m ? "low" : (perf < 4.0m ? "med" : "high");
             string potTier = pot < 3.0m ? "low" : (pot < 4.0m ? "med" : "high");
