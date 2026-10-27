@@ -27,3 +27,4 @@ mobile/.dart_tool/
 mobile/build/
 .vercel
 tmp/
+*credentials.local*
