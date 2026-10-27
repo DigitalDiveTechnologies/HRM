@@ -67,7 +67,8 @@ public sealed class ReportsController : ControllerBase
         try
         {
             var (file, csv, _) = await _ops.ExportCustomCsvAsync(body.Columns, body.Filters, CurrentUser.Email(User), ct);
-            return File(Encoding.UTF8.GetBytes(csv), "text/csv; charset=utf-8", file);
+            var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv)).ToArray();
+            return File(bytes, "text/csv; charset=utf-8", file);
         }
         catch (Exception ex)
         {

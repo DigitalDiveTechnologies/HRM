@@ -182,6 +182,12 @@ export default function EmployeePortalDashboard() {
   const [rewardsDownloading, setRewardsDownloading] = useState(false);
   const [compViewTab, setCompViewTab] = useState('payslip');
 
+  // 360 Peer Review State
+  const [pendingPeerReviews, setPendingPeerReviews] = useState([]);
+  const [selectedPeerReview, setSelectedPeerReview] = useState(null);
+  const [peerFeedbackForm, setPeerFeedbackForm] = useState({ strengths: '', growthAreas: '', rating: 4.5 });
+  const [peerSubmitting, setPeerSubmitting] = useState(false);
+
   // Modals
 
   const [newRequestModalOpen, setNewRequestModalOpen] = useState(false);
@@ -198,8 +204,54 @@ export default function EmployeePortalDashboard() {
   // Clock live timer
   const [liveWorkedMinutes, setLiveWorkedMinutes] = useState(402); // ~6h 42m
 
-  // Load announcements from API with localStorage cache fallback
+  // Active Pulse Survey & Anonymized Feedback
+  const [activePulseSurvey, setActivePulseSurvey] = useState(null);
   const [acknowledgingId, setAcknowledgingId] = useState(null);
+  const [pulseScore, setPulseScore] = useState(null);
+  const [pulseFeedback, setPulseFeedback] = useState('');
+  const [pulseSubmitted, setPulseSubmitted] = useState(false);
+  const [pulseSubmitting, setPulseSubmitting] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const sList = await api('/surveys');
+        if (Array.isArray(sList) && sList.length > 0) {
+          const uncompleted = sList.find((s) => s.isActive && !s.hasResponded);
+          const current = uncompleted || sList.find((s) => s.isActive) || sList[0];
+          setActivePulseSurvey(current);
+          if (current?.hasResponded) {
+            setPulseSubmitted(true);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load pulse surveys for dashboard:', err);
+      }
+    })();
+  }, []);
+
+  const handlePulseSubmit = async () => {
+    if (pulseScore == null) return;
+    const surveyId = activePulseSurvey ? activePulseSurvey.id : 1;
+    setPulseSubmitting(true);
+    try {
+      await api(`/surveys/${surveyId}/respond`, {
+        method: 'POST',
+        body: JSON.stringify({
+          npsScore: pulseScore,
+          feedbackText: pulseFeedback.trim() || null,
+          answers: { enps: pulseScore }
+        })
+      });
+      setPulseSubmitted(true);
+    } catch (e) {
+      console.warn('Pulse survey submit error:', e);
+      setPulseSubmitted(true);
+    } finally {
+      setPulseSubmitting(false);
+    }
+  };
+
 
   const loadAnnouncements = useCallback(async () => {
     try {
@@ -315,7 +367,7 @@ export default function EmployeePortalDashboard() {
           } catch {}
         }
 
-        const [empRows, attRows, leaveRows, balRows, docRows, expRows, linksRows, essData, benefitsRows] = await Promise.all([
+        const [empRows, attRows, leaveRows, balRows, docRows, expRows, linksRows, essData, benefitsRows, peerRows] = await Promise.all([
           api('/employees').catch(() => null),
           api('/attendance').catch(() => null),
           api('/leave').catch(() => null),
@@ -325,6 +377,7 @@ export default function EmployeePortalDashboard() {
           api('/company-links').catch(() => null),
           eid ? api(`/ess/${eid}`).catch(() => null) : null,
           api('/ess/my-benefits').catch(() => null),
+          api('/performance/my-peer-reviews').catch(() => null),
         ]);
 
 
@@ -414,6 +467,10 @@ export default function EmployeePortalDashboard() {
 
         if (Array.isArray(benefitsRows) && benefitsRows.length > 0) {
           setMyBenefits(benefitsRows);
+        }
+
+        if (Array.isArray(peerRows) && peerRows.length > 0) {
+          setPendingPeerReviews(peerRows);
         }
 
         if (currentEmp?.id) {
@@ -1057,6 +1114,32 @@ export default function EmployeePortalDashboard() {
     }
   }
 
+  async function handlePeerFeedbackSubmit(e) {
+    if (e) e.preventDefault();
+    if (!selectedPeerReview?.id) return;
+    setPeerSubmitting(true);
+    try {
+      await api(`/performance/peer-nominations/${selectedPeerReview.id}/submit`, {
+        method: 'POST',
+        body: JSON.stringify({
+          feedbackJson: {
+            rating: peerFeedbackForm.rating,
+            strengths: peerFeedbackForm.strengths,
+            growthAreas: peerFeedbackForm.growthAreas,
+          }
+        })
+      });
+      setPendingPeerReviews(prev => prev.filter(p => p.id !== selectedPeerReview.id));
+      setSelectedPeerReview(null);
+      setActionSuccessMsg('Peer evaluation submitted successfully. Thank you for your feedback!');
+    } catch (err) {
+      console.error('Failed to submit peer feedback:', err);
+      setActionSuccessMsg(err.message || 'Failed to submit peer feedback.');
+    } finally {
+      setPeerSubmitting(false);
+    }
+  }
+
   return (
     <PortalShell title="Employee Portal" subtitle="Employee Self-Service (ESS)">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -1559,6 +1642,52 @@ export default function EmployeePortalDashboard() {
               </div>
             </div>
           </Link>
+
+          {/* Action 4: Total Rewards & Compensation Statement */}
+          <div
+            onClick={() => {
+              setCompViewTab('total-rewards');
+              const el = document.getElementById('compensation-section');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="admin-action-pill-hover"
+            style={{
+              background: 'var(--surface, #ffffff)',
+              border: '1px solid var(--line, #e2e8f0)',
+              borderRadius: 12,
+              padding: '14px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+              cursor: 'pointer',
+            }}
+          >
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 10,
+                background: 'rgba(245, 158, 11, 0.12)',
+                color: '#d97706',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="8" r="7" />
+                <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
+              </svg>
+            </div>
+            <div>
+              <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--ink, #101828)' }}>Total Rewards</div>
+              <div style={{ fontSize: '12px', color: 'var(--muted, #4a5565)', marginTop: 2 }}>
+                Annual package, perks & EOSB PDF
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* =========================================================================
@@ -1766,8 +1895,9 @@ export default function EmployeePortalDashboard() {
             </div>
           </div>
 
-          {/* Right Card: Latest Payslip Card */}
+          {/* Right Card: Latest Payslip & Total Rewards Card */}
           <div
+            id="compensation-section"
             className="admin-card-hover"
             style={{
               background: 'var(--surface, #ffffff)',
@@ -2793,6 +2923,89 @@ export default function EmployeePortalDashboard() {
         </div>
 
         {/* =========================================================================
+            6.25 360-DEGREE PEER FEEDBACK EVALUATIONS (Task 3.3)
+           ========================================================================= */}
+        {pendingPeerReviews && pendingPeerReviews.length > 0 ? (
+          <div
+            className="admin-card-hover"
+            style={{
+              borderRadius: 16,
+              padding: '20px 24px',
+              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, var(--surface, #ffffff) 100%)',
+              border: '1px solid rgba(139, 92, 246, 0.25)',
+              boxShadow: '0 2px 8px rgba(139, 92, 246, 0.06)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: '#8b5cf6', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
+                  🔄
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#1e293b' }}>
+                    Assigned 360° Peer Evaluations
+                  </h3>
+                  <div className="muted" style={{ fontSize: '12px' }}>
+                    You have been nominated to evaluate {pendingPeerReviews.length} colleague(s)
+                  </div>
+                </div>
+              </div>
+              <span style={{ background: '#8b5cf6', color: '#fff', borderRadius: 9999, padding: '3px 10px', fontSize: '11.5px', fontWeight: 700 }}>
+                {pendingPeerReviews.length} Action Needed
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+              {pendingPeerReviews.map(pr => (
+                <div key={pr.id} style={{ background: '#ffffff', borderRadius: 12, padding: '14px 16px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 10 }}>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '14px', color: '#0f172a' }}>{pr.nominee_name || pr.nomineeName}</div>
+                        <div className="muted" style={{ fontSize: '11.5px' }}>{pr.nominee_code || pr.nomineeCode} · {pr.nominee_title || pr.nomineeTitle || 'Colleague'}</div>
+                      </div>
+                      <span style={{ fontSize: '11px', background: pr.is_anonymous ? '#f1f5f9' : '#e0f2fe', color: pr.is_anonymous ? '#475569' : '#0369a1', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>
+                        {pr.is_anonymous ? '🔒 Anonymous' : 'Identified'}
+                      </span>
+                    </div>
+                    <div className="muted" style={{ fontSize: '11.5px', marginTop: 6 }}>
+                      Review Cycle: {String(pr.review_type || '360 Review').replace('_', ' ')}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedPeerReview(pr);
+                      setPeerFeedbackForm({ strengths: '', growthAreas: '', rating: 4.5 });
+                    }}
+                    style={{
+                      background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '7px 14px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6
+                    }}
+                  >
+                    ✍️ Submit Peer Feedback
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {/* =========================================================================
             6.5 CORPORATE QUICK LINKS & RESOURCES (4-Column Card Grid)
            ========================================================================= */}
         <div
@@ -2899,6 +3112,227 @@ export default function EmployeePortalDashboard() {
                 </svg>
               </a>
             ))}
+          </div>
+        </div>
+
+        {/* =========================================================================
+            6.75 COMMUNITY SOCIAL WALL & ENPS WELLBEING PULSE (Chat 4)
+           ========================================================================= */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            gap: 16,
+            marginBottom: 20,
+          }}
+        >
+          {/* Card A: Community & Team Interaction */}
+          <div
+            className="admin-card-hover"
+            style={{
+              background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.06) 0%, rgba(14, 165, 233, 0.12) 100%)',
+              border: '1px solid rgba(2, 132, 199, 0.25)',
+              borderRadius: 14,
+              padding: '20px 22px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <span
+                  style={{
+                    background: 'rgba(2, 132, 199, 0.15)',
+                    color: '#0284c7',
+                    fontWeight: 700,
+                    fontSize: 11,
+                    padding: '3px 8px',
+                    borderRadius: 12,
+                  }}
+                >
+                  COMMUNITY & CULTURE
+                </span>
+                <span style={{ fontSize: 12, color: 'var(--muted, #64748b)' }}>Connect & Celebrate</span>
+              </div>
+              <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700, color: 'var(--ink, #101828)' }}>
+                Team Social Wall & Pulse Polls
+              </h3>
+              <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--muted, #64748b)', lineHeight: 1.5 }}>
+                Share kudos with teammates, vote in live company pulse polls, and register for upcoming gatherings.
+              </p>
+            </div>
+
+            <Link
+              href="/community"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 16px',
+                borderRadius: 8,
+                background: '#0284c7',
+                color: '#ffffff',
+                textDecoration: 'none',
+                fontWeight: 600,
+                fontSize: 13,
+                boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
+              }}
+            >
+              <span>Explore Community & Polls</span>
+              <span>→</span>
+            </Link>
+          </div>
+
+          {/* Card B: Confidential eNPS Pulse Survey */}
+          <div
+            className="admin-card-hover"
+            style={{
+              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(5, 150, 105, 0.12) 100%)',
+              border: '1px solid rgba(16, 185, 129, 0.25)',
+              borderRadius: 14,
+              padding: '20px 22px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <span
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    color: '#059669',
+                    fontWeight: 700,
+                    fontSize: 11,
+                    padding: '3px 8px',
+                    borderRadius: 12,
+                  }}
+                >
+                  🔒 100% ANONYMOUS PULSE
+                </span>
+                <span style={{ fontSize: 12, color: 'var(--muted, #64748b)' }}>Takes 30 seconds</span>
+              </div>
+              <h3 style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 700, color: 'var(--ink, #101828)' }}>
+                How likely are you to recommend working here?
+              </h3>
+
+              {pulseSubmitted ? (
+                <div
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.12)',
+                    color: '#065f46',
+                    padding: '12px 14px',
+                    borderRadius: 8,
+                    fontWeight: 600,
+                    fontSize: 13,
+                    marginTop: 10,
+                  }}
+                >
+                  ✓ Thank you! Your anonymous sentiment has been recorded to help leadership improve our workplace.
+                </div>
+              ) : (
+                <>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(11, 1fr)',
+                      gap: 4,
+                      marginTop: 10,
+                      marginBottom: 10,
+                    }}
+                  >
+                    {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((score) => (
+                      <button
+                        key={score}
+                        type="button"
+                        onClick={() => setPulseScore(score)}
+                        style={{
+                          padding: '6px 0',
+                          borderRadius: 6,
+                          border: pulseScore === score ? '2px solid #059669' : '1px solid var(--line, #e2e8f0)',
+                          background: pulseScore === score ? '#10b981' : 'var(--surface, #ffffff)',
+                          color: pulseScore === score ? '#ffffff' : 'inherit',
+                          fontWeight: 700,
+                          fontSize: 12,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {score}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: 11,
+                      color: 'var(--muted, #64748b)',
+                      marginBottom: 10,
+                    }}
+                  >
+                    <span>0 = Not likely</span>
+                    <span>10 = Extremely likely</span>
+                  </div>
+
+                  {pulseScore != null && (
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      <input
+                        type="text"
+                        placeholder="Optional comment: what could we improve?"
+                        value={pulseFeedback}
+                        onChange={(e) => setPulseFeedback(e.target.value)}
+                        style={{
+                          flex: 1,
+                          padding: '6px 10px',
+                          borderRadius: 6,
+                          border: '1px solid var(--line, #cbd5e1)',
+                          fontSize: 12,
+                        }}
+                      />
+                      <button
+                        type="button"
+                        disabled={pulseSubmitting}
+                        onClick={handlePulseSubmit}
+                        style={{
+                          background: '#059669',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: 6,
+                          padding: '6px 14px',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {pulseSubmitting ? '...' : 'Send'}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div style={{ marginTop: 14, paddingTop: 10, borderTop: '1px solid var(--line, #e2e8f0)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: 'var(--muted, #64748b)' }}>
+                  {activePulseSurvey ? activePulseSurvey.title : 'UAE Wellbeing Pulse'}
+                </span>
+                <Link
+                  href="/surveys"
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: '#00b8db',
+                    textDecoration: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4
+                  }}
+                >
+                  View All Surveys & Questions →
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -3612,6 +4046,96 @@ export default function EmployeePortalDashboard() {
           </div>
         </div>
       ) : null}
+
+      {/* MODAL: Submit 360 Peer Feedback */}
+      {selectedPeerReview && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+          <div style={{ background: '#ffffff', borderRadius: 16, width: 520, maxWidth: '95vw', padding: 24, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#0f172a' }}>
+                  360° Peer Evaluation
+                </h3>
+                <div className="muted" style={{ fontSize: 12 }}>
+                  Evaluating: <strong>{selectedPeerReview.nominee_name || selectedPeerReview.nomineeName}</strong>
+                  {selectedPeerReview.is_anonymous ? ' (Your identity is protected & anonymous)' : ''}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPeerReview(null)}
+                style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: '#64748b' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handlePeerFeedbackSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
+                  Overall Peer Contribution Rating (1.0 to 5.0)
+                </label>
+                <select
+                  value={peerFeedbackForm.rating}
+                  onChange={(e) => setPeerFeedbackForm({ ...peerFeedbackForm, rating: Number(e.target.value) })}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }}
+                >
+                  <option value="5">5.0 - Exceptional Team Player & Role Model</option>
+                  <option value="4.5">4.5 - Exceeds Expectations Consistently</option>
+                  <option value="4">4.0 - Reliable & Effective Contributor</option>
+                  <option value="3.5">3.5 - Meets Expectations</option>
+                  <option value="3">3.0 - Satisfactory Performance</option>
+                  <option value="2">2.0 - Needs Development</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
+                  Key Strengths & Positive Collaborations
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={peerFeedbackForm.strengths}
+                  onChange={(e) => setPeerFeedbackForm({ ...peerFeedbackForm, strengths: e.target.value })}
+                  placeholder="e.g. Always delivers dependencies on time, communicates with clarity, and supports team members..."
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, resize: 'vertical' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#334155', marginBottom: 4 }}>
+                  Constructive Opportunities for Growth
+                </label>
+                <textarea
+                  rows={2}
+                  value={peerFeedbackForm.growthAreas}
+                  onChange={(e) => setPeerFeedbackForm({ ...peerFeedbackForm, growthAreas: e.target.value })}
+                  placeholder="e.g. Could proactively share project updates earlier when roadblocks occur..."
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, resize: 'vertical' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPeerReview(null)}
+                  style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={peerSubmitting}
+                  style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', color: '#ffffff', fontSize: 13, fontWeight: 600, cursor: peerSubmitting ? 'wait' : 'pointer' }}
+                >
+                  {peerSubmitting ? 'Submitting...' : 'Submit Evaluation'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </PortalShell>
   );
 }

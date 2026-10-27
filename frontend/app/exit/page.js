@@ -32,6 +32,18 @@ export default function ExitPage() {
   const [selectedId, setSelectedId] = useState(null);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
+
+  // Settlement & Gratuity (EOSB) States
+  const [settlementCase, setSettlementCase] = useState(null);
+  const [settlementWorksheet, setSettlementWorksheet] = useState(null);
+  const [settlementLoading, setSettlementLoading] = useState(false);
+  const [settlementInputs, setSettlementInputs] = useState({
+    unusedLeaveDays: 0,
+    noticePayDays: 0,
+    otherEarnings: 0,
+    otherDeductions: 0,
+  });
+
   const [form, setForm] = useState({
     employeeId: '',
     exitType: 'resignation',
@@ -84,6 +96,47 @@ export default function ExitPage() {
     }
   }
 
+  async function openSettlement(caseRow) {
+    setSettlementCase(caseRow);
+    setSettlementLoading(true);
+    setError('');
+    try {
+      const res = await api(`/exit/${caseRow.id}/settlement`, {
+        method: 'POST',
+        body: JSON.stringify(settlementInputs),
+      });
+      setSettlementWorksheet(res.worksheet || res.settlement || null);
+    } catch (e) {
+      setError(e.message || 'Failed to load statutory gratuity calculation.');
+    } finally {
+      setSettlementLoading(false);
+    }
+  }
+
+  async function recalculateSettlement() {
+    if (!settlementCase) return;
+    setSettlementLoading(true);
+    setError('');
+    try {
+      const res = await api(`/exit/${settlementCase.id}/settlement`, {
+        method: 'POST',
+        body: JSON.stringify({
+          unusedLeaveDays: Number(settlementInputs.unusedLeaveDays || 0),
+          noticePayDays: Number(settlementInputs.noticePayDays || 0),
+          otherEarnings: Number(settlementInputs.otherEarnings || 0),
+          otherDeductions: Number(settlementInputs.otherDeductions || 0),
+        }),
+      });
+      setSettlementWorksheet(res.worksheet || res.settlement || null);
+      setMsg(`Statutory settlement updated for case #${settlementCase.id}`);
+      load();
+    } catch (e) {
+      setError(e.message || 'Failed to recalculate settlement.');
+    } finally {
+      setSettlementLoading(false);
+    }
+  }
+
   async function createExit(e) {
     e.preventDefault();
     setMsg('');
@@ -131,32 +184,10 @@ export default function ExitPage() {
     }
   }
 
-  async function runSettlement(id) {
-    setMsg('');
-    setError('');
-    try {
-      const res = await api(`/exit/${id}/settlement`, {
-        method: 'POST',
-        body: JSON.stringify({
-          unusedLeaveDays: 0,
-          noticePayDays: 0,
-          otherEarnings: 0,
-          otherDeductions: 0,
-        }),
-      });
-      const w = res.worksheet || {};
-      setMsg(
-        `Settlement PREVIEW for case #${id}: net AED ${w.netSettlement ?? 'â€”'} `
-        + `(EOSB ${w.eosbAmount ?? 'â€”'} Â· ${w.ruleCode || ''} / ${w.formulaVersion || ''})`,
-      );
-      load();
-    } catch (e) {
-      setError(e.message);
-    }
-  }
+  const fmt = (num) => `AED ${Number(num || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
-    <AppShell title="Employee Exit" subtitle="Resignation, clearance, settlement & asset recovery">
+    <AppShell title="Employee Exit & Gratuity Settlement" subtitle="Resignation, departmental clearance & statutory gratuity (UAE Federal Decree-Law No. 33 of 2021)">
       {error ? <div className="error">{error}</div> : null}
       {msg ? <div className="muted" style={{ marginBottom: 12, color: 'var(--ok)', fontWeight: 600 }}>{msg}</div> : null}
 
@@ -211,6 +242,7 @@ export default function ExitPage() {
         </div>
       ) : null}
 
+      {/* Exit Cases List Table */}
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="panel-title">
           <h3>Exit cases</h3>
@@ -230,16 +262,34 @@ export default function ExitPage() {
               {rows.map((r) => (
                 <tr key={v(r, 'id')}>
                   <td>
-                    {v(r, 'fullName', 'full_name')}
+                    <strong>{v(r, 'fullName', 'full_name')}</strong>
                     <div className="muted">{v(r, 'empCode', 'emp_code')}</div>
                   </td>
-                  <td>{v(r, 'exitType', 'exit_type')}</td>
+                  <td><span style={{ textTransform: 'capitalize' }}>{v(r, 'exitType', 'exit_type')}</span></td>
                   <td>{formatDate(v(r, 'lastWorkingDate', 'last_working_date'))}</td>
                   <td>
                     <Badge status={v(r, 'status')} />
                   </td>
                   <td>
-                    <div className="row-actions">
+                    <div className="row-actions" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        className="btn secondary"
+                        style={{ padding: '5px 10px', fontSize: '12px' }}
+                        onClick={() => openChecklist(v(r, 'id'))}
+                      >
+                        Checklist
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn secondary"
+                        style={{ padding: '5px 10px', fontSize: '12px', borderColor: '#00b8db', color: '#00b8db', fontWeight: 600 }}
+                        onClick={() => openSettlement(r)}
+                      >
+                        Gratuity (EOSB)
+                      </button>
+
                       {canManage && String(v(r, 'status')) !== 'completed' ? (
                         <button
                           type="button"
@@ -248,8 +298,9 @@ export default function ExitPage() {
                             background: '#10b981',
                             color: '#ffffff',
                             fontWeight: 600,
-                            padding: '6px 14px',
-                            borderRadius: '6px'
+                            padding: '5px 12px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
                           }}
                           onClick={() => setCaseStatus(v(r, 'id'), 'completed')}
                         >
@@ -272,11 +323,221 @@ export default function ExitPage() {
         </div>
       </div>
 
+      {/* Statutory Gratuity & Final Settlement (EOSB) Card */}
+      {settlementCase ? (
+        <div
+          className="card"
+          style={{
+            marginBottom: 14,
+            border: '1px solid #00b8db',
+            boxShadow: '0 8px 24px -4px rgba(0, 184, 219, 0.15)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--ink)' }}>
+                  Statutory Gratuity & Final Settlement (EOSB)
+                </h3>
+                <span
+                  style={{
+                    background: 'rgba(0, 184, 219, 0.1)',
+                    color: '#00b8db',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: 4,
+                  }}
+                >
+                  UAE Mainland · Decree-Law 33/2021
+                </span>
+              </div>
+              <div style={{ fontSize: '12.5px', color: 'var(--muted)', marginTop: 3 }}>
+                Case #{v(settlementCase, 'id')} · {v(settlementCase, 'fullName', 'full_name')} ({v(settlementCase, 'empCode', 'emp_code')})
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="btn secondary"
+              style={{ padding: '4px 10px', fontSize: '12px' }}
+              onClick={() => setSettlementCase(null)}
+            >
+              ✕ Close Worksheet
+            </button>
+          </div>
+
+          {settlementLoading ? (
+            <div style={{ padding: '30px', textAlign: 'center', color: 'var(--muted)' }}>
+              Calculating UAE statutory gratuity formula…
+            </div>
+          ) : settlementWorksheet ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Summary Metrics Strip */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                  gap: 12,
+                  background: 'var(--surface-alt, #f8fafc)',
+                  padding: '16px',
+                  borderRadius: 10,
+                  border: '1px solid var(--line)',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '11.5px', color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 600 }}>
+                    Service Duration
+                  </div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ink)', marginTop: 2 }}>
+                    {settlementWorksheet.serviceYears ?? 0} Years
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: '11.5px', color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 600 }}>
+                    Monthly Basic Salary
+                  </div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--ink)', marginTop: 2 }}>
+                    {fmt(settlementWorksheet.basicSalary)}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: '11.5px', color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 600 }}>
+                    Statutory Gratuity (EOSB)
+                  </div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#0284c7', marginTop: 2 }}>
+                    {fmt(settlementWorksheet.eosbAmount)}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: '11.5px', color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 600 }}>
+                    Net Final Settlement Payout
+                  </div>
+                  <div style={{ fontSize: '20px', fontWeight: 800, color: '#10b981', marginTop: 2 }}>
+                    {fmt(settlementWorksheet.netSettlement)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Interactive Adjustments Form */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: 14,
+                  padding: '16px',
+                  borderRadius: 10,
+                  border: '1px solid var(--line)',
+                }}
+              >
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: 4 }}>
+                    Unused Annual Leave (Days)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    className="emp-input"
+                    value={settlementInputs.unusedLeaveDays}
+                    onChange={(e) => setSettlementInputs({ ...settlementInputs, unusedLeaveDays: e.target.value })}
+                  />
+                  <small style={{ color: 'var(--muted)', fontSize: '11px' }}>
+                    Payout: {fmt(settlementWorksheet.unusedLeaveAmount)}
+                  </small>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: 4 }}>
+                    Notice Period Pay (Days)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    className="emp-input"
+                    value={settlementInputs.noticePayDays}
+                    onChange={(e) => setSettlementInputs({ ...settlementInputs, noticePayDays: e.target.value })}
+                  />
+                  <small style={{ color: 'var(--muted)', fontSize: '11px' }}>
+                    Payout: {fmt(settlementWorksheet.noticePay)}
+                  </small>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: 4 }}>
+                    Other Earnings / Bonus (AED)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="100"
+                    className="emp-input"
+                    value={settlementInputs.otherEarnings}
+                    onChange={(e) => setSettlementInputs({ ...settlementInputs, otherEarnings: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: 4 }}>
+                    Company Deductions / Loans (AED)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="100"
+                    className="emp-input"
+                    value={settlementInputs.otherDeductions}
+                    onChange={(e) => setSettlementInputs({ ...settlementInputs, otherDeductions: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                  Statutory Rule: <strong>{settlementWorksheet.ruleCode || 'UAE_MAINLAND_2021'}</strong> · 
+                  Formula: <strong>21 days/yr (1-5 yrs) + 30 days/yr (&gt;5 yrs)</strong>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={recalculateSettlement}
+                  disabled={settlementLoading}
+                  style={{ padding: '8px 18px', fontWeight: 700 }}
+                >
+                  {settlementLoading ? 'Calculating…' : 'Recalculate & Save Settlement →'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ color: 'var(--muted)', fontSize: '13px' }}>
+              No settlement computed yet for this case.
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {/* Clearance Checklist Card */}
       {selectedId ? (
         <div className="card">
-          <div className="panel-title">
-            <h3>Clearance checklist #{selectedId}</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div className="panel-title">
+              <h3 style={{ margin: 0 }}>Clearance checklist #{selectedId}</h3>
+            </div>
+            <button
+              type="button"
+              className="btn secondary"
+              style={{ padding: '4px 10px', fontSize: '12px' }}
+              onClick={() => setSelectedId(null)}
+            >
+              ✕ Close Checklist
+            </button>
           </div>
+
           <div className="table-wrap">
             <table>
               <thead>
@@ -301,7 +562,7 @@ export default function ExitPage() {
                           Mark done
                         </button>
                       ) : (
-                        '-'
+                        <span style={{ color: '#10b981', fontWeight: 600 }}>Done</span>
                       )}
                     </td>
                   </tr>

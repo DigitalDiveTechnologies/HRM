@@ -19,6 +19,7 @@ import 'documents_screen.dart';
 import 'employees_screen.dart';
 import 'ess_screen.dart';
 import 'exit_screen.dart';
+import 'expenses_screen.dart';
 import 'leave_screen.dart';
 import 'mss_screen.dart';
 import 'notifications_screen.dart';
@@ -109,6 +110,8 @@ class _AppShellState extends State<AppShell> {
         return EssScreen(onNavigate: _openRoute);
       case 'payslips':
         return const PayslipsScreen();
+      case 'expenses':
+        return const ExpensesScreen();
       case 'documents':
         return const DocumentsScreen();
       case 'directory':

@@ -11,7 +11,7 @@ const navConfigs = [
   {
     href: '/',
     key: 'nav_dashboard',
-    defaultLabel: 'Dashboard',
+    defaultLabel: 'Main Dashboard',
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="3" width="7" height="7" rx="1.5" />
@@ -24,7 +24,7 @@ const navConfigs = [
   {
     href: '/attendance',
     key: 'nav_attendance',
-    defaultLabel: 'Attendance',
+    defaultLabel: 'Duty Attendance',
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="9" />
@@ -35,7 +35,7 @@ const navConfigs = [
   {
     href: '/leaves',
     key: 'nav_leaves',
-    defaultLabel: 'Leaves',
+    defaultLabel: 'Leaves & Time Off',
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="4" width="18" height="18" rx="2" />
@@ -51,7 +51,7 @@ const navConfigs = [
   {
     href: '/payslips',
     key: 'nav_payslips',
-    defaultLabel: 'Payslips',
+    defaultLabel: 'Payslips & Salary',
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="2" y="5" width="20" height="14" rx="2" />
@@ -61,9 +61,20 @@ const navConfigs = [
     ),
   },
   {
+    href: '/rewards',
+    key: 'nav_rewards',
+    defaultLabel: 'Total Rewards & Benefits',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="8" r="6" />
+        <path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11" />
+      </svg>
+    ),
+  },
+  {
     href: '/expenses',
     key: 'nav_expenses',
-    defaultLabel: 'Expenses',
+    defaultLabel: 'Expenses & Claims',
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 7h18v14H3z" /><path d="M7 7V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2" /><path d="M3 12h18" />
@@ -73,7 +84,7 @@ const navConfigs = [
   {
     href: '/certificates',
     key: 'nav_certificates',
-    defaultLabel: 'Certificates',
+    defaultLabel: 'Certificates & Letters',
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -87,7 +98,7 @@ const navConfigs = [
   {
     href: '/notifications',
     key: 'nav_notifications',
-    defaultLabel: 'Notifications',
+    defaultLabel: 'Notifications & Alerts',
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -98,7 +109,7 @@ const navConfigs = [
   {
     href: '/onboarding',
     key: 'nav_onboarding',
-    defaultLabel: 'Onboarding',
+    defaultLabel: 'Onboarding & Tasks',
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
@@ -108,9 +119,34 @@ const navConfigs = [
     ),
   },
   {
+    href: '/community',
+    key: 'nav_community',
+    defaultLabel: 'Community & Culture',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
+  },
+  {
+    href: '/surveys',
+    key: 'nav_surveys',
+    defaultLabel: 'Surveys & Wellbeing',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <path d="m9 15 2 2 4-4" />
+      </svg>
+    ),
+  },
+  {
     href: '/profile',
     key: 'nav_profile',
-    defaultLabel: 'My Profile',
+    defaultLabel: 'My Profile & Records',
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
@@ -253,7 +289,7 @@ export default function PortalShell({ title, subtitle, actions, children }) {
                 onClick={() => setOpen(false)}
               >
                 <i className="nav-svg-icon">{item.icon}</i>
-                <span>{t(item.key) || item.defaultLabel}</span>
+                <span>{(t(item.key) && t(item.key) !== item.key) ? t(item.key) : (item.defaultLabel || item.key)}</span>
               </Link>
             );
           })}

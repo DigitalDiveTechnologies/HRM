@@ -83,27 +83,26 @@ public sealed class DocumentRenewalService
             }
         }
 
-        // From employee master expiry fields
-        var fieldMap = new (string Col, string Type, string Title)[]
+        // From employee master expiry fields (checking columns and JSONB master_data)
+        var fieldMap = new (string Expr, string Type, string Title)[]
         {
-            ("visa_expiry", "visa", "Residence visa renewal"),
-            ("emirates_id_expiry", "emirates_id", "Emirates ID renewal"),
-            ("passport_expiry", "passport", "Passport renewal"),
-            ("contract_end", "contract", "Labour contract renewal"),
+            ("COALESCE(e.visa_expiry, CASE WHEN e.master_data->>'visaExpiryDate' ~ '^\\d{4}-\\d{2}-\\d{2}' THEN (e.master_data->>'visaExpiryDate')::date ELSE NULL END, CASE WHEN e.master_data->>'visaExpiry' ~ '^\\d{4}-\\d{2}-\\d{2}' THEN (e.master_data->>'visaExpiry')::date ELSE NULL END)", "visa", "Residence visa renewal"),
+            ("COALESCE(e.emirates_id_expiry, CASE WHEN e.master_data->>'emiratesIdExpiryDate' ~ '^\\d{4}-\\d{2}-\\d{2}' THEN (e.master_data->>'emiratesIdExpiryDate')::date ELSE NULL END, CASE WHEN e.master_data->>'emiratesIdExpiry' ~ '^\\d{4}-\\d{2}-\\d{2}' THEN (e.master_data->>'emiratesIdExpiry')::date ELSE NULL END)", "emirates_id", "Emirates ID renewal"),
+            ("COALESCE(e.passport_expiry, CASE WHEN e.master_data->>'passportExpiryDate' ~ '^\\d{4}-\\d{2}-\\d{2}' THEN (e.master_data->>'passportExpiryDate')::date ELSE NULL END, CASE WHEN e.master_data->>'passportExpiry' ~ '^\\d{4}-\\d{2}-\\d{2}' THEN (e.master_data->>'passportExpiry')::date ELSE NULL END)", "passport", "Passport renewal"),
+            ("e.contract_end", "contract", "Labour contract renewal"),
         };
 
-        foreach (var (col, type, title) in fieldMap)
+        foreach (var (expr, type, title) in fieldMap)
         {
-            // Column may not exist on older DBs — try/catch per field
             try
             {
                 await using var cmd = new NpgsqlCommand(
                     $"""
                      INSERT INTO document_renewal_tasks (employee_id, document_id, doc_type, title, due_date, status, notes)
-                     SELECT e.id, NULL, @dtype, @title, e.{col}, 'open', 'Auto-synced from employee master'
+                     SELECT e.id, NULL, @dtype, @title, ({expr}), 'open', 'Auto-synced from employee master'
                      FROM employees e
-                     WHERE e.{col} IS NOT NULL
-                       AND e.{col} <= CURRENT_DATE + INTERVAL '90 days'
+                     WHERE ({expr}) IS NOT NULL
+                       AND ({expr}) <= CURRENT_DATE + INTERVAL '90 days'
                        AND e.in_hr_ops = TRUE AND e.status <> 'exited'
                        AND NOT EXISTS (
                          SELECT 1 FROM document_renewal_tasks t
@@ -118,7 +117,7 @@ public sealed class DocumentRenewalService
             }
             catch (PostgresException)
             {
-                // skip missing columns
+                // skip if expression or column fails on older schema
             }
         }
 

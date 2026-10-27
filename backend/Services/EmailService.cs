@@ -23,11 +23,78 @@ public sealed class EmailService
     }
 
     public bool IsConfigured =>
-        _smtp.Enabled
+        (_smtp.Enabled
         && !string.IsNullOrWhiteSpace(_smtp.Host)
         && !string.IsNullOrWhiteSpace(_smtp.FromEmail)
         && !string.IsNullOrWhiteSpace(_smtp.Username)
-        && !string.IsNullOrWhiteSpace(_smtp.Password);
+        && !string.IsNullOrWhiteSpace(_smtp.Password))
+        || HasDbConfig();
+
+    private bool HasDbConfig()
+    {
+        try
+        {
+            var cfg = GetDbSmtpAsync(CancellationToken.None).GetAwaiter().GetResult();
+            return cfg != null && cfg.Enabled;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task<SmtpOptions> GetEffectiveSmtpAsync(CancellationToken ct = default)
+    {
+        var dbCfg = await GetDbSmtpAsync(ct);
+        if (dbCfg is { Enabled: true } && !string.IsNullOrWhiteSpace(dbCfg.Host))
+        {
+            return dbCfg;
+        }
+        return _smtp;
+    }
+
+    public async Task<SmtpOptions?> GetDbSmtpAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            await using var conn = _db.CreateConnection();
+            await conn.OpenAsync(ct);
+            const string sql = @"
+                SELECT host, port, username, password, from_email, from_name, use_tls, is_active
+                FROM app_email_settings
+                WHERE id = 1 LIMIT 1";
+            await using var cmd = new NpgsqlCommand(sql, conn);
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            if (await reader.ReadAsync(ct))
+            {
+                var host = reader.IsDBNull(0) ? "" : reader.GetString(0);
+                var port = reader.IsDBNull(1) ? 587 : reader.GetInt32(1);
+                var username = reader.IsDBNull(2) ? "" : reader.GetString(2);
+                var password = reader.IsDBNull(3) ? "" : reader.GetString(3);
+                var fromEmail = reader.IsDBNull(4) ? "" : reader.GetString(4);
+                var fromName = reader.IsDBNull(5) ? "GOCs HR" : reader.GetString(5);
+                var useTls = reader.IsDBNull(6) || reader.GetBoolean(6);
+                var isActive = !reader.IsDBNull(7) && reader.GetBoolean(7);
+
+                return new SmtpOptions
+                {
+                    Host = host,
+                    Port = port,
+                    Username = username,
+                    Password = password,
+                    FromEmail = string.IsNullOrWhiteSpace(fromEmail) ? username : fromEmail,
+                    FromName = string.IsNullOrWhiteSpace(fromName) ? "GOCs HR" : fromName,
+                    UseTls = useTls,
+                    Enabled = isActive && !string.IsNullOrWhiteSpace(host) && !string.IsNullOrWhiteSpace(username)
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Could not fetch app_email_settings from DB");
+        }
+        return null;
+    }
 
     public async Task SendLeaveAppliedAsync(
         int employeeId, string leaveType, decimal days, string startDate, string endDate, int? managerId,
@@ -183,6 +250,73 @@ public sealed class EmailService
         await SendSafeAsync(toEmail, subject, body, ct);
     }
 
+    public async Task SendPerformanceReminderAsync(
+        int employeeId, string reviewType, string dueDate, string stage, CancellationToken ct)
+    {
+        var employee = await EmployeeContactAsync(employeeId, ct);
+        if (employee is null) return;
+
+        var cleanType = string.IsNullOrWhiteSpace(reviewType) ? "Performance Review" : reviewType.Replace("_", " ").ToUpperInvariant();
+        var cleanStage = string.IsNullOrWhiteSpace(stage) ? "Self-Evaluation / Sign-Off" : stage.Trim();
+        var cleanDue = string.IsNullOrWhiteSpace(dueDate) ? "End of Month" : dueDate.Trim();
+
+        var subject = $"Action Required: {cleanType} Deadline Reminder ({cleanDue})";
+        var body = Html(
+            $"Hello {employee.Name},",
+            $"<p>This is a notification regarding your active appraisal cycle (<strong>{WebUtility.HtmlEncode(cleanType)}</strong>).</p>"
+            + $"<p><strong>Current Stage:</strong> {WebUtility.HtmlEncode(cleanStage)}<br/>"
+            + $"<strong>Submission Due Date:</strong> <span style=\"color:#e11d48;font-weight:bold\">{WebUtility.HtmlEncode(cleanDue)}</span></p>"
+            + "<p>Please log in to the Synergy HR Portal to complete and submit your appraisal review, OKR progress updates, or 360 peer feedback.</p>");
+
+        await SendSafeAsync(employee.Email, subject, body, ct);
+    }
+
+    public async Task SendDocumentRenewalNoticeAsync(
+        int employeeId, string docType, string docTitle, DateTime expiryDate, int daysLeft, CancellationToken ct = default)
+    {
+        try
+        {
+            var emp = await EmployeeContactAsync(employeeId, ct);
+            var empName = emp?.Name ?? "Employee";
+            var empCode = emp?.Code ?? "—";
+            var subject = daysLeft < 0
+                ? $"URGENT: {docTitle} Expired ({empName})"
+                : $"Action Required: 30-Day {docTitle} Renewal Notice ({empName})";
+
+            var alertColor = daysLeft <= 15 ? "#dc2626" : (daysLeft <= 30 ? "#ea580c" : "#0284c7");
+            var statusText = daysLeft < 0
+                ? $"<span style='color:#dc2626;font-weight:700'>EXPIRED ({Math.Abs(daysLeft)} days ago)</span>"
+                : $"<span style='color:{alertColor};font-weight:700'>{daysLeft} Day(s) Remaining</span>";
+
+            var content = $"""
+                <p>This is an automated statutory compliance notification from <strong>Synergy HR Management</strong> regarding impending document expiration.</p>
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid {alertColor};padding:16px 20px;border-radius:8px;margin:18px 0">
+                    <p style="margin:0 0 6px"><strong>Employee:</strong> {WebUtility.HtmlEncode(empName)} ({WebUtility.HtmlEncode(empCode)})</p>
+                    <p style="margin:0 0 6px"><strong>Document Type:</strong> {WebUtility.HtmlEncode(docType)}</p>
+                    <p style="margin:0 0 6px"><strong>Official Expiry Date:</strong> <span style="color:#0f172a;font-weight:700">{expiryDate:dd MMMM yyyy}</span></p>
+                    <p style="margin:0"><strong>Renewal Window:</strong> {statusText}</p>
+                </div>
+                <p>Under UAE Labour Law and statutory ICP/MOHRE regulations, valid travel and residency credentials must be maintained at all times. Please submit renewed documentation to HR Operations or upload through the Employee Portal to prevent administrative penalties.</p>
+                <p style="margin-top:20px">
+                    <a href="https://devhrm.gocs.global/employee-portal/profile" style="background:#00b8db;color:#ffffff;text-decoration:none;padding:10px 22px;border-radius:6px;font-weight:600;display:inline-block;font-size:13.5px">Upload Renewed Document in Portal &rarr;</a>
+                </p>
+                """;
+
+            var html = Html($"Dear {empName},", content);
+
+            // Send to employee
+            if (emp?.Email is not null)
+                await SendSafeAsync(emp.Email, subject, html, ct);
+
+            // Also copy to HR Admins
+            await SendToHrAdminsAsync(subject, html, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to dispatch document renewal notice email for employee {Eid}", employeeId);
+        }
+    }
+
     private async Task SendSafeAsync(string to, string subject, string htmlBody, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(to))
@@ -191,7 +325,8 @@ public sealed class EmailService
             return;
         }
 
-        if (!IsConfigured)
+        var smtp = await GetEffectiveSmtpAsync(ct);
+        if (!smtp.Enabled || string.IsNullOrWhiteSpace(smtp.Host) || string.IsNullOrWhiteSpace(smtp.Username) || string.IsNullOrWhiteSpace(smtp.Password))
         {
             _logger.LogInformation(
                 "[Email skipped — SMTP not configured] To={To} Subject={Subject}",
@@ -201,9 +336,12 @@ public sealed class EmailService
 
         try
         {
+            var senderEmail = !string.IsNullOrWhiteSpace(smtp.FromEmail) ? smtp.FromEmail.Trim() : smtp.Username.Trim();
+            var senderName = !string.IsNullOrWhiteSpace(smtp.FromName) ? smtp.FromName.Trim() : "GOCs HR";
+
             using var message = new MailMessage
             {
-                From = new MailAddress(_smtp.FromEmail.Trim(), _smtp.FromName),
+                From = new MailAddress(senderEmail, senderName),
                 Subject = subject,
                 Body = htmlBody,
                 IsBodyHtml = true,
@@ -212,12 +350,12 @@ public sealed class EmailService
             };
             message.To.Add(to.Trim());
 
-            using var client = new SmtpClient(_smtp.Host.Trim(), _smtp.Port)
+            using var client = new SmtpClient(smtp.Host.Trim(), smtp.Port)
             {
-                EnableSsl = _smtp.UseTls,
+                EnableSsl = smtp.UseTls,
                 DeliveryMethod = SmtpDeliveryMethod.Network,
                 UseDefaultCredentials = false,
-                Credentials = new NetworkCredential(_smtp.Username.Trim(), _smtp.Password)
+                Credentials = new NetworkCredential(smtp.Username.Trim(), smtp.Password.Trim())
             };
 
             await client.SendMailAsync(message, ct);

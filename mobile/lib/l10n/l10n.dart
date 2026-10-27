@@ -14,6 +14,7 @@ class L10n {
     'certificates': 'Certificates',
     'my_attendance': 'My Attendance',
     'my_payslips': 'My Payslips',
+    'expenses': 'Expenses & Claims',
     'notifications': 'Notifications',
     'my_documents': 'My Documents',
     'directory': 'Directory',
@@ -46,6 +47,7 @@ class L10n {
     'certificates': 'الشهادات',
     'my_attendance': 'حضوري',
     'my_payslips': 'كشوف راتبي',
+    'expenses': 'المصروفات والمطالبات',
     'notifications': 'الإشعارات',
     'my_documents': 'مستنداتي',
     'directory': 'الدليل',
@@ -91,6 +93,8 @@ class L10n {
         return t('my_attendance');
       case 'payslips':
         return t('my_payslips');
+      case 'expenses':
+        return t('expenses');
       case 'notifications':
         return t('notifications');
       case 'documents':

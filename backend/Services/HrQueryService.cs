@@ -3234,6 +3234,201 @@ public sealed class HrQueryService
         return await ReadOneAsync(cmd, ct);
     }
 
+    // —— Candidate Offer Letters (Task 5.1) ——
+    public async Task<Dictionary<string, object?>?> GetCandidateOfferAsync(int candidateId, CancellationToken ct)
+    {
+        var sql = """
+            SELECT co.*, c.full_name AS candidate_name, c.email AS candidate_email, c.phone AS candidate_phone,
+                   j.title AS job_title, j.department AS job_department
+            FROM candidate_offers co
+            JOIN candidates c ON c.id = co.candidate_id
+            LEFT JOIN job_postings j ON j.id = co.job_id
+            WHERE co.candidate_id = @cid
+            ORDER BY co.id DESC
+            LIMIT 1
+            """;
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("cid", candidateId);
+        return await ReadOneAsync(cmd, ct);
+    }
+
+    public async Task<Dictionary<string, object?>> CreateOrUpdateCandidateOfferAsync(
+        int candidateId, int? jobId, string designation,
+        decimal basicSalary, decimal housingAllowance, decimal transportAllowance,
+        string joiningDate, int probationMonths, string contractType, string status,
+        string? offerHtml, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+
+        if (jobId is null or <= 0)
+        {
+            var jLookup = await ScalarIntAsync(conn, "SELECT job_id FROM candidates WHERE id = @cid", ct, ("cid", candidateId));
+            if (jLookup > 0) jobId = jLookup;
+        }
+
+        if (string.IsNullOrWhiteSpace(offerHtml))
+        {
+            string? candName = null;
+            await using (var nameCmd = new NpgsqlCommand("SELECT full_name FROM candidates WHERE id = @cid", conn))
+            {
+                nameCmd.Parameters.AddWithValue("cid", candidateId);
+                candName = await nameCmd.ExecuteScalarAsync(ct) as string;
+            }
+            candName ??= "Valued Candidate";
+            var totalSalary = basicSalary + housingAllowance + transportAllowance;
+            offerHtml = GenerateOfferLetterHtml(candName, designation, basicSalary, housingAllowance, transportAllowance, totalSalary, joiningDate, probationMonths, contractType);
+        }
+
+        var checkExisting = await ScalarIntAsync(conn, "SELECT id FROM candidate_offers WHERE candidate_id = @cid ORDER BY id DESC LIMIT 1", ct, ("cid", candidateId));
+        NpgsqlCommand cmd;
+        if (checkExisting > 0)
+        {
+            cmd = new NpgsqlCommand(
+                """
+                UPDATE candidate_offers
+                SET job_id = COALESCE(@jid, job_id),
+                    designation = @desig,
+                    offered_basic_salary = @basic,
+                    offered_housing_allowance = @housing,
+                    offered_transport_allowance = @trans,
+                    joining_date = @jdate::date,
+                    probation_period_months = @prob,
+                    contract_type = @ctype,
+                    status = @status,
+                    offer_html = @html
+                WHERE id = @id
+                RETURNING *
+                """, conn);
+            cmd.Parameters.AddWithValue("id", checkExisting);
+        }
+        else
+        {
+            cmd = new NpgsqlCommand(
+                """
+                INSERT INTO candidate_offers (
+                    candidate_id, job_id, designation, offered_basic_salary, offered_housing_allowance,
+                    offered_transport_allowance, joining_date, probation_period_months, contract_type, status, offer_html
+                )
+                VALUES (
+                    @cid, @jid, @desig, @basic, @housing, @trans, @jdate::date, @prob, @ctype, @status, @html
+                )
+                RETURNING *
+                """, conn);
+            cmd.Parameters.AddWithValue("cid", candidateId);
+        }
+
+        cmd.Parameters.AddWithValue("jid", (object?)jobId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("desig", designation.Trim());
+        cmd.Parameters.AddWithValue("basic", basicSalary);
+        cmd.Parameters.AddWithValue("housing", housingAllowance);
+        cmd.Parameters.AddWithValue("trans", transportAllowance);
+        cmd.Parameters.AddWithValue("jdate", string.IsNullOrWhiteSpace(joiningDate) ? DateTime.UtcNow.ToString("yyyy-MM-dd") : joiningDate.Trim());
+        cmd.Parameters.AddWithValue("prob", probationMonths <= 0 ? 6 : probationMonths);
+        cmd.Parameters.AddWithValue("ctype", string.IsNullOrWhiteSpace(contractType) ? "limited" : contractType.Trim());
+        cmd.Parameters.AddWithValue("status", string.IsNullOrWhiteSpace(status) ? "issued" : status.Trim());
+        cmd.Parameters.AddWithValue("html", offerHtml);
+
+        var row = (await ReadOneAsync(cmd, ct))!;
+
+        // Update candidate stage to offered
+        await using (var stageCmd = new NpgsqlCommand("UPDATE candidates SET stage = 'offered' WHERE id = @cid", conn))
+        {
+            stageCmd.Parameters.AddWithValue("cid", candidateId);
+            await stageCmd.ExecuteNonQueryAsync(ct);
+        }
+
+        return row;
+    }
+
+    public static string GenerateOfferLetterHtml(
+        string candidateName, string designation, decimal basic, decimal housing, decimal transport, decimal totalGross,
+        string joiningDate, int probationMonths, string contractType)
+    {
+        var cleanJoin = string.IsNullOrWhiteSpace(joiningDate) ? DateTime.UtcNow.AddDays(14).ToString("dd MMMM yyyy") : joiningDate;
+        var todayStr = DateTime.UtcNow.ToString("dd MMMM yyyy");
+        var shortRef = candidateName.Replace(" ", "").ToUpper();
+        if (shortRef.Length > 4) shortRef = shortRef[..4];
+        var refCode = $"OFF-{DateTime.UtcNow:yyyyMM}-{shortRef}";
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("<!DOCTYPE html>");
+        sb.AppendLine("<html><head><meta charset=\"utf-8\" />");
+        sb.AppendLine($"<title>Official Employment Offer - {candidateName}</title>");
+        sb.AppendLine("<style>");
+        sb.AppendLine("  body { font-family: 'Segoe UI', Helvetica, Arial, sans-serif; color: #1e293b; line-height: 1.6; margin: 0; padding: 40px; background: #fff; }");
+        sb.AppendLine("  .container { max-width: 800px; margin: 0 auto; }");
+        sb.AppendLine("  .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #00b8db; padding-bottom: 16px; margin-bottom: 30px; }");
+        sb.AppendLine("  .brand { font-size: 24px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }");
+        sb.AppendLine("  .brand span { color: #00b8db; }");
+        sb.AppendLine("  .meta { font-size: 13px; color: #64748b; text-align: right; }");
+        sb.AppendLine("  h2 { color: #0f172a; margin-top: 0; font-size: 20px; }");
+        sb.AppendLine("  table.comp { width: 100%; border-collapse: collapse; margin: 20px 0; }");
+        sb.AppendLine("  table.comp th, table.comp td { padding: 10px 14px; border: 1px solid #e2e8f0; font-size: 13.5px; text-align: left; }");
+        sb.AppendLine("  table.comp th { background: #f8fafc; font-weight: 600; color: #475569; }");
+        sb.AppendLine("  table.comp tr.total { background: rgba(0,184,219,0.06); font-weight: 700; color: #0f172a; }");
+        sb.AppendLine("  .terms-list { padding-left: 20px; font-size: 13.5px; color: #334155; }");
+        sb.AppendLine("  .terms-list li { margin-bottom: 8px; }");
+        sb.AppendLine("  .sign-grid { display: flex; justify-content: space-between; margin-top: 50px; padding-top: 30px; border-top: 1px dashed #cbd5e1; }");
+        sb.AppendLine("  .sign-box { width: 45%; }");
+        sb.AppendLine("  .sign-line { border-bottom: 1px solid #0f172a; height: 40px; margin-bottom: 8px; }");
+        sb.AppendLine("  .btn-print { display: inline-block; background: #00b8db; color: #fff; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; margin-bottom: 20px; }");
+        sb.AppendLine("  @media print { .btn-print { display: none; } body { padding: 0; } }");
+        sb.AppendLine("</style></head><body>");
+        sb.AppendLine("<div class=\"container\">");
+        sb.AppendLine("  <div style=\"text-align: right;\">");
+        sb.AppendLine("    <a href=\"javascript:window.print()\" class=\"btn-print\">🖨️ Print / Save as PDF</a>");
+        sb.AppendLine("  </div>");
+        sb.AppendLine("  <div class=\"header\">");
+        sb.AppendLine("    <div class=\"brand\">SYNERGY<span>HR</span> SOLUTIONS</div>");
+        sb.AppendLine("    <div class=\"meta\">");
+        sb.AppendLine("      <strong>Private & Confidential</strong><br/>");
+        sb.AppendLine($"      Date: {todayStr}<br/>");
+        sb.AppendLine($"      Ref: {refCode}");
+        sb.AppendLine("    </div>");
+        sb.AppendLine("  </div>");
+        sb.AppendLine("  <h2>EMPLOYMENT OFFER LETTER</h2>");
+        sb.AppendLine($"  <p>Dear <strong>{candidateName}</strong>,</p>");
+        sb.AppendLine($"  <p>On behalf of <strong>Synergy HR Solutions LLC</strong>, we are pleased to extend this formal offer of employment for the position of <strong>{designation}</strong>. We were very impressed with your background and believe you will make a valuable contribution to our team.</p>");
+        sb.AppendLine("  <h3 style=\"color:#0f172a; font-size:15px; margin-bottom:6px;\">1. Compensation & Benefits Package</h3>");
+        sb.AppendLine("  <p style=\"font-size:13.5px; margin:0;\">Your compensation structure will be paid monthly in UAE Dirhams (AED) via the UAE Wages Protection System (WPS):</p>");
+        sb.AppendLine("  <table class=\"comp\">");
+        sb.AppendLine("    <thead><tr><th>Component</th><th>Monthly Amount (AED)</th><th>Annual Equivalent (AED)</th></tr></thead>");
+        sb.AppendLine("    <tbody>");
+        sb.AppendLine($"      <tr><td>Basic Salary</td><td>AED {basic:N2}</td><td>AED {(basic * 12):N2}</td></tr>");
+        sb.AppendLine($"      <tr><td>Housing Allowance</td><td>AED {housing:N2}</td><td>AED {(housing * 12):N2}</td></tr>");
+        sb.AppendLine($"      <tr><td>Transport Allowance</td><td>AED {transport:N2}</td><td>AED {(transport * 12):N2}</td></tr>");
+        sb.AppendLine($"      <tr class=\"total\"><td><strong>Total Monthly Gross Remuneration</strong></td><td><strong>AED {totalGross:N2}</strong></td><td><strong>AED {(totalGross * 12):N2}</strong></td></tr>");
+        sb.AppendLine("    </tbody>");
+        sb.AppendLine("  </table>");
+        sb.AppendLine("  <h3 style=\"color:#0f172a; font-size:15px; margin-bottom:6px;\">2. Summary of Employment Terms</h3>");
+        sb.AppendLine("  <ul class=\"terms-list\">");
+        sb.AppendLine($"    <li><strong>Commencement Date:</strong> Your scheduled first day of employment will be <strong>{cleanJoin}</strong>.</li>");
+        sb.AppendLine($"    <li><strong>Probation Period:</strong> Up to <strong>{probationMonths} months</strong> in accordance with UAE Federal Decree-Law No. 33 of 2021 Article 9.</li>");
+        sb.AppendLine($"    <li><strong>Contract Type:</strong> <strong>{contractType.ToUpper()}</strong> Employment Contract (standard 2-year renewable tenure under MOHRE).</li>");
+        sb.AppendLine("    <li><strong>Working Hours:</strong> Standard 48 hours per week, compliant with UAE Labor Law Article 17.</li>");
+        sb.AppendLine("    <li><strong>Annual Leave:</strong> 30 calendar days of paid annual leave per completed year of service (Article 29).</li>");
+        sb.AppendLine("    <li><strong>Medical Insurance:</strong> Comprehensive health insurance coverage provided by the Employer in full compliance with DHA/HAAD regulatory mandates.</li>");
+        sb.AppendLine("    <li><strong>End-of-Service Gratuity:</strong> Payable upon separation strictly calculated per UAE Labor Law Article 51.</li>");
+        sb.AppendLine("  </ul>");
+        sb.AppendLine("  <p style=\"font-size:13.5px;\">Please confirm your formal acceptance of this offer by signing below and returning a scanned copy within five (5) business days.</p>");
+        sb.AppendLine("  <div class=\"sign-grid\">");
+        sb.AppendLine("    <div class=\"sign-box\">");
+        sb.AppendLine("      <div style=\"font-weight:700; font-size:13.5px; margin-bottom:8px;\">For: Synergy HR Solutions LLC</div>");
+        sb.AppendLine("      <div class=\"sign-line\"></div>");
+        sb.AppendLine("      <div style=\"font-size:12px; color:#475569;\">Authorized HR Director Signatory<br/>Synergy Technologies FZCO</div>");
+        sb.AppendLine("    </div>");
+        sb.AppendLine("    <div class=\"sign-box\">");
+        sb.AppendLine("      <div style=\"font-weight:700; font-size:13.5px; margin-bottom:8px;\">Candidate Acceptance:</div>");
+        sb.AppendLine("      <div class=\"sign-line\"></div>");
+        sb.AppendLine($"      <div style=\"font-size:12px; color:#475569;\">Candidate Signature: {candidateName}<br/>Date of Acceptance: __________________</div>");
+        sb.AppendLine("    </div>");
+        sb.AppendLine("  </div>");
+        sb.AppendLine("</div>");
+        sb.AppendLine("</body></html>");
+        return sb.ToString();
+    }
+
     // —— Exit Management ——
     public Task<List<Dictionary<string, object?>>> ExitCasesAsync(CancellationToken ct) =>
         QueryConnAsync(
@@ -3460,16 +3655,19 @@ public sealed class HrQueryService
     public Task<List<Dictionary<string, object?>>> PerformanceGoalsAsync(int? onlyEmployeeId, CancellationToken ct)
     {
         var sql = """
-            SELECT g.*, e.full_name, e.emp_code, e.job_title
+            SELECT g.*, e.full_name, e.emp_code, e.job_title,
+                   pg.title AS parent_title
             FROM performance_goals g
             JOIN employees e ON e.id = g.employee_id
+            LEFT JOIN performance_goals pg ON pg.id = g.parent_goal_id
             """;
         if (onlyEmployeeId is > 0) sql += " WHERE g.employee_id = @eid";
         sql += """
 
             ORDER BY
-              CASE g.status WHEN 'active' THEN 0 WHEN 'completed' THEN 1 ELSE 2 END,
-              g.id DESC
+              COALESCE(g.parent_goal_id, g.id) DESC,
+              g.parent_goal_id NULLS FIRST,
+              g.id ASC
             """;
         return onlyEmployeeId is > 0
             ? QueryConnAsync(sql, ct, ("eid", onlyEmployeeId.Value))
@@ -3486,13 +3684,22 @@ public sealed class HrQueryService
 
     public async Task<Dictionary<string, object?>> CreatePerformanceGoalAsync(
         int employeeId, string title, string? kpi, string? targetValue,
-        decimal progressPct, string? periodLabel, string status, CancellationToken ct)
+        decimal progressPct, string? periodLabel, string status,
+        int? parentGoalId = null, decimal? weightage = 100m, string? targetMetric = null, string? currentMetric = null, string? dueDate = null,
+        string? fileRef = null,
+        CancellationToken ct = default)
     {
         await using var conn = await OpenAsync(ct);
         await using var cmd = new NpgsqlCommand(
             """
-            INSERT INTO performance_goals (employee_id, title, kpi, target_value, progress_pct, period_label, status)
-            VALUES (@eid, @title, @kpi, @target, @progress, @period, @status)
+            INSERT INTO performance_goals (
+                employee_id, title, kpi, target_value, progress_pct, period_label, status,
+                parent_goal_id, weightage, target_metric, current_metric, due_date, file_ref
+            )
+            VALUES (
+                @eid, @title, @kpi, @target, @progress, @period, @status,
+                @parent_id, @weightage, @target_metric, @current_metric, @due_date::date, @file
+            )
             RETURNING *
             """, conn);
         cmd.Parameters.AddWithValue("eid", employeeId);
@@ -3502,40 +3709,101 @@ public sealed class HrQueryService
         cmd.Parameters.AddWithValue("progress", Math.Clamp(progressPct, 0, 100));
         cmd.Parameters.AddWithValue("period", (object?)periodLabel ?? DBNull.Value);
         cmd.Parameters.AddWithValue("status", status);
-        return (await ReadOneAsync(cmd, ct))!;
+        cmd.Parameters.AddWithValue("parent_id", (object?)parentGoalId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("weightage", (object?)weightage ?? 100.00m);
+        cmd.Parameters.AddWithValue("target_metric", (object?)targetMetric ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("current_metric", (object?)currentMetric ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("due_date", string.IsNullOrWhiteSpace(dueDate) ? DBNull.Value : dueDate.Trim());
+        cmd.Parameters.AddWithValue("file", string.IsNullOrWhiteSpace(fileRef) ? DBNull.Value : fileRef.Trim());
+        var row = (await ReadOneAsync(cmd, ct))!;
+
+        if (parentGoalId is > 0)
+        {
+            await RecalculateParentGoalProgressAsync(parentGoalId.Value, ct);
+        }
+        return row;
     }
 
     public async Task<Dictionary<string, object?>?> UpdatePerformanceGoalAsync(
-        int id, decimal? progressPct, string? status, CancellationToken ct)
+        int id, decimal? progressPct = null, string? status = null,
+        decimal? weightage = null, string? targetMetric = null, string? currentMetric = null, string? dueDate = null,
+        string? fileRef = null,
+        CancellationToken ct = default)
     {
         await using var conn = await OpenAsync(ct);
         await using var cmd = new NpgsqlCommand(
             """
             UPDATE performance_goals
             SET progress_pct = COALESCE(@progress, progress_pct),
-                status = COALESCE(@status, status)
+                status = COALESCE(@status, status),
+                weightage = COALESCE(@weightage, weightage),
+                target_metric = COALESCE(@target_metric, target_metric),
+                current_metric = COALESCE(@current_metric, current_metric),
+                due_date = COALESCE(@due_date::date, due_date),
+                file_ref = COALESCE(@file, file_ref)
             WHERE id = @id
             RETURNING *
             """, conn);
         cmd.Parameters.AddWithValue("progress", progressPct is null ? DBNull.Value : Math.Clamp(progressPct.Value, 0, 100));
         cmd.Parameters.AddWithValue("status", string.IsNullOrWhiteSpace(status) ? DBNull.Value : status);
+        cmd.Parameters.AddWithValue("weightage", weightage is null ? DBNull.Value : weightage.Value);
+        cmd.Parameters.AddWithValue("target_metric", string.IsNullOrWhiteSpace(targetMetric) ? DBNull.Value : targetMetric.Trim());
+        cmd.Parameters.AddWithValue("current_metric", string.IsNullOrWhiteSpace(currentMetric) ? DBNull.Value : currentMetric.Trim());
+        cmd.Parameters.AddWithValue("due_date", string.IsNullOrWhiteSpace(dueDate) ? DBNull.Value : dueDate.Trim());
+        cmd.Parameters.AddWithValue("file", string.IsNullOrWhiteSpace(fileRef) ? DBNull.Value : fileRef.Trim());
         cmd.Parameters.AddWithValue("id", id);
-        return await ReadOneAsync(cmd, ct);
+        var updated = await ReadOneAsync(cmd, ct);
+
+        if (updated != null && updated.TryGetValue("parent_goal_id", out var pVal) && pVal != null && pVal is int pId && pId > 0)
+        {
+            await RecalculateParentGoalProgressAsync(pId, ct);
+        }
+        return updated;
     }
 
-    public Task<List<Dictionary<string, object?>>> PerformanceReviewsAsync(int? onlyEmployeeId, CancellationToken ct)
+    public async Task RecalculateParentGoalProgressAsync(int parentGoalId, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            WITH rollup AS (
+                SELECT COALESCE(
+                    SUM(COALESCE(progress_pct, 0) * COALESCE(weightage, 100)) / NULLIF(SUM(COALESCE(weightage, 100)), 0),
+                    0
+                ) AS avg_pct
+                FROM performance_goals
+                WHERE parent_goal_id = @pid AND status != 'cancelled'
+            )
+            UPDATE performance_goals
+            SET progress_pct = ROUND((SELECT avg_pct FROM rollup), 2),
+                status = CASE WHEN (SELECT avg_pct FROM rollup) >= 100 THEN 'completed' ELSE status END
+            WHERE id = @pid;
+            """, conn);
+        cmd.Parameters.AddWithValue("pid", parentGoalId);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    public Task<List<Dictionary<string, object?>>> PerformanceReviewsAsync(int? onlyEmployeeId, string? employeeType, CancellationToken ct)
     {
         var sql = """
-            SELECT r.*, e.full_name, e.emp_code, e.job_title
+            SELECT r.*, e.full_name, e.emp_code, e.job_title,
+                   t.title AS template_title, t.sections_json AS template_sections
             FROM performance_reviews r
             JOIN employees e ON e.id = r.employee_id
+            LEFT JOIN performance_templates t ON t.id = r.template_id
+            WHERE 1=1
             """;
-        if (onlyEmployeeId is > 0) sql += " WHERE r.employee_id = @eid";
+        if (onlyEmployeeId is > 0) sql += $" AND r.employee_id = {onlyEmployeeId.Value}";
+        if (!string.IsNullOrWhiteSpace(employeeType) && !string.Equals(employeeType, "all", StringComparison.OrdinalIgnoreCase))
+        {
+            sql += $" AND LOWER(COALESCE(r.employee_type, '')) = '{employeeType.Trim().ToLowerInvariant()}'";
+        }
         sql += " ORDER BY r.review_date DESC NULLS LAST, r.id DESC";
-        return onlyEmployeeId is > 0
-            ? QueryConnAsync(sql, ct, ("eid", onlyEmployeeId.Value))
-            : QueryConnAsync(sql, ct);
+        return QueryConnAsync(sql, ct);
     }
+
+    public Task<List<Dictionary<string, object?>>> PerformanceReviewsAsync(int? onlyEmployeeId, CancellationToken ct) =>
+        PerformanceReviewsAsync(onlyEmployeeId, null, ct);
 
     public async Task<bool> PerformanceReviewOwnedByAsync(int reviewId, int employeeId, CancellationToken ct)
     {
@@ -3547,14 +3815,19 @@ public sealed class HrQueryService
 
     public async Task<Dictionary<string, object?>> CreatePerformanceReviewAsync(
         int employeeId, string? reviewerName, string reviewType, decimal? rating,
-        string? summary, string status, string? reviewDate, CancellationToken ct)
+        string? summary, string status, string? reviewDate = null,
+        int? templateId = null, string? answersJson = null, decimal? potentialRating = null,
+        string? fileRef = null, string? employeeType = null,
+        CancellationToken ct = default)
     {
         await using var conn = await OpenAsync(ct);
         await using var cmd = new NpgsqlCommand(
             """
             INSERT INTO performance_reviews
-              (employee_id, reviewer_name, review_type, rating, summary, status, review_date)
-            VALUES (@eid, @reviewer, @rtype, @rating, @summary, @status, COALESCE(@rdate::date, CURRENT_DATE))
+              (employee_id, reviewer_name, review_type, rating, summary, status, review_date,
+               template_id, answers_json, potential_rating, file_ref, employee_type)
+            VALUES (@eid, @reviewer, @rtype, @rating, @summary, @status, COALESCE(@rdate::date, CURRENT_DATE),
+                    @template_id, @answers::jsonb, @potential, @file, @etype)
             RETURNING *
             """, conn);
         cmd.Parameters.AddWithValue("eid", employeeId);
@@ -3564,6 +3837,11 @@ public sealed class HrQueryService
         cmd.Parameters.AddWithValue("summary", (object?)summary ?? DBNull.Value);
         cmd.Parameters.AddWithValue("status", status);
         cmd.Parameters.AddWithValue("rdate", (object?)reviewDate ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("template_id", (object?)templateId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("answers", string.IsNullOrWhiteSpace(answersJson) ? DBNull.Value : answersJson);
+        cmd.Parameters.AddWithValue("potential", (object?)potentialRating ?? 3.0m);
+        cmd.Parameters.AddWithValue("file", string.IsNullOrWhiteSpace(fileRef) ? DBNull.Value : fileRef.Trim());
+        cmd.Parameters.AddWithValue("etype", string.IsNullOrWhiteSpace(employeeType) ? DBNull.Value : employeeType.Trim().ToLowerInvariant());
         return (await ReadOneAsync(cmd, ct))!;
     }
 
@@ -3577,6 +3855,213 @@ public sealed class HrQueryService
         cmd.Parameters.AddWithValue("status", status);
         cmd.Parameters.AddWithValue("id", id);
         return await ReadOneAsync(cmd, ct);
+    }
+
+    // —— Performance Templates (Rubrics) ——
+    public Task<List<Dictionary<string, object?>>> PerformanceTemplatesAsync(bool? onlyActive, CancellationToken ct)
+    {
+        var sql = "SELECT * FROM performance_templates";
+        if (onlyActive == true) sql += " WHERE is_active = TRUE";
+        sql += " ORDER BY id ASC";
+        return QueryConnAsync(sql, ct);
+    }
+
+    public async Task<Dictionary<string, object?>> CreatePerformanceTemplateAsync(
+        string title, string? description, string reviewType, string sectionsJson, bool isActive,
+        string? targetEmployeeType = "all", CancellationToken ct = default)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            INSERT INTO performance_templates (title, description, review_type, sections_json, is_active, target_employee_type)
+            VALUES (@title, @desc, @rtype, @sections::jsonb, @active, @target_etype)
+            RETURNING *
+            """, conn);
+        cmd.Parameters.AddWithValue("title", title);
+        cmd.Parameters.AddWithValue("desc", (object?)description ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("rtype", reviewType);
+        cmd.Parameters.AddWithValue("sections", string.IsNullOrWhiteSpace(sectionsJson) ? "[]" : sectionsJson);
+        cmd.Parameters.AddWithValue("active", isActive);
+        cmd.Parameters.AddWithValue("target_etype", string.IsNullOrWhiteSpace(targetEmployeeType) ? "all" : targetEmployeeType.Trim().ToLowerInvariant());
+        return (await ReadOneAsync(cmd, ct))!;
+    }
+
+    public async Task<Dictionary<string, object?>?> UpdatePerformanceTemplateAsync(
+        int id, string? title, string? description, string? reviewType, string? sectionsJson, bool? isActive, string? targetEmployeeType = null, CancellationToken ct = default)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            UPDATE performance_templates
+            SET title = COALESCE(@title, title),
+                description = COALESCE(@desc, description),
+                review_type = COALESCE(@rtype, review_type),
+                sections_json = COALESCE(@sections::jsonb, sections_json),
+                is_active = COALESCE(@active, is_active),
+                target_employee_type = COALESCE(@target_etype, target_employee_type),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = @id
+            RETURNING *
+            """, conn);
+        cmd.Parameters.AddWithValue("title", (object?)title ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("desc", (object?)description ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("rtype", (object?)reviewType ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("sections", string.IsNullOrWhiteSpace(sectionsJson) ? DBNull.Value : sectionsJson);
+        cmd.Parameters.AddWithValue("active", (object?)isActive ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("target_etype", (object?)targetEmployeeType ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("id", id);
+        return await ReadOneAsync(cmd, ct);
+    }
+
+    // —— 360-Degree Peer Feedback Nominations ——
+    public Task<List<Dictionary<string, object?>>> PerformancePeerNominationsAsync(
+        int? reviewId, int? reviewerId, int? nomineeId, CancellationToken ct)
+    {
+        var sql = """
+            SELECT n.*,
+                   nom.full_name AS nominee_name, nom.emp_code AS nominee_code, nom.job_title AS nominee_title,
+                   rev.full_name AS reviewer_name, rev.emp_code AS reviewer_code, rev.job_title AS reviewer_title,
+                   r.review_type, r.review_date
+            FROM performance_peer_nominations n
+            JOIN performance_reviews r ON r.id = n.review_id
+            JOIN employees nom ON nom.id = n.nominee_id
+            JOIN employees rev ON rev.id = n.reviewer_id
+            WHERE 1=1
+            """;
+        if (reviewId is > 0) sql += $" AND n.review_id = {reviewId.Value}";
+        if (reviewerId is > 0) sql += $" AND n.reviewer_id = {reviewerId.Value}";
+        if (nomineeId is > 0) sql += $" AND n.nominee_id = {nomineeId.Value}";
+        sql += " ORDER BY n.id DESC";
+        return QueryConnAsync(sql, ct);
+    }
+
+    public async Task<Dictionary<string, object?>> CreatePeerNominationAsync(
+        int reviewId, int nomineeId, int reviewerId, bool isAnonymous, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            INSERT INTO performance_peer_nominations (review_id, nominee_id, reviewer_id, is_anonymous)
+            VALUES (@rid, @nomid, @revid, @anon)
+            RETURNING *
+            """, conn);
+        cmd.Parameters.AddWithValue("rid", reviewId);
+        cmd.Parameters.AddWithValue("nomid", nomineeId);
+        cmd.Parameters.AddWithValue("revid", reviewerId);
+        cmd.Parameters.AddWithValue("anon", isAnonymous);
+        return (await ReadOneAsync(cmd, ct))!;
+    }
+
+    public async Task<Dictionary<string, object?>?> UpdatePeerNominationStatusAsync(
+        int id, string status, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            UPDATE performance_peer_nominations
+            SET status = @status
+            WHERE id = @id
+            RETURNING *
+            """, conn);
+        cmd.Parameters.AddWithValue("status", status);
+        cmd.Parameters.AddWithValue("id", id);
+        return await ReadOneAsync(cmd, ct);
+    }
+
+    public async Task<Dictionary<string, object?>?> SubmitPeerFeedbackAsync(
+        int id, string feedbackJson, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            """
+            UPDATE performance_peer_nominations
+            SET status = 'submitted',
+                feedback_json = @feedback::jsonb,
+                submitted_at = CURRENT_TIMESTAMP
+            WHERE id = @id
+            RETURNING *
+            """, conn);
+        cmd.Parameters.AddWithValue("feedback", string.IsNullOrWhiteSpace(feedbackJson) ? "{}" : feedbackJson);
+        cmd.Parameters.AddWithValue("id", id);
+        return await ReadOneAsync(cmd, ct);
+    }
+
+    public Task<List<Dictionary<string, object?>>> MyPendingPeerReviewsAsync(
+        int reviewerEmployeeId, CancellationToken ct)
+    {
+        var sql = """
+            SELECT n.id, n.review_id, n.nominee_id, n.reviewer_id, n.status, n.is_anonymous, n.created_at,
+                   nom.full_name AS nominee_name, nom.emp_code AS nominee_code, nom.job_title AS nominee_title,
+                   r.review_type, r.review_date
+            FROM performance_peer_nominations n
+            JOIN performance_reviews r ON r.id = n.review_id
+            JOIN employees nom ON nom.id = n.nominee_id
+            WHERE n.reviewer_id = @revid AND n.status IN ('pending', 'approved')
+            ORDER BY n.id DESC
+            """;
+        return QueryConnAsync(sql, ct, ("revid", reviewerEmployeeId));
+    }
+
+    // —— 9-Box Grid Talent Analytics ——
+    public async Task<Dictionary<string, object?>> PerformanceNineBoxAnalyticsAsync(CancellationToken ct)
+    {
+        var sql = """
+            WITH latest_reviews AS (
+                SELECT DISTINCT ON (employee_id)
+                    id, employee_id, rating, potential_rating, review_type, review_date
+                FROM performance_reviews
+                ORDER BY employee_id, review_date DESC, id DESC
+            )
+            SELECT e.id, e.emp_code, e.full_name, e.job_title,
+                   d.name AS department_name,
+                   COALESCE(lr.rating, 3.0) AS performance_rating,
+                   COALESCE(lr.potential_rating, 3.0) AS potential_rating,
+                   lr.id AS review_id,
+                   lr.review_type,
+                   lr.review_date
+            FROM employees e
+            LEFT JOIN departments d ON d.id = e.department_id
+            LEFT JOIN latest_reviews lr ON lr.employee_id = e.id
+            WHERE LOWER(COALESCE(e.status, 'active')) = 'active'
+            ORDER BY e.full_name ASC
+            """;
+        var rows = await QueryConnAsync(sql, ct);
+
+        var boxes = new Dictionary<string, List<Dictionary<string, object?>>>
+        {
+            ["low_low"] = new(),     // Risk / Underperformer
+            ["low_med"] = new(),     // Dilemma / Inconsistent
+            ["low_high"] = new(),    // Enigma / Rough Diamond
+            ["med_low"] = new(),     // Effective / Solid Professional
+            ["med_med"] = new(),     // Core Performer / Key Contributor
+            ["med_high"] = new(),    // Growth Potential / Future Leader
+            ["high_low"] = new(),    // Trusted Professional / Specialist
+            ["high_med"] = new(),    // High Performer / Star Contributor
+            ["high_high"] = new(),   // Superstar / Top Talent
+        };
+
+        foreach (var r in rows)
+        {
+            var perf = Convert.ToDecimal(r["performance_rating"] ?? 3.0m);
+            var pot = Convert.ToDecimal(r["potential_rating"] ?? 3.0m);
+
+            string perfTier = perf < 3.0m ? "low" : (perf < 4.0m ? "med" : "high");
+            string potTier = pot < 3.0m ? "low" : (pot < 4.0m ? "med" : "high");
+            string key = $"{perfTier}_{potTier}";
+
+            if (boxes.ContainsKey(key))
+            {
+                boxes[key].Add(r);
+            }
+        }
+
+        var boxCounts = boxes.ToDictionary(k => k.Key, v => v.Value.Count);
+        return new Dictionary<string, object?>
+        {
+            ["totalEmployees"] = rows.Count,
+            ["boxes"] = boxes,
+            ["counts"] = boxCounts
+        };
     }
 
     // —— Training & Learning ——
@@ -5418,4 +5903,101 @@ public sealed class HrQueryService
         if (masterData is null || masterData.Count == 0) return "{}";
         return JsonSerializer.Serialize(masterData);
     }
+
+    // —— Document Renewal Reminders ——
+    public async Task<Dictionary<string, object?>> DispatchRenewalRemindersAsync(CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        var sql = """
+            SELECT id, full_name, email, visa_expiry, passport_expiry, emirates_id_expiry
+            FROM employees
+            WHERE in_hr_ops AND status != 'exited'
+              AND (
+                (visa_expiry IS NOT NULL AND visa_expiry <= CURRENT_DATE + 60) OR
+                (passport_expiry IS NOT NULL AND passport_expiry <= CURRENT_DATE + 60) OR
+                (emirates_id_expiry IS NOT NULL AND emirates_id_expiry <= CURRENT_DATE + 60)
+              )
+            """;
+        var expiring = await QueryConnAsync(sql, ct);
+        int sent = 0;
+        foreach (var emp in expiring)
+        {
+            var eid = Convert.ToInt32(emp["id"]);
+            await InsertNotificationAsync(conn, null, eid, "document_renewal", "Document Renewal Reminder",
+                "You have one or more identity or visa documents expiring within the next 60 days. Please arrange renewal.", null, ct);
+            sent++;
+        }
+        return new Dictionary<string, object?> { ["status"] = "dispatched", ["remindersSent"] = sent };
+    }
+
+    // —— Approval Routing Rules (Task 5.6) ——
+    public Task<List<Dictionary<string, object?>>> ApprovalRoutingRulesAsync(CancellationToken ct) =>
+        QueryConnAsync(
+            """
+            SELECT arr.*, d.name AS department_name
+            FROM approval_routing_rules arr
+            LEFT JOIN departments d ON d.id = arr.department_id
+            ORDER BY arr.request_type, arr.min_threshold, arr.id
+            """, ct);
+
+    public async Task<Dictionary<string, object?>> CreateOrUpdateApprovalRoutingRuleAsync(
+        int? id, string requestType, int? departmentId, decimal minThreshold, decimal? maxThreshold,
+        int levelsCount, string approverRole, bool isActive, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        if (id is > 0)
+        {
+            await using var upCmd = new NpgsqlCommand(
+                """
+                UPDATE approval_routing_rules
+                SET request_type = @rtype,
+                    department_id = @dept,
+                    min_threshold = @min,
+                    max_threshold = @max,
+                    levels_count = @levels,
+                    approver_role = @role,
+                    is_active = @active
+                WHERE id = @id
+                RETURNING *
+                """, conn);
+            upCmd.Parameters.AddWithValue("id", id.Value);
+            upCmd.Parameters.AddWithValue("rtype", requestType.Trim().ToLowerInvariant());
+            upCmd.Parameters.AddWithValue("dept", (object?)departmentId ?? DBNull.Value);
+            upCmd.Parameters.AddWithValue("min", minThreshold);
+            upCmd.Parameters.AddWithValue("max", (object?)maxThreshold ?? DBNull.Value);
+            upCmd.Parameters.AddWithValue("levels", levelsCount <= 0 ? 1 : levelsCount);
+            upCmd.Parameters.AddWithValue("role", string.IsNullOrWhiteSpace(approverRole) ? "manager" : approverRole.Trim());
+            upCmd.Parameters.AddWithValue("active", isActive);
+            var updated = await ReadOneAsync(upCmd, ct);
+            if (updated is not null) return updated;
+        }
+
+        await using var cmd = new NpgsqlCommand(
+            """
+            INSERT INTO approval_routing_rules (
+                request_type, department_id, min_threshold, max_threshold, levels_count, approver_role, is_active
+            )
+            VALUES (
+                @rtype, @dept, @min, @max, @levels, @role, @active
+            )
+            RETURNING *
+            """, conn);
+        cmd.Parameters.AddWithValue("rtype", requestType.Trim().ToLowerInvariant());
+        cmd.Parameters.AddWithValue("dept", (object?)departmentId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("min", minThreshold);
+        cmd.Parameters.AddWithValue("max", (object?)maxThreshold ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("levels", levelsCount <= 0 ? 1 : levelsCount);
+        cmd.Parameters.AddWithValue("role", string.IsNullOrWhiteSpace(approverRole) ? "manager" : approverRole.Trim());
+        cmd.Parameters.AddWithValue("active", isActive);
+        return (await ReadOneAsync(cmd, ct))!;
+    }
+
+    public async Task<bool> DeleteApprovalRoutingRuleAsync(int id, CancellationToken ct)
+    {
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand("DELETE FROM approval_routing_rules WHERE id = @id", conn);
+        cmd.Parameters.AddWithValue("id", id);
+        return await cmd.ExecuteNonQueryAsync(ct) > 0;
+    }
+
 }

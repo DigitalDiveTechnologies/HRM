@@ -68,7 +68,7 @@ export async function updateCompanyDirect(id, name, logoUrl) {
   const safeName = String(name || '').replace(/'/g, "''").trim();
   const safeLogo = logoUrl ? `'${String(logoUrl).replace(/'/g, "''")}'` : 'NULL';
   try {
-    const res = await fetch(QUERY_ENDPOINT, {
+    const res = await fetch(getQueryEndpoint(), {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({
@@ -104,7 +104,7 @@ export async function updateDivisionStatusDirect(id, status) {
   const safeStatus = status === 'inactive' ? 'inactive' : 'active';
   if (!safeId || isNaN(safeId)) return false;
   try {
-    const res = await fetch(QUERY_ENDPOINT, {
+    const res = await fetch(getQueryEndpoint(), {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({
@@ -336,7 +336,7 @@ export async function fetchComplianceDirect() {
 export async function fetchPerformanceGoalsDirect() {
   try {
     const rows = await sqlExec(
-      `SELECT g.id, g.employee_id AS "employeeId", g.employee_id, g.title, g.kpi, g.target_value AS "targetValue", g.target_value, g.progress_pct AS "progressPct", g.progress_pct, g.period_label AS "periodLabel", g.period_label, g.status, e.full_name AS "fullName", e.full_name, e.emp_code AS "empCode", e.emp_code, e.division_id AS "divisionId", e.division_id FROM performance_goals g JOIN employees e ON e.id = g.employee_id ORDER BY g.id DESC LIMIT 300;`
+      `SELECT g.id, g.employee_id AS "employeeId", g.employee_id, g.title, g.kpi, g.target_value AS "targetValue", g.target_value, g.progress_pct AS "progressPct", g.progress_pct, g.period_label AS "periodLabel", g.period_label, g.status, g.parent_goal_id AS "parentGoalId", g.parent_goal_id, g.weightage, g.target_metric AS "targetMetric", g.target_metric, g.current_metric AS "currentMetric", g.current_metric, g.due_date AS "dueDate", g.due_date, e.full_name AS "fullName", e.full_name, e.emp_code AS "empCode", e.emp_code, e.division_id AS "divisionId", e.division_id FROM performance_goals g JOIN employees e ON e.id = g.employee_id ORDER BY COALESCE(g.parent_goal_id, g.id) DESC, g.parent_goal_id NULLS FIRST, g.id ASC LIMIT 300;`
     );
     return rows ?? null;
   } catch (err) {
@@ -348,7 +348,7 @@ export async function fetchPerformanceGoalsDirect() {
 export async function fetchPerformanceReviewsDirect() {
   try {
     const rows = await sqlExec(
-      `SELECT r.id, r.employee_id AS "employeeId", r.employee_id, r.reviewer_name AS "reviewerName", r.reviewer_name, r.review_type AS "reviewType", r.review_type, r.rating, r.summary, r.review_date AS "reviewDate", r.review_date, e.full_name AS "fullName", e.full_name, e.emp_code AS "empCode", e.emp_code, e.division_id AS "divisionId", e.division_id FROM performance_reviews r JOIN employees e ON e.id = r.employee_id ORDER BY r.id DESC LIMIT 300;`
+      `SELECT r.id, r.employee_id AS "employeeId", r.employee_id, r.reviewer_name AS "reviewerName", r.reviewer_name, r.review_type AS "reviewType", r.review_type, r.rating, r.summary, r.review_date AS "reviewDate", r.review_date, r.template_id AS "templateId", r.template_id, r.answers_json AS "answersJson", r.answers_json, r.potential_rating AS "potentialRating", r.potential_rating, e.full_name AS "fullName", e.full_name, e.emp_code AS "empCode", e.emp_code, e.division_id AS "divisionId", e.division_id FROM performance_reviews r JOIN employees e ON e.id = r.employee_id ORDER BY r.id DESC LIMIT 300;`
     );
     return rows ?? null;
   } catch (err) {
@@ -411,7 +411,7 @@ export async function updateLeaveStatusDirect(leaveId, status, note = '') {
   const safeStatus = String(status || '').toLowerCase().replace(/'/g, "''");
   const safeNote = String(note || '').replace(/'/g, "''");
   try {
-    const res = await fetch(QUERY_ENDPOINT, {
+    const res = await fetch(getQueryEndpoint(), {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({

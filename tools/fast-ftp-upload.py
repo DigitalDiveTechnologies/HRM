@@ -62,17 +62,29 @@ for f in files:
     else:
         ftp.cwd("/HRMDevelopment")
 
-    for attempt in range(1, 4):
+    for attempt in range(1, 5):
         try:
             with open(f, "rb") as fp:
                 ftp.storbinary(f"STOR {filename}", fp, blocksize=128*1024)
             print(f"UP: {rel}")
             break
         except Exception as e:
-            if attempt == 3:
+            if attempt >= 4:
                 print(f"Failed to upload {rel}: {e}")
                 raise
+            print(f"Retry {attempt} for {rel} due to: {e}. Reconnecting...")
             time.sleep(2)
+            try:
+                ftp.quit()
+            except Exception:
+                pass
+            ftp = ftplib.FTP(FTP_HOST, timeout=30)
+            ftp.login(FTP_USER, FTP_PASS)
+            ftp.set_pasv(True)
+            if rel_dir:
+                ftp.cwd("/HRMDevelopment/" + rel_dir)
+            else:
+                ftp.cwd("/HRMDevelopment")
 
 ftp.cwd("/HRMDevelopment")
 

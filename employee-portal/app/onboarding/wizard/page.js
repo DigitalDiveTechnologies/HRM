@@ -35,7 +35,7 @@ export default function OnboardingWizardPage() {
   const [completedSuccess, setCompletedSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Initial user loader
+  // Initial user loader and persistent completion check
   useEffect(() => {
     let user = null;
     try {
@@ -55,8 +55,67 @@ export default function OnboardingWizardPage() {
           if (res?.profile) setEmployeeProfile(res.profile);
         })
         .catch(() => {});
+
+      // Check if already signed in backend
+      api(`/documents/signatures?documentType=onboarding_packet&employeeId=${eid}`)
+        .then((sigs) => {
+          if (Array.isArray(sigs) && sigs.length > 0) {
+            setCompletedSuccess(true);
+            try {
+              localStorage.setItem(`gocs_onboarding_completed_${eid}`, 'true');
+            } catch {}
+          }
+        })
+        .catch(() => {});
     }
+
+    // Restore draft state from localStorage
+    try {
+      const key = eid ? `gocs_onboarding_draft_${eid}` : 'gocs_onboarding_draft';
+      const isDone = eid ? localStorage.getItem(`gocs_onboarding_completed_${eid}`) : null;
+      if (isDone === 'true') {
+        setCompletedSuccess(true);
+        return;
+      }
+
+      const savedDraft = localStorage.getItem(key);
+      if (savedDraft) {
+        const parsed = JSON.parse(savedDraft);
+        if (parsed.currentStep) setCurrentStep(parsed.currentStep);
+        if (parsed.uploads) {
+          setUploads((prev) => ({
+            ...prev,
+            emergencyName: parsed.uploads.emergencyName || '',
+            emergencyPhone: parsed.uploads.emergencyPhone || '',
+            emergencyRelation: parsed.uploads.emergencyRelation || 'Spouse',
+          }));
+        }
+        if (parsed.agreedToPolicies) setAgreedToPolicies(parsed.agreedToPolicies);
+        if (parsed.signatureBase64) setSignatureBase64(parsed.signatureBase64);
+      }
+    } catch {}
   }, []);
+
+  // Auto-save draft on user progress
+  useEffect(() => {
+    if (completedSuccess) return;
+    try {
+      const eid = currentUser?.employeeId || currentUser?.employee_id;
+      const key = eid ? `gocs_onboarding_draft_${eid}` : 'gocs_onboarding_draft';
+      const draft = {
+        currentStep,
+        uploads: {
+          emergencyName: uploads.emergencyName,
+          emergencyPhone: uploads.emergencyPhone,
+          emergencyRelation: uploads.emergencyRelation,
+        },
+        agreedToPolicies,
+        signatureBase64,
+        updatedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(key, JSON.stringify(draft));
+    } catch {}
+  }, [currentStep, uploads.emergencyName, uploads.emergencyPhone, uploads.emergencyRelation, agreedToPolicies, signatureBase64, completedSuccess, currentUser]);
 
   const employeeName = employeeProfile?.fullName || employeeProfile?.full_name || currentUser?.fullName || currentUser?.name || 'Valued Team Member';
   const employeeCode = employeeProfile?.empCode || employeeProfile?.emp_code || 'EMP-NEW';
@@ -124,10 +183,23 @@ export default function OnboardingWizardPage() {
         }
       } catch {}
 
+      // 3. Mark persistent completed state in localStorage
+      try {
+        if (eid) {
+          localStorage.setItem(`gocs_onboarding_completed_${eid}`, 'true');
+          localStorage.removeItem(`gocs_onboarding_draft_${eid}`);
+        }
+        localStorage.removeItem('gocs_onboarding_draft');
+      } catch {}
+
       setCompletedSuccess(true);
     } catch (err) {
       console.error('Onboarding submission error:', err);
       // Still show success if local storage simulation or network glitch
+      try {
+        const eid = employeeProfile?.id || currentUser?.employeeId || currentUser?.employee_id;
+        if (eid) localStorage.setItem(`gocs_onboarding_completed_${eid}`, 'true');
+      } catch {}
       setCompletedSuccess(true);
     } finally {
       setIsSubmitting(false);

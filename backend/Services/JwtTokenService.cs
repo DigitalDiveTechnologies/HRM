@@ -28,7 +28,7 @@ public sealed class JwtTokenService
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email),
-            new("role", user.Role),
+            new("role", user.Role ?? string.Empty),
             // Real app role — never overwritten by synthetic admin companion below
             new("app_role", string.IsNullOrWhiteSpace(user.Role) ? "employee" : user.Role.Trim()),
         };

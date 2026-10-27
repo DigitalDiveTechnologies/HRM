@@ -1,7 +1,8 @@
-export const ALLOWED_COMPANY_NAMES = new Set(['srg', 'royal ocean', 'geoseas']);
-
 export function isAllowedCompany(company) {
-  return ALLOWED_COMPANY_NAMES.has(String(company?.name || '').trim().toLowerCase());
+  if (!company) return false;
+  const name = String(company?.name || company?.title || '').trim();
+  const id = company?.id ?? company?.Id;
+  return Boolean(name || id);
 }
 
 export function sortCompaniesLatest(list) {

@@ -36,4 +36,44 @@ public sealed class ApprovalsController : ControllerBase
         var row = await _hr.UpdateApprovalAsync(id, body.Status, ct);
         return row is null ? NotFound() : Ok(row);
     }
+
+    // ==========================================
+    // Task 5.6: Configurable Multi-Tier Approval Rules & Escalation Routing
+    // ==========================================
+
+    [HttpGet("rules")]
+    public async Task<IActionResult> ListRules(CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "approvals.view")) return Forbid();
+        return Ok(await _hr.ApprovalRoutingRulesAsync(ct));
+    }
+
+    [HttpPost("rules")]
+    public async Task<IActionResult> SaveRule([FromBody] ApprovalRoutingRuleRequest body, CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "approvals.view")) return Forbid();
+        if (string.IsNullOrWhiteSpace(body.RequestType))
+            return BadRequest(new { error = "requestType required" });
+
+        var rule = await _hr.CreateOrUpdateApprovalRoutingRuleAsync(
+            body.Id,
+            body.RequestType.Trim().ToLowerInvariant(),
+            body.DepartmentId,
+            body.MinThreshold,
+            body.MaxThreshold,
+            body.LevelsCount < 1 ? 1 : body.LevelsCount,
+            string.IsNullOrWhiteSpace(body.ApproverRole) ? "manager" : body.ApproverRole.Trim().ToLowerInvariant(),
+            body.IsActive,
+            ct);
+
+        return Ok(rule);
+    }
+
+    [HttpDelete("rules/{id:int}")]
+    public async Task<IActionResult> DeleteRule(int id, CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "approvals.view")) return Forbid();
+        var deleted = await _hr.DeleteApprovalRoutingRuleAsync(id, ct);
+        return deleted ? Ok(new { success = true, message = "Routing rule deleted" }) : NotFound();
+    }
 }

@@ -118,6 +118,8 @@ IconData navIcon(String key) {
     case 'payroll':
     case 'payslips':
       return Icons.account_balance_wallet_outlined;
+    case 'expenses':
+      return Icons.receipt_long_outlined;
     case 'ess':
     case 'home':
       return Icons.home_outlined;

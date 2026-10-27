@@ -189,8 +189,8 @@ export default function CustomReportBuilderPage() {
     }
   };
 
-  // Instant CSV Download
-  const handleExportCsv = async () => {
+  // Instant CSV / Excel Download
+  const handleExport = async (format = 'csv') => {
     if (selectedColumns.length === 0) {
       alert('Please select at least one column to export.');
       return;
@@ -229,18 +229,22 @@ export default function CustomReportBuilderPage() {
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = `Custom-HR-Report-${new Date().toISOString().slice(0, 10)}.csv`;
+      const today = new Date().toISOString().slice(0, 10);
+      a.download = format === 'excel' ? `Custom-HR-Report-Excel-${today}.csv` : `Custom-HR-Report-${today}.csv`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(downloadUrl);
       document.body.removeChild(a);
     } catch (err) {
       console.error('Export error:', err);
-      alert(err.message || 'Failed to download custom report CSV.');
+      alert(err.message || 'Failed to download report.');
     } finally {
       setExporting(false);
     }
   };
+
+  const handleExportCsv = () => handleExport('csv');
+  const handleExportExcel = () => handleExport('excel');
 
   return (
     <AppShell title="Self-Service Dynamic Report Builder" subtitle="Task 2.5: Build, Filter & Stream Custom CSV Exports">
@@ -291,6 +295,35 @@ export default function CustomReportBuilderPage() {
 
             <button
               type="button"
+              onClick={handleExportExcel}
+              disabled={exporting || selectedColumns.length === 0}
+              style={{
+                background: '#10b981',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 10,
+                padding: '10px 18px',
+                fontWeight: 700,
+                fontSize: '13px',
+                cursor: exporting || selectedColumns.length === 0 ? 'not-allowed' : 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
+                opacity: exporting || selectedColumns.length === 0 ? 0.6 : 1,
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="8" y1="13" x2="16" y2="13" />
+                <line x1="8" y1="17" x2="16" y2="17" />
+              </svg>
+              {exporting ? 'Exporting…' : 'Export Excel (XLS/CSV)'}
+            </button>
+
+            <button
+              type="button"
               onClick={handleExportCsv}
               disabled={exporting || selectedColumns.length === 0}
               style={{
@@ -298,14 +331,14 @@ export default function CustomReportBuilderPage() {
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: 10,
-                padding: '10px 22px',
+                padding: '10px 18px',
                 fontWeight: 700,
-                fontSize: '13.5px',
+                fontSize: '13px',
                 cursor: exporting || selectedColumns.length === 0 ? 'not-allowed' : 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 8,
-                boxShadow: '0 4px 12px rgba(0, 184, 219, 0.3)',
+                boxShadow: '0 4px 12px rgba(0, 184, 219, 0.25)',
                 opacity: exporting || selectedColumns.length === 0 ? 0.6 : 1,
               }}
             >
@@ -314,7 +347,7 @@ export default function CustomReportBuilderPage() {
                 <polyline points="7 10 12 15 17 10" />
                 <line x1="12" y1="15" x2="12" y2="3" />
               </svg>
-              {exporting ? 'Streaming CSV…' : `Export Custom CSV (${selectedColumns.length} Columns)`}
+              {exporting ? 'Streaming…' : `Export CSV (${selectedColumns.length})`}
             </button>
           </div>
         </div>

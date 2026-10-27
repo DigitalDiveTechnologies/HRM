@@ -295,6 +295,173 @@ public sealed class OpsScaleService
             {
                 await benCmd.ExecuteNonQueryAsync(ct);
             }
+            await using (var commCmd = new NpgsqlCommand(
+                """
+                -- Chat 4: Community, Polls, Events, Surveys
+                CREATE TABLE IF NOT EXISTS community_posts (
+                    id SERIAL PRIMARY KEY,
+                    author_id INT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+                    post_type VARCHAR(30) NOT NULL DEFAULT 'general',
+                    content TEXT NOT NULL,
+                    image_url VARCHAR(500),
+                    likes_count INT NOT NULL DEFAULT 0,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS community_post_likes (
+                    post_id INT NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+                    employee_id INT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (post_id, employee_id)
+                );
+
+                CREATE TABLE IF NOT EXISTS community_post_comments (
+                    id SERIAL PRIMARY KEY,
+                    post_id INT NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+                    employee_id INT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+                    comment_text TEXT NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_community_posts_created ON community_posts(created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_community_comments_post ON community_post_comments(post_id, created_at ASC);
+
+                CREATE TABLE IF NOT EXISTS employee_polls (
+                    id SERIAL PRIMARY KEY,
+                    question VARCHAR(300) NOT NULL,
+                    options_json JSONB NOT NULL,
+                    expires_at TIMESTAMPTZ,
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_by INT REFERENCES employees(id) ON DELETE SET NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS employee_poll_votes (
+                    poll_id INT NOT NULL REFERENCES employee_polls(id) ON DELETE CASCADE,
+                    employee_id INT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+                    selected_option_id INT NOT NULL,
+                    voted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (poll_id, employee_id)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_employee_polls_active ON employee_polls(is_active, created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_employee_poll_votes_poll ON employee_poll_votes(poll_id);
+
+                CREATE TABLE IF NOT EXISTS company_events (
+                    id SERIAL PRIMARY KEY,
+                    title VARCHAR(200) NOT NULL,
+                    description TEXT,
+                    event_date TIMESTAMPTZ NOT NULL,
+                    location VARCHAR(200) NOT NULL,
+                    max_attendees INT,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS company_event_rsvps (
+                    event_id INT NOT NULL REFERENCES company_events(id) ON DELETE CASCADE,
+                    employee_id INT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+                    status VARCHAR(20) NOT NULL DEFAULT 'attending',
+                    responded_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (event_id, employee_id)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_company_events_date ON company_events(event_date ASC);
+                CREATE INDEX IF NOT EXISTS idx_company_event_rsvps_event ON company_event_rsvps(event_id);
+
+                CREATE TABLE IF NOT EXISTS wellbeing_surveys (
+                    id SERIAL PRIMARY KEY,
+                    title VARCHAR(200) NOT NULL,
+                    description TEXT,
+                    is_anonymous BOOLEAN NOT NULL DEFAULT TRUE,
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    questions_json JSONB NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS wellbeing_survey_responses (
+                    id SERIAL PRIMARY KEY,
+                    survey_id INT NOT NULL REFERENCES wellbeing_surveys(id) ON DELETE CASCADE,
+                    department_id INT REFERENCES departments(id) ON DELETE SET NULL,
+                    nps_score INT CHECK (nps_score >= 0 AND nps_score <= 10),
+                    answers_json JSONB NOT NULL,
+                    feedback_text TEXT,
+                    submitted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
+                ALTER TABLE wellbeing_survey_responses ADD COLUMN IF NOT EXISTS employee_id INT REFERENCES employees(id) ON DELETE SET NULL;
+
+                CREATE INDEX IF NOT EXISTS idx_wellbeing_surveys_active ON wellbeing_surveys(is_active, created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_wellbeing_responses_survey ON wellbeing_survey_responses(survey_id);
+                CREATE INDEX IF NOT EXISTS idx_wellbeing_responses_dept ON wellbeing_survey_responses(department_id);
+                CREATE INDEX IF NOT EXISTS idx_wellbeing_responses_emp ON wellbeing_survey_responses(survey_id, employee_id);
+
+                -- Chat 4 Idempotent Seed Data
+                INSERT INTO community_posts (author_id, post_type, content, likes_count, created_at)
+                SELECT id, 'kudos', 'Huge congratulations to our Cloud Architecture & DevOps team for passing the UAE compliance and security audit with flying colors! 🚀 Exemplary dedication and teamwork.', 4, NOW() - INTERVAL '2 hours'
+                FROM employees WHERE NOT EXISTS (SELECT 1 FROM community_posts LIMIT 1) ORDER BY id ASC LIMIT 1;
+
+                INSERT INTO community_posts (author_id, post_type, content, likes_count, created_at)
+                SELECT id, 'celebration', 'A warm welcome to our 12 new colleagues joining across Dubai and Abu Dhabi this month! Looking forward to achieving great milestones together. 🎉', 6, NOW() - INTERVAL '1 day'
+                FROM employees WHERE (SELECT COUNT(*) FROM community_posts) < 2 ORDER BY id ASC LIMIT 1;
+
+                INSERT INTO employee_polls (question, options_json, expires_at, is_active, created_by, created_at)
+                SELECT 'Where should we host our upcoming Q4 Annual Company Gala & Team Gathering?',
+                       '[{"id": 1, "text": "Atlantis The Royal, Palm Jumeirah"}, {"id": 2, "text": "Bab Al Shams Desert Resort"}, {"id": 3, "text": "Emirates Palace Mandarin Oriental, Abu Dhabi"}, {"id": 4, "text": "Dubai Creek Yacht & Golf Club"}]'::jsonb,
+                       NOW() + INTERVAL '30 days',
+                       true,
+                       id,
+                       NOW()
+                FROM employees WHERE NOT EXISTS (SELECT 1 FROM employee_polls LIMIT 1) ORDER BY id ASC LIMIT 1;
+
+                INSERT INTO company_events (title, description, event_date, location, max_attendees, created_at)
+                SELECT 'Synergy UAE Strategy Town Hall & Recognition Gala',
+                       'Quarterly executive leadership address, key strategic milestones, and high-performance awards followed by networking dinner.',
+                       NOW() + INTERVAL '14 days',
+                       'Grand Ballroom, The Ritz-Carlton DIFC, Dubai',
+                       250,
+                       NOW()
+                WHERE NOT EXISTS (SELECT 1 FROM company_events LIMIT 1);
+
+                INSERT INTO company_events (title, description, event_date, location, max_attendees, created_at)
+                SELECT 'Corporate Wellness: Intra-Company Padel Tournament',
+                       'Fun, friendly tournament for all employees. Equipment, refreshments, and casual coaching provided for beginners.',
+                       NOW() + INTERVAL '21 days',
+                       'Matcha Club, Al Quoz, Dubai',
+                       48,
+                       NOW()
+                WHERE NOT EXISTS (SELECT 1 FROM company_events WHERE title LIKE '%Padel%');
+
+                INSERT INTO wellbeing_surveys (title, description, is_anonymous, is_active, questions_json, created_at)
+                SELECT 'Q4 Employee Experience & eNPS Sentiment Survey',
+                       'Your anonymous feedback is vital to shaping our workplace culture, wellness programs, and operational support. This survey takes under 2 minutes.',
+                       true,
+                       true,
+                       '[{"id": "enps", "type": "nps", "question": "On a scale of 0-10, how likely are you to recommend working at Synergy to friends or industry peers?"}, {"id": "work_life", "type": "rating", "question": "I am satisfied with my work-life harmony and flexible schedule arrangements."}, {"id": "growth", "type": "rating", "question": "I feel supported in my personal career development and learning opportunities."}, {"id": "tools", "type": "rating", "question": "I have the technology, resources, and leadership support needed to excel in my role."}]'::jsonb,
+                       NOW() - INTERVAL '3 days'
+                WHERE NOT EXISTS (SELECT 1 FROM wellbeing_surveys LIMIT 1);
+
+                INSERT INTO wellbeing_survey_responses (survey_id, department_id, nps_score, answers_json, feedback_text, submitted_at)
+                SELECT s.id, d.id, n.score, '{"work_life": 5, "growth": 4, "tools": 5}'::jsonb, n.fb, NOW() - (n.day_offset || ' days')::INTERVAL
+                FROM wellbeing_surveys s
+                CROSS JOIN (
+                    VALUES
+                    (10, 'Incredible workplace culture, clear strategic vision, and wonderful teammates!', 1, 1),
+                    (9, 'Strong autonomy, modern tools, and leadership genuinely listens to staff feedback.', 2, 2),
+                    (10, 'Best employee experience and onboarding I have had in the UAE tech ecosystem.', 3, 2),
+                    (8, 'Very good overall environment. More inter-departmental social mixers would be great.', 1, 3),
+                    (9, 'Leadership is very supportive and career progression paths are transparent.', 2, 4),
+                    (7, 'Good culture. Workload can get high near quarter end, but team solidarity is strong.', 3, 5),
+                    (9, 'Great work-life balance and benefits package. Proud to work here.', 4, 6),
+                    (10, 'Outstanding leadership and high standards across client projects.', 1, 7)
+                ) AS n(score, fb, dept_idx, day_offset)
+                LEFT JOIN LATERAL (SELECT id FROM departments ORDER BY id ASC OFFSET (n.dept_idx - 1) LIMIT 1) d ON true
+                WHERE NOT EXISTS (SELECT 1 FROM wellbeing_survey_responses LIMIT 1);
+                """,
+                conn))
+            {
+                await commCmd.ExecuteNonQueryAsync(ct);
+            }
+
 
             await using (var cfg = new NpgsqlCommand(
 

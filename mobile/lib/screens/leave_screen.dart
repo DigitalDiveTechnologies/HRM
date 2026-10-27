@@ -7,6 +7,7 @@ import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../utils/format.dart';
 import '../widgets/ui_kit.dart';
+import 'team_calendar_view.dart';
 
 class LeaveScreen extends StatefulWidget {
   const LeaveScreen({super.key});
@@ -16,6 +17,7 @@ class LeaveScreen extends StatefulWidget {
 }
 
 class _LeaveScreenState extends State<LeaveScreen> {
+  int activeTab = 0; // 0 = My Leaves & Apply, 1 = Team Calendar
   List<dynamic> rows = [];
   List<dynamic> balances = [];
   bool loading = true;
@@ -115,6 +117,44 @@ class _LeaveScreenState extends State<LeaveScreen> {
     }
   }
 
+  Widget _buildTabButton(int index, String label, IconData icon) {
+    final active = activeTab == index;
+    return Material(
+      color: active ? AppColors.accent : Colors.transparent,
+      borderRadius: BorderRadius.circular(9),
+      child: InkWell(
+        onTap: () => setState(() => activeTab = index),
+        borderRadius: BorderRadius.circular(9),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: active ? Colors.white : T.muted(context),
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: active ? Colors.white : T.ink(context),
+                    fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                    fontSize: 12.5,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final pending = rows.where((raw) {
@@ -124,176 +164,222 @@ class _LeaveScreenState extends State<LeaveScreen> {
       return pick(Map<String, dynamic>.from(raw as Map), ['status']).toLowerCase() == 'approved';
     }).length;
 
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView(
-        padding: screenListPadding(context),
-        children: [
-          const PageHero(
-            title: 'Leave',
-            subtitle: 'Request time off and track approvals',
-            trailing: Icon(Icons.beach_access_rounded, color: Colors.white, size: 36),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+    return Column(
+      children: [
+        PageHero(
+          title: 'Leave Management',
+          subtitle: activeTab == 0
+              ? 'Request time off and track approvals'
+              : 'Interactive departmental absence schedule',
+          trailing: const Icon(Icons.beach_access_rounded, color: Colors.white, size: 36),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: T.surface(context),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: T.cardBorder(context)),
+            ),
             child: Row(
               children: [
-                MetricTile(label: 'Pending', value: '$pending', icon: Icons.hourglass_top_rounded, color: AppColors.warn),
-                const SizedBox(width: 10),
-                MetricTile(label: 'Approved', value: '$approved', icon: Icons.verified_outlined, color: AppColors.ok),
-                const SizedBox(width: 10),
-                MetricTile(label: 'Total', value: '${rows.length}', icon: Icons.folder_open_outlined),
+                Expanded(
+                  child: _buildTabButton(0, 'My Leaves & Apply', Icons.person_outline_rounded),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: _buildTabButton(1, 'Team Calendar', Icons.calendar_month_outlined),
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 14),
-          if (balances.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SectionCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Leave balances', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 8),
-                    ...balances.map((raw) {
-                      final b = Map<String, dynamic>.from(raw as Map);
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Text(
-                          '${pick(b, ['fullName', 'full_name'])} · ${pick(b, ['leaveType', 'leave_type'])}: '
-                          '${pick(b, ['remainingDays', 'remaining_days'], '?')} remaining '
-                          '(used ${pick(b, ['usedDays', 'used_days'], '0')} / ${pick(b, ['entitlementDays', 'entitlement_days'], '?')})',
-                          style: TextStyle(color: T.muted(context), fontSize: 13),
-                        ),
-                      );
-                    }),
-                  ],
-                ),
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SectionCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Holiday calendar (UAE 2026)', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 8),
-                  ...uaeHolidays2026.map((h) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(
-                          '${formatDate(h['date'])} · ${h['name']}',
-                          style: TextStyle(color: T.muted(context), fontSize: 12.5),
-                        ),
-                      )),
-                ],
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SectionCard(
-              child: FormSpacedColumn(
-                children: [
-                  Text('New request', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                  if (error != null) Text(error!, style: const TextStyle(color: AppColors.danger)),
-                  if (msg != null) Text(msg!, style: const TextStyle(color: AppColors.ok, fontWeight: FontWeight.w600)),
-                  DropdownButtonFormField<String>(
-                    initialValue: leaveType,
-                    decoration: const InputDecoration(labelText: 'Type'),
-                    items: const [
-                      DropdownMenuItem(value: 'Annual', child: Text('Annual')),
-                      DropdownMenuItem(value: 'Sick', child: Text('Sick')),
-                      DropdownMenuItem(value: 'Maternity', child: Text('Maternity')),
-                      DropdownMenuItem(value: 'Unpaid', child: Text('Unpaid')),
-                    ],
-                    onChanged: (v) => setState(() => leaveType = v ?? 'Annual'),
-                  ),
-                  Row(
+        ),
+        Expanded(
+          child: activeTab == 1
+              ? const TeamCalendarView()
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView(
+                    padding: screenListPadding(context),
                     children: [
-                      Expanded(
-                        child: TextFormField(
-                          initialValue: startDate,
-                          decoration: const InputDecoration(labelText: 'Start'),
-                          onChanged: (v) => startDate = v,
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          children: [
+                            MetricTile(
+                              label: 'Pending',
+                              value: '$pending',
+                              icon: Icons.hourglass_top_rounded,
+                              color: AppColors.warn,
+                            ),
+                            const SizedBox(width: 10),
+                            MetricTile(
+                              label: 'Approved',
+                              value: '$approved',
+                              icon: Icons.verified_outlined,
+                              color: AppColors.ok,
+                            ),
+                            const SizedBox(width: 10),
+                            MetricTile(
+                              label: 'Total',
+                              value: '${rows.length}',
+                              icon: Icons.folder_open_outlined,
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: TextFormField(
-                          initialValue: endDate,
-                          decoration: const InputDecoration(labelText: 'End'),
-                          onChanged: (v) => endDate = v,
+                      const SizedBox(height: 14),
+                      if (balances.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: SectionCard(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Leave balances', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                                const SizedBox(height: 8),
+                                ...balances.map((raw) {
+                                  final b = Map<String, dynamic>.from(raw as Map);
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 6),
+                                    child: Text(
+                                      '${pick(b, ['fullName', 'full_name'])} · ${pick(b, ['leaveType', 'leave_type'])}: '
+                                      '${pick(b, ['remainingDays', 'remaining_days'], '?')} remaining '
+                                      '(used ${pick(b, ['usedDays', 'used_days'], '0')} / ${pick(b, ['entitlementDays', 'entitlement_days'], '?')})',
+                                      style: TextStyle(color: T.muted(context), fontSize: 13),
+                                    ),
+                                  );
+                                }),
+                              ],
+                            ),
+                          ),
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: SectionCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Holiday calendar (UAE 2026)', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                              const SizedBox(height: 8),
+                              ...uaeHolidays2026.map((h) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 4),
+                                    child: Text(
+                                      '${formatDate(h['date'])} · ${h['name']}',
+                                      style: TextStyle(color: T.muted(context), fontSize: 12.5),
+                                    ),
+                                  )),
+                            ],
+                          ),
                         ),
                       ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: SectionCard(
+                          child: FormSpacedColumn(
+                            children: [
+                              Text('New request', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                              if (error != null) Text(error!, style: const TextStyle(color: AppColors.danger)),
+                              if (msg != null) Text(msg!, style: const TextStyle(color: AppColors.ok, fontWeight: FontWeight.w600)),
+                              DropdownButtonFormField<String>(
+                                initialValue: leaveType,
+                                decoration: const InputDecoration(labelText: 'Type'),
+                                items: const [
+                                  DropdownMenuItem(value: 'Annual', child: Text('Annual')),
+                                  DropdownMenuItem(value: 'Sick', child: Text('Sick')),
+                                  DropdownMenuItem(value: 'Maternity', child: Text('Maternity')),
+                                  DropdownMenuItem(value: 'Unpaid', child: Text('Unpaid')),
+                                ],
+                                onChanged: (v) => setState(() => leaveType = v ?? 'Annual'),
+                              ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextFormField(
+                                      initialValue: startDate,
+                                      decoration: const InputDecoration(labelText: 'Start'),
+                                      onChanged: (v) => startDate = v,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: TextFormField(
+                                      initialValue: endDate,
+                                      decoration: const InputDecoration(labelText: 'End'),
+                                      onChanged: (v) => endDate = v,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              TextFormField(
+                                initialValue: days,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(labelText: 'Days'),
+                                onChanged: (v) => days = v,
+                              ),
+                              TextFormField(
+                                decoration: const InputDecoration(labelText: 'Reason'),
+                                onChanged: (v) => reason = v,
+                              ),
+                              FilledButton.icon(
+                                onPressed: submitting ? null : _submit,
+                                icon: submitting
+                                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                    : const Icon(Icons.send_rounded),
+                                label: Text(submitting ? 'Submitting…' : 'Submit request'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 6, 20, 8),
+                        child: Text('My requests', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                      ),
+                      if (loading) const ScreenLoader(),
+                      if (!loading && rows.isEmpty) const EmptyHint('No leave requests yet.', icon: Icons.beach_access_outlined),
+                      ...rows.map((raw) {
+                        final r = Map<String, dynamic>.from(raw as Map);
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: SectionCard(
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.accent.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: const Icon(Icons.event_available_rounded, color: AppColors.accent),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(pick(r, ['leaveType', 'leave_type']), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '${formatDate(r['startDate'] ?? r['start_date'])} → ${formatDate(r['endDate'] ?? r['end_date'])} · ${pick(r, ['days'])} days',
+                                        style: Theme.of(context).textTheme.bodySmall,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                StatusChip(pick(r, ['workflowStage', 'workflow_stage'], pick(r, ['status']))),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
                     ],
                   ),
-                  TextFormField(
-                    initialValue: days,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Days'),
-                    onChanged: (v) => days = v,
-                  ),
-                  TextFormField(
-                    decoration: const InputDecoration(labelText: 'Reason'),
-                    onChanged: (v) => reason = v,
-                  ),
-                  FilledButton.icon(
-                    onPressed: submitting ? null : _submit,
-                    icon: submitting
-                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.send_rounded),
-                    label: Text(submitting ? 'Submitting…' : 'Submit request'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 6, 20, 8),
-            child: Text('My requests', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-          ),
-          if (loading) const ScreenLoader(),
-          if (!loading && rows.isEmpty) const EmptyHint('No leave requests yet.', icon: Icons.beach_access_outlined),
-          ...rows.map((raw) {
-            final r = Map<String, dynamic>.from(raw as Map);
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SectionCard(
-                child: Row(
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: AppColors.accent.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Icon(Icons.event_available_rounded, color: AppColors.accent),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(pick(r, ['leaveType', 'leave_type']), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${formatDate(r['startDate'] ?? r['start_date'])} → ${formatDate(r['endDate'] ?? r['end_date'])} · ${pick(r, ['days'])} days',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                    StatusChip(pick(r, ['workflowStage', 'workflow_stage'], pick(r, ['status']))),
-                  ],
                 ),
-              ),
-            );
-          }),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

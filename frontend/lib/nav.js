@@ -37,6 +37,9 @@ export const NAV = [
       { href: '/ops', label: 'Ops & Scale', permission: 'ops.view', roles: ['admin'] },
       { href: '/notifications', labelKey: 'nav_notifications', permission: 'notifications.view', roles: ['admin', 'manager', 'employee'] },
       { href: '/announcements', label: 'Announcements', permission: 'dashboard.view', roles: ['admin'] },
+      { href: '/company-links', label: 'Corporate Links', permission: 'dashboard.view', roles: ['admin'] },
+      { href: '/community', label: 'Community & Feed', permission: 'dashboard.view', roles: ['admin', 'manager', 'employee'] },
+      { href: '/surveys', label: 'Surveys & eNPS', permission: 'dashboard.view', roles: ['admin', 'manager'] },
     ],
   },
   {
@@ -101,6 +104,7 @@ export const NAV = [
           ]
         : []),
       { href: '/settings/permissions', label: 'Permissions', roles: ['super_admin', 'admin'] },
+      { href: '/settings/email', label: 'Email Architecture', roles: ['super_admin', 'admin'] },
     ],
   },
 ];

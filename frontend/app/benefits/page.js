@@ -39,7 +39,9 @@ export default function BenefitsPage() {
 
   // Modals
   const [showNewPlanModal, setShowNewPlanModal] = useState(false);
+  const [editingPlan, setEditingPlan] = useState(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState(null);
   const [previewCardItem, setPreviewCardItem] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -101,7 +103,7 @@ export default function BenefitsPage() {
     loadData();
   }, [loadData]);
 
-  // Create Plan
+  // Create or Update Plan
   async function handleCreatePlan(e) {
     e.preventDefault();
     if (submitting) return;
@@ -109,21 +111,33 @@ export default function BenefitsPage() {
     setMsg('');
     setError('');
     try {
-      await api('/benefits/plans', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: planForm.name,
-          benefitType: planForm.benefitType,
-          providerName: planForm.providerName,
-          policyNumber: planForm.policyNumber,
-          coverageSummary: planForm.coverageSummary,
-          annualPremiumEmployer: Number(planForm.annualPremiumEmployer || 0),
-          annualPremiumEmployee: Number(planForm.annualPremiumEmployee || 0),
-          isActive: planForm.isActive,
-        }),
-      });
-      setMsg('Corporate benefit scheme created successfully!');
+      const payload = {
+        name: planForm.name,
+        benefitType: planForm.benefitType,
+        providerName: planForm.providerName,
+        policyNumber: planForm.policyNumber,
+        coverageSummary: planForm.coverageSummary,
+        annualPremiumEmployer: Number(planForm.annualPremiumEmployer || 0),
+        annualPremiumEmployee: Number(planForm.annualPremiumEmployee || 0),
+        isActive: planForm.isActive,
+      };
+
+      if (editingPlan) {
+        await api(`/benefits/plans/${editingPlan.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        });
+        setMsg('Corporate benefit scheme updated successfully!');
+      } else {
+        await api('/benefits/plans', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        setMsg('Corporate benefit scheme created successfully!');
+      }
+
       setShowNewPlanModal(false);
+      setEditingPlan(null);
       setPlanForm({
         name: '',
         benefitType: 'medical_insurance',
@@ -136,13 +150,41 @@ export default function BenefitsPage() {
       });
       loadData();
     } catch (err) {
-      setError(err.message || 'Failed to create benefit scheme');
+      setError(err.message || 'Failed to save benefit scheme');
     } finally {
       setSubmitting(false);
     }
   }
 
-  // Assign Plan
+  const handleDeletePlan = async (p) => {
+    const id = v(p, 'id');
+    const name = v(p, 'name');
+    if (!confirm(`Are you sure you want to remove benefit plan "${name}"?`)) return;
+    try {
+      await api(`/benefits/plans/${id}`, { method: 'DELETE' });
+      setMsg(`Benefit plan "${name}" deleted successfully.`);
+      loadData();
+    } catch (err) {
+      setError(err.message || 'Failed to delete plan.');
+    }
+  };
+
+  const openEditPlanModal = (p) => {
+    setEditingPlan(p);
+    setPlanForm({
+      name: v(p, 'name') || '',
+      benefitType: v(p, 'benefitType', 'benefit_type') || 'medical_insurance',
+      providerName: v(p, 'providerName', 'provider_name') || '',
+      policyNumber: v(p, 'policyNumber', 'policy_number') || '',
+      coverageSummary: v(p, 'coverageSummary', 'coverage_summary') || '',
+      annualPremiumEmployer: Number(v(p, 'annualPremiumEmployer', 'annual_premium_employer') || 0),
+      annualPremiumEmployee: Number(v(p, 'annualPremiumEmployee', 'annual_premium_employee') || 0),
+      isActive: p.isActive !== false && p.is_active !== false,
+    });
+    setShowNewPlanModal(true);
+  };
+
+  // Assign or Update Plan
   async function handleAssignBenefit(e) {
     e.preventDefault();
     if (submitting) return;
@@ -150,21 +192,33 @@ export default function BenefitsPage() {
     setMsg('');
     setError('');
     try {
-      await api('/benefits/assign', {
-        method: 'POST',
-        body: JSON.stringify({
-          employeeId: Number(assignForm.employeeId),
-          benefitPlanId: Number(assignForm.benefitPlanId),
-          memberId: assignForm.memberId,
-          coverageTier: assignForm.coverageTier,
-          dependentsCount: Number(assignForm.dependentsCount || 0),
-          startDate: assignForm.startDate,
-          endDate: assignForm.endDate,
-          status: assignForm.status,
-        }),
-      });
-      setMsg('Insurance scheme assigned to employee successfully!');
+      const payload = {
+        employeeId: Number(assignForm.employeeId),
+        benefitPlanId: Number(assignForm.benefitPlanId),
+        memberId: assignForm.memberId,
+        coverageTier: assignForm.coverageTier,
+        dependentsCount: Number(assignForm.dependentsCount || 0),
+        startDate: assignForm.startDate,
+        endDate: assignForm.endDate,
+        status: assignForm.status,
+      };
+
+      if (editingAssignment) {
+        await api(`/benefits/assignments/${editingAssignment.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        });
+        setMsg('Employee insurance enrolment updated successfully!');
+      } else {
+        await api('/benefits/assign', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        setMsg('Insurance scheme assigned to employee successfully!');
+      }
+
       setShowAssignModal(false);
+      setEditingAssignment(null);
       setAssignForm({
         employeeId: '',
         benefitPlanId: '',
@@ -182,6 +236,34 @@ export default function BenefitsPage() {
       setSubmitting(false);
     }
   }
+
+  const handleDeleteAssignment = async (a) => {
+    const id = v(a, 'id');
+    const empName = v(a, 'fullName', 'full_name') || 'Employee';
+    if (!confirm(`Are you sure you want to remove insurance enrolment for ${empName}?`)) return;
+    try {
+      await api(`/benefits/assignments/${id}`, { method: 'DELETE' });
+      setMsg('Enrolment removed successfully.');
+      loadData();
+    } catch (err) {
+      setError(err.message || 'Failed to remove enrolment.');
+    }
+  };
+
+  const openEditAssignmentModal = (a) => {
+    setEditingAssignment(a);
+    setAssignForm({
+      employeeId: String(v(a, 'employeeId', 'employee_id') || ''),
+      benefitPlanId: String(v(a, 'benefitPlanId', 'benefit_plan_id') || ''),
+      memberId: v(a, 'memberId', 'member_id') || '',
+      coverageTier: v(a, 'coverageTier', 'coverage_tier') || 'employee_only',
+      dependentsCount: Number(v(a, 'dependentsCount', 'dependents_count') || 0),
+      startDate: String(v(a, 'startDate', 'start_date') || '').slice(0, 10),
+      endDate: String(v(a, 'endDate', 'end_date') || '').slice(0, 10),
+      status: v(a, 'status') || 'active',
+    });
+    setShowAssignModal(true);
+  };
 
   // Filtered assignments
   const filteredAssignments = useMemo(() => {
@@ -467,23 +549,61 @@ export default function BenefitsPage() {
                           AED {Number(v(a, 'annualPremiumEmployer', 'annual_premium_employer') || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          <button
-                            type="button"
-                            className="btn"
-                            onClick={() => setPreviewCardItem(a)}
-                            style={{
-                              padding: '3px 10px',
-                              fontSize: '11.5px',
-                              fontWeight: 600,
-                              background: 'rgba(0, 184, 219, 0.1)',
-                              color: '#008fa8',
-                              border: '1px solid rgba(0, 184, 219, 0.3)',
-                              borderRadius: 6,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            💳 View Card
-                          </button>
+                          <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                            <button
+                              type="button"
+                              className="btn"
+                              onClick={() => setPreviewCardItem(a)}
+                              style={{
+                                padding: '3px 8px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                background: 'rgba(0, 184, 219, 0.1)',
+                                color: '#008fa8',
+                                border: '1px solid rgba(0, 184, 219, 0.3)',
+                                borderRadius: 6,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              💳 Card
+                            </button>
+                            {isAdmin && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => openEditAssignmentModal(a)}
+                                  style={{
+                                    padding: '3px 8px',
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                    background: '#ffffff',
+                                    color: '#334155',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: 6,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAssignment(a)}
+                                  style={{
+                                    padding: '3px 8px',
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                    background: '#fff1f2',
+                                    color: '#e11d48',
+                                    border: '1px solid #fecdd3',
+                                    borderRadius: 6,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  Remove
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -583,21 +703,60 @@ export default function BenefitsPage() {
                   ) : null}
                 </div>
 
-                <div style={{ paddingTop: 12, borderTop: '1px solid var(--line, #f1f5f9)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ paddingTop: 12, borderTop: '1px solid var(--line, #f1f5f9)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                   <span style={{ fontSize: '12px', color: '#008fa8', fontWeight: 600 }}>
-                    👥 {v(p, 'enrolledCount', 'enrolled_count') || 0} employees enrolled
+                    👥 {v(p, 'enrolledCount', 'enrolled_count') || 0} enrolled
                   </span>
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => {
-                      setAssignForm((f) => ({ ...f, benefitPlanId: String(v(p, 'id')) }));
-                      setShowAssignModal(true);
-                    }}
-                    style={{ padding: '4px 10px', fontSize: '11.5px', background: 'var(--surface-alt)' }}
-                  >
-                    + Enroll Employee
-                  </button>
+                  <div style={{ display: 'inline-flex', gap: 6 }}>
+                    {isAdmin && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => openEditPlanModal(p)}
+                          style={{
+                            padding: '4px 10px',
+                            fontSize: '11.5px',
+                            fontWeight: 600,
+                            background: '#ffffff',
+                            color: '#334155',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePlan(p)}
+                          style={{
+                            padding: '4px 10px',
+                            fontSize: '11.5px',
+                            fontWeight: 600,
+                            background: '#fff1f2',
+                            color: '#e11d48',
+                            border: '1px solid #fecdd3',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => {
+                        setEditingAssignment(null);
+                        setAssignForm((f) => ({ ...f, benefitPlanId: String(v(p, 'id')) }));
+                        setShowAssignModal(true);
+                      }}
+                      style={{ padding: '4px 10px', fontSize: '11.5px', background: 'var(--surface-alt)' }}
+                    >
+                      + Enroll
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -621,10 +780,15 @@ export default function BenefitsPage() {
         >
           <div className="card" style={{ maxWidth: 540, width: '100%', padding: '24px', borderRadius: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-              <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700 }}>Assign Insurance Scheme to Employee</h3>
+              <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700 }}>
+                {editingAssignment ? 'Edit Employee Insurance Enrolment' : 'Assign Insurance Scheme to Employee'}
+              </h3>
               <button
                 type="button"
-                onClick={() => setShowAssignModal(false)}
+                onClick={() => {
+                  setShowAssignModal(false);
+                  setEditingAssignment(null);
+                }}
                 style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--muted)' }}
               >
                 ✕
@@ -761,10 +925,15 @@ export default function BenefitsPage() {
         >
           <div className="card" style={{ maxWidth: 540, width: '100%', padding: '24px', borderRadius: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-              <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700 }}>Add Corporate Benefit Scheme</h3>
+              <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700 }}>
+                {editingPlan ? 'Edit Corporate Benefit Scheme' : 'Add Corporate Benefit Scheme'}
+              </h3>
               <button
                 type="button"
-                onClick={() => setShowNewPlanModal(false)}
+                onClick={() => {
+                  setShowNewPlanModal(false);
+                  setEditingPlan(null);
+                }}
                 style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--muted)' }}
               >
                 ✕

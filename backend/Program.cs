@@ -184,6 +184,8 @@ if (args.Contains("--hash-passwords", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+app.UseCors("PortalClients");
+
 app.Use(async (ctx, next) =>
 {
     try
@@ -197,7 +199,6 @@ app.Use(async (ctx, next) =>
 
         if (ctx.Response.HasStarted) throw;
 
-        ctx.Response.Clear();
         ctx.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
         ctx.Response.ContentType = "application/json";
 
@@ -229,7 +230,6 @@ Directory.CreateDirectory(Path.Combine(app.Environment.ContentRootPath, "wwwroot
 Directory.CreateDirectory(Path.Combine(app.Environment.ContentRootPath, "wwwroot", "uploads", "certificates"));
 Directory.CreateDirectory(Path.Combine(app.Environment.ContentRootPath, "wwwroot", "uploads", "photos"));
 
-app.UseCors("PortalClients");
 app.UseAuthentication();
 app.Use(async (ctx, next) =>
 {

@@ -17,6 +17,8 @@ export default function Profile() {
   const [previewDoc, setPreviewDoc] = useState(null);
   const [previewImgError, setPreviewImgError] = useState(false);
 
+  const [customFieldDefs, setCustomFieldDefs] = useState([]);
+
   useEffect(() => {
     const id = session.get()?.user?.employeeId;
     if (!id) return;
@@ -24,11 +26,13 @@ export default function Profile() {
       api('/ess/' + id).catch(() => null),
       api('/leave/team/summary').catch(() => null),
       api('/divisions').catch(() => []),
+      api('/custom-fields').catch(() => []),
     ])
-      .then(([ess, summary, divs]) => {
+      .then(([ess, summary, divs, fields]) => {
         setData(ess);
         setTeam(summary);
         setDivisions(Array.isArray(divs) ? divs : []);
+        setCustomFieldDefs(Array.isArray(fields) ? fields : []);
       })
       .catch((e) => setError(e.message));
   }, []);
@@ -37,11 +41,24 @@ export default function Profile() {
   const docs = data?.documents || [];
   let md = {};
   try {
-    md = typeof profile.masterData === 'string' ? JSON.parse(profile.masterData || '{}') : profile.masterData || {};
+    const raw = profile.masterData || profile.master_data;
+    md = typeof raw === 'string' ? JSON.parse(raw || '{}') : (raw || {});
   } catch {}
 
-  const divId = String(value(profile, 'divisionId', 'division_id') || md.divisionId || (md.companyIds && md.companyIds[0]) || '');
-  const company = value(profile, 'divisionName', 'division_name', 'companyName', 'company_name') || md.divisionName || '';
+  const divId = String(
+    value(profile, 'divisionId', 'division_id') ||
+    md.divisionId ||
+    md.division_id ||
+    (Array.isArray(md.companyIds) && md.companyIds[0]) ||
+    (Array.isArray(md.company_ids) && md.company_ids[0]) ||
+    ''
+  );
+  const company =
+    value(profile, 'divisionName', 'division_name', 'companyName', 'company_name') ||
+    md.divisionName ||
+    md.division_name ||
+    md.branch ||
+    '';
 
   const matchedComp = divisions.find(
     (d) =>
@@ -50,7 +67,7 @@ export default function Profile() {
       (company && String(value(d, 'code') || '').toLowerCase().trim() === String(company).toLowerCase().trim())
   );
   const companyLogo = matchedComp?.logo_url || matchedComp?.logoUrl || value(profile, 'division_logo', 'divisionLogo', 'logo_url') || '';
-  const displayCompany = matchedComp ? value(matchedComp, 'name') : company;
+  const displayCompany = (matchedComp ? value(matchedComp, 'name') : company) || (divisions.length > 0 ? value(divisions[0], 'name') : 'GOCs Corporate Group');
 
   const citizenIdAddress = md.homeCountryAddress || md.citizenIdAddress || value(profile, 'homeCountryAddress', 'home_country_address') || '';
   const residentialAddress = md.addressInUae || md.residentialAddress || value(profile, 'addressInUae', 'address_in_uae', 'residentialAddress', 'residential_address') || '';
@@ -342,12 +359,79 @@ export default function Profile() {
                   <span style={{ lineHeight: 1.4 }}>{citizenIdAddress || '—'}</span>
                 </ProfileRow>
 
-                <ProfileRow label={t('residential_address')} isLast>
+                <ProfileRow label={t('residential_address')} isLast={customFieldDefs.length === 0}>
                   <span style={{ lineHeight: 1.4 }}>{residentialAddress || '—'}</span>
                 </ProfileRow>
               </div>
             </div>
           </div>
+
+          {/* 2B. CUSTOM FIELDS & ATTRIBUTES CARD */}
+          {customFieldDefs.length > 0 && (
+            <div className="panel-card" style={{ marginBottom: 20 }}>
+              <div className="panel-head" style={{ borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
+                <div className="panel-title">
+                  <h2>{locale === 'ar' ? 'المعلومات الإضافية والسمات المخصصة' : 'Additional Information & Custom Attributes'}</h2>
+                  <p>{locale === 'ar' ? 'الحقول والسمات التنظيمية الخاصة بالموظف' : 'Custom organizational data attributes configured by HR'}</p>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                  gap: 16,
+                  paddingTop: 12,
+                }}
+              >
+                {customFieldDefs.map((field) => {
+                  const key = field.fieldKey || field.field_key || '';
+                  const keyLower = key.toLowerCase();
+                  const keySnake = key.replace(/([A-Z])/g, '_$1').toLowerCase();
+                  const label = field.label || key;
+
+                  const cf = md.customFields || md.custom_fields || {};
+                  const pcf = profile.customFields || profile.custom_fields || {};
+
+                  const rawVal =
+                    cf[key] ??
+                    cf[keyLower] ??
+                    cf[keySnake] ??
+                    md[key] ??
+                    md[keyLower] ??
+                    md[keySnake] ??
+                    pcf[key] ??
+                    pcf[keyLower] ??
+                    profile[key] ??
+                    profile[keyLower] ??
+                    '';
+
+                  const displayVal = typeof rawVal === 'boolean'
+                    ? (rawVal ? 'Yes' : 'No')
+                    : (rawVal !== '' && rawVal !== null && rawVal !== undefined ? String(rawVal) : '—');
+
+                  return (
+                    <div
+                      key={field.id}
+                      style={{
+                        padding: '12px 16px',
+                        borderRadius: 10,
+                        background: 'var(--surface-alt)',
+                        border: '1px solid var(--line)',
+                      }}
+                    >
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        {label}
+                      </div>
+                      <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--ink)', marginTop: 4 }}>
+                        {displayVal}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* 3. UPLOADED DOCUMENTS & CREDENTIALS TABLE */}
           <div className="panel-card">

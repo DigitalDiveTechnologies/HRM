@@ -1392,3 +1392,266 @@ html[dir='rtl'] .sidebar-nav a:hover {
   border-color: rgba(0, 184, 219, 0.7) !important;
 }
 
+
+
+/* =========================================================================
+   UNIVERSAL MODAL & DATA ENTRY DIALOG ARCHITECTURE
+   ========================================================================= */
+.modal-overlay,
+.modal-backdrop,
+.portal-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 11, 31, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+  animation: modalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-content,
+.modal-card,
+.portal-modal-card {
+  background: var(--surface, #FFFFFF);
+  border: 1px solid var(--line, #E4EEF3);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 580px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  box-shadow: 0 24px 48px -12px rgba(2, 11, 31, 0.28), 0 0 0 1px rgba(0, 184, 219, 0.12);
+  padding: 24px 28px;
+  box-sizing: border-box;
+  animation: modalZoomIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line, #E4EEF3);
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+}
+
+.modal-header h2,
+.modal-header h3,
+.modal-title {
+  margin: 0;
+  font-size: 16.5px;
+  font-weight: 700;
+  color: var(--ink, #101828);
+  letter-spacing: -0.01em;
+}
+
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  color: var(--muted, #64748b);
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 4px 8px;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+.modal-close-btn:hover {
+  background: rgba(0, 184, 219, 0.08);
+  color: var(--brand, #00B8DB);
+}
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  border-top: 1px solid var(--line, #E4EEF3);
+  padding-top: 16px;
+  margin-top: 20px;
+}
+
+/* =========================================================================
+   DATA ENTRY FORMS, INPUTS, SELECTS & TEXTAREAS
+   ========================================================================= */
+input[type='text'],
+input[type='search'],
+input[type='email'],
+input[type='password'],
+input[type='number'],
+input[type='date'],
+input[type='datetime-local'],
+input[type='tel'],
+select,
+textarea,
+.portal-input,
+.form-control,
+.emp-input {
+  width: 100%;
+  padding: 9px 13px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--ink, #101828);
+  background: var(--surface, #FFFFFF);
+  border: 1px solid var(--line, #cbd5e1);
+  border-radius: 8px;
+  box-sizing: border-box;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+  outline: none;
+  line-height: 1.5;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+.portal-input:focus,
+.form-control:focus,
+.emp-input:focus {
+  border-color: var(--brand, #00B8DB) !important;
+  box-shadow: 0 0 0 3px rgba(0, 184, 219, 0.18) !important;
+  background: var(--surface, #FFFFFF);
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: #94a3b8;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted, #94a3b8);
+  opacity: 0.85;
+}
+
+label,
+.field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink, #101828);
+  margin-bottom: 5px;
+}
+
+/* =========================================================================
+   SEARCH FIELDS & INPUT WRAPPERS
+   ========================================================================= */
+.search-input-wrap,
+.search-box-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border-radius: 8px;
+  background: var(--surface-alt, #EEF9FC);
+  border: 1px solid var(--line, #E4EEF3);
+  padding: 0 12px;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.search-input-wrap:focus-within,
+.search-box-wrap:focus-within {
+  border-color: var(--brand, #00B8DB) !important;
+  background: var(--surface, #FFFFFF) !important;
+  box-shadow: 0 0 0 3px rgba(0, 184, 219, 0.15) !important;
+}
+
+.search-input-wrap svg,
+.search-box-wrap svg {
+  color: var(--muted, #64748b);
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+
+.search-input-wrap input,
+.search-box-wrap input {
+  border: none !important;
+  background: transparent !important;
+  padding: 8px 0 !important;
+  box-shadow: none !important;
+  width: 100%;
+  outline: none !important;
+}
+
+/* =========================================================================
+   DARK MODE ADJUSTMENTS FOR MODALS & FORMS
+   ========================================================================= */
+:root[data-theme='dark'] .modal-content,
+:root[data-theme='dark'] .modal-card,
+:root[data-theme='dark'] .portal-modal-card {
+  background: #0A1A33 !important;
+  border-color: rgba(0, 184, 219, 0.32) !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 24px 50px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(0, 184, 219, 0.22) !important;
+}
+
+:root[data-theme='dark'] input[type='text'],
+:root[data-theme='dark'] input[type='search'],
+:root[data-theme='dark'] input[type='email'],
+:root[data-theme='dark'] input[type='password'],
+:root[data-theme='dark'] input[type='number'],
+:root[data-theme='dark'] input[type='date'],
+:root[data-theme='dark'] input[type='tel'],
+:root[data-theme='dark'] select,
+:root[data-theme='dark'] textarea,
+:root[data-theme='dark'] .portal-input,
+:root[data-theme='dark'] .form-control,
+:root[data-theme='dark'] .emp-input {
+  background: #03142C !important;
+  color: #FFFFFF !important;
+  border-color: rgba(0, 184, 219, 0.28) !important;
+}
+
+:root[data-theme='dark'] input:focus,
+:root[data-theme='dark'] select:focus,
+:root[data-theme='dark'] textarea:focus,
+:root[data-theme='dark'] .portal-input:focus,
+:root[data-theme='dark'] .form-control:focus,
+:root[data-theme='dark'] .emp-input:focus {
+  border-color: #00B8DB !important;
+  box-shadow: 0 0 0 3px rgba(0, 184, 219, 0.3) !important;
+  background: #0A1A33 !important;
+}
+
+:root[data-theme='dark'] label,
+:root[data-theme='dark'] .field-label {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+:root[data-theme='dark'] .modal-header h2,
+:root[data-theme='dark'] .modal-header h3,
+:root[data-theme='dark'] .modal-title {
+  color: #FFFFFF !important;
+}
+
+:root[data-theme='dark'] .search-input-wrap,
+:root[data-theme='dark'] .search-box-wrap {
+  background: #03142C !important;
+  border-color: rgba(0, 184, 219, 0.28) !important;
+}
+
+:root[data-theme='dark'] .search-input-wrap:focus-within,
+:root[data-theme='dark'] .search-box-wrap:focus-within {
+  background: #0A1A33 !important;
+  border-color: #00B8DB !important;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalZoomIn {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}

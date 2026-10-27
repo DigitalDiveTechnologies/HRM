@@ -19,6 +19,29 @@ public sealed class CustomFieldsController : ControllerBase
         _db = db;
     }
 
+    [HttpGet("schema")]
+    public async Task<IActionResult> GetSchema(CancellationToken ct = default)
+    {
+        return await GetFields(includeInactive: false, ct);
+    }
+
+    [HttpPost("schema")]
+    [Authorize(Roles = "admin,manager")]
+    public async Task<IActionResult> CreateSchemaField([FromBody] DigitalDive.Hr.Api.Models.CustomFieldSchemaRequest body, CancellationToken ct)
+    {
+        var createReq = new CustomFieldCreateRequest
+        {
+            FieldKey = body.FieldKey,
+            Label = body.Label,
+            FieldType = body.DataType ?? "text",
+            IsRequired = body.Required,
+            TabGroup = body.Category ?? "custom",
+            Options = body.Options,
+            SortOrder = 0
+        };
+        return await CreateField(createReq, ct);
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetFields([FromQuery] bool includeInactive = false, CancellationToken ct = default)
     {

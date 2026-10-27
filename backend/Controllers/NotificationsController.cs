@@ -62,4 +62,12 @@ public sealed class NotificationsController : ControllerBase
             throw;
         }
     }
+
+    [HttpPost("dispatch-renewal-reminders")]
+    public async Task<IActionResult> DispatchRenewalReminders(CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "notifications.view")) return Forbid();
+        var result = await _hr.DispatchRenewalRemindersAsync(ct);
+        return Ok(result);
+    }
 }

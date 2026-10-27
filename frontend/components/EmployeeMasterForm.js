@@ -124,14 +124,14 @@ function SectionCard({ title, children, style = {} }) {
 }
 
 const FORM_TABS = [
-  { id: 'Personal info', label: 'Personal info' },
-  { id: 'Address', label: 'Address' },
-  { id: 'Education', label: 'Education' },
-  { id: 'Work experience', label: 'Work experience' },
-  { id: 'Employee details', label: 'Employee details' },
-  { id: 'Documents', label: 'Documents' },
-  { id: 'Payroll', label: 'Payroll' },
-  { id: 'Custom fields', label: 'Custom fields' },
+  { id: 'Personal info', label: 'Personal Information' },
+  { id: 'Address', label: 'Addresses & Contacts' },
+  { id: 'Education', label: 'Education & Qualifications' },
+  { id: 'Work experience', label: 'Work Experience' },
+  { id: 'Employee details', label: 'Employment Details' },
+  { id: 'Documents', label: 'Official Documents & IDs' },
+  { id: 'Payroll', label: 'Payroll & Compensation' },
+  { id: 'Custom fields', label: 'Custom Attributes' },
 ];
 
 export default function EmployeeMasterForm({
@@ -2698,7 +2698,16 @@ export default function EmployeeMasterForm({
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     {customFields.map((field) => {
-                      const value = form.customFields?.[field.fieldKey] ?? form[field.fieldKey] ?? form.master_data?.[field.fieldKey] ?? '';
+                      const k = field.fieldKey;
+                      const kLower = k ? k.toLowerCase() : '';
+                      const value =
+                        form.customFields?.[k] ??
+                        form.customFields?.[kLower] ??
+                        form[k] ??
+                        form[kLower] ??
+                        form.masterData?.[k] ??
+                        form.master_data?.[k] ??
+                        '';
                       let parsedOptions = [];
                       if (Array.isArray(field.optionsJson)) {
                         parsedOptions = field.optionsJson;

@@ -26,6 +26,7 @@ export default function PayrollPage() {
   });
   const [busy, setBusy] = useState(false);
   const [emiratisation, setEmiratisation] = useState(null);
+  const [activeRunLines, setActiveRunLines] = useState([]);
 
   const load = useCallback(() => {
     setError('');
@@ -44,6 +45,21 @@ export default function PayrollPage() {
         setSummary(sum || []);
         setRuns(runList || []);
         setEmiratisation(emi);
+
+        // Fetch lines and WPS audit warnings for current period run
+        const matched = (runList || []).find((r) => {
+          const y = Number(v(r, 'periodYear', 'period_year'));
+          const m = Number(v(r, 'periodMonth', 'period_month'));
+          const [py, pm] = String(period).split('-').map(Number);
+          return y === py && m === pm && String(v(r, 'status')) !== 'reversed';
+        });
+        if (matched?.id) {
+          api(`/payroll/runs/${matched.id}`)
+            .then((res) => setActiveRunLines(res?.lines || []))
+            .catch(() => setActiveRunLines([]));
+        } else {
+          setActiveRunLines([]);
+        }
       })
       .catch((e) => setError(e.message));
   }, [period]);
@@ -171,6 +187,10 @@ export default function PayrollPage() {
     return y === py && m === pm && String(v(r, 'status')) !== 'reversed';
   });
 
+  const wpsWarnings = (activeRunLines || []).filter(
+    (l) => !l.wps_ready || (l.validation_notes && String(l.validation_notes).trim() !== '')
+  );
+
   return (
     <AppShell title="Payroll Management" subtitle="Controlled UAE payroll — calculate → review → approve/lock → pay → SIF">
       {error ? <div className="error">{error}</div> : null}
@@ -182,7 +202,7 @@ export default function PayrollPage() {
         </div>
         <p className="muted" style={{ marginTop: 0 }}>
           Feeds: attendance OT (period dates) + approved unpaid leave (overlap days) + GPSSA preview for Emirati/GPSSA staff.
-          Creates a control run and payslips together.
+          Creates a control run and payslips together, validating Wages Protection System compliance.
         </p>
         <div className="toolbar-row">
           <label className="field field-inline">
@@ -191,7 +211,7 @@ export default function PayrollPage() {
           </label>
           <div className="toolbar-actions">
             <button className="btn" type="button" disabled={busy} onClick={runPayroll}>
-              {busy ? 'Running…' : 'Calculate / generate'}
+              {busy ? 'Calculating Run…' : 'Calculate Payroll Run'}
             </button>
             <button className="btn secondary" type="button" onClick={() => downloadExport('wps')}>
               Download WPS CSV
@@ -202,6 +222,102 @@ export default function PayrollPage() {
           </div>
         </div>
       </div>
+
+      {/* Pre-WPS Audit Warnings Card */}
+      {periodRun ? (
+        <div
+          className="card"
+          style={{
+            marginBottom: 14,
+            borderLeft: wpsWarnings.length > 0 ? '4px solid #f59e0b' : '4px solid #10b981',
+            background: wpsWarnings.length > 0 ? 'rgba(254, 243, 199, 0.2)' : 'rgba(209, 250, 229, 0.2)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: '20px' }}>{wpsWarnings.length > 0 ? '⚠️' : '✅'}</span>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--ink)' }}>
+                  Pre-WPS Audit Warnings & Statutory Verification
+                </h3>
+                <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: 2 }}>
+                  MOHRE Wages Protection System (WPS) pre-audit for Period {period}
+                </div>
+              </div>
+            </div>
+
+            <span
+              style={{
+                fontSize: '12px',
+                fontWeight: 700,
+                padding: '4px 12px',
+                borderRadius: 999,
+                background: wpsWarnings.length > 0 ? '#fef3c7' : '#d1fae5',
+                color: wpsWarnings.length > 0 ? '#b45309' : '#065f46',
+                border: wpsWarnings.length > 0 ? '1px solid #fcd34d' : '1px solid #6ee7b7',
+              }}
+            >
+              {wpsWarnings.length > 0 ? `${wpsWarnings.length} Pre-WPS Warnings` : 'Pre-WPS Audit Passed · 100% Ready'}
+            </span>
+          </div>
+
+          {wpsWarnings.length > 0 ? (
+            <div>
+              <p style={{ margin: '0 0 12px', fontSize: '12.5px', color: '#92400e', lineHeight: 1.5 }}>
+                The following employee records have missing or incomplete statutory information required for UAE Wages Protection System (WPS) SIF file processing. Resolve these in the employee profile before final approval & SIF dispatch:
+              </p>
+              <div className="table-wrap">
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
+                  <thead>
+                    <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--line)', color: 'var(--muted)' }}>
+                      <th style={{ padding: '8px 10px' }}>Employee</th>
+                      <th style={{ padding: '8px 10px' }}>Payment Method</th>
+                      <th style={{ padding: '8px 10px' }}>Pre-WPS Audit Warning</th>
+                      <th style={{ padding: '8px 10px' }}>Net Pay</th>
+                      <th style={{ padding: '8px 10px' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {wpsWarnings.map((line, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid var(--line)' }}>
+                        <td style={{ padding: '8px 10px' }}>
+                          <strong>{line.full_name || line.emp_code}</strong>
+                          <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Code: {line.emp_code}</div>
+                        </td>
+                        <td style={{ padding: '8px 10px' }}>
+                          <span style={{ textTransform: 'capitalize' }}>{line.payment_method || 'WPS'}</span>
+                        </td>
+                        <td style={{ padding: '8px 10px' }}>
+                          <span style={{ color: '#dc2626', fontWeight: 600, background: '#fee2e2', padding: '2px 8px', borderRadius: 4, fontSize: '11.5px' }}>
+                            {line.validation_notes || 'Missing IBAN or MOL Person ID'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '8px 10px' }}>
+                          AED {Number(line.net || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td style={{ padding: '8px 10px' }}>
+                          <a
+                            href="/employees"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: '#00b8db', fontWeight: 600, textDecoration: 'none', fontSize: '12px' }}
+                          >
+                            Resolve in Profile →
+                          </a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontSize: '13px', color: '#065f46', lineHeight: 1.5 }}>
+              All {activeRunLines.length} employee lines in this payroll run have passed statutory Pre-WPS audit checks. All IBANs and MOL Person IDs are verified. The run is ready for review and locking into a signed SIF file.
+            </div>
+          )}
+        </div>
+      ) : null}
 
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="panel-title">

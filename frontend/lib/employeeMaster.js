@@ -377,6 +377,30 @@ export function masterFormFromEmployee(employee) {
     photoPath: v(employee, 'photoPath', 'photo_path') || '',
     photoPreview: '',
     photoFile: null,
+    customFields: (() => {
+      const explicit = md.customFields || md.custom_fields || {};
+      const merged = { ...explicit };
+      const knownKeys = new Set([
+        'firstName', 'middleName', 'lastName', 'email', 'mobilePhone', 'officePhone', 'jobTitle',
+        'departmentId', 'divisionId', 'branch', 'designationId', 'employmentTypeId', 'managerId',
+        'joinDate', 'workAddress', 'homeAddress', 'membership', 'administration', 'personal',
+        'gender', 'dateOfBirth', 'maritalStatus', 'nationality', 'currentAddress', 'addressInUae',
+        'homeCountryAddress', 'passportNumber', 'passportStartDate', 'passportExpiryDate',
+        'emiratesIdNumber', 'emiratesIdStartDate', 'emiratesIdExpiryDate', 'previousVisaType',
+        'experienceLetterName', 'experienceLetterUrl', 'educationalCertificateName', 'educationalCertificateUrl',
+        'customDocuments', 'workExperiences', 'workExperience', 'educations', 'education', 'companyIds',
+        'finance', 'basicSalary', 'allowances', 'housingAllowance', 'transportAllowance', 'mobileAllowance',
+        'otherAllowance', 'grossSalary', 'bankName', 'accountNo', 'iban', 'paymentMethod', 'taxId',
+        'remarks', 'attachmentsNote', 'naturalPerson', 'dataProtectionStatus', 'appPassword', 'password',
+        'photoPath', 'photoRemoved', 'customFields', 'custom_fields'
+      ]);
+      for (const [k, val] of Object.entries(md)) {
+        if (!knownKeys.has(k) && val !== undefined && val !== null && val !== '') {
+          merged[k] = val;
+        }
+      }
+      return merged;
+    })(),
   };
 }
 
@@ -520,8 +544,8 @@ export function masterPayloadFromForm(form, { includePassword = false } = {}) {
     naturalPerson: !!form.naturalPerson,
     dataProtectionStatus: form.dataProtectionStatus || 'none',
     ...(form.password?.trim() ? { appPassword: form.password.trim() } : {}),
-    photoRemoved: !!form.photoRemoved || (!form.photoPath && !form.photoPreview && !form.photoFile),
     photoPath: form.photoPath || '',
+    customFields: form.customFields || {},
     ...(form.customFields || {}),
   };
 

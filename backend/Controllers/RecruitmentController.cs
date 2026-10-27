@@ -142,4 +142,60 @@ public sealed class RecruitmentController : ControllerBase
             return NotFound(new { error = "candidate not found" });
         }
     }
+
+    // ==========================================
+    // Task 5.1: Dynamic Employment Offer Letter Generator
+    // ==========================================
+
+    [HttpGet("candidates/{id:int}/offer")]
+    public async Task<IActionResult> GetCandidateOffer(int id, CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "recruitment.view")) return Forbid();
+        var offer = await _hr.GetCandidateOfferAsync(id, ct);
+        return offer is null ? NotFound(new { error = "Offer not found for candidate" }) : Ok(offer);
+    }
+
+    [HttpPost("candidates/{id:int}/offer")]
+    public async Task<IActionResult> SaveCandidateOffer(int id, [FromBody] CandidateOfferRequest body, CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "recruitment.view")) return Forbid();
+        if (string.IsNullOrWhiteSpace(body.JobTitle))
+            return BadRequest(new { error = "Job title is required" });
+        if (body.BasicSalary <= 0)
+            return BadRequest(new { error = "Basic salary must be greater than zero" });
+
+        var designation = !string.IsNullOrWhiteSpace(body.JobTitle) ? body.JobTitle.Trim() : (!string.IsNullOrWhiteSpace(body.Designation) ? body.Designation.Trim() : "Staff Position");
+        var joiningDate = !string.IsNullOrWhiteSpace(body.JoinDate) ? body.JoinDate.Trim() : (!string.IsNullOrWhiteSpace(body.JoiningDate) ? body.JoiningDate.Trim() : DateTime.UtcNow.AddDays(30).ToString("yyyy-MM-dd"));
+        var probationMonths = body.ProbationPeriodMonths > 0 ? body.ProbationPeriodMonths : 6;
+        var contractType = string.IsNullOrWhiteSpace(body.ContractType) ? "limited" : body.ContractType.Trim();
+        var status = string.IsNullOrWhiteSpace(body.Status) ? "issued" : body.Status.Trim();
+
+        var offer = await _hr.CreateOrUpdateCandidateOfferAsync(
+            id,
+            body.JobId,
+            designation,
+            body.BasicSalary,
+            body.HousingAllowance,
+            body.TransportAllowance,
+            joiningDate,
+            probationMonths,
+            contractType,
+            status,
+            null,
+            ct);
+
+        return Ok(offer);
+    }
+
+    [HttpGet("candidates/{id:int}/offer/pdf")]
+    public async Task<IActionResult> GetCandidateOfferPdf(int id, CancellationToken ct)
+    {
+        if (!await PermissionGate.HasAsync(_rbac, User, ct, "recruitment.view")) return Forbid();
+        var offer = await _hr.GetCandidateOfferAsync(id, ct);
+        if (offer is null)
+            return NotFound(new { error = "Offer not found for candidate" });
+
+        var html = offer.TryGetValue("offer_html", out var h) ? h?.ToString() ?? "" : "";
+        return Content(html, "text/html; charset=utf-8");
+    }
 }

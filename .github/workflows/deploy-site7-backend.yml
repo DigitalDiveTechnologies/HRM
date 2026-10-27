@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - ci/site7-backend
     paths:
       - backend/**
       - tools/deploy-site7-backend.py
@@ -33,11 +32,4 @@ jobs:
       - name: Upload to site7 over FTPES and verify API
         env:
           SITE7_FTP_PASSWORD: ${{ secrets.SITE7_FTP_PASSWORD }}
-        run: |
-          python tools/deploy-site7-backend.py "${{ runner.temp }}/site7-publish" 2>&1 | tee deploy.log
-      - name: Upload deployment log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: deploy-log
-          path: deploy.log
+        run: python tools/deploy-site7-backend.py "${{ runner.temp }}/site7-publish"

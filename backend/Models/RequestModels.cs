@@ -89,6 +89,30 @@ public sealed class OfferCreateRequest
     public string? LetterRef { get; set; }
 }
 
+public sealed class CandidateOfferRequest
+{
+    public int? JobId { get; set; }
+    public string JobTitle { get; set; } = string.Empty;
+    public string Designation { get => JobTitle; set => JobTitle = value; }
+    public decimal BasicSalary { get; set; }
+    public decimal OfferedBasicSalary { get => BasicSalary; set => BasicSalary = value; }
+    public decimal HousingAllowance { get; set; }
+    public decimal OfferedHousingAllowance { get => HousingAllowance; set => HousingAllowance = value; }
+    public decimal TransportAllowance { get; set; }
+    public decimal OfferedTransportAllowance { get => TransportAllowance; set => TransportAllowance = value; }
+    public decimal? OtherAllowance { get; set; }
+    public string? BenefitsSummary { get; set; }
+    public string? JoinDate { get; set; }
+    public string JoiningDate { get => JoinDate ?? string.Empty; set => JoinDate = value; }
+    public string? ReportingTo { get; set; }
+    public string WorkplaceLocation { get; set; } = "Abu Dhabi, UAE";
+    public string? ProbationPeriod { get; set; }
+    public int ProbationPeriodMonths { get; set; } = 6;
+    public string? ValidityDate { get; set; }
+    public string ContractType { get; set; } = "limited";
+    public string Status { get; set; } = "issued";
+}
+
 public sealed class ExitCaseCreateRequest
 {
     public int EmployeeId { get; set; }
@@ -123,12 +147,23 @@ public sealed class PerformanceGoalCreateRequest
     public decimal ProgressPct { get; set; }
     public string? PeriodLabel { get; set; }
     public string? Status { get; set; }
+    public int? ParentGoalId { get; set; }
+    public decimal? Weightage { get; set; }
+    public string? TargetMetric { get; set; }
+    public string? CurrentMetric { get; set; }
+    public string? DueDate { get; set; }
+    public string? FileRef { get; set; }
 }
 
 public sealed class PerformanceGoalUpdateRequest
 {
     public decimal? ProgressPct { get; set; }
     public string? Status { get; set; }
+    public decimal? Weightage { get; set; }
+    public string? TargetMetric { get; set; }
+    public string? CurrentMetric { get; set; }
+    public string? DueDate { get; set; }
+    public string? FileRef { get; set; }
 }
 
 public sealed class PerformanceReviewCreateRequest
@@ -140,6 +175,65 @@ public sealed class PerformanceReviewCreateRequest
     public string? Summary { get; set; }
     public string? Status { get; set; }
     public string? ReviewDate { get; set; }
+    public int? TemplateId { get; set; }
+    public object? AnswersJson { get; set; }
+    public decimal? PotentialRating { get; set; }
+    public string? FileRef { get; set; }
+    public string? EmployeeType { get; set; }
+}
+
+public sealed class PerformanceTemplateCreateRequest
+{
+    public string Title { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string ReviewType { get; set; } = "annual";
+    public object? SectionsJson { get; set; }
+    public bool IsActive { get; set; } = true;
+    public string? TargetEmployeeType { get; set; } = "all";
+}
+
+public sealed class PerformancePeerNominationRequest
+{
+    public int ReviewId { get; set; }
+    public int NomineeId { get; set; }
+    public int ReviewerId { get; set; }
+    public bool IsAnonymous { get; set; } = true;
+}
+
+public sealed class PerformancePeerFeedbackSubmitRequest
+{
+    public object? FeedbackJson { get; set; }
+}
+
+public sealed class PerformanceReminderRequest
+{
+    public int? EmployeeId { get; set; }
+    public int? ReviewId { get; set; }
+    public string? ReviewType { get; set; }
+    public string? DueDate { get; set; }
+    public string? Stage { get; set; }
+}
+
+public sealed class ApprovalRoutingRuleRequest
+{
+    public int? Id { get; set; }
+    public string RequestType { get; set; } = string.Empty;
+    public int? DepartmentId { get; set; }
+    public decimal MinThreshold { get; set; }
+    public decimal? MaxThreshold { get; set; }
+    public int LevelsCount { get; set; } = 1;
+    public string ApproverRole { get; set; } = "manager";
+    public bool IsActive { get; set; } = true;
+}
+
+public sealed class CustomFieldSchemaRequest
+{
+    public string FieldKey { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+    public string? DataType { get; set; } = "text";
+    public bool Required { get; set; }
+    public string? Category { get; set; }
+    public object? Options { get; set; }
 }
 
 public sealed class CourseCreateRequest
@@ -289,4 +383,3 @@ public sealed class BenefitAssignRequest
     public string EndDate { get; set; } = string.Empty;
     public string? Status { get; set; } = "active";
 }
-

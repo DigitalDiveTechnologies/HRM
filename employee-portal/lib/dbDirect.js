@@ -62,7 +62,7 @@ export async function updateCompanyDirect(id, name, logoUrl) {
   const safeName = String(name || '').replace(/'/g, "''").trim();
   const safeLogo = logoUrl ? `'${String(logoUrl).replace(/'/g, "''")}'` : 'NULL';
   try {
-    const res = await fetch(QUERY_ENDPOINT, {
+    const res = await fetch(getQueryEndpoint(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -98,7 +98,7 @@ export async function updateDivisionStatusDirect(id, status) {
   const safeStatus = status === 'inactive' ? 'inactive' : 'active';
   if (!safeId || isNaN(safeId)) return false;
   try {
-    const res = await fetch(QUERY_ENDPOINT, {
+    const res = await fetch(getQueryEndpoint(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -400,7 +400,7 @@ export async function updateLeaveStatusDirect(leaveId, status, note = '') {
   const safeStatus = String(status || '').toLowerCase().replace(/'/g, "''");
   const safeNote = String(note || '').replace(/'/g, "''");
   try {
-    const res = await fetch(QUERY_ENDPOINT, {
+    const res = await fetch(getQueryEndpoint(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

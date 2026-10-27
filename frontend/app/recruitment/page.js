@@ -39,6 +39,24 @@ export default function RecruitmentPage() {
     source: 'Portal',
     resumeRef: '',
   });
+  // Task 5.1: Dynamic Employment Offer Letter Generator
+  const [selectedCandForOffer, setSelectedCandForOffer] = useState(null);
+  const [offerGenModalOpen, setOfferGenModalOpen] = useState(false);
+  const [offerPdfPreviewOpen, setOfferPdfPreviewOpen] = useState(false);
+  const [offerPreviewHtml, setOfferPreviewHtml] = useState('');
+  const [offerGenBusy, setOfferGenBusy] = useState(false);
+  const [offerGenForm, setOfferGenForm] = useState({
+    jobTitle: '',
+    basicSalary: 12000,
+    housingAllowance: 5000,
+    transportAllowance: 2000,
+    joinDate: '',
+    probationPeriodMonths: 6,
+    workplaceLocation: 'Abu Dhabi / Dubai, UAE',
+    contractType: 'limited',
+    status: 'issued',
+  });
+
   const [offerForm, setOfferForm] = useState({
     candidateId: '',
     salary: '',
@@ -92,6 +110,112 @@ export default function RecruitmentPage() {
       load();
     } catch (err) {
       setError(err.message);
+    }
+  }
+
+  async function openOfferGenerator(candidate) {
+    setSelectedCandForOffer(candidate);
+    setError('');
+    setMsg('');
+    const candId = v(candidate, 'id');
+    const defaultJobTitle = v(candidate, 'jobTitle', 'job_title') || 'Staff Specialist';
+    
+    // Check if candidate already has an existing offer
+    try {
+      const existing = await api(`/recruitment/candidates/${candId}/offer`);
+      if (existing && existing.id) {
+        setOfferGenForm({
+          jobTitle: existing.designation || existing.jobTitle || defaultJobTitle,
+          basicSalary: Number(existing.basic_salary || existing.basicSalary) || 12000,
+          housingAllowance: Number(existing.housing_allowance || existing.housingAllowance) || 5000,
+          transportAllowance: Number(existing.transport_allowance || existing.transportAllowance) || 2000,
+          joinDate: existing.joining_date ? existing.joining_date.substring(0, 10) : '',
+          probationPeriodMonths: Number(existing.probation_period_months) || 6,
+          workplaceLocation: existing.workplace_location || 'Abu Dhabi / Dubai, UAE',
+          contractType: existing.contract_type || 'limited',
+          status: existing.status || 'issued',
+        });
+        if (existing.offer_html) {
+          setOfferPreviewHtml(existing.offer_html);
+        }
+      } else {
+        setOfferGenForm({
+          jobTitle: defaultJobTitle,
+          basicSalary: 12000,
+          housingAllowance: 5000,
+          transportAllowance: 2000,
+          joinDate: '',
+          probationPeriodMonths: 6,
+          workplaceLocation: 'Abu Dhabi / Dubai, UAE',
+          contractType: 'limited',
+          status: 'issued',
+        });
+        setOfferPreviewHtml('');
+      }
+    } catch {
+      setOfferGenForm({
+        jobTitle: defaultJobTitle,
+        basicSalary: 12000,
+        housingAllowance: 5000,
+        transportAllowance: 2000,
+        joinDate: '',
+        probationPeriodMonths: 6,
+        workplaceLocation: 'Abu Dhabi / Dubai, UAE',
+        contractType: 'limited',
+        status: 'issued',
+      });
+      setOfferPreviewHtml('');
+    }
+    setOfferGenModalOpen(true);
+  }
+
+  async function handleSaveOfferLetter(e) {
+    if (e) e.preventDefault();
+    if (!selectedCandForOffer) return;
+    setOfferGenBusy(true);
+    setError('');
+    setMsg('');
+    try {
+      const candId = v(selectedCandForOffer, 'id');
+      const saved = await api(`/recruitment/candidates/${candId}/offer`, {
+        method: 'POST',
+        body: JSON.stringify({
+          jobTitle: offerGenForm.jobTitle,
+          basicSalary: Number(offerGenForm.basicSalary),
+          housingAllowance: Number(offerGenForm.housingAllowance),
+          transportAllowance: Number(offerGenForm.transportAllowance),
+          joinDate: offerGenForm.joinDate || undefined,
+          probationPeriodMonths: Number(offerGenForm.probationPeriodMonths) || 6,
+          contractType: offerGenForm.contractType,
+          status: offerGenForm.status,
+          workplaceLocation: offerGenForm.workplaceLocation,
+        }),
+      });
+      if (saved && saved.offer_html) {
+        setOfferPreviewHtml(saved.offer_html);
+      }
+      setMsg('Official employment offer letter generated successfully.');
+      load();
+    } catch (err) {
+      setError(err.message || 'Failed to save offer letter');
+    } finally {
+      setOfferGenBusy(false);
+    }
+  }
+
+  async function handlePreviewPdf(candidateId) {
+    try {
+      const token = localStorage.getItem('token');
+      const url = `/api/recruitment/candidates/${candidateId}/offer/pdf`;
+      const w = window.open(url, '_blank');
+      if (!w) {
+        // Fallback to fetch and open in iframe modal
+        const html = await fetch(url, { credentials: 'include', headers: { Authorization: `Bearer ${token}` } }).then(r => r.text());
+        setOfferPreviewHtml(html);
+        setOfferPdfPreviewOpen(true);
+      }
+    } catch (err) {
+      setError('Could not open offer PDF preview: ' + err.message);
     }
   }
 
@@ -329,21 +453,34 @@ export default function RecruitmentPage() {
                     </button>
                   </td>
                   <td>
-                    <select
-                      defaultValue=""
-                      onChange={(e) => {
-                        if (e.target.value) setStage(v(c, 'id'), e.target.value);
-                        e.target.value = '';
-                      }}
-                    >
-                      <option value="">Update…</option>
-                      <option value="applied">Applied</option>
-                      <option value="screening">Screening</option>
-                      <option value="interview">Interview</option>
-                      <option value="offer">Offer</option>
-                      <option value="hired">Hired</option>
-                      <option value="rejected">Rejected</option>
-                    </select>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <select
+                        defaultValue=""
+                        onChange={(e) => {
+                          if (e.target.value) setStage(v(c, 'id'), e.target.value);
+                          e.target.value = '';
+                        }}
+                      >
+                        <option value="">Update…</option>
+                        <option value="applied">Applied</option>
+                        <option value="screening">Screening</option>
+                        <option value="interview">Interview</option>
+                        <option value="offer">Offer</option>
+                        <option value="hired">Hired</option>
+                        <option value="rejected">Rejected</option>
+                      </select>
+                      {canManage && (
+                        <button
+                          type="button"
+                          className="btn secondary"
+                          style={{ fontSize: '0.75rem', padding: '4px 8px', whiteSpace: 'nowrap' }}
+                          title="Generate Branded Employment Offer Letter"
+                          onClick={() => openOfferGenerator(c)}
+                        >
+                          📜 Offer Letter
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -514,6 +651,164 @@ export default function RecruitmentPage() {
           </div>
         </div>
       </div>
+      {/* MODAL: TASK 5.1 OFFER LETTER GENERATOR */}
+      {offerGenModalOpen && selectedCandForOffer && (
+        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setOfferGenModalOpen(false); }}>
+          <div className="modal-content" style={{ maxWidth: 640 }}>
+            <div className="modal-header">
+              <div>
+                <h3 className="modal-title">Dynamic Employment Offer Letter Generator</h3>
+                <span className="muted" style={{ fontSize: 13 }}>
+                  Candidate: <strong>{v(selectedCandForOffer, 'fullName', 'full_name')}</strong> ({v(selectedCandForOffer, 'email')})
+                </span>
+              </div>
+              <button type="button" className="modal-close-btn" onClick={() => setOfferGenModalOpen(false)}>✕</button>
+            </div>
+
+            <form onSubmit={handleSaveOfferLetter}>
+              <div className="modal-body stack" style={{ gap: 14 }}>
+                <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <label className="field">
+                    Position / Job Title *
+                    <input
+                      required
+                      value={offerGenForm.jobTitle}
+                      onChange={(e) => setOfferGenForm({ ...offerGenForm, jobTitle: e.target.value })}
+                    />
+                  </label>
+                  <label className="field">
+                    Workplace Location
+                    <input
+                      value={offerGenForm.workplaceLocation}
+                      onChange={(e) => setOfferGenForm({ ...offerGenForm, workplaceLocation: e.target.value })}
+                    />
+                  </label>
+                </div>
+
+                <div className="grid" style={{ gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                  <label className="field">
+                    Basic Salary (AED) *
+                    <input
+                      required
+                      type="number"
+                      min="1"
+                      value={offerGenForm.basicSalary}
+                      onChange={(e) => setOfferGenForm({ ...offerGenForm, basicSalary: e.target.value })}
+                    />
+                  </label>
+                  <label className="field">
+                    Housing Allowance (AED)
+                    <input
+                      type="number"
+                      min="0"
+                      value={offerGenForm.housingAllowance}
+                      onChange={(e) => setOfferGenForm({ ...offerGenForm, housingAllowance: e.target.value })}
+                    />
+                  </label>
+                  <label className="field">
+                    Transport Allowance (AED)
+                    <input
+                      type="number"
+                      min="0"
+                      value={offerGenForm.transportAllowance}
+                      onChange={(e) => setOfferGenForm({ ...offerGenForm, transportAllowance: e.target.value })}
+                    />
+                  </label>
+                </div>
+
+                <div style={{ background: 'rgba(0,184,219,0.06)', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(0,184,219,0.2)', fontSize: 13 }}>
+                  <strong>Total Monthly Compensation:</strong>{' '}
+                  <span style={{ color: 'var(--primary, #00b8db)', fontWeight: 700, fontSize: 15 }}>
+                    AED {(Number(offerGenForm.basicSalary || 0) + Number(offerGenForm.housingAllowance || 0) + Number(offerGenForm.transportAllowance || 0)).toLocaleString()}
+                  </span>
+                  {' · '}(Annual: AED {((Number(offerGenForm.basicSalary || 0) + Number(offerGenForm.housingAllowance || 0) + Number(offerGenForm.transportAllowance || 0)) * 12).toLocaleString()})
+                </div>
+
+                <div className="grid" style={{ gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                  <label className="field">
+                    Proposed Joining Date
+                    <input
+                      type="date"
+                      value={offerGenForm.joinDate}
+                      onChange={(e) => setOfferGenForm({ ...offerGenForm, joinDate: e.target.value })}
+                    />
+                  </label>
+                  <label className="field">
+                    Probation (Months)
+                    <select
+                      value={offerGenForm.probationPeriodMonths}
+                      onChange={(e) => setOfferGenForm({ ...offerGenForm, probationPeriodMonths: Number(e.target.value) })}
+                    >
+                      <option value={3}>3 Months</option>
+                      <option value={6}>6 Months (UAE Standard)</option>
+                    </select>
+                  </label>
+                  <label className="field">
+                    Contract Type
+                    <select
+                      value={offerGenForm.contractType}
+                      onChange={(e) => setOfferGenForm({ ...offerGenForm, contractType: e.target.value })}
+                    >
+                      <option value="limited">Limited (Fixed Term)</option>
+                      <option value="unlimited">Unlimited Term</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14 }}>
+                <button
+                  type="button"
+                  className="btn secondary"
+                  onClick={() => handlePreviewPdf(v(selectedCandForOffer, 'id'))}
+                >
+                  🖨️ Preview & Print PDF
+                </button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" className="btn secondary" onClick={() => setOfferGenModalOpen(false)}>
+                    Close
+                  </button>
+                  <button type="submit" className="btn" disabled={offerGenBusy}>
+                    {offerGenBusy ? 'Saving...' : '💾 Generate & Save Offer'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: BRANDED PDF PREVIEW MODAL */}
+      {offerPdfPreviewOpen && (
+        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setOfferPdfPreviewOpen(false); }}>
+          <div className="modal-content" style={{ maxWidth: 840, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+            <div className="modal-header">
+              <h3 className="modal-title">Employment Offer Letter Preview</h3>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    const printWin = window.open('', '_blank');
+                    if (printWin) {
+                      printWin.document.write(offerPreviewHtml);
+                      printWin.document.close();
+                      printWin.focus();
+                      printWin.print();
+                    }
+                  }}
+                >
+                  🖨️ Print / Save as PDF
+                </button>
+                <button type="button" className="modal-close-btn" onClick={() => setOfferPdfPreviewOpen(false)}>✕</button>
+              </div>
+            </div>
+            <div className="modal-body" style={{ flex: 1, overflow: 'auto', background: '#fff', color: '#111', padding: 20, borderRadius: 8 }}>
+              <div dangerouslySetInnerHTML={{ __html: offerPreviewHtml }} />
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
