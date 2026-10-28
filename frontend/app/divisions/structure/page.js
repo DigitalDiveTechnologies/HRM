@@ -126,7 +126,7 @@ export default function CompanyStructurePage() {
     const empId = v(node, 'employeeId', 'employee_id') || (!v(node, 'isVacant', 'is_vacant') ? v(node, 'id') : null);
     // Position chart: id is position id; only navigate when occupied
     if (empId && String(v(node, 'isVacant', 'is_vacant')) !== 'true') {
-      router.push(`/employees?id=${empId}`);
+      router.push(`/employees/?id=${empId}`);
     }
   }
 

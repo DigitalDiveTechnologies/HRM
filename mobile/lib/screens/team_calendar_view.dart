@@ -91,6 +91,7 @@ class _TeamCalendarViewState extends State<TeamCalendarView> {
       final sRaw = pick(r, ['startDate', 'start_date']);
       final eRaw = pick(r, ['endDate', 'end_date']);
       if (sRaw.isEmpty || eRaw.isEmpty) continue;
+
       final s = sRaw.length >= 10 ? sRaw.substring(0, 10) : sRaw;
       final e = eRaw.length >= 10 ? eRaw.substring(0, 10) : eRaw;
 
@@ -127,185 +128,192 @@ class _TeamCalendarViewState extends State<TeamCalendarView> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
-        return Container(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(ctx).height * 0.75,
-          ),
-          decoration: BoxDecoration(
-            color: T.surface(ctx),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 44,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: T.muted(ctx).withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
+        return SafeArea(
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(ctx).height * 0.8,
+            ),
+            decoration: BoxDecoration(
+              color: T.surface(ctx),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: T.muted(ctx).withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        DateFormat('EEEE, MMMM d, yyyy').format(date),
-                        style: Theme.of(ctx).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${dayLeaves.length} colleague${dayLeaves.length == 1 ? '' : 's'} away',
-                        style: TextStyle(color: T.muted(ctx), fontSize: 13),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(ctx).pop(),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // Overlap Warnings for this date
-              if (overlaps.isNotEmpty) ...[
-                ...overlaps.entries.map((entry) {
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: AppColors.warn.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.warn.withValues(alpha: 0.4)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.warning_amber_rounded, color: AppColors.warn, size: 22),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '⚠️ Team Coverage Alert: ${entry.value} colleagues on leave in ${entry.key}',
-                            style: const TextStyle(
-                              color: AppColors.warn,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            DateFormat('EEEE, MMMM d, yyyy').format(date),
+                            style: Theme.of(ctx).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 2),
+                          Text(
+                            '${dayLeaves.length} colleague${dayLeaves.length == 1 ? '' : 's'} away',
+                            style: TextStyle(color: T.muted(ctx), fontSize: 13),
+                          ),
+                        ],
+                      ),
                     ),
-                  );
-                }),
-              ],
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
 
-              if (dayLeaves.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 30),
-                  child: EmptyHint('No colleagues scheduled off on this date.', icon: Icons.celebration_outlined),
-                )
-              else
-                Flexible(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: dayLeaves.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 10),
-                    itemBuilder: (context, idx) {
-                      final item = dayLeaves[idx];
-                      final name = pick(item, ['fullName', 'full_name'], 'Colleague');
-                      final dept = pick(item, ['departmentName', 'department_name'], 'Department');
-                      final lType = pick(item, ['leaveType', 'leave_type'], 'Annual Leave');
-                      final sDate = pick(item, ['startDate', 'start_date']);
-                      final eDate = pick(item, ['endDate', 'end_date']);
-                      final days = pick(item, ['days'], '1');
-                      final reason = pick(item, ['reason']);
-
-                      return Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: T.surface(context),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: T.cardBorder(context)),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            InitialsAvatar(name, size: 42),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    name,
-                                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.accent.withValues(alpha: 0.12),
-                                          borderRadius: BorderRadius.circular(6),
-                                        ),
-                                        child: Text(
-                                          dept,
-                                          style: const TextStyle(
-                                            color: AppColors.accent,
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: T.muted(context).withValues(alpha: 0.12),
-                                          borderRadius: BorderRadius.circular(6),
-                                        ),
-                                        child: Text(
-                                          lType,
-                                          style: TextStyle(
-                                            color: T.ink(context),
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    '${formatDate(sDate)} → ${formatDate(eDate)} · $days day(s)',
-                                    style: TextStyle(color: T.muted(context), fontSize: 12),
-                                  ),
-                                  if (reason.isNotEmpty) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Note: $reason',
-                                      style: TextStyle(color: T.muted(context), fontSize: 11.5, fontStyle: FontStyle.italic),
-                                    ),
-                                  ],
-                                ],
+                // Overlap Warnings for this date
+                if (overlaps.isNotEmpty) ...[
+                  ...overlaps.entries.map((entry) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.warn.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.warn.withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.warning_amber_rounded, color: AppColors.warn, size: 22),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '⚠️ Team Coverage Alert: ${entry.value} colleagues on leave in ${entry.key}',
+                              style: const TextStyle(
+                                color: AppColors.warn,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
                               ),
                             ),
-                          ],
-                        ),
-                      );
-                    },
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+
+                if (dayLeaves.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 30),
+                    child: EmptyHint('No colleagues scheduled off on this date.', icon: Icons.celebration_outlined),
+                  )
+                else
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: dayLeaves.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 10),
+                      itemBuilder: (context, idx) {
+                        final item = dayLeaves[idx];
+                        final name = pick(item, ['fullName', 'full_name'], 'Colleague');
+                        final dept = pick(item, ['departmentName', 'department_name'], 'Department');
+                        final lType = pick(item, ['leaveType', 'leave_type'], 'Annual Leave');
+                        final sDate = pick(item, ['startDate', 'start_date']);
+                        final eDate = pick(item, ['endDate', 'end_date']);
+                        final days = pick(item, ['days'], '1');
+                        final reason = pick(item, ['reason']);
+
+                        return Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: T.surface(context),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: T.cardBorder(context)),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              InitialsAvatar(name, size: 42),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      name,
+                                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 4,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.accent.withValues(alpha: 0.12),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            dept,
+                                            style: const TextStyle(
+                                              color: AppColors.accent,
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: T.muted(context).withValues(alpha: 0.12),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            lType,
+                                            style: TextStyle(
+                                              color: T.ink(context),
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      '${formatDate(sDate)} → ${formatDate(eDate)} · $days day(s)',
+                                      style: TextStyle(color: T.muted(context), fontSize: 12),
+                                    ),
+                                    if (reason.isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Note: $reason',
+                                        style: TextStyle(color: T.muted(context), fontSize: 11.5, fontStyle: FontStyle.italic),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -337,9 +345,15 @@ class _TeamCalendarViewState extends State<TeamCalendarView> {
       child: ListView(
         padding: screenListPadding(context),
         children: [
+          const PageHero(
+            title: 'Team Calendar',
+            subtitle: 'Department absence schedules and coverage alerts',
+            trailing: Icon(Icons.calendar_month_rounded, color: Colors.white, size: 36),
+          ),
+
           // Month navigation header
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [

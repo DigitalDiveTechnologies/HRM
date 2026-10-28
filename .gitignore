@@ -28,3 +28,4 @@ mobile/build/
 .vercel
 tmp/
 *credentials.local*
+*.apk

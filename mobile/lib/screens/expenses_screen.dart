@@ -173,26 +173,17 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       child: ListView(
         padding: screenListPadding(context),
         children: [
-          PageHero(
+          const PageHero(
             title: 'Expense Claims',
             subtitle: 'Submit out-of-pocket expenses and attach receipts',
-            trailing: FilledButton.tonalIcon(
-              onPressed: _openSubmitDialog,
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('New Claim'),
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: AppColors.accentDeep,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              ),
-            ),
+            trailing: Icon(Icons.receipt_long_rounded, color: Colors.white, size: 36),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
                 MetricTile(
-                  label: 'Pending Approval',
+                  label: 'Pending',
                   value: '$pendingCount',
                   icon: Icons.hourglass_top_rounded,
                   color: AppColors.warn,
@@ -212,6 +203,22 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                   color: AppColors.accent,
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Primary Action Button
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: FilledButton.icon(
+              onPressed: _openSubmitDialog,
+              icon: const Icon(Icons.add_circle_outline_rounded, size: 20),
+              label: const Text('Submit New Expense Claim'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                backgroundColor: AppColors.accent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
             ),
           ),
           const SizedBox(height: 14),
@@ -302,7 +309,9 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                                   ],
                                 ),
                                 const SizedBox(height: 3),
-                                Row(
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 4,
                                   children: [
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -315,7 +324,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                                         style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: T.muted(context)),
                                       ),
                                     ),
-                                    const SizedBox(width: 8),
                                     Text(
                                       formatDate(dateStr),
                                       style: TextStyle(color: T.muted(context), fontSize: 12),
@@ -643,252 +651,258 @@ class _SubmitExpenseSheetState extends State<_SubmitExpenseSheet> {
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: T.surface(context),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + bottomInset),
-      child: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 44,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: T.muted(context).withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Submit Expense Claim',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              if (error != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.danger.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
-                  ),
-                  child: Text(error!, style: const TextStyle(color: AppColors.danger, fontSize: 13)),
-                ),
-              ],
-
-              // Category dropdown
-              DropdownButtonFormField<String>(
-                initialValue: category,
-                decoration: const InputDecoration(
-                  labelText: 'Category',
-                  prefixIcon: Icon(Icons.category_outlined),
-                ),
-                items: categories
-                    .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                    .toList(),
-                onChanged: (v) => setState(() => category = v ?? 'Travel'),
-              ),
-              const SizedBox(height: 12),
-
-              // Title / Purpose
-              TextFormField(
-                controller: _titleCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Purpose / Title',
-                  hintText: 'e.g. Taxi to client DIFC meeting',
-                  prefixIcon: Icon(Icons.description_outlined),
-                ),
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) return 'Please enter purpose';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-
-              // Amount & Date row
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _amountCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Amount',
-                        prefixText: 'AED ',
-                        prefixIcon: Icon(Icons.payments_outlined),
-                      ),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Required';
-                        final n = double.tryParse(v.trim());
-                        if (n == null || n <= 0) return 'Must be > 0';
-                        return null;
-                      },
+    return SafeArea(
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.88,
+        ),
+        decoration: BoxDecoration(
+          color: T.surface(context),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + bottomInset),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: T.muted(context).withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: InkWell(
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: DateTime.tryParse(expenseDate) ?? DateTime.now(),
-                          firstDate: DateTime.now().subtract(const Duration(days: 365)),
-                          lastDate: DateTime.now().add(const Duration(days: 30)),
-                        );
-                        if (picked != null) {
-                          setState(() {
-                            expenseDate = '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
-                          });
-                        }
-                      },
-                      child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Expense Date',
-                          prefixIcon: Icon(Icons.calendar_today_outlined),
-                        ),
-                        child: Text(formatDate(expenseDate), style: const TextStyle(fontSize: 13.5)),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // Description notes
-              TextFormField(
-                controller: _notesCtrl,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: 'Notes / Justification (optional)',
-                  hintText: 'Additional details about the expense...',
-                  alignLabelWithHint: true,
                 ),
-              ),
-              const SizedBox(height: 16),
-
-              // Receipt Attachment Box
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: T.surface(context),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: attachedFile != null ? AppColors.accent : T.cardBorder(context),
-                    width: attachedFile != null ? 1.5 : 1.0,
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(Icons.receipt_rounded, size: 20, color: AppColors.accent),
-                            SizedBox(width: 8),
-                            Text(
-                              'Invoice Receipt',
-                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
-                            ),
-                          ],
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: uploading ? null : _pickReceipt,
-                          icon: const Icon(Icons.upload_file_rounded, size: 16),
-                          label: Text(attachedFile == null ? 'Attach File' : 'Change'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      'Submit Expense Claim',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                     ),
-                    if (attachedFile != null && fileBytes != null) ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: AppColors.accent.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.attach_file_rounded, size: 18, color: AppColors.accent),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    attachedFile!.name,
-                                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  Text(
-                                    '${(fileBytes!.length / 1024).toStringAsFixed(1)} KB',
-                                    style: TextStyle(fontSize: 11, color: T.muted(context)),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.clear, size: 18),
-                              onPressed: () {
-                                setState(() {
-                                  attachedFile = null;
-                                  fileBytes = null;
-                                });
-                              },
-                              tooltip: 'Remove',
-                            ),
-                          ],
-                        ),
-                      ),
-                    ] else ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'Supports PDF, PNG, JPG, or WEBP (Max 20MB)',
-                        style: TextStyle(fontSize: 11.5, color: T.muted(context)),
-                      ),
-                    ],
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 20),
+                const SizedBox(height: 12),
 
-              // Submit Button
-              FilledButton.icon(
-                onPressed: uploading ? null : _submit,
-                icon: uploading
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.send_rounded),
-                label: Text(uploading ? 'Submitting Claim…' : 'Submit Claim'),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                if (error != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.danger.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(error!, style: const TextStyle(color: AppColors.danger, fontSize: 13)),
+                  ),
+                ],
+
+                // Category dropdown
+                DropdownButtonFormField<String>(
+                  initialValue: category,
+                  decoration: const InputDecoration(
+                    labelText: 'Category',
+                    prefixIcon: Icon(Icons.category_outlined),
+                  ),
+                  items: categories
+                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                      .toList(),
+                  onChanged: (v) => setState(() => category = v ?? 'Travel'),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+
+                // Title / Purpose
+                TextFormField(
+                  controller: _titleCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Purpose / Title',
+                    hintText: 'e.g. Taxi to client DIFC meeting',
+                    prefixIcon: Icon(Icons.description_outlined),
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Please enter purpose';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+
+                // Amount & Date row
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _amountCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(
+                          labelText: 'Amount',
+                          prefixText: 'AED ',
+                          prefixIcon: Icon(Icons.payments_outlined),
+                        ),
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return 'Required';
+                          final n = double.tryParse(v.trim());
+                          if (n == null || n <= 0) return 'Must be > 0';
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: DateTime.tryParse(expenseDate) ?? DateTime.now(),
+                            firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                            lastDate: DateTime.now().add(const Duration(days: 30)),
+                          );
+                          if (picked != null) {
+                            setState(() {
+                              expenseDate = '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+                            });
+                          }
+                        },
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: 'Expense Date',
+                            prefixIcon: Icon(Icons.calendar_today_outlined),
+                          ),
+                          child: Text(formatDate(expenseDate), style: const TextStyle(fontSize: 13.5)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Description notes
+                TextFormField(
+                  controller: _notesCtrl,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Notes / Justification (optional)',
+                    hintText: 'Additional details about the expense...',
+                    alignLabelWithHint: true,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Receipt Attachment Box
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: T.surface(context),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: attachedFile != null ? AppColors.accent : T.cardBorder(context),
+                      width: attachedFile != null ? 1.5 : 1.0,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.receipt_rounded, size: 20, color: AppColors.accent),
+                              SizedBox(width: 8),
+                              Text(
+                                'Invoice Receipt',
+                                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+                              ),
+                            ],
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: uploading ? null : _pickReceipt,
+                            icon: const Icon(Icons.upload_file_rounded, size: 16),
+                            label: Text(attachedFile == null ? 'Attach File' : 'Change'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (attachedFile != null && fileBytes != null) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: AppColors.accent.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.attach_file_rounded, size: 18, color: AppColors.accent),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      attachedFile!.name,
+                                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      '${(fileBytes!.length / 1024).toStringAsFixed(1)} KB',
+                                      style: TextStyle(fontSize: 11, color: T.muted(context)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.clear, size: 18),
+                                onPressed: () {
+                                  setState(() {
+                                    attachedFile = null;
+                                    fileBytes = null;
+                                  });
+                                },
+                                tooltip: 'Remove',
+                              ),
+                            ],
+                          ),
+                        ),
+                      ] else ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Supports PDF, PNG, JPG, or WEBP (Max 20MB)',
+                          style: TextStyle(fontSize: 11.5, color: T.muted(context)),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Submit Button
+                FilledButton.icon(
+                  onPressed: uploading ? null : _submit,
+                  icon: uploading
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.send_rounded),
+                  label: Text(uploading ? 'Submitting Claim…' : 'Submit Claim'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -859,7 +859,12 @@ export default function AppShell({ title, subtitle, actions, children }) {
                           } else if (lower === 'setting' || lower === 'settings' || lower === 'role' || lower === 'roles' || lower === 'permissions' || lower === 'permission') {
                             router.push('/settings/roles');
                           } else {
-                            router.push(`/employees?search=${encodeURIComponent(val)}`);
+                            const target = `/employees/?search=${encodeURIComponent(val)}`;
+                            if (typeof window !== 'undefined') {
+                              window.location.href = target;
+                            } else {
+                              router.push(target);
+                            }
                           }
                         }
                       }}

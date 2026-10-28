@@ -166,17 +166,12 @@ class _LeaveScreenState extends State<LeaveScreen> {
 
     return Column(
       children: [
-        PageHero(
-          title: 'Leave Management',
-          subtitle: activeTab == 0
-              ? 'Request time off and track approvals'
-              : 'Interactive departmental absence schedule',
-          trailing: const Icon(Icons.beach_access_rounded, color: Colors.white, size: 36),
-        ),
+        // Top compact segmented control
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
           child: Container(
-            padding: const EdgeInsets.all(4),
+            height: 42,
+            padding: const EdgeInsets.all(3),
             decoration: BoxDecoration(
               color: T.surface(context),
               borderRadius: BorderRadius.circular(12),
@@ -195,6 +190,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
             ),
           ),
         ),
+
         Expanded(
           child: activeTab == 1
               ? const TeamCalendarView()
@@ -203,6 +199,11 @@ class _LeaveScreenState extends State<LeaveScreen> {
                   child: ListView(
                     padding: screenListPadding(context),
                     children: [
+                      const PageHero(
+                        title: 'Leave',
+                        subtitle: 'Request time off and track approvals',
+                        trailing: Icon(Icons.beach_access_rounded, color: Colors.white, size: 36),
+                      ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Row(

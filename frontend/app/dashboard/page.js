@@ -2456,7 +2456,7 @@ export default function DashboardPage() {
                   return (
                     <Link
                       key={idx}
-                      href={`/employees?search=${encodeURIComponent(empName)}#all-employees`}
+                      href={`/employees/?search=${encodeURIComponent(empName)}#all-employees`}
                       style={{
                         display: 'flex',
                         alignItems: 'center',

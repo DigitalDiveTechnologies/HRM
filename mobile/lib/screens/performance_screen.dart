@@ -655,14 +655,18 @@ class _PeerFeedbackSheetState extends State<_PeerFeedbackSheet> {
     final nomineeName = pick(widget.nomination, ['nominee_name', 'nomineeName', 'fullName', 'full_name'], 'Colleague');
     final nomineeTitle = pick(widget.nomination, ['nominee_title', 'nomineeTitle', 'jobTitle', 'job_title'], 'Colleague');
 
-    return Container(
-      decoration: BoxDecoration(
-        color: T.surface(context),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + bottomInset),
-      child: SingleChildScrollView(
-        child: Column(
+    return SafeArea(
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.88,
+        ),
+        decoration: BoxDecoration(
+          color: T.surface(context),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + bottomInset),
+        child: SingleChildScrollView(
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -792,6 +796,7 @@ class _PeerFeedbackSheetState extends State<_PeerFeedbackSheet> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }
